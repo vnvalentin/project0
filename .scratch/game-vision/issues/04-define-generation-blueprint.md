@@ -1,5 +1,5 @@
 Type: research
-Status: unclaimed
+Status: resolved
 Blocked by: 01, 02
 
 ## Question

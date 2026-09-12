@@ -1,5 +1,5 @@
 Type: task
-Status: unclaimed
+Status: resolved
 Blocked by: 01, 02, 07
 
 ## Question

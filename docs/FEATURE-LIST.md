@@ -6,10 +6,17 @@ Owner: valentin.vn@gmail.com
 
 ## Rule
 
-This record owns product capabilities. Record each feature as planned (`P-`),
-in progress (`IP-`), or implemented (`F-`). A feature becomes implemented only
-after focused validation passes. Do not describe planned or unvalidated work as
-implemented.
+This record owns product capabilities. Each capability moves through the
+delivery lifecycle defined in `DEVELOPMENT-WORKFLOW.md`: `Planned` → `Ready` →
+`In Progress` (Active) → `Implemented` (Done). A capability is `Ready` only when
+every originating implementation (`task`) issue under its `.scratch/<goal>/` map
+is `resolved`; it becomes `Implemented` only after focused validation passes. Do
+not describe planned, ready, or unvalidated work as implemented.
+
+Stable identifiers: a feature keeps ONE identifier for life and carries its
+stage in the `Status:` field. The legacy `P-`/`IP-`/`F-` prefixes are frozen,
+opaque history and no longer signal status — never rename an item when its
+status changes. New features take the next unused number as `F-<n>`.
 
 Each feature identifies the user capability, problem solved, current status,
 linked phase, implementation slices, public seam, and validation evidence. On
@@ -60,24 +67,6 @@ feature so future drift is easier to detect.
 - Phase: 7. Delivery workflow capabilities
 - Public seam: `.gitignore`, scan configuration, and a documented asset validation command.
 - Validation: A future slice must prove source scans exclude quarantined assets while the game/runtime asset path remains explicit and usable.
-
-### P-007: Living architecture anchor
-
-- Status: `Planned`
-- Feature: A concise root `CLAUDE.md` records durable architecture boundaries and points agents to the authoritative project records.
-- Problem solved: Agents otherwise reconstruct architecture from scattered files and may lose important constraints between sessions.
-- Phase: 7. Delivery workflow capabilities
-- Public seam: Root `CLAUDE.md` and linked `AGENTS.md`, `CONTEXT.md`, and delivery records.
-- Validation: A documentation slice must prove the anchor stays concise, links resolve, and implementation guidance does not diverge from authoritative records.
-
-### P-008: Just-in-time sector generation
-
-- Status: `Planned`
-- Feature: When a player reaches an ungenerated sector boundary, the server requests sector content asynchronously without blocking the live multiplayer loop.
-- Problem solved: The game needs expandable world content without a synchronous generation pause.
-- Phase: 8. JIT world generation and local inference
-- Public seam: Server sector request queue, generation state, completion signal, and failure telemetry.
-- Validation: A future slice must prove non-blocking request handling, bounded failure behavior, and no sector becomes Canon before validation and persistence.
 
 ### P-009: Hardware-accelerated local inference
 
@@ -149,20 +138,167 @@ feature so future drift is easier to detect.
 - Public seam: Server container entrypoint, tick loop, health output, and runtime telemetry.
 - Validation: A future slice must prove container startup, tick-rate bounds, clean shutdown, and no client-side authority over server state.
 
-### P-015: Authoritative action input
+### P-016: Biological progression and kinetic combat systems
 
 - Status: `Planned`
-- Feature: Client action input, including sword slashing, is validated and resolved by the authoritative server while the client presents responsive feedback.
-- Problem solved: Action gameplay must remain responsive without allowing clients to decide combat outcomes.
-- Phase: 10. Authoritative runtime and action input
-- Public seam: Action intent RPC, server validation/resolution, replicated result, and rejection telemetry.
-- Validation: A future slice must cover accepted, rejected, duplicated, and out-of-order action intents.
+- Feature: Players develop a fixed-budget six-attribute biological vessel,
+  derived kinetic capabilities, permanent Meridian pathways, temporary
+  Burnout, and equilibrium-bound magic through server-validated play.
+- Problem solved: Combat and progression need one coherent opportunity-cost
+  model that rewards embodied play without stat-gating player reasoning.
+- Phase: 12. Biological progression and kinetic systems (also constrains Phase 10)
+- Public seam: Future versioned shared contracts, server-owned progression and
+  action-resolution services, replicated effective state, and client
+  presentation/prediction adapters defined by `CLAUDE.md` and ADR 0002.
+- Validation: Future slices must prove fixed-budget redistribution, trusted
+  progression evidence, friction penalties, Meridian idempotency, Burnout
+  expiry without base-state mutation, magic equilibrium rejection, and client
+  reconciliation at public server seams.
+- Related work: [Slice 010](slices/010-core-mechanics-architecture.md),
+  [Slice 011](slices/011-mind-tool-architecture-refinement.md),
+  [ADR 0002](adr/0002-authoritative-mechanics-and-progression.md)
 
 The remaining scope of server-authoritative networked
 multiplayer (movement synchronization, prediction, and world-state
 replication) is completed in Slices 002, 004, 005, and 007.
 
+## Ready Features
+
+Design-complete capabilities whose originating issues are all `resolved`, ready
+for a developer to pick up. No implementation has started.
+
+### P-024: Public game access via OPNsense-native WireGuard
+
+- Status: `Ready`
+- Feature: Remote players reach the home-hosted authoritative server over a
+  split-tunnel WireGuard connection — an in-process userspace netstack
+  GDExtension in the Godot client, an invite-code enrollment service, and
+  OPNsense-managed peers — without a VPS, OS admin rights, or exposing the LAN.
+- Problem solved: The server is only reachable on the LAN today; public play
+  needs secure remote access that neither routes through a cloud relay nor
+  grants tunnel clients broader reach than the single game host.
+- Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
+  (SDD-GAME-WG-001); no implementation slice has started.
+- Phase: 13. Public game access
+- Public seam: Future `wgnetstack` GDExtension and its Godot loopback bridge,
+  the enrollment service API, `infra/opnsense/` WireGuard/firewall automation,
+  and the host firewall lockdown script.
+- Validation: Future slices must prove an unprivileged client tunnel on Windows
+  and Linux, invite-code enrollment and OPNsense peer registration, split-tunnel
+  isolation (WireGuard → game host `/32` only, default-deny to LAN), and peer
+  revocation/ban teardown within one keepalive interval.
+- Related work: [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md),
+  [ENet netstack bridging](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md),
+  [GDExtension netstack prototype](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md),
+  [OPNsense infra automation](../.scratch/wan-wireguard/issues/03-opnsense-wireguard-infra-automation.md),
+  [enrollment invite service](../.scratch/wan-wireguard/issues/04-enrollment-service-invite-system.md),
+  [host firewall lockdown](../.scratch/wan-wireguard/issues/05-host-firewall-lockdown-script.md),
+  [revocation and ban lifecycle](../.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md)
+
 ## In Progress Features
+
+### IP-023: Basic monster combat
+
+- Status: `In Progress`
+- Feature: Server-authoritative "basic monsters" the player can fight — a flat
+  HP/damage/death model now, with a detect/chase/attack AI and spawning to
+  follow.
+- Problem solved: The world has a stationary target dummy but no actual enemy
+  with health that can be defeated; the starting area needs something to fight.
+- How it solves the problem so far: Slice 020 adds `shared/monster_contracts.gd`
+  (`MonsterContracts`) — a provisional flat `MonsterCombatState`
+  (`current_hp`/`max_hp`/`target_id`, `apply_damage` clamped at 0 and reporting
+  the death transition exactly once, `is_dead`) with fixed `MAX_HP`/`DAMAGE_PER_HIT`
+  constants (a deterministic 3 hits to defeat) — and a new `COMBAT_EVENT_DEATH`
+  kind on `shared/combat_contracts.gd` reusing the existing `CombatEvent` shape.
+  The monster AI state machine, spawning, and telemetry are later slices, so
+  the feature stays `In Progress`.
+- Phase: 10. Authoritative runtime and action input
+- Implementation slices: [Slice 020](slices/020-monster-hp-damage-death.md), [Slice 021](slices/021-monster-ai-state-machine.md)
+- Public seam: `shared/monster_contracts.gd`
+  (`MAX_HP`, `DAMAGE_PER_HIT`, `WINDUP_TICKS`, `ATTACK_ACTIVE_TICKS`,
+  `RECOVERY_TICKS`, `DETECTION_RADIUS_METERS`, `CHASE_SPEED_METERS_PER_SEC`,
+  `MONSTER_REACH_METERS`, `MONSTER_ARC_DEGREES`, `PHASE_*`, `MonsterCombatState`,
+  `default_monster`, `monster_attack_archetype`), `shared/combat_contracts.gd`
+  (`COMBAT_EVENT_DEATH`), `server/server_monster_state.gd`
+  (`advance`, `receive_damage`, `phase_changed`, `attack_resolved`, `died`).
+- Validation: See [Slice 020](slices/020-monster-hp-damage-death.md) and
+  [Slice 021](slices/021-monster-ai-state-machine.md) for exact commands and
+  results (Slice 020: 6/6 focused; Slice 021: 10/10 focused, 133/133 full
+  suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Basic Monsters map](../.scratch/basic-monsters/map.md),
+  [issue 01](../.scratch/basic-monsters/issues/01-hp-damage-death-model.md),
+  [issue 02](../.scratch/basic-monsters/issues/02-monster-state-machine-with-telegraph.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 020 — the provisional flat monster
+    HP/damage/death contract and the shared `COMBAT_EVENT_DEATH` kind, the first
+    Basic Monsters slice.
+    Why: Give the detect/chase/attack monster AI (next slice) a validated,
+    bounded combat contract to build on before any runtime or spawning.
+    Related work: [Slice 020](slices/020-monster-hp-damage-death.md)
+    Validation: See Slice 020 validation section.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 021 — the authoritative detect → chase →
+    windup → attack → recovery state machine (`server/server_monster_state.gd`)
+    with a dodge-able attack telegraph, reuse of the shared reach/arc hit test,
+    per-transition/attack/death telemetry signals, and a binding
+    `WINDUP_TICKS >= player windup` fairness regression test.
+    Why: Give the monster real, readable authoritative behavior before wiring
+    spawning and the server tick loop.
+    Related work: [Slice 021](slices/021-monster-ai-state-machine.md)
+    Validation: See Slice 021 validation section.
+
+### IP-008: Just-in-time sector generation
+
+- Status: `In Progress`
+- Feature: When a player reaches an ungenerated sector boundary, the server requests sector content asynchronously without blocking the live multiplayer loop.
+- Problem solved: The game needs expandable world content without a synchronous generation pause.
+- How it solves the problem so far: Slice 009 adds `server/provisional_sector_generator.gd`, a public seam that accepts a sector-generation request keyed by sector id, drives the existing async `SectorBlueprintService`, and exposes in-memory pending/ready state and a completion signal — all without blocking the SceneTree/multiplayer loop. Sector-boundary detection (the trigger for *when* a player reaches an ungenerated sector) is not yet built, so the feature remains `In Progress` rather than `Implemented`.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 009](slices/009-provisional-sector-generation.md)
+- Public seam: `server/provisional_sector_generator.gd` (`request_provisional_sector`, `get_status`, `get_correlation_id`, `get_provisional_result`, `provisional_sector_ready`).
+- Validation: See [Slice 009](slices/009-provisional-sector-generation.md) for the exact commands and results (9/9 focused tests, 23/23 full suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [Provisional sector generation](../.scratch/game-vision/issues/16-provisional-sector-generation.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 009 — a request-acceptance and in-memory
+    provisional-outcome seam in front of the unchanged Slice 008
+    `SectorBlueprintService`. Renamed from `P-008` to `IP-008` because a live,
+    validated public seam now exists, even though boundary detection remains
+    unbuilt.
+    Why: Close the non-blocking request-orchestration half of just-in-time
+    sector generation before boundary detection or Canon persistence work.
+    Related work: [Slice 009](slices/009-provisional-sector-generation.md)
+    Validation: `godot --headless -s addons/gut/gut_cmdln.gd
+    -gdir=res://tests/integration -gselect=test_provisional_sector_generation
+    -gexit` passed 9/9 tests, 32 assertions, exit 0; the full configured GUT
+    suite (`scripts/run_gut_validation.sh`) passed 23/23 tests, 70 assertions,
+    exit 0.
+
+### IP-015: Authoritative action input
+
+- Status: `In Progress`
+- Feature: Client action input, including sword slashing, is validated and resolved by the authoritative server while the client presents responsive feedback.
+- Problem solved: Action gameplay must remain responsive without allowing clients to decide combat outcomes.
+- How it solves the problem so far: Slice 012 adds the first authoritative action: a bounded melee `ActionIntent`/`ActionResolution`/`CombatEvent` contract (`shared/combat_contracts.gd`), a per-peer fixed-60Hz-tick `WINDUP -> ACTIVE -> RECOVERY -> IDLE` state machine with monotonic sequence validation, idempotent replay, and bounded rejection codes (`server/server_player_state.gd`), authoritative locomotion throttling during WINDUP/RECOVERY, and a deterministic vector reach/arc hit test against a server-owned stationary `TargetDummy` that broadcasts a replicated `CombatEvent.HIT` (`server/server_main.gd`). The client captures attack input, predicts the disposable windup/recovery locomotion slowdown, and reconciles on rejection (`client/player.gd`); a client-side target dummy renders a flash/wobble reaction to the authoritative hit (`client/target_dummy.gd`). Slice 013 adds a purely cosmetic strike-line telegraph (`client/melee_strike_visual.gd`): the attacker's own client shows it during its disposable predicted `ACTIVE` window (hiding immediately on rejection), and a new server-broadcast `melee_swing_started` signal (`server/server_player_state.gd`, relayed by `server/server_main.gd`) lets every other connected peer's `RemotePlayer` mirror an equivalent timed line, all without any client asserting a hit or altering reach/arc truth. Only melee strikes against one stationary dummy exist so far — no damage/HP, other action kinds, moving targets, or PvP — so the feature remains `In Progress` rather than `Implemented`.
+- Phase: 10. Authoritative runtime and action input
+- Implementation slices: [Slice 012](slices/012-authoritative-melee-strike.md), [Slice 013](slices/013-melee-strike-visual-indicator.md)
+- Public seam: `shared/combat_contracts.gd`, `server/server_player_state.gd` (`apply_action_intent`, `set_target_dummies`, `action_resolved`, `combat_event_emitted`, `melee_swing_started`), `server/server_main.gd` (target dummy spawn and RPC relay, `melee_swing_started` relay), `client/network_client.gd` (`submit_action_intent`, `receive_action_resolution`, `receive_combat_event`, `receive_melee_swing_started`), `client/player.gd`, `client/target_dummy.gd`, `client/remote_player.gd`, `client/melee_strike_visual.gd`.
+- Validation: See [Slice 012](slices/012-authoritative-melee-strike.md) and [Slice 013](slices/013-melee-strike-visual-indicator.md) for exact commands and results (Slice 012: 21/21 focused unit tests, 4/4 focused integration tests, a real two-process ENet smoke test, and 48/48 full suite, exit 0; Slice 013: 9/9 focused unit tests, 23 assertions, and 57/57 full suite, 161 assertions, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [melee-combat map](../.scratch/melee-combat/map.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 012 — the first authoritative melee-strike action, its shared contracts, server state machine, client prediction/reconciliation, and target dummy. Renamed from `P-015` to `IP-015` because a live, validated public seam now exists, even though only one action kind and one stationary target exist so far.
+    Why: Close the melee-combat decision map's (`.scratch/melee-combat/`) first implementation slice before any damage, progression, or additional action kinds.
+    Related work: [Slice 012](slices/012-authoritative-melee-strike.md)
+    Validation: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gselect=test_melee_combat_contracts -gexit` passed 21/21 tests, 54 assertions, exit 0; `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/integration -gselect=test_authoritative_melee_strike -gexit` passed 4/4 tests, 14 assertions, exit 0; `godot --headless -s scripts/test_authoritative_melee_strike_e2e.gd` (real two-process ENet) printed `ALL PASS`, exit 0; the full configured GUT suite (`scripts/run_gut_validation.sh`) passed 48/48 tests, 138 assertions, exit 0.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 013 — a purely cosmetic melee strike-line visual indicator for both the attacking client (timed from its existing disposable predicted phase) and every remote observer (timed from a new server-broadcast `melee_swing_started` signal). Added no new authoritative state, `ActionIntent`/`ActionResolution` fields, or hit-test logic.
+    Why: Slice 012 proved authoritative hit registration but gave neither the attacker nor observers any visible read on the swing window; this closes that presentation gap without touching combat authority.
+    Related work: [Slice 013](slices/013-melee-strike-visual-indicator.md)
+    Validation: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gselect=test_melee_strike_visual_indicator -gexit` passed 9/9 tests, 23 assertions, exit 0; the full configured GUT suite (`scripts/run_gut_validation.sh`) passed 57/57 tests, 161 assertions, exit 0.
 
 ### IP-001: Server-authoritative networked multiplayer
 
@@ -246,6 +382,295 @@ replication) is completed in Slices 002, 004, 005, and 007.
 
 ## Implemented Features
 
+### F-022: Player house allocation
+
+- Status: `Implemented`
+- Feature: Each connecting peer is assigned a unique house from the starting
+  town's fixed 10-house pool, server-authoritatively, freed immediately on
+  disconnect; the owning client sees "Your house: <id>" in its HUD.
+- Problem solved: The town has 10 houses but nothing tied a player to one; the
+  original vision is that each adventurer gets their own house in town.
+- How it solves the problem: Slice 019 adds `server/house_allocator.gd` (a pure,
+  unit-testable allocator: first-available, idempotent per peer, fail-closed on
+  exhaustion, immediate release with no reconnect reservation) built from the
+  Slice 016 hub blueprint's `house` structures. `server/server_main.gd` assigns
+  on connect (telemetry-logged) and notifies only the owning client via a new
+  `receive_assigned_house` reliable RPC on `client/network_client.gd`, which a
+  `HouseLabel` HUD element (`client/assigned_house_label.gd`) presents.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 019](slices/019-player-house-allocation.md)
+- Public seam: `server/house_allocator.gd`
+  (`house_ids_from_blueprint`, `assign`, `release`, `assigned_house`,
+  `available_count`, `pool_size`), `server/server_main.gd`
+  (`get_assigned_house`), `client/network_client.gd`
+  (`receive_assigned_house`, `assigned_house_received`).
+- Validation: See [Slice 019](slices/019-player-house-allocation.md) for exact
+  commands and results (7/7 allocator unit tests, 1/1 HUD test, 117/117 full
+  suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Starting Town map](../.scratch/starting-town/map.md),
+  [issue 05](../.scratch/starting-town/issues/05-player-house-allocation.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 019 — server-authoritative unique-house
+    allocation from the hub's fixed 10-house pool, freed on disconnect, surfaced
+    in the owning client's HUD. Fixed an in-development headless class-cache
+    parse error (a bare `HouseAllocator` type annotation) surfaced by the full
+    suite before completion.
+    Why: Deliver the Starting Town map's final planning ticket (player house
+    allocation), realizing "each adventurer gets their own house in town".
+    Related work: [Slice 019](slices/019-player-house-allocation.md)
+    Validation: See Slice 019 validation section.
+
+### F-021: Facade enter/exit proximity labels
+
+- Status: `Implemented`
+- Feature: Walking the local player up to a starting-town building (House,
+  Smithy, Armor Shop, Inn) shows a cosmetic "You are at the <building>" label
+  that clears when they walk away.
+- Problem solved: The rendered town (Slice 017) was inert; there was no
+  feedback for approaching a building, and no seam for "where the adventure
+  begins" interactions.
+- How it solves the problem: Slice 018 adds `client/facade_proximity.gd` (an
+  `Area3D` on each structure prefab that filters to the local `Player` body and
+  reports to a presenter found via the `facade_presenter` group) and
+  `client/facade_presenter.gd` (a `Label` in the gameplay UI). Each of the four
+  `client/structures/*.tscn` prefabs gains a `FacadeProximity` area with its
+  building name; `client/gameplay.tscn` gains the presenter `FacadeLabel`. It is
+  purely client-observed and cosmetic — no server authority, no exclusivity, no
+  interior scene.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 018](slices/018-facade-enter-exit.md)
+- Public seam: `client/facade_proximity.gd`
+  (`is_local_player`, `building_display_name`),
+  `client/facade_presenter.gd` (`show_facade`, `clear_facade`, `line_for`,
+  `GROUP_NAME`).
+- Validation: See [Slice 018](slices/018-facade-enter-exit.md) for exact
+  commands and results (4/4 presenter unit tests, 5/5 proximity integration
+  tests incl. a real physics-overlap test, 109/109 full suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Starting Town map](../.scratch/starting-town/map.md),
+  [issue 04](../.scratch/starting-town/issues/04-facade-representation-and-enter-exit.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 018 — cosmetic client-only facade proximity
+    labels on the four starting-town building prefabs, plus a UI presenter.
+    Fixed an in-development regression (a malformed 11-value `Transform3D` in
+    the four structure prefabs) surfaced by the full suite before completion.
+    Why: Make the now-visible starting town interactive (the map's facade
+    enter/exit planning ticket), toward the "adventures begin in a tavern" goal.
+    Related work: [Slice 018](slices/018-facade-enter-exit.md)
+    Validation: See Slice 018 validation section.
+
+### F-020: Server-to-client sector blueprint replication
+
+- Status: `Implemented`
+- Feature: On connect, the server replicates the validated starting town hub
+  blueprint to each client, which re-validates it and renders it into a
+  dedicated `SectorGeometry` scene node — producing a visible, end-to-end
+  starting town (server hub fixture → wire → client-rendered geometry).
+- Problem solved: The server held a validated hub (Slice 016) and the client
+  could translate a blueprint into geometry (Slice 015), but nothing connected
+  the two; a validated blueprint had no path from server to a client's scene.
+- How it solves the problem: Slice 017 adds a reliable authority RPC
+  `receive_sector_blueprint(blueprint)` on `client/network_client.gd`, sent by
+  `server/server_main.gd._on_peer_connected` (before player-spawn RPCs) with
+  the in-memory hub Dictionary. The client re-validates through
+  `SectorBlueprintSchema.validate()` at the boundary and, only on success,
+  runs the Slice 015 `SectorGeometryTranslator` into a dedicated
+  `SectorGeometry` node, leaving `FlatPlane`/`Player`/UI untouched. An invalid
+  payload renders nothing. The render logic is a static, parent-injected
+  `render_sector_blueprint()` seam for testability; a `sector_blueprint_received`
+  signal plus send/receive logs provide replication telemetry.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 017](slices/017-blueprint-replication.md)
+- Public seam: `client/network_client.gd`
+  (`receive_sector_blueprint`, `render_sector_blueprint`,
+  `sector_blueprint_received`), `server/server_main.gd`
+  (`_on_peer_connected` send).
+- Validation: See [Slice 017](slices/017-blueprint-replication.md) for exact
+  commands and results (4/4 focused tests, 100/100 full suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Starting Town map](../.scratch/starting-town/map.md),
+  [issue 06](../.scratch/starting-town/issues/06-blueprint-replication-contract.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 017 — reliable server→client replication of
+    the validated hub blueprint, re-validated and rendered client-side into a
+    dedicated `SectorGeometry` node, completing the Starting Town map
+    end-to-end.
+    Why: Close the map's final resolved planning ticket (blueprint replication
+    contract) so the hub is actually visible in a connected client, unblocking
+    facade-interaction and house-allocation slices.
+    Related work: [Slice 017](slices/017-blueprint-replication.md)
+    Validation: See Slice 017 validation section.
+
+### F-019: Starting town hub fixture
+
+- Status: `Implemented`
+- Feature: The headless server materializes a hard-coded, schema-v2 starting
+  town hub blueprint (reserved `sector_id` `starting_town_hub`, a bounded
+  wall/corridor/floor footprint, and 13 structures — a 10-house player pool
+  plus Smithy, Armor Shop, and Inn) at boot, validating it through the same
+  `SectorBlueprintSchema` the LLM path uses and failing closed if it is
+  invalid.
+- Problem solved: The starting town must reliably contain the same buildings
+  every run; live LLM generation cannot guarantee that, so the hub ships as
+  static, server-owned, schema-validated data rather than a generated sector.
+- How it solves the problem: Slice 016 adds
+  `server/starting_town_hub_fixture.gd` (a `RefCounted` with static
+  `blueprint()` and a pure fail-closed `materialize()` seam) and wires it into
+  `server/server_main.gd._start_server()`, which validates the fixture before
+  opening a socket, holds the validated blueprint in memory (exposed read-only
+  via `get_starting_town_hub_blueprint()`), and refuses to start (`quit(1)`,
+  logging the outcome/detail) if validation fails. The hub bypasses Ollama and
+  `provisional_sector_generator.gd` entirely.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 016](slices/016-starting-town-hub-fixture.md)
+- Public seam: `server/starting_town_hub_fixture.gd`
+  (`SECTOR_ID`, `blueprint()`, `materialize()`),
+  `server/server_main.gd` (`get_starting_town_hub_blueprint()`).
+- Validation: See [Slice 016](slices/016-starting-town-hub-fixture.md) for
+  exact commands and results (8/8 focused tests, 96/96 full suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Starting Town map](../.scratch/starting-town/map.md),
+  [issue 03](../.scratch/starting-town/issues/03-hub-sector-identity-and-pinning.md),
+  [issue 05](../.scratch/starting-town/issues/05-player-house-allocation.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 016 — a hard-coded, schema-validated
+    starting town hub fixture materialized fail-closed at server boot and held
+    in memory for future client replication.
+    Why: Close the Starting Town map's third resolved planning ticket (hub
+    sector identity and pinning) so a reliable, reproducible town exists before
+    replication, facade interaction, or per-player house allocation slices.
+    Related work: [Slice 016](slices/016-starting-town-hub-fixture.md)
+    Validation: See Slice 016 validation section.
+
+### F-018: Client-side sector geometry translation
+
+- Status: `Implemented`
+- Feature: A validated sector blueprint Dictionary (schema v1 or v2) is
+  translated on the client into 3D scene geometry: procedural per-kind boxes
+  for tiles and instanced placeholder prefab scenes for structures.
+- Problem solved: A validated blueprint had no path to becoming visible scene
+  geometry; CLAUDE.md previously treated geometry translation as fully
+  unimplemented.
+- How it solves the problem: Slice 015 adds `shared/sector_geometry_lookup.gd`
+  (a pure `RefCounted` helper, no scene-tree dependency) mapping tile kind to
+  mesh/collision box dimensions and structure kind to a `PackedScene` path,
+  and `client/sector_geometry_translator.gd`, which takes an already-validated
+  blueprint Dictionary and a parent `Node3D` and instantiates one
+  `StaticBody3D`/`MeshInstance3D`/`CollisionShape3D` per tile and one
+  `PackedScene.instantiate()` per structure at its `x`/`y`/`facing_degrees`.
+  Four placeholder structure scenes
+  (`client/structures/{house,smithy,armor_shop,inn}.tscn`) follow the existing
+  `TargetDummy`-style placeholder-art convention.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 015](slices/015-sector-geometry-translation.md)
+- Public seam: `shared/sector_geometry_lookup.gd`,
+  `client/sector_geometry_translator.gd`.
+- Validation: See [Slice 015](slices/015-sector-geometry-translation.md) for
+  exact commands and results.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Starting Town map](../.scratch/starting-town/map.md),
+  [issue 02](../.scratch/starting-town/issues/02-geometry-translation-strategy.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 015 — client-side translation of a
+    validated sector blueprint into procedural tile geometry and instanced
+    placeholder structure prefabs.
+    Why: Close the Starting Town map's second resolved planning ticket
+    (geometry translation strategy) before hub materialization, facade
+    interaction, or player house allocation work.
+    Related work: [Slice 015](slices/015-sector-geometry-translation.md)
+    Validation: See Slice 015 validation section.
+
+### F-017: Sector blueprint schema v2 — structures and spawn points
+
+- Status: `Implemented`
+- Feature: The sector blueprint validator accepts an optional version-two
+  shape (`structures` and `spawn_points` arrays) alongside the existing
+  tiles-only version-one contract, so a future town-like hub sector can
+  describe building placements and monster spawn markers without weakening
+  or replacing plain version-one sectors.
+- Problem solved: The Starting Town map needs a validated way to describe
+  House/Smithy/Armor Shop/Inn placements and monster spawn markers before any
+  geometry translation, hub materialization, or monster work can begin.
+- How it solves the problem: Slice 014 changes `schema_version` validation
+  from strict equality to a supported-set check (`1` or `2`), and adds two
+  new optional top-level arrays validated with the same fail-closed style as
+  the existing `tiles` array: `structures` (unique `structure_id`, a `kind`
+  bounded by `SUPPORTED_STRUCTURE_KINDS`, bounded `x`/`y`, and
+  `facing_degrees` in `[0, 360)`) and `spawn_points` (`spawn_id`, bounded
+  `x`/`y`, bounded in count by `MAX_SPAWN_POINT_COUNT = 16`). Absent or empty
+  arrays remain valid for both schema versions, so existing non-town v1
+  sectors are unaffected. `server/sector_blueprint_service.gd` required no
+  change since it already forwards whatever outcome/blueprint the validator
+  returns.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 014](slices/014-sector-blueprint-schema-v2-structures.md)
+- Public seam: `shared/sector_blueprint_schema.gd`.
+- Validation: See [Slice 014](slices/014-sector-blueprint-schema-v2-structures.md)
+  for exact commands and results (16/16 focused unit tests, 20 assertions;
+  77/77 full suite, 188 assertions, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Starting Town map](../.scratch/starting-town/map.md),
+  [issue 01](../.scratch/starting-town/issues/01-schema-v2-structures-and-spawn-points.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 014 — version-2-capable sector blueprint
+    validation with optional `structures` and `spawn_points` arrays,
+    preserving version-1 backward compatibility.
+    Why: Close the Starting Town map's first resolved planning ticket (schema
+    v2 shape) before any geometry translation, hub materialization, or
+    monster spawning work.
+    Related work: [Slice 014](slices/014-sector-blueprint-schema-v2-structures.md)
+    Validation: `godot --headless -s addons/gut/gut_cmdln.gd
+    -gdir=res://tests/unit -gselect=test_sector_blueprint_schema_v2 -gexit`
+    passed 16/16 tests, 20 assertions, exit 0; the full configured GUT suite
+    (`scripts/run_gut_validation.sh`) passed 77/77 tests, 188 assertions,
+    exit 0.
+
+### F-007: Living architecture anchor
+
+- Status: `Implemented`
+- Feature: Root `CLAUDE.md` records durable architecture boundaries and the
+  normative combat, progression, magic, and Canon contract while pointing
+  agents to authoritative project records.
+- Problem solved: Agents otherwise reconstruct architecture from scattered
+  files and may introduce contradictory authority or state rules.
+- How it solves the problem: Slice 010 defines binding server/client ownership,
+  six-node vessel and derived-state rules, Kinetic/Meridian/Burnout behavior,
+  magic equilibrium, versioned contracts, intent validation, Canon boundaries,
+  telemetry, implementation placement, and test seams while distinguishing the
+  current implementation from future target behavior.
+- Phase: 7. Delivery workflow capabilities
+- Implementation slices: [Slice 010](slices/010-core-mechanics-architecture.md)
+- Public seam: Root `CLAUDE.md`, linked `AGENTS.md`, `CONTEXT.md`, ADR 0002,
+  and delivery records.
+- Validation: Slice 010's required-term/placeholder and local-link checks passed
+  with exit 0. `scripts/run_gut_validation.sh` passed 23/23 tests and 70
+  assertions with exit 0; JUnit and JSON summary artifacts were verified.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [ADR 0002](adr/0002-authoritative-mechanics-and-progression.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Slice 011 made Mind versus Tool an explicit architecture
+    boundary, added perceptual-cue and combat execution-profile contracts, and
+    clarified `MET` as derived Metabolism distinct from Mental Focus.
+    Why: Preserve player-owned observation and reasoning while allowing the
+    Player body's stats to modify physical execution and authored feedback.
+    Related work: [Slice 011](slices/011-mind-tool-architecture-refinement.md)
+    Validation: Focused semantic checks and the 23-test GUT suite passed.
+  - Date: 2026-09-12
+    What changed: Replaced the thin architecture note with the unified core
+    mechanics contract and recorded its authority decision.
+    Why: Make the user's biological progression and combat rules a durable
+    constraint before implementation decisions fragment across slices.
+    Related work: [Slice 010](slices/010-core-mechanics-architecture.md)
+    Validation: Focused documentation checks and the 23-test GUT suite passed.
+
 ### F-005: Automated validation gate and test telemetry
 
 - Status: `Implemented`
@@ -325,3 +750,43 @@ replication) is completed in Slices 002, 004, 005, and 007.
     Related work: [Slice 006](slices/006-windows-client-package.md),
     [DT-005](TECHNICAL-DEBT-TRACKER.md#dt-005-windows-export-artifact-was-unavailable-in-the-original-sandbox)
     Validation: See Slice 006 validation section.
+
+### F-001: Local identity gate, flat plane scene, and player movement
+
+- Status: `Implemented`
+- Feature: A player enters a display name at a local identity gate, is placed
+  in a scene containing a flat plane under a fixed 3/4 isometric camera, and
+  moves a Player node around that plane with WASD keyboard input.
+- Problem solved: The project needed a minimal, always-playable vertical slice
+  proving the core play loop (identity → scene → movement) before any
+  networking, generation, or persistence existed.
+- How it solves the problem: Slice 001 adds a local identity gate
+  (`client/identity_gate.gd`) that rejects an empty name and, on submit,
+  changes to the gameplay scene, plus a client-side `CharacterBody3D` Player
+  (`client/player.gd`) constrained to the XZ plane and driven by the four
+  directional input actions each physics tick. It is fully local: no network
+  calls, no files written, and the display name is held only in memory. See
+  [ADR 0001](adr/0001-client-side-authority-for-first-slice.md) for why
+  movement is client-side here and what must change before networking.
+- Phase: 1. First playable vertical slice
+- Implementation slices: [Slice 001](slices/001-identity-gate-flat-plane-movement.md)
+- Public seam: `client/identity_gate.gd` (`_on_enter_pressed`),
+  `client/player.gd` (`_physics_process`, `get_planar_input`).
+- Validation: See [Slice 001](slices/001-identity-gate-flat-plane-movement.md)
+  for the exact headless commands and results; the identity-gate and movement
+  seams are covered by `tests/unit/test_identity_gate_and_movement.gd`.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [choose first playable slice](../.scratch/game-vision/issues/02-choose-first-playable-slice.md),
+  [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework)
+- Change history:
+  - Date: 2026-09-11
+    What changed: Implemented Slice 001 — the local identity gate, the
+    flat-plane gameplay scene under a fixed 3/4 camera, and client-side planar
+    Player movement. This F-001 record was backfilled on 2026-09-12 to resolve a
+    dangling Project Tracker reference: the feature was delivered in Slice 001
+    but never had a feature-list section.
+    Why: Establish the minimal always-playable vertical slice the rest of the
+    networked product builds on.
+    Related work: [Slice 001](slices/001-identity-gate-flat-plane-movement.md),
+    [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework)
+    Validation: See Slice 001 validation section.

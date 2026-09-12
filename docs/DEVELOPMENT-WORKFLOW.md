@@ -22,6 +22,64 @@ observable and reversible slice that can test one hypothesis, deliver it, and
 learn from its evidence before planning the next slice. Do not turn a phase or
 feature group into a large implementation batch.
 
+## Delivery lifecycle
+
+Every capability moves through one lifecycle with a single authoritative status
+at each stage. The stage lives in exactly one place at a time and is mirrored,
+not duplicated, across `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and the flow
+dashboard.
+
+### Stages
+
+1. **Vetting** — the capability exists only as one or more issues under a
+   `.scratch/<goal>/` map. Each issue is validated and refined (grilled,
+   researched, scoped) until its design is settled. Issue status moves
+   `unclaimed` → `claimed` (being refined) → `resolved`. Decision-type issues
+   (`grilling`, `research`, `architecture`) resolve into an ADR or recorded
+   decision, not a feature.
+2. **Ready** — a `resolved` *implementation* (`task`) issue graduates to a
+   feature in `FEATURE-LIST.md` with `Status: Ready`. Its design is complete and
+   a developer can pick it up, but no implementation has started.
+3. **Active** — a developer has started the slice. Feature `Status: In Progress`
+   (equivalently *Active*). The slice follows SDD → BDD → TDD → verification.
+4. **Awaiting evidence** — the slice's code is complete but its focused
+   validation, telemetry artifact, and review are not yet green. It is NOT Done;
+   this is a sub-state of Active enforced by the Jidoka evidence gate.
+5. **Done** — the slice is delivered and validated with evidence. Feature
+   `Status: Implemented` (equivalently *Done*).
+
+A **goal/map** is "complete" only when every one of its issues has graduated out
+of Vetting — each `resolved`, and either promoted to a feature or recorded as a
+decision/ADR.
+
+### Promotion rules
+
+- **The unit of promotion is the issue, not the goal.** Each resolved
+  implementation issue becomes its own feature and slice; goals are containers,
+  not the unit that ships.
+- **Only implementation (`task`) issues become features.** `grilling`,
+  `research`, and `architecture` issues resolve into ADRs/decisions that inform
+  features.
+- **A capability whose originating issues are not all `resolved` stays
+  `Planned`**, never `Ready`.
+
+### Stable identifiers
+
+A feature keeps ONE identifier for its whole life; its `Status:` field carries
+the lifecycle. The legacy `P-`/`IP-`/`F-` prefixes are frozen, opaque history and
+no longer signal status — never rename an item when its status changes. New
+features take the next unused number as `F-<n>` with an authoritative `Status:`.
+
+### Cross-layer status mapping
+
+| Lifecycle stage | `.scratch` issue | `FEATURE-LIST.md` status | Tracker badge | Dashboard |
+| --- | --- | --- | --- | --- |
+| Vetting | `unclaimed`/`claimed`/`resolved` | — | `queued` | Goal roadmap |
+| Ready | `resolved` | `Ready` | `ready` | Ready |
+| Active | `resolved` | `In Progress` (Active) | `in-progress` | Active |
+| Awaiting evidence | `resolved` | `In Progress` (Active) | `in-progress` | Awaiting evidence |
+| Done | `resolved` | `Implemented` (Done) | `done` | Done |
+
 ## Process maps and material/information flow
 
 The living MIFC and the three concurrent process maps are maintained in
@@ -116,3 +174,27 @@ Each implementation ticket links:
 	`FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates.
 - Telemetry events, failure states, and stop signals, or an explicit rationale
 	for why the slice has no observable runtime telemetry.
+
+## Atomic Delivery Record Synchronization Gate
+
+Whenever a slice is started, in progress, or completed, all 4 sections of
+`PROJECT-TRACKER.md` must be updated atomically with `FEATURE-LIST.md` and
+`TECHNICAL-DEBT-TRACKER.md`:
+
+1. **`## Phases` table**:
+   - Set status to `in-progress` when the first slice for that phase starts
+     implementation.
+   - Transition status to `done` ONLY when the formal phase exit gate criteria
+     are fully satisfied and verified.
+2. **`### Phase work index`**:
+   - Update feature and debt status badges (`done`, `in-progress`, `queued`,
+     `blocked`).
+   - Recalculate and update the progress percentage (`done items / all items in phase`).
+   - Set the `- **Current slice:**` pointer to the active/latest slice.
+3. **`### Implementation slice index`**:
+   - Record the slice with its status (e.g., `100% complete; focused and full-suite validation passed`).
+   - Link the slice record `docs/slices/0NN-*.md`, feature IDs, tech debt IDs,
+     planning tickets, and ADRs.
+4. **`## Work queue`**:
+   - Mark `[x]` for items that have been scoped and delivered by slices.
+   - Update status labels (`Ready`, `Queued`, `In progress`) for active design mapping.
