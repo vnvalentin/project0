@@ -1,0 +1,23 @@
+# Godot 4 Core Ignores
+.godot/
+*.import
+export_presets.cfg
+
+# Build & Deployment Ignores
+build/
+dist/
+*.log
+
+# Slice 007 multi-peer smoke test scratch state (cleaned up on normal exit;
+# ignored as a safety net if a run is interrupted before cleanup runs)
+.test_multi_peer_state_*.json
+
+# Binary Asset Quarantine (Hidden from AI scanning)
+assets/models/
+assets/textures/
+assets/audio/
+*.glb
+*.gltf
+*.png
+*.wav
+*.ogg

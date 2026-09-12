@@ -1,0 +1,15 @@
+services:
+  project0-flow:
+    build: .
+    container_name: project0-flow
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ..:/repo:ro
+      - ./app.py:/app/app.py:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
