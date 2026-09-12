@@ -126,6 +126,39 @@ def goal_maps() -> list[dict]:
     return goals
 
 
+def feature_stage(status: str) -> str:
+    normalized = status.lower().strip()
+    if normalized.startswith(("implemented", "done")):
+        return "Done"
+    if normalized.startswith(("in progress", "active")):
+        return "Active"
+    if normalized.startswith("ready"):
+        return "Ready"
+    return "Planned"
+
+
+def feature_cards() -> list[dict]:
+    text = read_repo_file("docs/FEATURE-LIST.md")
+    cards = []
+    for match in re.finditer(r"^### ((?:IP|P|F)-\d+):\s*(.+?)[ \t]*$\n([\s\S]*?)(?=^### |\Z)", text, re.M):
+        fid, title, body = match.group(1), match.group(2).strip(), match.group(3)
+        status_match = re.search(r"^- Status:\s*`?([^`\n]+?)`?\s*$", body, re.M)
+        status = status_match.group(1).strip() if status_match else "Planned"
+        tags, seen = [], set()
+        for ref in re.finditer(r"\.scratch/([^/)]+)/issues/(\d+)", body):
+            tag = f'{ref.group(1)} #{ref.group(2)}'
+            if tag not in seen:
+                seen.add(tag)
+                tags.append(tag)
+        if not tags:
+            for ref in re.finditer(r"\.scratch/([^/)]+)/map\.md", body):
+                if ref.group(1) not in seen:
+                    seen.add(ref.group(1))
+                    tags.append(ref.group(1))
+        cards.append({"id": fid, "title": title, "status": status, "issue_tags": tags})
+    return cards
+
+
 def phase_rows(text: str) -> list[dict[str, str]]:
     rows = []
     for match in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$", text, re.M):
@@ -206,7 +239,7 @@ def snapshot() -> dict:
     phases = phase_rows(tracker)
     slices = slice_cards(tracker) + queue_items(tracker)
     debts = debt_cards(debt)
-    return {"phases": phases, "slices": slices, "debts": debts, "goals": goal_maps(), "actions": action_items(phases, debts, slices)}
+    return {"phases": phases, "slices": slices, "debts": debts, "goals": goal_maps(), "features": feature_cards(), "actions": action_items(phases, debts, slices)}
 
 
 def esc(value: str) -> str:
@@ -220,37 +253,25 @@ def card(title: str, body: str, css: str = "") -> str:
 def render() -> str:
     data = snapshot()
 
-    def is_done(s: dict[str, str]) -> bool:
-        st = s["status"].lower()
-        return "100%" in st and "outstanding" not in st
+    features = data["features"]
+    stage_order = ["Planned", "Ready", "Active", "Done"]
+    stage_css = {"Planned": "planned", "Ready": "", "Active": "in-progress", "Done": "done"}
+    fcols: dict[str, list] = {name: [] for name in stage_order}
+    for feat in features:
+        fcols[feature_stage(feat["status"])].append(feat)
 
-    def is_active(s: dict[str, str]) -> bool:
-        st = s["status"].lower()
-        return any(w in st for w in ("in progress", "working", "in-progress")) and not is_done(s)
+    def feature_card(feat: dict) -> str:
+        stage = feature_stage(feat["status"])
+        tags = "".join(f'<span class="itag">{esc(t)}</span>' for t in feat["issue_tags"]) or '<span class="itag none">no linked issue</span>'
+        return (
+            f'<article class="card {stage_css[stage]}"><h3>{esc(feat["id"])} \u00b7 {esc(feat["title"])}</h3>'
+            f'<div class="itags">{tags}</div></article>'
+        )
 
-    def is_awaiting(s: dict[str, str]) -> bool:
-        st = s["status"].lower()
-        return ("outstanding" in st or "awaiting" in st) and not is_done(s)
-
-    def is_ready(s: dict[str, str]) -> bool:
-        st = s["status"].lower()
-        return bool(re.search(r"(?<!\d)0%", st) or "queued" in st or "ready" in st) and not is_done(s)
-
-    done = [s for s in data["slices"] if is_done(s)]
-    active = [s for s in data["slices"] if is_active(s) and s not in done]
-    awaiting = [s for s in data["slices"] if is_awaiting(s) and s not in done and s not in active]
-    ready = [s for s in data["slices"] if is_ready(s) and s not in done and s not in active and s not in awaiting]
-
-    columns = {
-        "Ready": ready,
-        "Active": active,
-        "Awaiting evidence": awaiting,
-        "Done": done,
-    }
     column_html = ""
-    for name, items in columns.items():
-        css_class = "done" if name == "Done" else ("in-progress" if name in ("Active", "Awaiting evidence") else "")
-        body = "".join(card(item["title"], item["status"], css_class) for item in items) or '<p class="empty">Nothing here</p>'
+    for name in stage_order:
+        items = fcols[name]
+        body = "".join(feature_card(feat) for feat in items) or '<p class="empty">Nothing here</p>'
         column_html += f'<section class="column"><h2>{esc(name)} <span>{len(items)}</span></h2>{body}</section>'
     phase_html = "".join(card(p["phase"], p["status"] + " — " + p["gate"], p["status"].lower()) for p in data["phases"])
     blocked = [d for d in data["debts"] if d["status"].lower() not in {"resolved", "closed", "accepted"}]
@@ -279,10 +300,10 @@ def render() -> str:
     vetting_n = sum(1 for g in goals for i in g["issues"] if i["state"] != "decided")
     stage_defs = [
         ("Vetting", vetting_n, "vet"),
-        ("Ready", len(columns["Ready"]), "ready"),
-        ("Active", len(columns["Active"]), "active"),
-        ("Awaiting evidence", len(columns["Awaiting evidence"]), "await"),
-        ("Done", len(columns["Done"]), "done"),
+        ("Planned", len(fcols["Planned"]), "planned"),
+        ("Ready", len(fcols["Ready"]), "ready"),
+        ("Active", len(fcols["Active"]), "active"),
+        ("Done", len(fcols["Done"]), "done"),
     ]
     flow_html = '<div class="arw">\u2192</div>'.join(
         f'<div class="stage {cls}"><span class="n">{n}</span><span class="lbl">{esc(name)}</span></div>'
@@ -295,12 +316,13 @@ def render() -> str:
 * {{ box-sizing:border-box }} body {{ margin:0; font:14px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--text) }} header {{ padding:24px 32px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:end }} h1 {{ margin:0; color:var(--cyan); letter-spacing:.03em }} h2 {{ margin:0 0 12px; font-size:16px }} h3 {{ margin:0 0 6px; font-size:14px }} p {{ margin:0; color:var(--muted) }} main {{ padding:24px 32px; max-width:1500px; margin:auto }} .banner {{ background:#332619; border:1px solid var(--amber); color:#ffe0a0; padding:14px 16px; margin-bottom:22px; border-radius:8px }} .board {{ display:grid; grid-template-columns:repeat(4,minmax(190px,1fr)); gap:14px; align-items:start }} .column,.panel {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px }} .column h2 span {{ float:right; color:var(--muted); font-weight:normal }} .card {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--cyan); border-radius:6px; padding:10px; margin:8px 0 }} .card.andon {{ border-left-color:var(--red) }} .card.in-progress {{ border-left-color:var(--amber) }} .card.done {{ border-left-color:var(--green) }} .empty,.clear {{ color:var(--muted); padding:12px 0 }} .grid {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px }} ul {{ margin:0; padding-left:20px }} li {{ margin:8px 0 }} .action {{ color:#ffe0a0 }} .stamp {{ color:var(--muted); font-size:12px }} @media(max-width:900px) {{ .board,.grid {{ grid-template-columns:1fr 1fr }} }} @media(max-width:600px) {{ header,main {{ padding:16px }} .board,.grid {{ grid-template-columns:1fr }} }}
 .rmwrap {{ margin-bottom:22px }} .rmwrap h2 {{ display:flex; justify-content:space-between; align-items:baseline }} .rmwrap h2 span {{ color:var(--muted); font-weight:normal; font-size:13px }} .roadmap {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px }} .goal {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px }} .goal-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .goal-head h3 {{ margin:0; color:var(--cyan) }} .pct {{ color:var(--muted); font-size:12px; white-space:nowrap }} .bar {{ height:8px; background:#0e141b; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:10px 0 }} .fill {{ height:100%; background:linear-gradient(90deg,var(--green),var(--cyan)) }} .dest {{ font-size:12px; margin-bottom:10px }} .chips {{ display:flex; flex-wrap:wrap; gap:6px }} .chip {{ font-size:11px; padding:3px 8px; border-radius:12px; border:1px solid var(--line); background:#222d39; color:var(--muted) }} .chip.decided {{ border-color:var(--green); color:var(--green) }} .chip.active {{ border-color:var(--amber); color:var(--amber) }} .chip.todo {{ opacity:.7 }}
 .flow {{ display:flex; align-items:stretch; gap:6px; margin-bottom:22px; flex-wrap:wrap }} .flow .stage {{ flex:1 1 0; min-width:118px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:2px }} .flow .stage .n {{ font-size:22px; font-weight:600 }} .flow .stage .lbl {{ font-size:12px; color:var(--muted) }} .flow .stage.vet {{ border-left:4px solid var(--muted) }} .flow .stage.ready {{ border-left:4px solid var(--cyan) }} .flow .stage.active {{ border-left:4px solid var(--amber) }} .flow .stage.await {{ border-left:4px solid var(--amber) }} .flow .stage.done {{ border-left:4px solid var(--green) }} .flow .arw {{ align-self:center; color:var(--muted); font-size:18px }} .sech {{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted) }}
+.itags {{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px }} .itag {{ font-size:10px; padding:2px 7px; border-radius:10px; background:#1a2430; border:1px solid var(--line); color:var(--muted) }} .itag.none {{ opacity:.6; font-style:italic }} .card.planned {{ border-left-color:var(--muted) }} .flow .stage.planned {{ border-left:4px solid var(--muted) }}
 </style></head><body>
 <header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="stamp">Read-only · refreshes every 15s</div></header>
 <main><div class="banner"><strong>Action required</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
 <section class="rmwrap"><h2>Vetting \u00b7 goal roadmap <span>{decided_issues}/{total_issues} issues decided \u00b7 {overall_pct}%</span></h2><div class="roadmap">{goal_html}</div></section>
-<h2 class="sech">Implementation pipeline</h2>
+<h2 class="sech">Implementation pipeline \u2014 features correlated to their issues</h2>
 <section class="board">{column_html}</section>
 <div class="grid"><section class="panel"><h2>Andon / Stop Signals</h2>{andon_html}</section><section class="panel"><h2>Phase Status</h2>{phase_html or '<p>No phase data found</p>'}</section></div>
 </main></body></html>'''
