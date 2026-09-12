@@ -51,6 +51,12 @@ theme_override_font_sizes/font_size = 16
 placeholder_text = "Display name"
 alignment = 1
 
+[node name="ServerHostInput" type="LineEdit" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+placeholder_text = "Server IP or domain (e.g. 127.0.0.1)"
+alignment = 1
+
 [node name="EnterButton" type="Button" parent="CenterContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16

@@ -19,6 +19,12 @@ class_name ProvisionalSectorGenerator
 ## detection, no quests, no retries beyond SectorBlueprintService's own bound,
 ## and no client-side Ollama calls. Results live only in _sector_state for
 ## this node's lifetime and are lost on process exit.
+##
+## Each request gets its own short-lived SectorBlueprintService instance
+## (created and freed per request) rather than one shared instance, because
+## SectorBlueprintService's single child HTTPRequest node can only run one
+## request at a time; sharing one instance would make concurrent requests for
+## different sector ids fail with "HTTPRequest is processing a request."
 
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
 
@@ -32,18 +38,23 @@ const STATUS_READY: String = "ready"
 
 signal provisional_sector_ready(sector_id: String, result: Dictionary)
 
-var _blueprint_service: Node
+## Passed through to the underlying SectorBlueprintService. Must be set
+## before this node enters the tree (e.g. immediately after .new()), since
+## SectorBlueprintService copies these into its own child LocalLLMClient
+## during its _ready().
+@export var ollama_host: String = "http://127.0.0.1:11434"
+@export var model_name: String = "llama3:latest"
+@export var request_timeout_sec: float = 60.0
 
 ## sector_id (String) -> Dictionary {"status": String, "correlation_id": String, "result": Variant}
-## "result" is null while status == STATUS_PENDING, and the
-## SectorBlueprintService result Dictionary once status == STATUS_READY.
+## "correlation_id" is this seam's own id, handed back synchronously by
+## request_provisional_sector() at acceptance time, and stays stable for the
+## life of the entry. "result" is null while status == STATUS_PENDING, and
+## the SectorBlueprintService result Dictionary once status == STATUS_READY
+## (that Dictionary carries a separate, service-level "correlation_id" of its
+## own, used only for provenance against SectorBlueprintService.get_provenance()).
 ## In-memory only for this node's lifetime; no persistence.
 var _sector_state: Dictionary = {}
-
-
-func _ready() -> void:
-	_blueprint_service = SectorBlueprintServiceScript.new()
-	add_child(_blueprint_service)
 
 
 ## Public seam. Accepts a request to provisionally generate `sector_id` from
@@ -74,8 +85,21 @@ func get_status(sector_id: String) -> String:
 	return _sector_state[sector_id]["status"]
 
 
+## Public seam: this seam's own correlation id for a sector id (the same id
+## returned by request_provisional_sector()), or an empty String if the
+## sector id is unknown.
+func get_correlation_id(sector_id: String) -> String:
+	if not _sector_state.has(sector_id):
+		return ""
+	return _sector_state[sector_id]["correlation_id"]
+
+
 ## Public seam: the in-memory provisional result for a sector id, or an empty
-## Dictionary if the sector id is unknown or still pending. Never blocks.
+## Dictionary if the sector id is unknown or still pending. Never blocks. The
+## returned Dictionary is SectorBlueprintService's own result shape (see
+## server/sector_blueprint_service.gd); use get_correlation_id() for this
+## seam's own request-acceptance id rather than the nested
+## result["correlation_id"], which is SectorBlueprintService's internal id.
 func get_provisional_result(sector_id: String) -> Dictionary:
 	if not _sector_state.has(sector_id):
 		return {}
@@ -85,10 +109,22 @@ func get_provisional_result(sector_id: String) -> Dictionary:
 
 
 func _run_request(sector_id: String, prompt: String) -> void:
-	var result: Dictionary = await _blueprint_service.request_sector_blueprint(prompt)
+	var blueprint_service: Node = SectorBlueprintServiceScript.new()
+	blueprint_service.ollama_host = ollama_host
+	blueprint_service.model_name = model_name
+	blueprint_service.request_timeout_sec = request_timeout_sec
+	add_child(blueprint_service)
+
+	var result: Dictionary = await blueprint_service.request_sector_blueprint(prompt)
+
+	blueprint_service.queue_free()
+
+	# Preserve the correlation id handed back at acceptance time rather than
+	# overwriting it with SectorBlueprintService's own internal id.
+	var correlation_id: String = _sector_state[sector_id]["correlation_id"]
 	_sector_state[sector_id] = {
 		"status": STATUS_READY,
-		"correlation_id": result["correlation_id"],
+		"correlation_id": correlation_id,
 		"result": result,
 	}
 	provisional_sector_ready.emit(sector_id, result)

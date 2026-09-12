@@ -1,16 +1,19 @@
 extends Node
 ## Server-side authority for one connected Player's position, for Slice 004's
 ## authoritative-movement proof, extended in Slice 005 with input sequence
-## tracking for client-side prediction/reconciliation, and in Slice 007 with a
+## tracking for client-side prediction/reconciliation, in Slice 007 with a
 ## peer-position-broadcast signal so the server can replicate this Player's
-## authoritative position to every other connected peer. Holds the latest
-## directional input intent reported by the owning client's NetworkClient
-## RPC, integrates position at a fixed speed every physics tick, and RPCs the
-## resulting authoritative position plus the latest processed input sequence
-## back to that same client. See
+## authoritative position to every other connected peer, and in Slice 012
+## with the first authoritative melee-strike action state machine. Holds the
+## latest directional input intent reported by the owning client's
+## NetworkClient RPC, integrates position at a fixed speed every physics
+## tick (scaled by the current attack phase's locomotion factor), and RPCs
+## the resulting authoritative position plus the latest processed input
+## sequence back to that same client. See
 ## docs/slices/004-authoritative-player-movement.md,
 ## docs/slices/005-prediction-reconciliation.md,
-## docs/slices/007-multi-peer-player-replication.md, and docs/adr/0001 for
+## docs/slices/007-multi-peer-player-replication.md,
+## docs/slices/012-authoritative-melee-strike.md, and docs/adr/0001 for
 ## scope: no collision authority, no persistence. The server still never
 ## accepts a client-supplied position or sequence-tagged position — sequence
 ## numbers only identify which input the client's intent came from, never
@@ -21,18 +24,70 @@ extends Node
 ## instance, so exactly two concurrently connected peers each get their own
 ## authoritative position and input-sequence bookkeeping with no shared
 ## mutable state between them.
+##
+## Slice 012 scope: adds a per-peer melee action state machine
+## (IDLE -> WINDUP -> ACTIVE -> RECOVERY -> IDLE) driven by fixed 60Hz
+## simulation ticks (this node's own _physics_process calls, one per
+## configured physics tick — see project settings' default 60 Hz physics
+## tick rate), a monotonic action-sequence dedup/rejection path distinct from
+## the movement-intent sequence above, and a deterministic vector reach/arc
+## hit test against server-owned TargetDummy nodes during the ACTIVE phase.
+## No damage/HP, inventory, or PvP — see
+## docs/slices/012-authoritative-melee-strike.md's non-goals.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 
 ## Emitted every physics tick after this peer's authoritative position is
 ## computed, so server_main.gd can broadcast it to every other connected
 ## peer without this node needing to know about peer replication itself.
 signal position_updated(peer_id: int, updated_position: Vector3)
 
+## Emitted once per accepted ActionIntent with its ActionResolution, so
+## server_main.gd can RPC the result back to the owning client without this
+## node needing to know about networking itself (matching position_updated's
+## separation of concerns above).
+signal action_resolved(peer_id: int, resolution: Object)
+
+## Emitted exactly once per confirmed hit during the ACTIVE phase, carrying a
+## CombatContracts.CombatEvent, so server_main.gd can broadcast it to every
+## connected peer for client-side visual feedback.
+signal combat_event_emitted(peer_id: int, combat_event: Object)
+
+## Slice 013: emitted once, exactly when an ActionIntent is accepted and this
+## peer enters WINDUP, carrying the already-public archetype phase-timing and
+## the accepted facing. Lets server_main.gd broadcast a swing-started cue to
+## every connected peer (not just the owner, unlike action_resolved) so a
+## remote observer's client can time its own cosmetic strike-line indicator
+## without needing a trusted outcome — matching CLAUDE.md's telegraph rule
+## that an authoritative action state may be replicated early for client
+## presentation.
+signal melee_swing_started(peer_id: int, windup_ticks: int, active_ticks: int, facing: Vector3)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
+## Forward-facing direction used for the melee arc check; defaults to -Z
+## (Godot's forward) and is updated from non-zero movement input, since this
+## slice has no independent look/aim input.
+var facing: Vector3 = Vector3(0.0, 0.0, -1.0)
 var _input_intent: Vector2 = Vector2.ZERO
 var _last_processed_sequence: int = -1
+
+## Melee action state. archetype is fixed to the Generic Sword baseline for
+## every Player in this slice — no equipping/switching exists yet.
+var _archetype: Object = CombatContractsScript.generic_sword_archetype()
+var _phase: String = CombatContractsScript.PHASE_IDLE
+var _phase_ticks_remaining: int = 0
+var _last_processed_action_sequence: int = -1
+var _last_action_resolution: Object = null
+var _hit_target_ids_this_swing: Dictionary = {}
+
+## Server-owned target dummies this peer's swings can hit, injected by
+## server_main.gd. Keyed by target_id (String) to Node3D. Never
+## client-supplied — a client can only submit an aim direction, never name a
+## target to strike (see CLAUDE.md's Kinetic destructive-output rule, which
+## the same "server names the target" principle mirrors for melee).
+var _target_dummies: Dictionary = {}
 
 
 ## Public seam: called by the server when a peer connects, to bind this state
@@ -42,6 +97,17 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	position = start_position
 	_input_intent = Vector2.ZERO
 	_last_processed_sequence = -1
+	_phase = CombatContractsScript.PHASE_IDLE
+	_phase_ticks_remaining = 0
+	_last_processed_action_sequence = -1
+	_last_action_resolution = null
+	_hit_target_ids_this_swing.clear()
+
+
+## Public seam: called by server_main.gd to register the server-owned target
+## dummies this peer's melee hit tests may check against.
+func set_target_dummies(target_dummies: Dictionary) -> void:
+	_target_dummies = target_dummies
 
 
 ## Public seam: called (as a plain in-process call, not an RPC — this node
@@ -63,19 +129,155 @@ func apply_input_intent(sender_id: int, intent: Vector2, sequence: int) -> void:
 	_input_intent = intent
 	_last_processed_sequence = sequence
 
+	if intent.length_squared() > 0.0:
+		facing = Vector3(intent.x, 0.0, intent.y).normalized()
+
+
+## Public seam: called (plain in-process call, same pattern as
+## apply_input_intent above) with an ActionIntent requesting a melee strike.
+## Validates monotonic sequence/idempotent replay and current-state legality,
+## then — if accepted — starts the WINDUP phase. Always returns (and emits
+## via action_resolved) an ActionResolution; a rejected intent has no side
+## effect on phase, position, or hit state, matching CLAUDE.md's Intent
+## Validation And Resolution rule.
+func apply_action_intent(sender_id: int, intent: Object) -> Object:
+	if sender_id != owning_peer_id:
+		return null
+
+	var sequence: int = intent.sequence
+
+	if sequence == _last_processed_action_sequence and _last_action_resolution != null:
+		# Idempotent replay: return the cached resolution, never re-apply
+		# effects for a duplicate/retried intent.
+		return _last_action_resolution
+
+	if sequence <= _last_processed_action_sequence:
+		var resolution: Object = _make_resolution(sequence, false, CombatContractsScript.REJECTED_STALE)
+		action_resolved.emit(owning_peer_id, resolution)
+		return resolution
+
+	if intent.action_kind != CombatContractsScript.ACTION_KIND_MELEE_STRIKE:
+		var resolution: Object = _make_resolution(sequence, false, CombatContractsScript.REJECTED_INVALID_STATE)
+		_last_processed_action_sequence = sequence
+		_last_action_resolution = resolution
+		action_resolved.emit(owning_peer_id, resolution)
+		return resolution
+
+	if _phase != CombatContractsScript.PHASE_IDLE:
+		var reason: String = CombatContractsScript.REJECTED_BUSY if _phase != CombatContractsScript.PHASE_RECOVERY else CombatContractsScript.REJECTED_COOLDOWN
+		var resolution: Object = _make_resolution(sequence, false, reason)
+		_last_processed_action_sequence = sequence
+		_last_action_resolution = resolution
+		action_resolved.emit(owning_peer_id, resolution)
+		return resolution
+
+	if intent.aim_direction.length_squared() > 0.0:
+		facing = intent.aim_direction.normalized()
+
+	_phase = CombatContractsScript.PHASE_WINDUP
+	_phase_ticks_remaining = _archetype.windup_ticks
+	_hit_target_ids_this_swing.clear()
+
+	var resolution: Object = _make_resolution(sequence, true, "")
+	_last_processed_action_sequence = sequence
+	_last_action_resolution = resolution
+	action_resolved.emit(owning_peer_id, resolution)
+	melee_swing_started.emit(owning_peer_id, _archetype.windup_ticks, _archetype.active_ticks, facing)
+	return resolution
+
+
+func _make_resolution(sequence: int, accepted: bool, rejection_reason: String) -> Object:
+	var result: String = CombatContractsScript.RESULT_ACCEPTED if accepted else CombatContractsScript.RESULT_REJECTED
+	var server_tick: int = Engine.get_physics_frames()
+	return CombatContractsScript.ActionResolution.new(owning_peer_id, sequence, result, rejection_reason, server_tick)
+
 
 func _physics_process(delta: float) -> void:
 	if owning_peer_id == -1:
 		return
 
+	_advance_action_phase()
+
+	var speed_factor: float = CombatContractsScript.locomotion_speed_factor_for_phase(_phase, _archetype)
 	var direction: Vector3 = Vector3(_input_intent.x, 0.0, _input_intent.y)
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
 
-	position += direction * NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * delta
+	position += direction * NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor * delta
 
 	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
-	if network_client != null:
+	# Requiring CONNECTION_CONNECTED guards test/standalone contexts — e.g.
+	# GUT exercising this node directly with no real listening server — where
+	# an rpc_id() call would otherwise error rather than no-op. Godot's
+	# built-in default multiplayer_peer before any real one is attached
+	# reports CONNECTION_CONNECTING, never CONNECTED, so this check is not
+	# satisfied by that default. In a real running server, once
+	# _start_server()'s create_server() succeeds, multiplayer_peer reports
+	# CONNECTION_CONNECTED for the remainder of the process's life.
+	if network_client != null and get_tree().root.multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
 		network_client.rpc_id(owning_peer_id, "receive_authoritative_position", position, _last_processed_sequence)
 
 	position_updated.emit(owning_peer_id, position)
+
+
+## Advances the fixed-tick attack phase state machine by exactly one physics
+## tick and performs the ACTIVE-phase hit test. Deterministic phase
+## progression: WINDUP -> ACTIVE -> RECOVERY -> IDLE, counted in ticks, never
+## in wall-clock time, so behavior is identical regardless of frame timing.
+func _advance_action_phase() -> void:
+	if _phase == CombatContractsScript.PHASE_IDLE:
+		return
+
+	if _phase == CombatContractsScript.PHASE_ACTIVE:
+		_perform_hit_test()
+
+	_phase_ticks_remaining -= 1
+	if _phase_ticks_remaining > 0:
+		return
+
+	match _phase:
+		CombatContractsScript.PHASE_WINDUP:
+			_phase = CombatContractsScript.PHASE_ACTIVE
+			_phase_ticks_remaining = _archetype.active_ticks
+		CombatContractsScript.PHASE_ACTIVE:
+			_phase = CombatContractsScript.PHASE_RECOVERY
+			_phase_ticks_remaining = _archetype.recovery_ticks
+		CombatContractsScript.PHASE_RECOVERY:
+			_phase = CombatContractsScript.PHASE_IDLE
+			_phase_ticks_remaining = 0
+
+
+## Deterministic vector reach/arc hit test against every registered target
+## dummy, performed once per ACTIVE tick. max_targets bounds how many
+## distinct targets one swing can hit; a target already hit this swing is
+## never re-emitted, so a multi-tick ACTIVE window cannot double-hit the same
+## dummy. See
+## .scratch/melee-combat/issues/04-choose-first-target-and-hit-rule.md.
+func _perform_hit_test() -> void:
+	if _hit_target_ids_this_swing.size() >= _archetype.max_targets:
+		return
+
+	for target_id: String in _target_dummies.keys():
+		if _hit_target_ids_this_swing.has(target_id):
+			continue
+
+		var target_node: Node3D = _target_dummies[target_id]
+		if target_node == null:
+			continue
+
+		if not CombatContractsScript.is_within_reach_and_arc(position, facing, target_node.position, _archetype):
+			continue
+
+		_hit_target_ids_this_swing[target_id] = true
+		var server_tick: int = Engine.get_physics_frames()
+		var combat_event: Object = CombatContractsScript.CombatEvent.new(
+			CombatContractsScript.COMBAT_EVENT_HIT,
+			owning_peer_id,
+			target_id,
+			target_node.position,
+			server_tick
+		)
+		combat_event_emitted.emit(owning_peer_id, combat_event)
+
+		if _hit_target_ids_this_swing.size() >= _archetype.max_targets:
+			return

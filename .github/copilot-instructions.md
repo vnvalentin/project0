@@ -31,10 +31,27 @@ non-goals, validation command, and required evidence. If Claude CLI is
 unavailable or the handoff times out, stop and report the blocker rather than
 silently taking over implementation.
 
+## Claude delivery gates
+
+Claude must create or update the slice record, planning ticket, and required
+tracker links before implementation begins, not as deferred cleanup. The
+handoff must explicitly confirm this record-first checkpoint and then verify
+the records still exist after implementation. A slice cannot be reported
+complete when its code or tests pass but its SDD/BDD/TDD, validation evidence,
+review status, and synchronized feature/tracker records are missing.
+
+If Claude reaches a session limit, timeout, or validation failure, the slice is
+`blocked` or `awaiting evidence`; do not infer completion from files appearing
+in the workspace. A follow-up handoff may repair only the missing checkpoint,
+but must re-read current user-edited tracker files before changing them.
+
 Before implementation, identify the primary phase and slice. Update the
 authoritative feature or debt record and the Project Tracker together whenever
-scope or status changes. Do not treat a completed slice as proof that its phase
-exit gate is complete.
+scope or status changes. Atomically update all 4 sections of `PROJECT-TRACKER.md`
+(set the Phase table entry to `in-progress` when its first slice starts, update
+the Phase work index, record the slice in the Slice index, and check off `[x]`
+work queue items). Do not mark a phase `done` in the phase exit gate table
+until its formal exit gate criteria are complete.
 
 Foundation gate: before implementation, read `../docs/PROJECT-SETUP-CHECKLIST.md`.
 If `../.foundation-incomplete` exists or any active record still contains a

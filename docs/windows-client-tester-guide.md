@@ -91,6 +91,83 @@ see anything else after a few seconds:
   double-check the `--server-host=` argument or environment variable is
   spelled exactly as shown above.
 
+## 5. Connecting over WAN (internet) instead of LAN
+
+The same client and server also support connecting across the internet
+(WAN), not just a shared local network. This still uses the same identity
+gate and `--server-host=`/`PROJECT0_SERVER_HOST` mechanism described above —
+WAN only changes which address you're given and what the server operator
+must configure on their side.
+
+### GUI Server Host field
+
+The identity gate screen (where you enter your display name) also has a
+**Server Host** field pre-filled with the resolved default. To connect over
+WAN, clear it and type the server's public IP address or domain name (e.g.
+`play.example.com` or `203.0.113.42`) before selecting **Enter**. This
+overrides the CLI argument/environment variable for that session and does
+not require a new shortcut.
+
+### `--server-host=` argument
+
+The same shortcut technique from Option A above works for WAN addresses —
+just use the public IP or domain name instead of a LAN IP:
+
+```
+"C:\Users\you\Documents\Project0\Project0.exe" --server-host=play.example.com
+```
+
+### What the server operator needs to configure
+
+For a tester to reach the server over WAN, the server operator must:
+
+1. **Bind the server to all interfaces**, not just localhost/LAN, by
+   launching with:
+   ```
+   godot --headless --path . -s server/server_main.gd -- --server-bind-address=0.0.0.0
+   ```
+   `0.0.0.0` tells the server to accept connections on any network
+   interface, including the public one — not just `127.0.0.1` or a LAN IP.
+2. **Forward UDP port 9999 on their router** to the internal LAN IP of the
+   machine running the server, so inbound internet traffic reaches it.
+3. **Allow the port through the host firewall** on the server machine. On a
+   Linux server with `ufw`, that's:
+   ```
+   sudo ufw allow 9999/udp
+   ```
+4. **Share the correct address** with testers: their public IP or a domain
+   name that resolves to it, plus a reminder that port 9999 must be
+   forwarded/open.
+
+### VPN alternative (Tailscale, etc.)
+
+Router port forwarding and public firewall exposure aren't always available
+or desirable. As an alternative, the server operator and testers can join a
+shared VPN mesh such as [Tailscale](https://tailscale.com/) (or any
+WireGuard-based VPN):
+
+1. The server operator and each tester install the VPN client and join the
+   same private network/tailnet.
+2. The server operator starts the server bound to their VPN-assigned
+   address (or `0.0.0.0`, which also covers the VPN interface) — no router
+   port forwarding or public firewall rule is needed, since traffic only
+   flows over the VPN tunnel.
+3. Testers use the server's VPN-assigned IP or MagicDNS name (e.g.
+   `100.x.y.z` or `serverhost.tailnet-name.ts.net`) as the `--server-host=`
+   value or GUI Server Host field entry.
+
+This keeps the connection off the public internet entirely while still
+working across different physical networks, which is useful if opening a
+router port isn't an option.
+
+### Security note
+
+Binding to `0.0.0.0` and forwarding a port exposes the server to
+unauthenticated inbound connections from anyone who has the address, matching
+the existing warning the server prints for any non-localhost bind. Prefer the
+VPN option above when testers and the operator are comfortable installing
+one; only forward the port on a router if you accept that tradeoff.
+
 ## What this package does not do
 
 - No installer, no Start Menu entry, no auto-update, no code signing.

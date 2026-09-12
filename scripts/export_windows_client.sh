@@ -35,6 +35,10 @@ godot --headless --path . --export-release "Windows Desktop" "${STAGE_DIR}/Proje
 mv "${STAGE_DIR}" "${PACKAGE_DIR}"
 
 echo "Packaging portable ZIP..."
-(cd dist && zip -r -X "$(basename "${ZIP_PATH}")" "${PACKAGE_NAME}")
+if command -v zip >/dev/null 2>&1; then
+	(cd dist && zip -r -X "$(basename "${ZIP_PATH}")" "${PACKAGE_NAME}")
+else
+	(cd dist && python3 -m zipfile -c "$(basename "${ZIP_PATH}")" "${PACKAGE_NAME}")
+fi
 
 echo "Done: ${ZIP_PATH}"

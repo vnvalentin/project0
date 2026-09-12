@@ -17,7 +17,8 @@ class_name NetworkConfig
 
 const SERVER_PORT: int = 9999
 const SERVER_ADDRESS: String = "127.0.0.1"
-const MAX_CLIENTS: int = 4
+const DEFAULT_TARGET_HOST: String = "192.69.180.236"
+const MAX_CLIENTS: int = 10
 
 ## Slice 004 scope: the fixed server-tick speed (units/second) the server
 ## applies to a connected Player's authoritative position. Slice 005 also
@@ -40,6 +41,15 @@ const NETWORKED_PLAYER_SMOOTH_SPEED: float = 10.0
 ## a fresh spawn or a large correction) to a single frame rather than a long
 ## visible slide. See docs/slices/005-prediction-reconciliation.md.
 const NETWORKED_PLAYER_SNAP_DISTANCE: float = 15.0
+
+## Slice 013 scope: how fast (radians/second) a Player/RemotePlayer node
+## rotates to face its current movement direction. Bounded rather than an
+## instant snap so the visible turn reads as smooth rather than a teleporting
+## facing. Purely a client-side presentation constant — the server never
+## reads or depends on this value; only the intent-supplied aim_direction
+## (see shared/combat_contracts.gd) is authoritative for hit resolution. See
+## docs/slices/013-melee-strike-visual-indicator.md.
+const FACING_TURN_RATE: float = 12.0
 
 const BIND_ADDRESS_CLI_ARG: String = "--server-bind-address="
 const BIND_ADDRESS_ENV_VAR: String = "PROJECT0_SERVER_BIND_ADDRESS"
@@ -66,8 +76,8 @@ static func resolve_server_bind_address() -> String:
 
 ## Public seam: resolves the host the client should connect to.
 ## Precedence: `--server-host=<addr>` CLI argument, then the
-## `PROJECT0_SERVER_HOST` environment variable, then the localhost default
-## (SERVER_ADDRESS). Never returns an empty string.
+## `PROJECT0_SERVER_HOST` environment variable, then the configured WAN default
+## (DEFAULT_TARGET_HOST). Never returns an empty string.
 static func resolve_client_target_host() -> String:
 	var from_cli: String = _find_cli_arg_value(TARGET_HOST_CLI_ARG)
 	if not from_cli.is_empty():
@@ -77,7 +87,7 @@ static func resolve_client_target_host() -> String:
 	if not from_env.is_empty():
 		return from_env
 
-	return SERVER_ADDRESS
+	return DEFAULT_TARGET_HOST
 
 
 ## Checks user arguments first, then raw process arguments so exported clients

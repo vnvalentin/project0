@@ -137,9 +137,9 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 7 — Delivery workflow capabilities**
 
-Progress: **29%** (2 of 7 items done)
+Progress: **43%** (3 of 7 items done)
 
-- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor); `queued` [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
+- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard); `queued` [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `open` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawn-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — the LAN-config tests bind the fixed default port 9999, so the automated validation gate false-reds whenever that port is occupied.
 
 **Phase 8 — JIT world generation and local inference**

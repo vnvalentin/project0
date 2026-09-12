@@ -14,18 +14,25 @@ func _assert(condition: bool, message: String) -> void:
 	assert_true(condition, message)
 
 
-func _make_generator(fake_port: int) -> Node:
+func _make_generator(fake_port: int, timeout_sec: float = 2.0) -> Node:
 	var generator: Node = ProvisionalSectorGeneratorScript.new()
-	add_child_autofree(generator)
-	generator._blueprint_service.ollama_host = "http://127.0.0.1:%d" % fake_port
-	generator._blueprint_service.request_timeout_sec = 2.0
+	generator.ollama_host = "http://127.0.0.1:%d" % fake_port
+	generator.request_timeout_sec = timeout_sec
+	add_child(generator)
 	return generator
+
+
+func _teardown(generator: Node, fake_server: Node) -> void:
+	generator.queue_free()
+	fake_server.stop()
+	fake_server.queue_free()
+	await wait_process_frames(1)
 
 
 func test_request_is_accepted_synchronously_as_pending() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.next_response_status = 200
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
@@ -40,13 +47,13 @@ func test_request_is_accepted_synchronously_as_pending() -> void:
 	var sector_id: String = signal_result[0]
 	_assert(sector_id == "sector-0-0", "completion signal reports the requested sector id")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_success_outcome_carries_validated_blueprint() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.next_response_status = 200
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
@@ -60,13 +67,13 @@ func test_success_outcome_carries_validated_blueprint() -> void:
 	_assert(result["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "ready result validates as OUTCOME_VALID")
 	_assert(result["blueprint"] != null, "ready result carries the validated blueprint")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_validation_failure_outcome_is_ready_with_no_blueprint() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.next_response_status = 200
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.UNSUPPORTED_KIND})
 
@@ -79,13 +86,13 @@ func test_validation_failure_outcome_is_ready_with_no_blueprint() -> void:
 	_assert(result["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_UNSUPPORTED_KIND, "ready result surfaces the unsupported-kind validation outcome")
 	_assert(result["blueprint"] == null, "ready result carries no blueprint on validation failure")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_transport_failure_outcome_is_ready_with_structured_error() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.next_response_status = 500
 	fake_server.next_response_body = "internal error"
 
@@ -97,17 +104,16 @@ func test_transport_failure_outcome_is_ready_with_structured_error() -> void:
 	_assert(result["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_TRANSPORT_ERROR, "HTTP 500 reaches REQUEST_OUTCOME_TRANSPORT_ERROR")
 	_assert(result["blueprint"] == null, "transport failure carries no blueprint")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_timeout_outcome_is_ready_within_bounded_window() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.respond_at_all = false
 
-	var generator: Node = _make_generator(port)
-	generator._blueprint_service.request_timeout_sec = 1.0
+	var generator: Node = _make_generator(port, 1.0)
 	var start_ticks: int = Time.get_ticks_msec()
 	generator.request_provisional_sector("sector-timeout", "generate a sector")
 	await generator.provisional_sector_ready
@@ -117,17 +123,16 @@ func test_timeout_outcome_is_ready_within_bounded_window() -> void:
 	_assert(result["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_TIMEOUT, "silent fake server reaches REQUEST_OUTCOME_TIMEOUT")
 	_assert(elapsed_ticks < 5000, "timeout arrives within a bounded window")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_scene_tree_keeps_processing_frames_while_request_is_in_flight() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.respond_at_all = false
 
-	var generator: Node = _make_generator(port)
-	generator._blueprint_service.request_timeout_sec = 1.5
+	var generator: Node = _make_generator(port, 1.5)
 	generator.request_provisional_sector("sector-non-blocking", "generate a sector")
 
 	_assert(generator.get_status("sector-non-blocking") == ProvisionalSectorGeneratorScript.STATUS_PENDING, "sector is still pending immediately after the call returns")
@@ -141,13 +146,13 @@ func test_scene_tree_keeps_processing_frames_while_request_is_in_flight() -> voi
 	await generator.provisional_sector_ready
 	_assert(generator.get_status("sector-non-blocking") == ProvisionalSectorGeneratorScript.STATUS_READY, "sector eventually resolves to ready")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_concurrent_requests_have_independent_correlation_and_state() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.next_response_status = 200
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
@@ -162,16 +167,16 @@ func test_concurrent_requests_have_independent_correlation_and_state() -> void:
 
 	_assert(generator.get_status("sector-a") == ProvisionalSectorGeneratorScript.STATUS_READY, "sector-a resolves independently")
 	_assert(generator.get_status("sector-b") == ProvisionalSectorGeneratorScript.STATUS_READY, "sector-b resolves independently")
-	_assert(generator.get_provisional_result("sector-a")["correlation_id"] == first_id, "sector-a keeps its own correlation id")
-	_assert(generator.get_provisional_result("sector-b")["correlation_id"] == second_id, "sector-b keeps its own correlation id")
+	_assert(generator.get_correlation_id("sector-a") == first_id, "sector-a keeps its own correlation id")
+	_assert(generator.get_correlation_id("sector-b") == second_id, "sector-b keeps its own correlation id")
 
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_repeated_request_for_same_sector_id_does_not_restart() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
-	add_child_autofree(fake_server)
+	add_child(fake_server)
 	fake_server.next_response_status = 200
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
@@ -182,7 +187,7 @@ func test_repeated_request_for_same_sector_id_does_not_restart() -> void:
 	_assert(first_id == second_id, "a second request for the same sector id returns the existing correlation id instead of starting a new request")
 
 	await generator.provisional_sector_ready
-	fake_server.stop()
+	await _teardown(generator, fake_server)
 
 
 func test_result_state_is_in_memory_only_and_unknown_before_any_request() -> void:

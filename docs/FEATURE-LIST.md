@@ -211,25 +211,37 @@ for a developer to pick up. No implementation has started.
   the death transition exactly once, `is_dead`) with fixed `MAX_HP`/`DAMAGE_PER_HIT`
   constants (a deterministic 3 hits to defeat) — and a new `COMBAT_EVENT_DEATH`
   kind on `shared/combat_contracts.gd` reusing the existing `CombatEvent` shape.
-  The monster AI state machine, spawning, and telemetry are later slices, so
-  the feature stays `In Progress`.
+  Slice 021 adds `server/server_monster_state.gd`, the authoritative
+  detect → chase → windup → attack → recovery state machine with a dodge-able
+  telegraph, reuse of the shared reach/arc hit test, and per-transition/attack/
+  death telemetry. Slice 022 adds `server/server_monster_manager.gd`, which
+  spawns one monster per town spawn point (authored outside the town wall),
+  drives them each server frame against the nearest player, and respawns
+  defeated monsters after a cooldown at a position clamped to stay outside the
+  town. Making monsters visible to and damageable by players is a later slice,
+  so the feature stays `In Progress`.
 - Phase: 10. Authoritative runtime and action input
-- Implementation slices: [Slice 020](slices/020-monster-hp-damage-death.md), [Slice 021](slices/021-monster-ai-state-machine.md)
+- Implementation slices: [Slice 020](slices/020-monster-hp-damage-death.md), [Slice 021](slices/021-monster-ai-state-machine.md), [Slice 022](slices/022-monster-spawning-and-respawn.md)
 - Public seam: `shared/monster_contracts.gd`
   (`MAX_HP`, `DAMAGE_PER_HIT`, `WINDUP_TICKS`, `ATTACK_ACTIVE_TICKS`,
   `RECOVERY_TICKS`, `DETECTION_RADIUS_METERS`, `CHASE_SPEED_METERS_PER_SEC`,
   `MONSTER_REACH_METERS`, `MONSTER_ARC_DEGREES`, `PHASE_*`, `MonsterCombatState`,
   `default_monster`, `monster_attack_archetype`), `shared/combat_contracts.gd`
   (`COMBAT_EVENT_DEATH`), `server/server_monster_state.gd`
-  (`advance`, `receive_damage`, `phase_changed`, `attack_resolved`, `died`).
-- Validation: See [Slice 020](slices/020-monster-hp-damage-death.md) and
-  [Slice 021](slices/021-monster-ai-state-machine.md) for exact commands and
-  results (Slice 020: 6/6 focused; Slice 021: 10/10 focused, 133/133 full
+  (`advance`, `receive_damage`, `phase_changed`, `attack_resolved`, `died`),
+  `server/server_monster_manager.gd` (`advance_all`, `monster_at`,
+  `monster_count`, `living_count`, `monster_died`, `monster_respawned`),
+  `server/starting_town_hub_fixture.gd` (spawn points outside the town wall).
+- Validation: See [Slice 020](slices/020-monster-hp-damage-death.md),
+  [Slice 021](slices/021-monster-ai-state-machine.md), and
+  [Slice 022](slices/022-monster-spawning-and-respawn.md) for exact commands and
+  results (Slice 022: 7/7 manager + 8/8 fixture focused tests, 140/140 full
   suite, exit 0).
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [Basic Monsters map](../.scratch/basic-monsters/map.md),
   [issue 01](../.scratch/basic-monsters/issues/01-hp-damage-death-model.md),
-  [issue 02](../.scratch/basic-monsters/issues/02-monster-state-machine-with-telegraph.md)
+  [issue 02](../.scratch/basic-monsters/issues/02-monster-state-machine-with-telegraph.md),
+  [issue 03](../.scratch/basic-monsters/issues/03-monster-spawn-points-from-town-schema.md)
 - Change history:
   - Date: 2026-09-12
     What changed: Implemented Slice 020 — the provisional flat monster
@@ -249,6 +261,17 @@ for a developer to pick up. No implementation has started.
     spawning and the server tick loop.
     Related work: [Slice 021](slices/021-monster-ai-state-machine.md)
     Validation: See Slice 021 validation section.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 022 — `server/server_monster_manager.gd`,
+    which spawns one monster per town spawn point (authored outside the town
+    wall in the hub fixture), drives their AI each server frame against the
+    nearest player, and respawns defeated monsters after a cooldown at a
+    position clamped to stay outside the town, wired into the server's
+    `physics_frame` loop with death/respawn telemetry.
+    Why: Complete the Basic Monsters map's spawning/respawn ticket server-side,
+    honoring the caveat that monsters spawn outside the town boundary.
+    Related work: [Slice 022](slices/022-monster-spawning-and-respawn.md)
+    Validation: See Slice 022 validation section.
 
 ### IP-008: Just-in-time sector generation
 
@@ -287,7 +310,7 @@ for a developer to pick up. No implementation has started.
 - Implementation slices: [Slice 012](slices/012-authoritative-melee-strike.md), [Slice 013](slices/013-melee-strike-visual-indicator.md)
 - Public seam: `shared/combat_contracts.gd`, `server/server_player_state.gd` (`apply_action_intent`, `set_target_dummies`, `action_resolved`, `combat_event_emitted`, `melee_swing_started`), `server/server_main.gd` (target dummy spawn and RPC relay, `melee_swing_started` relay), `client/network_client.gd` (`submit_action_intent`, `receive_action_resolution`, `receive_combat_event`, `receive_melee_swing_started`), `client/player.gd`, `client/target_dummy.gd`, `client/remote_player.gd`, `client/melee_strike_visual.gd`.
 - Validation: See [Slice 012](slices/012-authoritative-melee-strike.md) and [Slice 013](slices/013-melee-strike-visual-indicator.md) for exact commands and results (Slice 012: 21/21 focused unit tests, 4/4 focused integration tests, a real two-process ENet smoke test, and 48/48 full suite, exit 0; Slice 013: 9/9 focused unit tests, 23 assertions, and 57/57 full suite, 161 assertions, exit 0).
-- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [melee-combat map](../.scratch/melee-combat/map.md)
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [melee-combat map](../.scratch/melee-combat/map.md), [issue 01](../.scratch/melee-combat/issues/01-define-first-melee-exchange.md), [issue 02](../.scratch/melee-combat/issues/02-set-melee-action-authority-and-lifetime.md), [issue 03](../.scratch/melee-combat/issues/03-model-melee-weapon-archetypes.md), [issue 04](../.scratch/melee-combat/issues/04-choose-first-target-and-hit-rule.md), [issue 05](../.scratch/melee-combat/issues/05-set-first-melee-slice-boundary-and-evidence.md)
 - Change history:
   - Date: 2026-09-12
     What changed: Implemented Slice 012 — the first authoritative melee-strike action, its shared contracts, server state machine, client prediction/reconciliation, and target dummy. Renamed from `P-015` to `IP-015` because a live, validated public seam now exists, even though only one action kind and one stationary target exist so far.
@@ -381,6 +404,40 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### F-025: Project flow visual-management dashboard
+
+- Status: `Implemented`
+- Feature: A read-only web dashboard renders the delivery flow live — per-goal
+  issue vetting, a Vetting → Planned → Ready → Active → Done lifecycle strip, an
+  implementation board whose feature cards are correlated to the `.scratch`
+  issues they were promoted from, Andon/stop signals, and phase status.
+- Problem solved: Delivery state was spread across `.scratch` maps/issues,
+  `FEATURE-LIST.md`, and `PROJECT-TRACKER.md` with no single visual read on what
+  is being vetted, what is ready, what is active, and what is done.
+- How it solves the problem: `dashboard/app.py` (a dependency-free
+  `http.server`) parses `.scratch/<goal>/map.md` + `issues/*.md`,
+  `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and `TECHNICAL-DEBT-TRACKER.md` on
+  each request and renders the board; it runs read-only in the
+  `project0-flow-visual` container and hot-reloads on source change.
+- Phase: 7. Delivery workflow capabilities
+- Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
+  `feature_stage`, `phase_rows`, `debt_cards`, `render`),
+  `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
+- Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
+  run against the live records each request. No GUT coverage — this is Python
+  delivery tooling outside the Godot suite.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [project flow dashboard](../.scratch/game-vision/issues/14-project-flow-dashboard.md)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Backfilled this F-025 record for the already-delivered flow
+    dashboard (resolved planning ticket game-vision #14, which had no feature
+    record), then added the goal-map vetting roadmap, the delivery-lifecycle
+    flow strip, and the feature-to-issue-correlated implementation board.
+    Why: Close a traceability gap — a delivered `task` issue with no feature —
+    and make the delivery flow itself a first-class tracked capability.
+    Validation: Dashboard serves HTTP 200 with the live board.
 
 ### F-022: Player house allocation
 

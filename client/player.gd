@@ -12,8 +12,42 @@ extends CharacterBody3D
 ## remains the sole owner of the authoritative position; this node's own
 ## position is a prediction that is corrected, never the source of truth.
 ## See docs/slices/005-prediction-reconciliation.md.
+##
+## Slice 012 adds melee-strike input capture (LMB or the "attack" action,
+## which the project's input map binds to Space): pressing attack while idle
+## immediately starts a local predicted windup (disposable visual/locomotion
+## feedback only — see _predicted_attack_ticks_remaining below) and submits a
+## melee ActionIntent to the server. If the server rejects it, the local
+## prediction is discarded on the next reconciliation; nothing here ever
+## claims a hit, since only the server can confirm one. See
+## docs/slices/012-authoritative-melee-strike.md.
+##
+## Slice 013 adds player facing and a cosmetic strike-line indicator: this
+## node rotates toward its current WASD movement vector each physics tick (so
+## -global_transform.basis.z tracks the direction last moved, matching
+## CombatContracts' forward convention), and the same facing is what
+## _start_predicted_attack() below submits as the ActionIntent's
+## aim_direction. A child MeleeStrikeVisual (client/melee_strike_visual.gd)
+## is shown for the predicted ACTIVE phase only, purely cosmetic and
+## corrected the same way the predicted locomotion slowdown already is. See
+## docs/slices/013-melee-strike-visual-indicator.md.
 
 @export var move_speed: float = 5.0
+
+const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const MeleeStrikeVisualScene: PackedScene = preload("res://client/melee_strike_visual.tscn")
+
+## Disposable local prediction of the attack lifecycle's locomotion slowdown
+## only. Never used to claim a hit or an accepted action — it exists purely
+## so the local Player visibly slows down immediately instead of waiting a
+## round trip, and is corrected (extended, shortened, or cleared) whenever an
+## authoritative ActionResolution/position arrives.
+var _predicted_archetype: Object = CombatContractsScript.generic_sword_archetype()
+var _predicted_phase: String = CombatContractsScript.PHASE_IDLE
+var _predicted_ticks_remaining: int = 0
+var _next_action_sequence: int = 0
+var _pending_action_sequence: int = -1
 
 ## One recorded local input sample awaiting server acknowledgement.
 class PendingInput:
@@ -29,20 +63,111 @@ class PendingInput:
 var _next_sequence: int = 0
 var _pending_inputs: Array[PendingInput] = []
 
+## Slice 013: cosmetic child node showing the strike line during the
+## predicted ACTIVE phase. Never influences hit resolution or movement.
+var _strike_visual: Node3D = null
+
 
 func _ready() -> void:
 	NetworkClient.authoritative_position_received.connect(_on_authoritative_position_received)
+	NetworkClient.action_resolution_received.connect(_on_action_resolution_received)
+	_strike_visual = MeleeStrikeVisualScene.instantiate()
+	add_child(_strike_visual)
 
 
 func _physics_process(delta: float) -> void:
+	if Input.is_action_just_pressed("attack") and _predicted_phase == CombatContractsScript.PHASE_IDLE:
+		_start_predicted_attack()
+
 	var planar_input: Vector2 = get_planar_input()
-	_apply_intent(planar_input, delta)
+	_face_movement_direction(planar_input, delta)
+	var speed_factor: float = CombatContractsScript.locomotion_speed_factor_for_phase(_predicted_phase, _predicted_archetype)
+	_apply_intent(planar_input * speed_factor, delta)
 	move_and_slide()
+	_advance_predicted_phase()
 
 	var sequence: int = _next_sequence
 	_next_sequence += 1
 	_pending_inputs.append(PendingInput.new(sequence, planar_input, delta))
 	NetworkClient.submit_input_intent(planar_input, sequence)
+
+
+## Public seam: rotates this node so -global_transform.basis.z tracks the
+## current movement direction, bounded by NetworkConfig.FACING_TURN_RATE so
+## the turn reads as smooth rather than an instant snap. A zero movement
+## vector leaves the current facing unchanged (the Player keeps facing the
+## last direction it moved, rather than resetting to a default orientation
+## whenever input stops), matching how a stationary attacker should still
+## swing toward wherever it was last facing.
+func _face_movement_direction(planar_input: Vector2, delta: float) -> void:
+	if planar_input.length_squared() == 0.0:
+		return
+
+	var movement_direction: Vector3 = Vector3(planar_input.x, 0.0, planar_input.y).normalized()
+	var target_basis: Basis = Basis.looking_at(movement_direction, Vector3.UP)
+	global_transform.basis = global_transform.basis.slerp(target_basis, NetworkConfigScript.FACING_TURN_RATE * delta).orthonormalized()
+
+
+## Local prediction only: starts the disposable windup slowdown immediately
+## on input and submits the authoritative ActionIntent. Never claims a hit or
+## an accepted action — see _on_action_resolution_received below for how a
+## REJECTED result corrects this prediction.
+func _start_predicted_attack() -> void:
+	_set_predicted_phase(CombatContractsScript.PHASE_WINDUP, _predicted_archetype.windup_ticks)
+
+	var sequence: int = _next_action_sequence
+	_next_action_sequence += 1
+	_pending_action_sequence = sequence
+	var client_tick: int = Engine.get_physics_frames()
+	NetworkClient.submit_action_intent(sequence, client_tick, CombatContractsScript.ACTION_KIND_MELEE_STRIKE, -global_transform.basis.z)
+
+
+## Advances the local predicted phase by one physics tick using the same
+## fixed-tick counting the server uses, so the local locomotion slowdown ends
+## at roughly the same time as the server's own phase transition even before
+## any authoritative confirmation arrives.
+func _advance_predicted_phase() -> void:
+	if _predicted_phase == CombatContractsScript.PHASE_IDLE:
+		return
+
+	_predicted_ticks_remaining -= 1
+	if _predicted_ticks_remaining > 0:
+		return
+
+	match _predicted_phase:
+		CombatContractsScript.PHASE_WINDUP:
+			_set_predicted_phase(CombatContractsScript.PHASE_ACTIVE, _predicted_archetype.active_ticks)
+		CombatContractsScript.PHASE_ACTIVE:
+			_set_predicted_phase(CombatContractsScript.PHASE_RECOVERY, _predicted_archetype.recovery_ticks)
+		CombatContractsScript.PHASE_RECOVERY:
+			_set_predicted_phase(CombatContractsScript.PHASE_IDLE, 0)
+
+
+## Single place that changes _predicted_phase, so the cosmetic strike-line
+## visibility (visible only during ACTIVE) always stays consistent with the
+## predicted phase, whether the transition came from normal phase advance or
+## from a rejection correction.
+func _set_predicted_phase(new_phase: String, ticks_remaining: int) -> void:
+	_predicted_phase = new_phase
+	_predicted_ticks_remaining = ticks_remaining
+	if _strike_visual == null:
+		return
+	if new_phase == CombatContractsScript.PHASE_ACTIVE:
+		_strike_visual.start_swing()
+	else:
+		_strike_visual.end_swing()
+
+
+## Reconciliation: if the server rejects this client's own pending attack
+## sequence, the local predicted phase is discarded immediately rather than
+## running out its predicted ticks, since the server never entered WINDUP for
+## it at all. An ACCEPTED resolution needs no correction — the local
+## prediction already matches what the server just started.
+func _on_action_resolution_received(sequence: int, result: String, _rejection_reason: String, _server_tick: int) -> void:
+	if sequence != _pending_action_sequence:
+		return
+	if result == CombatContractsScript.RESULT_REJECTED:
+		_set_predicted_phase(CombatContractsScript.PHASE_IDLE, 0)
 
 
 ## Public seam: reads the four directional input actions and returns a

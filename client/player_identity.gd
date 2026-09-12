@@ -4,3 +4,4 @@ extends Node
 ## "Identity gate" term and docs/adr/0001.
 
 var display_name: String = ""
+var target_host: String = ""

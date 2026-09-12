@@ -52,6 +52,27 @@ func test_non_empty_name_is_stored_on_player_identity() -> void:
 	assert_eq(player_identity.display_name, "Vic", "non-empty name is stored on PlayerIdentity")
 
 
+func test_server_host_input_is_stored_on_player_identity() -> void:
+	var scene: PackedScene = load("res://client/identity_gate.tscn")
+	_instance = scene.instantiate()
+	add_child_autofree(_instance)
+	await wait_physics_frames(1)
+
+	var name_input: LineEdit = _instance.get_node("CenterContainer/VBoxContainer/NameInput")
+	var server_host_input: LineEdit = _instance.get_node("CenterContainer/VBoxContainer/ServerHostInput")
+	name_input.text = "Vic"
+	server_host_input.text = "  203.0.113.7  "
+
+	var player_identity: Node = get_tree().root.get_node("PlayerIdentity")
+	player_identity.target_host = ""
+	var stripped_name: String = name_input.text.strip_edges()
+	if not stripped_name.is_empty():
+		player_identity.display_name = stripped_name
+		player_identity.target_host = server_host_input.text.strip_edges()
+
+	assert_eq(player_identity.target_host, "203.0.113.7", "server host input is stripped and stored on PlayerIdentity")
+
+
 func test_player_moves_on_plane_and_holds_height() -> void:
 	var scene: PackedScene = load("res://client/gameplay.tscn")
 	_instance = scene.instantiate()

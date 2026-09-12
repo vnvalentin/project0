@@ -7,7 +7,7 @@ extends Label
 func _ready() -> void:
 	NetworkClient.connection_status_changed.connect(_on_status_changed)
 	_on_status_changed(NetworkClient.status)
-	NetworkClient.connect_to_server()
+	NetworkClient.connect_to_server(PlayerIdentity.target_host)
 
 
 func _on_status_changed(status: String) -> void:

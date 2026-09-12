@@ -73,6 +73,14 @@ Do not create implementation slices or product code while this gate is open.
   explicitly authorizes Copilot to edit directly. If Claude CLI is unavailable
   or times out, stop and report the blocker; do not silently implement the
   change with Copilot tools.
+- Delivery gate: Claude must create or update the slice record, planning
+  ticket, and synchronized tracker entries before implementation begins. Code
+  and tests passing is insufficient to mark a slice complete unless the
+  SDD/BDD/TDD, validation evidence, review status, and record links are
+  present and verified. Session limits, timeouts, and validation failures leave
+  the slice blocked or awaiting evidence. Slices must synchronize all 4
+  sections of `PROJECT-TRACKER.md` (Phase Table, Phase Work Index, Slice Index,
+  and Work Queue) per `docs/DEVELOPMENT-WORKFLOW.md`.
 - Before editing, state the user outcome, scope, non-goals, affected boundary,
   unacceptable outcomes, hypothesis, and cheapest discriminating check.
 - Test at the public seam and run the narrowest relevant validation first.

@@ -40,9 +40,14 @@ orchestration `Node` in front of the unchanged Slice 008
 `SectorBlueprintService`. `request_provisional_sector(sector_id, prompt)`
 records a `pending` in-memory entry and returns its correlation id
 synchronously; the actual `SectorBlueprintService.request_sector_blueprint()`
-await happens in a background coroutine kicked off via `call_deferred`, so the
-caller never awaits generation to get acceptance. `get_status(sector_id)` and
-`get_provisional_result(sector_id)` expose the in-memory state, and
-`provisional_sector_ready(sector_id, result)` signals completion. No geometry,
-SQLite, Canon, boundary detection, quest, retry, client-Ollama, or hardware
-work is introduced.
+await happens in a background coroutine kicked off via `call_deferred` against
+a fresh, short-lived `SectorBlueprintService` instance per request (a shared
+instance cannot run two concurrent requests, since its one child
+`HTTPRequest` node rejects a second in-flight request), so the caller never
+awaits generation to get acceptance. `get_status(sector_id)`,
+`get_correlation_id(sector_id)`, and `get_provisional_result(sector_id)`
+expose the in-memory state, and `provisional_sector_ready(sector_id, result)`
+signals completion. No geometry, SQLite, Canon, boundary detection, quest,
+retry, client-Ollama, or hardware work is introduced. Full details, including
+two other timing/state bugs found and fixed during focused testing, are in
+[Slice 009](../../../docs/slices/009-provisional-sector-generation.md).
