@@ -57,6 +57,9 @@ const BIND_ADDRESS_ENV_VAR: String = "PROJECT0_SERVER_BIND_ADDRESS"
 const TARGET_HOST_CLI_ARG: String = "--server-host="
 const TARGET_HOST_ENV_VAR: String = "PROJECT0_SERVER_HOST"
 
+const SERVER_PORT_CLI_ARG: String = "--server-port="
+const SERVER_PORT_ENV_VAR: String = "PROJECT0_SERVER_PORT"
+
 
 ## Public seam: resolves the address the headless server should bind to.
 ## Precedence: `--server-bind-address=<addr>` CLI argument, then the
@@ -88,6 +91,35 @@ static func resolve_client_target_host() -> String:
 		return from_env
 
 	return DEFAULT_TARGET_HOST
+
+
+## Public seam: resolves the UDP port the headless server should listen on.
+## Precedence: `--server-port=<n>` CLI argument, then the `PROJECT0_SERVER_PORT`
+## environment variable, then the default (SERVER_PORT). A value that is not a
+## valid 1-65535 integer falls back to the default, so a malformed override can
+## never bind port 0 or an out-of-range port. Added for DT-007 so tests can bind
+## an ephemeral port instead of the shared default.
+static func resolve_server_port() -> int:
+	var from_cli: int = _parse_port(_find_cli_arg_value(SERVER_PORT_CLI_ARG))
+	if from_cli != 0:
+		return from_cli
+
+	var from_env: int = _parse_port(OS.get_environment(SERVER_PORT_ENV_VAR))
+	if from_env != 0:
+		return from_env
+
+	return SERVER_PORT
+
+
+## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,
+## non-numeric, or out of range so callers fall through to their default.
+static func _parse_port(value: String) -> int:
+	if not value.is_valid_int():
+		return 0
+	var port: int = value.to_int()
+	if port < 1 or port > 65535:
+		return 0
+	return port
 
 
 ## Checks user arguments first, then raw process arguments so exported clients

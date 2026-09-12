@@ -197,6 +197,59 @@ for a developer to pick up. No implementation has started.
 
 ## In Progress Features
 
+### F-026: Organic districted starting city
+
+- Status: `In Progress`
+- Feature: The starting town is a large, organic, districted, walled city (on
+  the scale/feel of EverQuest's Qeynos or FF7's Midgar) whose layout is
+  ultimately LLM-generated but always validated so the required structures
+  (10-house pool, Smithy, Armor Shop, Inn) exist — replacing the small Slice 016
+  square hub.
+- Problem solved: The Slice 016 hub is far too small and too square to feel like
+  a town; the world needs a believably large, non-grid starting city with
+  gates, districts, and roads, while still guaranteeing the fixed set of
+  buildings every run.
+- How it solves the problem so far: Slice 023 enlarges the hand-authored hub
+  fixture into an organic octagon town (a ±16 square with corners clipped along
+  `|x| + |y| <= 22`) enclosed by a wall with a southern gate, radial corridor
+  avenues, and a central plaza, with the 13 structures re-placed into a northern
+  residential district and a southern trade quarter. It renders through the
+  existing per-tile geometry pipeline (`MAX_TILE_COUNT` raised to 2048 to fit
+  the ~869-tile town), and the monster exclusion + ground plane grow with it so
+  monsters stay in the fields outside the bigger walls. This is the instant
+  visible win and the future LLM fallback base; schema-v3 organic vocabulary +
+  geometry/scale (Slice 024), LLM generation + required-structure guarantee
+  (Slice 025), and bounds-derived monster exclusion (Slice 026) follow, so the
+  feature stays `In Progress`.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 023](slices/023-organic-districted-town.md)
+- Public seam: `server/starting_town_hub_fixture.gd`
+  (`blueprint()` now generating the organic octagon via `_in_town`/`_tile_kind`,
+  districted `_STRUCTURES`, ±22 `_SPAWN_POINTS`),
+  `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 2048),
+  `server/server_monster_manager.gd` (`TOWN_EXCLUSION_HALF_EXTENT` 18.0),
+  `client/gameplay.tscn` (60×60 `FlatPlane`).
+- Validation: See [Slice 023](slices/023-organic-districted-town.md) for exact
+  commands and results (8/8 fixture + 7/7 manager + 4/4 replication focused
+  tests, 140/140 full suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Organic LLM Village map](../.scratch/organic-village/map.md),
+  supersedes [F-019](#f-019-starting-town-hub-fixture),
+  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size)
+- Change history:
+  - Date: 2026-09-12
+    What changed: Implemented Slice 023 — enlarged the hub fixture into an
+    organic octagon districted town (gate, radial avenues, central plaza,
+    residential + trade districts), raised `MAX_TILE_COUNT` to 2048, grew the
+    monster exclusion to 18.0 and the ground plane to 60×60, and updated the
+    fixture spawn-outside test to the new town outline. Renders through the
+    existing per-tile pipeline.
+    Why: Deliver an immediately visible, substantially larger, non-square
+    starting town (the first Organic Village slice) and the reliable fallback
+    base for later LLM generation.
+    Related work: [Slice 023](slices/023-organic-districted-town.md)
+    Validation: See Slice 023 validation section.
+
 ### IP-023: Basic monster combat
 
 - Status: `In Progress`

@@ -9,6 +9,11 @@ SUMMARY_FILE="${RESULT_DIR}/validation-summary.json"
 
 mkdir -p "$RESULT_DIR"
 
+# Reimport/compile from a clean cache before running so a stale GDScript class
+# cache cannot silently drop a test script from the run and still report green
+# (DT-007). A skipped script must never be mistaken for a passing suite.
+"$GODOT_BIN" --headless --import >/dev/null 2>&1 || true
+
 set +e
 "$GODOT_BIN" --headless \
   -s addons/gut/gut_cmdln.gd \

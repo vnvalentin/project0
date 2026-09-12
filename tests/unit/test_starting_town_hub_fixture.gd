@@ -56,15 +56,15 @@ func test_fixture_structure_positions_are_unique() -> void:
 
 
 func test_fixture_spawn_points_are_all_outside_the_town_wall() -> void:
-	# Monsters must spawn outside the town boundary (the ±8 wall ring), never
-	# inside it (user caveat).
+	# Monsters must spawn outside the town boundary (the octagon outline, radius
+	# 16), never inside it (user caveat).
 	var blueprint: Dictionary = StartingTownHubFixtureScript.blueprint()
 	assert_true(blueprint.has("spawn_points"), "the hub fixture declares monster spawn points")
 	var spawn_points: Array = blueprint["spawn_points"]
 	assert_gt(spawn_points.size(), 0, "there is at least one spawn point")
 	for spawn_point: Dictionary in spawn_points:
-		var outside: bool = absi(int(spawn_point["x"])) > 8 or absi(int(spawn_point["y"])) > 8
-		assert_true(outside, "spawn point %s at (%d,%d) is outside the ±8 town wall" % [spawn_point["spawn_id"], int(spawn_point["x"]), int(spawn_point["y"])])
+		var outside: bool = absi(int(spawn_point["x"])) > 16 or absi(int(spawn_point["y"])) > 16
+		assert_true(outside, "spawn point %s at (%d,%d) is outside the town outline" % [spawn_point["spawn_id"], int(spawn_point["x"]), int(spawn_point["y"])])
 
 
 func test_materialize_accepts_the_real_fixture() -> void:

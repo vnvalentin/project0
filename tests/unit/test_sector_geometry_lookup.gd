@@ -28,6 +28,13 @@ func test_unsupported_tile_kind_returns_zero_vector() -> void:
 	assert_eq(dimensions, Vector3.ZERO, "an unsupported tile kind returns Vector3.ZERO as an explicit failure marker")
 
 
+func test_wall_is_solid_and_ground_kinds_are_not() -> void:
+	assert_true(SectorGeometryLookupScript.tile_is_solid("wall"), "wall tiles are solid (get merged collision)")
+	assert_false(SectorGeometryLookupScript.tile_is_solid("floor"), "floor tiles are visual ground, not solid")
+	assert_false(SectorGeometryLookupScript.tile_is_solid("corridor"), "corridor tiles are visual ground, not solid")
+	assert_false(SectorGeometryLookupScript.tile_is_solid("lava"), "an unsupported tile kind is not solid")
+
+
 func test_structure_scene_paths_resolve_to_existing_files() -> void:
 	for kind: String in ["house", "smithy", "armor_shop", "inn"]:
 		var scene_path: String = SectorGeometryLookupScript.structure_scene_path(kind)

@@ -126,6 +126,7 @@ func _start_server() -> void:
 	print("Spawned %d monsters outside the town." % _monster_manager.monster_count())
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
+	var server_port: int = NetworkConfigScript.resolve_server_port()
 
 	_peer = ENetMultiplayerPeer.new()
 	# set_bind_ip() must be called before create_server(); Godot 4.3's
@@ -133,9 +134,9 @@ func _start_server() -> void:
 	# interfaces ("*") unless set_bind_ip() restricts it first (confirmed
 	# empirically — see docs/slices/003-lan-client-connection.md).
 	_peer.set_bind_ip(bind_address)
-	var listen_error: Error = _peer.create_server(NetworkConfigScript.SERVER_PORT, NetworkConfigScript.MAX_CLIENTS, 0, 0, 0)
+	var listen_error: Error = _peer.create_server(server_port, NetworkConfigScript.MAX_CLIENTS, 0, 0, 0)
 	if listen_error != OK:
-		push_error("Server failed to listen on %s:%d: %s" % [bind_address, NetworkConfigScript.SERVER_PORT, listen_error])
+		push_error("Server failed to listen on %s:%d: %s" % [bind_address, server_port, listen_error])
 		quit(1)
 		return
 
@@ -143,9 +144,9 @@ func _start_server() -> void:
 	root.multiplayer.peer_connected.connect(_on_peer_connected)
 	root.multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_spawn_target_dummies()
-	print("Server listening on %s:%d" % [bind_address, NetworkConfigScript.SERVER_PORT])
+	print("Server listening on %s:%d" % [bind_address, server_port])
 	if bind_address != NetworkConfigScript.SERVER_ADDRESS:
-		print("WARNING: bound to a non-localhost address. This server accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, NetworkConfigScript.SERVER_PORT])
+		print("WARNING: bound to a non-localhost address. This server accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, server_port])
 
 
 ## Called whenever a client peer finishes connecting. Tells that peer (only)

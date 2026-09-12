@@ -26,6 +26,14 @@ const _TILE_DIMENSIONS: Dictionary = {
 	"wall": Vector3(_TILE_FOOTPRINT, _WALL_HEIGHT, _TILE_FOOTPRINT),
 }
 
+## Slice 024: which tile kinds are solid (get merged collision) versus visual
+## ground (rendered as body-free MultiMesh instances). Walls block; floor and
+## corridor are walkable ground whose collision is provided by the Gameplay
+## FlatPlane, so they need no per-tile colliders.
+const _SOLID_TILE_KINDS: Dictionary = {
+	"wall": true,
+}
+
 const _STRUCTURE_SCENE_PATHS: Dictionary = {
 	"house": "res://client/structures/house.tscn",
 	"smithy": "res://client/structures/smithy.tscn",
@@ -42,6 +50,12 @@ static func tile_dimensions(kind: String) -> Vector3:
 	if not _TILE_DIMENSIONS.has(kind):
 		return Vector3.ZERO
 	return _TILE_DIMENSIONS[kind]
+
+
+## Returns true when a tile kind is solid (gets merged wall collision), false
+## for visual-only ground kinds and for unsupported kinds.
+static func tile_is_solid(kind: String) -> bool:
+	return _SOLID_TILE_KINDS.get(kind, false)
 
 
 ## Returns the PackedScene resource path for a structure kind, or an empty

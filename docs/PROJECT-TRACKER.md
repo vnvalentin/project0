@@ -137,20 +137,20 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 7 — Delivery workflow capabilities**
 
-Progress: **43%** (3 of 7 items done)
+Progress: **57%** (4 of 7 items done)
 
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard); `queued` [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
-- Tech debt: `open` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawn-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — the LAN-config tests bind the fixed default port 9999, so the automated validation gate false-reds whenever that port is occupied.
+- Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
 **Phase 8 — JIT world generation and local inference**
 
-Progress: **78%** (7 of 9 items done)
+Progress: **64%** (7 of 11 items done)
 
-- Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation).
-- Tech debt: none yet.
+- Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019).
+- Tech debt: `open` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size) — per-tile StaticBody3D geometry does not scale to true city size; a geometry pass (Slice 024) is required before Qeynos/Midgar scale.
 
-- **Current slice:** [019 — Player house allocation](slices/019-player-house-allocation.md) — **100% complete; focused and full-suite validation passed**
-  - **Feature:** [F-022](FEATURE-LIST.md#f-022-player-house-allocation)
+- **Current slice:** [023 — Bigger organic districted starting town](slices/023-organic-districted-town.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
 
 **Phase 9 — Canon persistence and world mutation**
 
@@ -283,6 +283,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Starting Town map](../.scratch/starting-town/map.md), [issue 05](../.scratch/starting-town/issues/05-player-house-allocation.md)
 
+- **Slice:** [023 — Bigger organic districted starting town](slices/023-organic-districted-town.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (supersedes [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture))
+  - **Tech debt:** [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size) — per-tile geometry does not scale to city size; geometry pass deferred to Slice 024.
+  - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (decisions Q1–Q5)
+
 #### Phase 7 — Delivery workflow capabilities
 
 - **Slice:** [010 — Core mechanics architecture contract](slices/010-core-mechanics-architecture.md) — **100% complete; focused documentation and full-suite validation passed**
@@ -387,6 +392,18 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   spawn points. No decisions recorded yet; cross-map blocked on the Starting
   Town map's spawn-point schema. See
   [basic-monsters map](../.scratch/basic-monsters/map.md). Not yet a slice.
+- [ ] In progress — Organic LLM Village map (Phase 8): replacing the small
+  Slice 016 square hub with a large, organic, districted, walled starting city
+  on the scale/feel of EverQuest Qeynos or FF7 Midgar, LLM-generated but
+  validated so the required structures always exist. Decisions Q1–Q5 resolved.
+  First slice delivered: [Slice 023](slices/023-organic-districted-town.md) — a
+  bigger organic octagon hand-authored town (gate, radial avenues, central
+  plaza, districts) rendered by the existing pipeline. Remaining roadmap: schema
+  v3 organic vocabulary + geometry/scale (Slice 024, gated by
+  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size)),
+  LLM generation + required-structure guarantee (Slice 025), and bounds-derived
+  monster exclusion (Slice 026). See
+  [organic-village map](../.scratch/organic-village/map.md).
 - [ ] Ready — Public game access via WireGuard (Phase 13, design-complete,
   not yet scoped as a slice): all six
   [wan-wireguard map](../.scratch/wan-wireguard/map.md) tickets are resolved

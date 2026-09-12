@@ -99,48 +99,70 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   passed 7/7 tests and 38 assertions. The remaining scripts stay in scope for
   later small lots.
 
-### DT-007: LAN-config tests spawn a real server on the fixed default port 9999 (non-hermetic)
+### DT-008: Per-tile StaticBody3D geometry does not scale to city size
 
-- Classification: `Delinquent Debt`
-- Debt type: `Quality`
+- Classification: `Strategic Technical Debt`
+- Debt type: `Architecture`
 - Owner: valentin.vn@gmail.com
 - Date created: 2026-09-12
-- Benefit or reason: None accepted — this is a discovered test-hermeticity
-  liability, not an intentional tradeoff. `tests/unit/test_lan_config.gd` proves
-  the `--server-bind-address` override by launching a real
-  `server/server_main.gd` subprocess, but relies on the default UDP port 9999
-  and asserts on `Server listening on <addr>:9999`. The server exposes no port
-  override, so the tests cannot avoid 9999.
-- Impact: The full GUT suite false-reds (`scripts/run_gut_validation.sh` exit 1,
-  2/140 failing: `test_cli_arg_overrides_bind_address_on_real_server` and
-  `test_cli_arg_binds_server_to_wan_wildcard_address`) whenever UDP 9999 is
-  already held — e.g. a developer running the game server locally, or a stray
-  headless server from a prior run. Observed 2026-09-12: a leftover
-  `godot -s server/server_main.gd` bound to `127.0.0.1:9999` produced exactly
-  this false failure. A validation gate that reddens for environmental reasons
-  trains reviewers to ignore red and can mask genuine regressions.
-- Remediation plan: Add a bounded server port override (e.g. a
-  `--server-port=<n>` CLI arg resolved in `shared/network_config.gd`, mirroring
-  `resolve_server_bind_address`), then have the two real-server tests reserve an
-  OS-assigned ephemeral free port (bind a temporary UDP socket to port 0, read
-  the assigned port, release it, pass it to the spawned server) and assert on
-  that port instead of the hardcoded 9999. This makes the tests hermetic and
-  immune to port collisions; the pure-resolver test
-  (`test_defaults_to_localhost_with_no_override`) is unaffected.
+- Benefit or reason: Intentional, visible shortcut. The client geometry
+  translator (`client/sector_geometry_translator.gd`, F-018) instantiates one
+  `StaticBody3D` + `MeshInstance3D` + `CollisionShape3D` per floor/wall/corridor
+  tile. Slice 023 deliberately reuses that pipeline to ship a bigger organic
+  town immediately (~869 tiles / bodies) with zero geometry risk and to provide
+  a reliable LLM fallback base, rather than blocking a visible win on a geometry
+  rewrite.
+- Impact: The approach does not reach true Qeynos/Midgar city scale (thousands
+  of tiles). At those counts, one body + mesh + collider per tile becomes a
+  physics/draw-call and memory problem, so the F-026 destination cannot be met
+  by enlarging the fixture further. `MAX_TILE_COUNT` was raised to 2048 to fit
+  the Slice 023 town, which caps how far the fixture alone can grow. Until the
+  geometry pass lands, the "large districted city" scale is bounded to the
+  per-tile-body budget.
+- Remediation plan: Add a large-scale geometry translation pass (Slice 024):
+  merge contiguous floor tiles into a single visual ground mesh with no
+  per-tile collider (floors become visual-only / a shared ground plane), and
+  represent walls as a small number of segment/box colliders rather than one
+  collider per wall tile. Keep structures as prefab instances. This decouples
+  rendered city size from the physics body count and unblocks the schema-v3
+  vocabulary + LLM-generated districted layout (Slices 024–025).
 - Status: `Open`
-- Phase: 3 (LAN client connection, where the test originated) and 7 (it degrades
-  the F-005 automated validation gate's trustworthiness).
-- Links: [Slice 003](slices/003-lan-client-connection.md),
-  [F-003](FEATURE-LIST.md#f-003-lan-client-connection),
-  [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry),
-  `tests/unit/test_lan_config.gd`, `server/server_main.gd`,
-  `shared/network_config.gd`
-- Rationale: Recorded immediately on discovery per the debt lifecycle. The
-  environmental cause (a stray process on 9999) was cleared to restore a green
-  140/140 run, but the underlying non-hermetic test design remains and will
-  recur until the port-override + ephemeral-port remediation lands.
+- Phase: 8 (JIT world generation and local inference — the Organic Village
+  effort).
+- Links: [Slice 023](slices/023-organic-districted-town.md),
+  [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city),
+  [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation),
+  [Organic LLM Village map](../.scratch/organic-village/map.md),
+  `client/sector_geometry_translator.gd`, `shared/sector_blueprint_schema.gd`
+- Rationale: Recorded on discovery per the debt lifecycle. The per-tile-body
+  design is an accepted, bounded tradeoff for the Slice 023 visible win, with a
+  known remediation (the Slice 024 geometry pass) that must land before true
+  city scale or LLM-generated layouts are attempted.
 
 ## Resolved Items
+
+### DT-007: LAN-config tests spawned a real server on the fixed default port 9999 (non-hermetic)
+
+- Closure date: 2026-09-12
+- Closure outcome: Added a validated `--server-port=<n>` override to
+  `shared/network_config.gd` (`resolve_server_port()` and `_parse_port()`;
+  precedence CLI arg -> `PROJECT0_SERVER_PORT` env -> default, with a malformed
+  or out-of-range value falling back to the default so a bad override can never
+  bind port 0). `server/server_main.gd` now binds and reports that resolved
+  port. The two real-server tests in `tests/unit/test_lan_config.gd` reserve an
+  OS-assigned ephemeral free port (`PacketPeerUDP.bind(0, ...)`) and pass it to
+  the spawned server, so they no longer depend on port 9999. Also hardened
+  `scripts/run_gut_validation.sh` to reimport before running, so a stale
+  GDScript class cache can no longer silently drop a test script and still
+  report green.
+- Benefit realized or risk reduced: The GUT suite no longer false-reds when
+  port 9999 is occupied (e.g. by a developer-run game server), and a
+  cache-skipped test script can no longer masquerade as a passing suite —
+  restoring the F-005 automated validation gate to a trustworthy signal.
+- Validation evidence: Under collision — with a decoy server holding
+  `0.0.0.0:9999` — `test_lan_config` passed 8/8 (exit 0) where it previously
+  failed 2 tests. Clean full suite (`scripts/run_gut_validation.sh`, now
+  reimporting first): 19/19 scripts, 146/146 tests, 557 asserts, exit 0.
 
 ### DT-002: No automated GDScript test framework
 

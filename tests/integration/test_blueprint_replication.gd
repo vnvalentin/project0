@@ -13,19 +13,42 @@ const StartingTownHubFixtureScript: Script = preload("res://server/starting_town
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 
 
-func test_valid_hub_blueprint_renders_all_tiles_and_structures() -> void:
+func test_valid_hub_blueprint_renders_merged_geometry_and_all_structures() -> void:
 	var parent: Node3D = add_child_autofree(Node3D.new())
 	var blueprint: Dictionary = StartingTownHubFixtureScript.blueprint()
-	var expected_tiles: int = (blueprint["tiles"] as Array).size()
+	var tiles: Array = blueprint["tiles"]
 	var expected_structures: int = (blueprint["structures"] as Array).size()
+
+	var wall_tiles: int = 0
+	for tile: Dictionary in tiles:
+		if tile["kind"] == "wall":
+			wall_tiles += 1
 
 	var result: Dictionary = NetworkClientScript.render_sector_blueprint(blueprint, parent)
 	await wait_physics_frames(1)
 
 	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "the real hub fixture re-validates as OUTCOME_VALID at the client boundary")
-	assert_eq(result["tile_count"], expected_tiles, "reported tile count matches the fixture")
+	assert_eq(result["tile_count"], tiles.size(), "reported tile count matches the fixture")
 	assert_eq(result["structure_count"], expected_structures, "reported structure count matches the fixture")
-	assert_eq(parent.get_child_count(), expected_tiles + expected_structures, "every tile and structure becomes one child of the SectorGeometry parent")
+
+	assert_not_null(parent.get_node_or_null("Ground_floor"), "floor tiles render as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Ground_corridor"), "corridor tiles render as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Walls"), "wall tiles render under one merged Walls body")
+
+	# DT-008 scale fix: the whole town renders with ONE merged Walls body and
+	# merged ground meshes, never one StaticBody3D per tile.
+	var walls_bodies: int = 0
+	var structure_nodes: int = 0
+	for child in parent.get_children():
+		var child_name: String = String(child.name)
+		assert_false(child_name.begins_with("Tile_"), "no legacy per-tile StaticBody3D remains")
+		if child_name == "Walls":
+			walls_bodies += 1
+		elif child_name.begins_with("Structure_"):
+			structure_nodes += 1
+	assert_eq(walls_bodies, 1, "the town renders with ONE merged Walls body, not one body per wall tile")
+	assert_eq(structure_nodes, expected_structures, "every structure becomes one instance")
+	assert_gt(wall_tiles, 0, "the town has walls to merge (guards the assertion above)")
 
 
 func test_hub_blueprint_produces_the_named_structure_nodes() -> void:

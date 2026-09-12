@@ -20,9 +20,9 @@ const RESPAWN_AREA_RADIUS_METERS: float = 2.0
 ## Ground height monsters spawn at (players sit at y == 1).
 const MONSTER_SPAWN_Y: float = 1.0
 ## Half-extent of the town's square exclusion zone. Just outside the fixture's
-## ±8 wall ring (StartingTownHubFixture._WALL_EXTENT), so no monster is ever
-## positioned inside the town, on spawn or respawn.
-const TOWN_EXCLUSION_HALF_EXTENT: float = 8.5
+## octagon town outline (StartingTownHubFixture._TOWN_RADIUS == 16), so no
+## monster is ever positioned inside the town, on spawn or respawn.
+const TOWN_EXCLUSION_HALF_EXTENT: float = 18.0
 
 ## Telemetry: emitted when a monster is defeated and when one respawns. The
 ## server runtime forwards these to logs. Initial spawns are not signalled
