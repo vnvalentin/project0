@@ -137,10 +137,10 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 7 — Delivery workflow capabilities**
 
-Progress: **33%** (2 of 6 items done)
+Progress: **29%** (2 of 7 items done)
 
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor); `queued` [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
-- Tech debt: none yet.
+- Tech debt: `open` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawn-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — the LAN-config tests bind the fixed default port 9999, so the automated validation gate false-reds whenever that port is occupied.
 
 **Phase 8 — JIT world generation and local inference**
 
@@ -166,7 +166,7 @@ Progress: **0%** (0 of 3 items done)
 - Features: `queued` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `in-progress` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [021 — Monster AI state machine with attack telegraph](slices/021-monster-ai-state-machine.md) — **100% complete; focused and full-suite validation passed**
+- **Current slice:** [022 — Monster spawning and respawn (outside town)](slices/022-monster-spawning-and-respawn.md) — **100% complete; focused and full-suite validation passed**
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -320,6 +320,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
   - **Tech debt:** none identified
   - **Planning ticket:** [Basic Monsters map](../.scratch/basic-monsters/map.md), [issue 02](../.scratch/basic-monsters/issues/02-monster-state-machine-with-telegraph.md)
+
+- **Slice:** [022 — Monster spawning and respawn (outside town)](slices/022-monster-spawning-and-respawn.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Basic Monsters map](../.scratch/basic-monsters/map.md), [issue 03](../.scratch/basic-monsters/issues/03-monster-spawn-points-from-town-schema.md)
 
 ## Implementation slice acceptance
 

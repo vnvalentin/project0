@@ -99,6 +99,47 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   passed 7/7 tests and 38 assertions. The remaining scripts stay in scope for
   later small lots.
 
+### DT-007: LAN-config tests spawn a real server on the fixed default port 9999 (non-hermetic)
+
+- Classification: `Delinquent Debt`
+- Debt type: `Quality`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-12
+- Benefit or reason: None accepted — this is a discovered test-hermeticity
+  liability, not an intentional tradeoff. `tests/unit/test_lan_config.gd` proves
+  the `--server-bind-address` override by launching a real
+  `server/server_main.gd` subprocess, but relies on the default UDP port 9999
+  and asserts on `Server listening on <addr>:9999`. The server exposes no port
+  override, so the tests cannot avoid 9999.
+- Impact: The full GUT suite false-reds (`scripts/run_gut_validation.sh` exit 1,
+  2/140 failing: `test_cli_arg_overrides_bind_address_on_real_server` and
+  `test_cli_arg_binds_server_to_wan_wildcard_address`) whenever UDP 9999 is
+  already held — e.g. a developer running the game server locally, or a stray
+  headless server from a prior run. Observed 2026-09-12: a leftover
+  `godot -s server/server_main.gd` bound to `127.0.0.1:9999` produced exactly
+  this false failure. A validation gate that reddens for environmental reasons
+  trains reviewers to ignore red and can mask genuine regressions.
+- Remediation plan: Add a bounded server port override (e.g. a
+  `--server-port=<n>` CLI arg resolved in `shared/network_config.gd`, mirroring
+  `resolve_server_bind_address`), then have the two real-server tests reserve an
+  OS-assigned ephemeral free port (bind a temporary UDP socket to port 0, read
+  the assigned port, release it, pass it to the spawned server) and assert on
+  that port instead of the hardcoded 9999. This makes the tests hermetic and
+  immune to port collisions; the pure-resolver test
+  (`test_defaults_to_localhost_with_no_override`) is unaffected.
+- Status: `Open`
+- Phase: 3 (LAN client connection, where the test originated) and 7 (it degrades
+  the F-005 automated validation gate's trustworthiness).
+- Links: [Slice 003](slices/003-lan-client-connection.md),
+  [F-003](FEATURE-LIST.md#f-003-lan-client-connection),
+  [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry),
+  `tests/unit/test_lan_config.gd`, `server/server_main.gd`,
+  `shared/network_config.gd`
+- Rationale: Recorded immediately on discovery per the debt lifecycle. The
+  environmental cause (a stray process on 9999) was cleared to restore a green
+  140/140 run, but the underlying non-hermetic test design remains and will
+  recur until the port-override + ephemeral-port remediation lands.
+
 ## Resolved Items
 
 ### DT-002: No automated GDScript test framework
