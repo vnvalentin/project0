@@ -160,6 +160,77 @@ for a developer to pick up. No implementation has started.
 
 ## In Progress Features
 
+### F-030: Accounts and characters persistence repository
+
+- Status: `In Progress`
+- Feature: The server durably creates, reads, selects, and soft-deletes
+  Accounts and their Characters through one server-only repository on the
+  shared SQLite engine — enforcing username uniqueness, global live
+  Character-name uniqueness, the 5-Character cap, and ownership, with every
+  mutation atomic and fail-closed. No RPC, no password hashing, no client, no
+  world entry yet — those remain later player-accounts implementation slices.
+- Problem solved: Phase 14's spec (self-serve registration, up to 5 durable
+  Characters per Account, global live name uniqueness) has no data layer yet;
+  the Wave 4 shared SQLite engine ([F-029](#f-029-shared-server-owned-sqlite-persistence-foundation))
+  is inert until a consumer creates domain tables and a repository seam on it.
+- How it solves the problem: Slice 039 adds the pure, versioned
+  `shared/character_record.gd` (`CharacterRecord`) and
+  `shared/account_handle.gd` (`AccountHandle`) value contracts plus bounded
+  rejection enums and `display_name` validation (length 3-20, charset
+  `[A-Za-z0-9 _-]`, no leading/trailing/double spaces) — no DB handle or
+  secrets. `server/account_character_repository.gd`
+  (`class_name AccountCharacterRepository`) wraps a `SqliteStore` and creates
+  the `accounts`/`characters` tables (`ensure_schema()`, idempotent
+  `CREATE TABLE IF NOT EXISTS`), including a partial unique index on
+  `characters.display_name WHERE deleted = 0` and an index on `account_id`.
+  Every mutating operation (`create_account`, `create_character`,
+  `select_character`, `soft_delete_character`) runs inside one
+  `SqliteStore.transaction()` `BEGIN`/`COMMIT`, uses only
+  `query_with_bindings` (never string-concatenated SQL), and enforces name
+  uniqueness and the 5-cap at both the app layer (pre-check) and the DB layer
+  (partial unique index) as defense in depth, surfacing a DB-layer race loss
+  as the same bounded `NAME_TAKEN`/`USERNAME_TAKEN` reason rather than a
+  crash. The repository stores and returns the PBKDF2 credential bytes it is
+  given verbatim; it never computes or compares them.
+- Name-reservation reconciliation: ticket 06's explicit partial unique index
+  `WHERE deleted = 0` is authoritative over ticket 05's prose ("name stays
+  reserved to the Account"). A soft-deleted Character row is retained (for
+  history/possible future restore) but its `display_name` is no longer
+  reserved — any Account, including a different one, may reuse it once it is
+  the only claim on that name among live rows. See
+  [Slice 039](slices/039-accounts-characters-repository.md#reconciliation-name-reservation-across-soft-delete)
+  for the full rationale.
+- Phase: 14. Player accounts and characters
+- Implementation slices: [Slice 039](slices/039-accounts-characters-repository.md)
+- Public seam: `server/account_character_repository.gd`
+  (`AccountCharacterRepository.ensure_schema`, `create_account`,
+  `find_account_by_username`, `create_character`, `list_characters`,
+  `select_character`, `soft_delete_character`); `shared/character_record.gd`
+  (`CharacterRecord`, rejection enums, `is_valid_display_name`);
+  `shared/account_handle.gd` (`AccountHandle`).
+- Validation: Focused `tests/unit/test_character_record.gd` 10/10 and
+  `tests/integration/test_account_character_repository.gd` 10/10 (against a
+  temporary `user://` database per test). Full suite
+  `scripts/run_gut_validation.sh` 233/233 across 30 scripts, exit 0
+  (`scripts_expected == scripts_ran == 30`).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [player-accounts spec](../.scratch/player-accounts/spec.md),
+  [player-accounts issue 05](../.scratch/player-accounts/issues/05-character-data-model-and-lifecycle.md),
+  [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md),
+  [F-029](#f-029-shared-server-owned-sqlite-persistence-foundation) (the
+  consumed SQLite engine foundation).
+- Change history:
+  - Date: 2026-09-13
+    What changed: Opened F-030 via Slice 039 — added the shared
+    `CharacterRecord`/`AccountHandle` contracts and the server-only
+    `AccountCharacterRepository` with atomic, parameter-bound, fail-closed
+    account/character CRUD on top of the Slice 038 `SqliteStore` engine.
+    Why: Phase 14's spec needs a durable data layer before auth/RPC/client
+    slices can be built on it; this is the next unblocked slice now that the
+    Wave 4 shared SQLite foundation (F-029) is delivered.
+    Validation: Focused suites 10/10 and 10/10; full GUT suite 233/233 across
+    30 scripts, exit 0.
+
 ### P-024: Public game access via OPNsense-native WireGuard
 
 - Status: `In Progress`
@@ -639,6 +710,23 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### F-029: Shared server-owned SQLite persistence foundation
+
+- Status: `Implemented` (engine seam only; no domain tables — see Known limitations)
+- Feature: One server-owned SQLite engine (`server/sqlite_store.gd`, `class_name SqliteStore`) that opens a database in `user://` (never `res://`), enables `PRAGMA journal_mode=WAL`, reads/writes `PRAGMA user_version` and fails closed on an unsupported version, exposes an atomic `BEGIN`/`COMMIT`/`ROLLBACK` transaction helper, and a parameter-bound query API (`query_with_bindings`).
+- Problem solved: nothing in this repository durably persists structured records across restarts yet. Both Phase 14 (Player accounts and characters) and Phase 9 (Canon persistence) independently need a durable, atomic, fail-closed, injection-safe store; building two would diverge and duplicate risk. This is Wave 4 of the delivery roadmap — "the linchpin, build once."
+- How it solves the problem: Slice 038 vendors the `godot-sqlite` GDExtension (2shady4u, MIT) pinned at release `v4.4` (built against Godot 4.3-stable, an exact engine match) into `addons/godot-sqlite/`, then wraps it in a server-only `RefCounted` seam that never leaves `server/`. Every write path goes through `transaction()` (rollback on any failure, so no partial durable record) and `query_with_bindings()` (never string-concatenated SQL). An existing database's `user_version` is checked on open and rejected outright if it doesn't match the one version this build supports — never guessed/migrated forward.
+- Phase: 9 (Canon persistence and world mutation) and 14 (Player accounts and characters) — cross-cutting shared foundation, not owned by either phase's domain schema.
+- Implementation slices: [Slice 038](slices/038-shared-sqlite-persistence-foundation.md)
+- Public seam: `server/sqlite_store.gd` (`SqliteStore.open`, `close`, `is_open`, `get_user_version`, `transaction`, `query_with_bindings`, `query`); `addons/godot-sqlite/` (vendored, pinned).
+- Validation: Headless extension-load proof (ad hoc smoke script, `godot --headless --path . --script ...`) — exit 0, `SMOKE_OK`, no load error. Focused `tests/integration/test_sqlite_store.gd` 6/6 passed, 22 asserts. Full suite `scripts/run_gut_validation.sh` 213/213 across 28 scripts, exit 0 (`scripts_expected == scripts_ran == 28`).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#delivery-order-and-parallelization) (Wave 4), [player-accounts spec](../.scratch/player-accounts/spec.md), [player-accounts issue 03](../.scratch/player-accounts/issues/03-research-godot-persistence-sqlite.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md).
+- Change history:
+  - Date: 2026-09-13
+    What changed: Delivered F-029 via Slice 038 — vendored the pinned `godot-sqlite` v4.4 GDExtension and added the `SqliteStore` engine seam (`user://`-only, WAL, fail-closed `user_version`, atomic transactions, parameter-bound queries only). No domain tables (Account/Character/Canon schemas remain later slices).
+    Why: Phase 14 (player accounts) and Phase 9 (Canon) both require one shared, server-owned, atomic, fail-closed, injection-safe persistence mechanism per the resolved player-accounts persistence research/design (tickets 03/06); building it once now unblocks both.
+    Validation: Headless load proof exit 0 (`SMOKE_OK`); focused suite 6/6; full GUT suite 213/213 across 28 scripts, exit 0.
 
 ### F-028: Imperial world-scale measurement contract
 

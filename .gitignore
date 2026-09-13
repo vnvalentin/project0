@@ -34,3 +34,6 @@ native/**/*.a
 *.so
 *.dll
 *.dylib
+
+# Vendored godot-sqlite native GDExtension binaries (Slice 038) — intentionally committed
+!addons/godot-sqlite/bin/*.so

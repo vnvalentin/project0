@@ -69,9 +69,11 @@ Waves are sequential; tracks inside a wave run in parallel.
 3. **World-scale migration.** Introduce the versioned server-owned scale/tuning
    seam and reconcile existing constants (mostly a relabel, low churn).
    Sequence after the town/monster constant churn settles.
-4. **Shared SQLite persistence foundation (linchpin, build once).** One
-   server-owned SQLite engine consumed by both player-accounts and Phase 9
-   Canon; it unblocks the containerized runtime and the progression store.
+4. **Shared SQLite persistence foundation (linchpin, build once) — done.** One
+   server-owned SQLite engine (`server/sqlite_store.gd`, Slice 038, F-029)
+   consumed by both player-accounts and Phase 9 Canon; it unblocks the
+   containerized runtime and the progression store. Engine only — no domain
+   tables yet.
 5. **Two consumers in parallel.** Player accounts and characters
    (`.scratch/player-accounts/`) alongside Canon persistence (P-011/P-012/P-013)
    and JIT-generation completion (IP-008 boundary detection, F-026 LLM-on-boot,
@@ -113,11 +115,11 @@ migration).
 | 11. Multi-peer Player replication | done | Two clients connect to one server, see distinct Players, observe each other's authoritative movement, and clean up a disconnected Player. |
 | 7. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are documented, exercised, and synchronized with feature records. |
 | 8. JIT world generation and local inference | in-progress | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
-| 9. Canon persistence and world mutation | queued | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
+| 9. Canon persistence and world mutation | in-progress | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
 | 13. Public game access | in-progress | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
-| 14. Player accounts and characters | queued | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
+| 14. Player accounts and characters | in-progress | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
 
 ### Phase work index
 
@@ -207,10 +209,13 @@ Progress: **73%** (8 of 11 items done)
 
 **Phase 9 — Canon persistence and world mutation**
 
-Progress: **0%** (0 of 3 items done)
+Progress: **25%** (1 of 4 items done)
 
-- Features: `queued` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `queued` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
+
+- **Current slice:** [038 — Shared server-owned SQLite persistence foundation](slices/038-shared-sqlite-persistence-foundation.md) — **100% complete; engine seam only, no domain tables; focused and full-suite validation passed**
+  - **Feature:** [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation)
 
 **Phase 10 — Authoritative runtime and action input**
 
@@ -239,9 +244,14 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 14 — Player accounts and characters**
 
-Progress: **0%** (0 of 0 items done)
+Progress: **50%** (1 of 2 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. No feature record exists yet — per the delivery lifecycle these were `grilling`/`research` tickets that resolve into the spec, so the first `F-<n>` feature is created when the first implementation `task` slice starts. Implementation is queued and consumes the Wave 4 shared SQLite persistence foundation (one engine shared with Phase 9 Canon).
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the first Account/Character data-layer feature (in progress); RPC/auth/client/world-entry remain queued, unscoped follow-up slices.
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `in-progress` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029; RPC/auth/client/world-entry not yet built).
+- Tech debt: none yet.
+
+- **Current slice:** [039 — Accounts and characters persistence repository](slices/039-accounts-characters-repository.md) — **100% complete; server-only data layer, no RPC/auth/client; focused and full-suite validation passed**
+  - **Feature:** [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository)
 
 ### Implementation slice index
 
@@ -445,6 +455,14 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** none (arose from the "is the village walkable?" review)
   - **Decision:** no new ADR; extends the ADR 0001 server-authoritative movement model with collision
 
+#### Phase 9 — Canon persistence and world mutation
+
+- **Slice:** [038 — Shared server-owned SQLite persistence foundation](slices/038-shared-sqlite-persistence-foundation.md) — **100% complete; engine seam only (no domain tables); focused and full-suite validation passed**
+  - **Feature:** [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [player-accounts issue 03](../.scratch/player-accounts/issues/03-research-godot-persistence-sqlite.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md) (the persistence-mechanism decision was made in the player-accounts design track; this slice is Wave 4, the shared build-once foundation both Phase 9 Canon and Phase 14 accounts consume)
+  - **Decision:** no new ADR; implements the already-accepted ticket 03/06 decision (one shared `godot-sqlite` engine, WAL, fail-closed `user_version`, parameter-bound queries)
+
 #### Phase 13 — Public game access
 
 - **Slice:** [028 — WireGuard remote-access infrastructure foundation](slices/028-wireguard-remote-access-infrastructure-foundation.md) — **records-first handoff complete; awaiting live OPNsense/host execution evidence**
@@ -467,6 +485,14 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
   - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 02 decision), Windows packaging of the Slice 034 GDExtension
+
+#### Phase 14 — Player accounts and characters
+
+- **Slice:** [039 — Accounts and characters persistence repository](slices/039-accounts-characters-repository.md) — **100% complete; server-only data layer (no RPC/auth/client/world entry); focused and full-suite validation passed**
+  - **Feature:** [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md), [player-accounts issue 05](../.scratch/player-accounts/issues/05-character-data-model-and-lifecycle.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md)
+  - **Decision:** no new ADR; implements the already-accepted ticket 05/06 design with one documented reconciliation (ticket 06's partial unique index `WHERE deleted = 0` is authoritative over ticket 05's "name stays reserved" prose — see the slice record's Reconciliation section)
 
 ## Implementation slice acceptance
 
@@ -496,8 +522,11 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   player position crosses into an unexplored sector, closing the remaining gap
   between Slice 009 and a fully `Implemented`
   [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation).
-- [ ] Ready — Canon persistence design (Phase 9): resolve the open SQLite
-  schema/transaction/event-model questions in
+- [ ] Ready — Canon persistence design (Phase 9): the shared engine this
+  design will build on is now delivered
+  ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029 —
+  `server/sqlite_store.gd`, no domain tables yet). Still resolve the open
+  Canon schema/transaction/event-model questions in
   [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   before scoping the first slice for
   [P-011](FEATURE-LIST.md#p-011-canonical-history-archive),
@@ -596,9 +625,15 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   validation (S3b), enrollment service (issue 04), and revocation/ban
   automation (issue 06) remain queued, unscoped work for
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
-- [ ] Ready — Player accounts and characters (Phase 14): design complete
-  (`.scratch/player-accounts/spec.md`, all six tickets resolved, `CONTEXT.md`
-  reconciled). First implementation slice = shared account/character
-  contracts; the durable store is the Wave 4 shared SQLite foundation (shared
-  with Phase 9). Self-serve registration behind the Phase 13 WireGuard gate;
-  up to 5 globally-unique, soft-deletable Characters per Account.
+- [x] Ready — Player accounts and characters, data layer (Phase 14): design
+  complete (`.scratch/player-accounts/spec.md`, all six tickets resolved,
+  `CONTEXT.md` reconciled). The Wave 4 shared SQLite foundation
+  ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029)
+  and the `accounts`/`characters` schema and repository on top of it
+  ([Slice 039](slices/039-accounts-characters-repository.md), F-030) are now
+  delivered. Still queued, unscoped: ENet RPC (register/login/list/create/
+  select/delete), PBKDF2 hashing/session objects, client login/character
+  screens, and Character -> Player `start_for_peer` instantiation (spec
+  Implementation slices 3-6). Self-serve registration behind the Phase 13
+  WireGuard gate; up to 5 globally-unique, soft-deletable Characters per
+  Account.

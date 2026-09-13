@@ -48,13 +48,15 @@ contended range and everything after it is tracked explicitly:
 | 030 | Server-side wall and building collision (F-027) | interactive |
 | 031 | Bigger rural village with NPC and leader housing (F-026) | interactive |
 | 032 | wgnetstack netstack bridge, Linux prototype (P-024) | autonomous CLI |
-| 033 | Client monster replication and rendering (F-029) | interactive |
+| 033 | Client monster replication and rendering (IP-023) | interactive |
 | 034 | wgnetstack in-client GDExtension + tunnel integration, Linux (P-024) | interactive |
 | 035 | wgnetstack Windows DLL cross-compile + client repackage (P-024) | autonomous CLI |
 | 036 | Imperial world-scale measurement contract — WorldScale (F-028) | interactive |
 | 037 | World-scale constant relabel: meters → yards (F-028) | interactive |
+| 038 | Shared server-owned SQLite persistence foundation, Wave 4 (F-029) | interactive |
+| 039 | Accounts and characters persistence repository (F-030) | interactive |
 
-Next free slice: **038** (verify against `docs/slices/` before reserving).
+Next free slice: **040** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
