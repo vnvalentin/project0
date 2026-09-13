@@ -47,6 +47,25 @@ func clear(peer_id: int) -> void:
 	_sessions_by_peer_id.erase(peer_id)
 
 
+## Public seam (Slice 042). Records the Character `peer_id` selected on its
+## own session Dictionary (consumed by a future Slice 6 world-entry seam).
+## A no-op if `peer_id` holds no session — callers (CharacterService) must
+## already have confirmed authentication before calling this.
+func set_selected_character(peer_id: int, character_id: String) -> void:
+	if not _sessions_by_peer_id.has(peer_id):
+		return
+	(_sessions_by_peer_id[peer_id] as Dictionary)["selected_character_id"] = character_id
+
+
+## Public seam (Slice 042). Returns the Character id selected on `peer_id`'s
+## session, or an empty String if the peer holds no session or has not yet
+## selected a Character. Cleared implicitly with the rest of the session on
+## clear()/disconnect.
+func get_selected_character(peer_id: int) -> String:
+	var session: Dictionary = _sessions_by_peer_id.get(peer_id, {})
+	return String(session.get("selected_character_id", ""))
+
+
 func _generate_token() -> String:
 	var crypto := Crypto.new()
 	return crypto.generate_random_bytes(32).hex_encode()

@@ -41,6 +41,7 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const AccountCharacterRepositoryScript: Script = preload("res://server/account_character_repository.gd")
 const AuthServiceScript: Script = preload("res://server/auth_service.gd")
+const CharacterServiceScript: Script = preload("res://server/character_service.gd")
 
 ## Slice 040: the accounts/characters database file, opened at server boot
 ## under user:// (never a shipped res:// asset — see SqliteStore's own rule).
@@ -116,6 +117,7 @@ var _monster_tick: int = 0
 var _accounts_store: SqliteStore = null
 var _account_repository: Object = null
 var _auth_service: Object = null
+var _character_service: Object = null
 
 ## Fixed simulation delta used to drive monster chase movement each physics
 ## frame (the SceneTree physics_frame signal carries no delta).
@@ -184,6 +186,12 @@ func _start_server() -> void:
 	_auth_service = AuthServiceScript.new(_account_repository)
 	_auth_service.name = "AuthService"
 	root.add_child(_auth_service)
+	# Slice 042: session-gated Character CRUD dispatch, sharing AuthService's
+	# SessionRegistry so a session bound by register/login is visible to
+	# character create/select/delete without a second session store.
+	_character_service = CharacterServiceScript.new(_account_repository, _auth_service.get_session_registry())
+	_character_service.name = "CharacterService"
+	root.add_child(_character_service)
 	print("Accounts database ready at user://%s (schema ensured)." % accounts_db_path)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()

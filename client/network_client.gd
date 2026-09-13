@@ -627,3 +627,110 @@ func _reply_auth_result(peer_id: int, result: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func receive_auth_result(outcome: String, account_id: String, username: String) -> void:
 	auth_result_received.emit(outcome, account_id, username)
+
+
+## Slice 042: emitted on the requesting client with the authoritative outcome
+## of one of its own Character CRUD requests. `characters` carries the
+## client-safe CharacterRecord wire dicts the result produced (all live
+## characters for list; the one created/selected character for create/select;
+## empty for delete or any rejection). Relayed via a signal so a future
+## character-select/create screen or test harness decides how to present it.
+signal character_result_received(operation: String, outcome: String, characters: Array)
+
+
+## Public seam (test/harness helper): submits a list-characters request for
+## this client's own authenticated session account. A no-op before connected.
+func submit_list_characters() -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_list_characters_request_on_server")
+
+
+## Public seam (test/harness helper): submits a create-character request.
+func submit_create_character(character_name: String, cosmetic: Dictionary) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_create_character_request_on_server", character_name, cosmetic)
+
+
+## Public seam (test/harness helper): submits a select-character request.
+func submit_select_character(character_id: String) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_select_character_request_on_server", character_id)
+
+
+## Public seam (test/harness helper): submits a delete-character request.
+func submit_delete_character(character_id: String) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_delete_character_request_on_server", character_id)
+
+
+## RPC target: runs only on the server's NetworkClient instance, called by a
+## connected client via submit_list_characters() above. Mirrors
+## receive_register_request_on_server's forwarding pattern: forwards to the
+## server-only CharacterService (server_main.gd's /root/CharacterService
+## instance), which derives the account from the peer's own session — the
+## client never supplies an account_id.
+@rpc("any_peer", "call_remote", "reliable")
+func receive_list_characters_request_on_server() -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
+	if character_service == null:
+		return
+	_reply_character_result(sender_id, "list", character_service.list_characters(sender_id))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func receive_create_character_request_on_server(character_name: String, cosmetic: Dictionary) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
+	if character_service == null:
+		return
+	_reply_character_result(sender_id, "create", character_service.create_character(sender_id, character_name, cosmetic))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func receive_select_character_request_on_server(character_id: String) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
+	if character_service == null:
+		return
+	_reply_character_result(sender_id, "select", character_service.select_character(sender_id, character_id))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func receive_delete_character_request_on_server(character_id: String) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
+	if character_service == null:
+		return
+	_reply_character_result(sender_id, "delete", character_service.delete_character(sender_id, character_id))
+
+
+## Sends the character_result RPC back to the requesting peer only, translating
+## CharacterService's result Dictionary into the wire shape: the bounded
+## outcome plus the client-safe CharacterRecord wire dicts. Never forwards the
+## "detail" string (may echo caller-supplied input). list -> every record;
+## create/select -> the single record; delete/rejection -> empty array.
+func _reply_character_result(peer_id: int, operation: String, result: Dictionary) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	var wire_characters: Array = []
+	if result.has("characters"):
+		for record: Object in result["characters"]:
+			wire_characters.append(record.to_wire_dict())
+	elif result.has("character"):
+		wire_characters.append((result["character"] as Object).to_wire_dict())
+	network_client.rpc_id(peer_id, "receive_character_result", operation, String(result["outcome"]), wire_characters)
+
+
+## RPC target: called by the server on the requesting client only, with the
+## authoritative outcome of that client's own Character CRUD request. Relayed
+## via a signal, matching this file's relay-only pattern (it never itself
+## stores a CharacterRecord client-side).
+@rpc("authority", "call_remote", "reliable")
+func receive_character_result(operation: String, outcome: String, characters: Array) -> void:
+	character_result_received.emit(operation, outcome, characters)

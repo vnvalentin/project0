@@ -97,3 +97,75 @@ func _init(
 	last_played_at = p_last_played_at
 	deleted = p_deleted
 	vessel_seam = p_vessel_seam
+
+
+## Public seam (Slice 042). Pure, versioned serialization to a client-safe
+## wire Dictionary for the character_result RPC — every field on this
+## contract as-is, no salt/hash/account-internal data beyond what this record
+## already carries. Additive only; does not change any existing field or
+## constructor behavior.
+func to_wire_dict() -> Dictionary:
+	return {
+		"schema_version": schema_version,
+		"character_id": character_id,
+		"account_id": account_id,
+		"display_name": display_name,
+		"cosmetic": cosmetic,
+		"created_at": created_at,
+		"last_played_at": last_played_at,
+		"deleted": deleted,
+		"vessel_seam": vessel_seam,
+	}
+
+
+## Public seam (Slice 042). Static, fail-closed parse of an untrusted wire
+## Dictionary (network input) into a CharacterRecord. Returns null for
+## anything not exactly the expected bounded shape: missing/extra keys are
+## tolerated only as "missing -> reject"; wrong types or an unsupported
+## schema_version reject rather than guessing. Matches CLAUDE.md's "Dictionaries
+## received over the network... are untrusted until parsed into validated
+## typed state" rule.
+static func from_wire_dict(wire: Variant) -> CharacterRecord:
+	if not (wire is Dictionary):
+		return null
+	var d: Dictionary = wire
+
+	var required_keys: Array[String] = [
+		"schema_version", "character_id", "account_id", "display_name",
+		"cosmetic", "created_at", "last_played_at", "deleted", "vessel_seam",
+	]
+	for key: String in required_keys:
+		if not d.has(key):
+			return null
+
+	if not (d["schema_version"] is int) or int(d["schema_version"]) != SCHEMA_VERSION:
+		return null
+	if not (d["character_id"] is String) or (d["character_id"] as String).is_empty():
+		return null
+	if not (d["account_id"] is String) or (d["account_id"] as String).is_empty():
+		return null
+	if not (d["display_name"] is String):
+		return null
+	if not (d["cosmetic"] is Dictionary):
+		return null
+	if not (d["created_at"] is int) or not is_finite(float(d["created_at"])):
+		return null
+	if not (d["last_played_at"] is int) or not is_finite(float(d["last_played_at"])):
+		return null
+	if not (d["deleted"] is bool):
+		return null
+
+	var vessel_seam: Variant = d["vessel_seam"]
+	if vessel_seam != null and not (vessel_seam is Dictionary):
+		return null
+
+	return CharacterRecord.new(
+		d["character_id"],
+		d["account_id"],
+		d["display_name"],
+		d["cosmetic"],
+		d["created_at"],
+		d["last_played_at"],
+		d["deleted"],
+		vessel_seam
+	)

@@ -161,6 +161,68 @@ for a developer to pick up. No implementation has started.
 
 ## In Progress Features
 
+### F-032: Character CRUD over the wire (server)
+
+- Status: `In Progress`
+- Feature: An authenticated peer can list, create, select, and soft-delete its
+  own Characters over the ENet link. The server scopes every operation to the
+  peer's session account — the client never supplies an `account_id` — and
+  enforces the 5-Character cap, global live-name uniqueness, and ownership,
+  returning typed `CharacterRecord` DTOs or a bounded rejection, session-gated
+  and fail-closed.
+- Problem solved: [F-030](#f-030-accounts-and-characters-persistence-repository)'s
+  repository can create/select/delete Characters and
+  [F-031](#f-031-account-authentication-and-session-server) can authenticate a
+  peer, but nothing connected the two over the wire: a logged-in peer had no
+  way to manage its roster, and no seam enforced that a peer can only touch its
+  own account's Characters.
+- How it solves the problem: Slice 042 adds `server/character_service.gd`
+  (`class_name CharacterService`, a `/root` Node like `AuthService`) with
+  session-gated `list_characters`/`create_character`/`select_character`/
+  `delete_character`. Each method requires an authenticated session (else a
+  bounded `NOT_AUTHENTICATED` with no side effect) and derives `account_id`
+  from the caller's `SessionRegistry` session — never from the client — so a
+  peer authenticated as account A cannot list/select/delete account B's
+  Character even when it knows B's `character_id`. `shared/character_record.gd`
+  gains additive pure `to_wire_dict()`/`from_wire_dict()` so a `CharacterRecord`
+  crosses the RPC boundary as a client-safe DTO (fail-closed parse; no
+  credential material). `client/network_client.gd` gains four additive C→S
+  character request RPCs, matching `submit_*` helpers, and a
+  `receive_character_result` S→C RPC (bounded outcome + wire dicts only — never
+  the `detail` string), following the Slice 040 auth-RPC pattern.
+  `server/session_registry.gd` gains an additive `selected_character_id` (set
+  by `select`, for the future world-entry slice), and
+  `server/auth_service.gd` gains a `get_session_registry()` getter so
+  `server_main.gd` shares one `SessionRegistry` instance between auth and
+  character CRUD.
+- Phase: 14. Player accounts and characters
+- Implementation slices: [Slice 042](slices/042-character-crud-rpc.md)
+- Public seam: `server/character_service.gd` (`CharacterService.list_characters`,
+  `create_character`, `select_character`, `delete_character`);
+  `shared/character_record.gd` (`to_wire_dict`, `from_wire_dict`);
+  `server/session_registry.gd` (`set_selected_character`,
+  `get_selected_character`); `client/network_client.gd`
+  (`submit_list_characters`, `submit_create_character`, `submit_select_character`,
+  `submit_delete_character`, `character_result_received`).
+- Validation: `tests/integration/test_character_crud_rpc.gd` (session-gating,
+  the account-scoping authorization proof, cap/name-taken/name-invalid, select
+  records the selection + refreshes `last_played_at`, soft-delete) and the
+  extended `tests/unit/test_character_record.gd` wire round-trip. Full suite
+  `scripts/run_gut_validation.sh` 267/267 across 36 scripts, exit 0
+  (`scripts_expected == scripts_ran == 36`); `scripts/check_record_sync.sh`
+  exit 0.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [player-accounts spec](../.scratch/player-accounts/spec.md),
+  [F-031](#f-031-account-authentication-and-session-server) (the consumed
+  auth/session seam), [F-030](#f-030-accounts-and-characters-persistence-repository)
+  (the consumed repository).
+- Change history:
+  - Date: 2026-09-13
+    What changed: Opened F-032 via Slice 042 — added `CharacterService`, the
+    additive `CharacterRecord` wire serialization, the session
+    `selected_character_id`, the `AuthService` session-registry getter, and the
+    four character CRUD RPCs; validated at 267/267.
+
 ### F-031: Account authentication and session (server)
 
 - Status: `In Progress`

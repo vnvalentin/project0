@@ -244,14 +244,14 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 14 — Player accounts and characters**
 
-Progress: **67%** (2 of 3 items done)
+Progress: **50%** (2 of 4 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the Account/Character data-layer repository (done, boot-wired by Slice 040) plus the in-progress auth/session RPC seam; Character CRUD/client/world-entry remain queued, unscoped follow-up slices.
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam; Character CRUD/client/world-entry not yet built).
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the Account/Character data-layer repository (done, boot-wired by Slice 040) plus the in-progress auth/session (Slice 040) and session-gated Character CRUD (Slice 042) RPC seams; client screens and world-entry remain queued, unscoped follow-up slices.
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam), `in-progress` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server) (session-gated Character CRUD RPC; client screens/world-entry not yet built).
 - Tech debt: none yet.
 
-- **Current slice:** [040 — Account authentication and session (server)](slices/040-account-auth-session.md) — **100% complete; additive auth/session RPC seam, no mandatory-auth gate, no client UI; focused and full-suite validation passed**
-  - **Feature:** [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server)
+- **Current slice:** [042 — Character CRUD over the wire (server)](slices/042-character-crud-rpc.md) — **100% complete; session-gated Character CRUD RPC seam with session-derived account scoping; no client UI, no world entry; focused and full-suite validation passed**
+  - **Feature:** [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server)
 
 ### Implementation slice index
 
@@ -503,6 +503,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 3), [handoff-040](../.scratch/player-accounts/handoff-040-account-auth-session.md)
   - **Decision:** no new ADR; implements the already-accepted ticket 04 design (PBKDF2-HMAC-SHA256, opaque in-memory sessions, no-enumeration `BAD_CREDENTIALS`) with one implementation-level detail — hand-rolling the RFC 8018 PBKDF2 block construction on `Crypto.hmac_digest` since Godot 4.3 has no native PBKDF2 API, proven against a published known-answer vector (see the slice record's No-ADR rationale)
+- **Slice:** [042 — Character CRUD over the wire (server)](slices/042-character-crud-rpc.md) — **100% complete; session-gated Character CRUD RPC seam; account scoping derived from the session (the client never supplies an account_id); no client UI, no world entry; focused and full-suite validation passed**
+  - **Feature:** [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 4), [handoff-042](../.scratch/player-accounts/handoff-042-character-crud-rpc.md)
+  - **Decision:** no new ADR; implements the already-accepted ticket 05 Character lifecycle over the existing Slice 040 auth-RPC pattern
 
 ## Implementation slice acceptance
 
@@ -656,10 +661,14 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   thread), and the opaque in-memory `SessionRegistry`
   ([Slice 040](slices/040-account-auth-session.md), F-031) are now delivered,
   additive to the existing always-playable connect lifecycle (auth is not yet
-  mandatory for world entry). Still queued, unscoped: `list_characters`/
-  `create_character`/`select_character`/`delete_character` RPC (spec
-  Implementation slice 4), client login/character screens replacing
-  `identity_gate.tscn` (spec slice 5), and Character -> Player
-  `start_for_peer` instantiation (spec slice 6). Self-serve registration
-  behind the Phase 13 WireGuard gate; up to 5 globally-unique, soft-deletable
-  Characters per Account.
+  mandatory for world entry).
+- [x] In progress — Player accounts and characters, Character CRUD (Phase 14):
+  session-gated `list_characters`/`create_character`/`select_character`/
+  `delete_character` over ENet ([Slice 042](slices/042-character-crud-rpc.md),
+  F-032) are delivered — every operation is scoped to the peer's session
+  account (the client never supplies an `account_id`), enforcing the 5-cap,
+  global live-name uniqueness, and ownership. Still queued, unscoped: client
+  login/character screens replacing `identity_gate.tscn` (spec slice 5), and
+  Character -> Player `start_for_peer` instantiation (spec slice 6). Self-serve
+  registration behind the Phase 13 WireGuard gate; up to 5 globally-unique,
+  soft-deletable Characters per Account.

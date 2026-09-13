@@ -55,6 +55,13 @@ func clear_session(peer_id: int) -> void:
 	_sessions.clear(peer_id)
 
 
+## Public seam. Returns this service's SessionRegistry so server_main.gd can
+## share the SAME instance with CharacterService (Slice 042): a session bound
+## by register/login must be visible to character CRUD without a second store.
+func get_session_registry() -> SessionRegistry:
+	return _sessions
+
+
 ## Public seam. Registers a new Account for `peer_id` and auto-authenticates
 ## it on success (binds a session immediately — no separate login step is
 ## required after registering). Returns:
