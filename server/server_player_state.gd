@@ -74,6 +74,21 @@ var facing: Vector3 = Vector3(0.0, 0.0, -1.0)
 var _input_intent: Vector2 = Vector2.ZERO
 var _last_processed_sequence: int = -1
 
+## Slice 043: the selected Character this Player was instantiated as, bound on
+## world entry. Identity/cosmetic only; position/combat authority is unchanged.
+var character_id: String = ""
+var character_display_name: String = ""
+var character_cosmetic: Dictionary = {}
+
+
+## Public seam (Slice 043). Binds the selected Character's identity/cosmetic to
+## this Player on world entry. Does not touch position or combat state.
+func bind_character(p_character_id: String, p_display_name: String, p_cosmetic: Dictionary) -> void:
+	character_id = p_character_id
+	character_display_name = p_display_name
+	character_cosmetic = p_cosmetic
+
+
 ## Melee action state. archetype is fixed to the Generic Sword baseline for
 ## every Player in this slice — no equipping/switching exists yet.
 var _archetype: Object = CombatContractsScript.generic_sword_archetype()

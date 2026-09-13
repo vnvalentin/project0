@@ -24,6 +24,7 @@ const SessionRegistryScript: Script = preload("res://server/session_registry.gd"
 
 const OUTCOME_OK: String = "ok"
 const REJECT_NOT_AUTHENTICATED: String = "NOT_AUTHENTICATED"
+const REJECT_NO_CHARACTER_SELECTED: String = "NO_CHARACTER_SELECTED"
 
 var _repository: AccountCharacterRepository = null
 var _sessions: SessionRegistry = null
@@ -91,6 +92,29 @@ func delete_character(peer_id: int, character_id: Variant) -> Dictionary:
 	if account_id.is_empty():
 		return _reject_unauthenticated(peer_id)
 	return _repository.soft_delete_character(account_id, character_id)
+
+
+## Public seam (Slice 043 world entry). Returns the CharacterRecord the peer
+## has selected on its session (Slice 042 recorded it via select_character) so
+## the server can instantiate the Player as that Character. Derives everything
+## from the session — the client never names the account or the character here.
+## Returns:
+##   {"outcome": OUTCOME_OK, "character": CharacterRecord}
+##   {"outcome": REJECT_NOT_AUTHENTICATED, "detail": String}
+##   {"outcome": REJECT_NO_CHARACTER_SELECTED, "detail": String}
+##   {"outcome": CharacterRecord.REJECT_NO_SUCH_CHARACTER, "detail": String}
+func get_selected_character(peer_id: int) -> Dictionary:
+	var account_id: String = _require_session_account(peer_id)
+	if account_id.is_empty():
+		return _reject_unauthenticated(peer_id)
+	var selected_id: String = _sessions.get_selected_character(peer_id)
+	if selected_id.is_empty():
+		return {"outcome": REJECT_NO_CHARACTER_SELECTED, "detail": "Peer %d has not selected a Character." % peer_id}
+	var list_result: Dictionary = _repository.list_characters(account_id)
+	for record: Object in list_result.get("characters", []):
+		if (record as CharacterRecord).character_id == selected_id:
+			return {"outcome": OUTCOME_OK, "character": record}
+	return {"outcome": CharacterRecordScript.REJECT_NO_SUCH_CHARACTER, "detail": "Selected Character %s is no longer available." % selected_id}
 
 
 ## Returns the session's account_id, or an empty String if `peer_id` holds no

@@ -734,3 +734,59 @@ func _reply_character_result(peer_id: int, operation: String, result: Dictionary
 @rpc("authority", "call_remote", "reliable")
 func receive_character_result(operation: String, outcome: String, characters: Array) -> void:
 	character_result_received.emit(operation, outcome, characters)
+
+
+## Slice 043: emitted on the requesting client with the outcome of its own
+## world-entry request. On success `character` is the selected CharacterRecord
+## wire dict the authoritative Player was bound to; on rejection it is empty and
+## `outcome` carries the bounded reason. The character-select screen transitions
+## into gameplay on success.
+signal world_entry_received(outcome: String, character: Dictionary)
+
+
+## Public seam (test/harness helper): requests world entry as this client's
+## selected Character. A no-op before connected.
+func submit_enter_world() -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_enter_world_request_on_server")
+
+
+## RPC target: runs on the server's NetworkClient instance. Resolves the peer's
+## selected Character via CharacterService (which derives it from the session)
+## and binds it to that peer's authoritative ServerPlayerState — both server-only
+## /root nodes. Additive: the connect-time anonymous spawn is unchanged, so the
+## existing no-auth e2e path still works.
+@rpc("any_peer", "call_remote", "reliable")
+func receive_enter_world_request_on_server() -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
+	var player_state: Node = get_tree().root.get_node_or_null("ServerPlayerState_%d" % sender_id)
+	if character_service == null or player_state == null:
+		return
+	var result: Dictionary = character_service.get_selected_character(sender_id)
+	if result["outcome"] == "ok":
+		var record: Object = result["character"]
+		player_state.bind_character(record.character_id, record.display_name, record.cosmetic)
+	_reply_enter_world_result(sender_id, result)
+
+
+## Sends the world-entry result back to the requesting peer only: the bounded
+## outcome plus the bound Character's wire dict on success (never the detail
+## string).
+func _reply_enter_world_result(peer_id: int, result: Dictionary) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	var character_wire: Dictionary = {}
+	if result.has("character"):
+		character_wire = (result["character"] as Object).to_wire_dict()
+	network_client.rpc_id(peer_id, "receive_enter_world_result", String(result["outcome"]), character_wire)
+
+
+## RPC target: called by the server on the requesting client with its own
+## world-entry outcome. Relayed via a signal for the character-select screen or
+## test harness to transition into gameplay.
+@rpc("authority", "call_remote", "reliable")
+func receive_enter_world_result(outcome: String, character: Dictionary) -> void:
+	world_entry_received.emit(outcome, character)

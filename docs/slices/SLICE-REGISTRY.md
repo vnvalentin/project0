@@ -58,8 +58,9 @@ contended range and everything after it is tracked explicitly:
 | 040 | Account authentication and session, server (F-031) | interactive |
 | 041 | DT-006 remaining-smoke-test GUT migration (interactive) | interactive |
 | 042 | Character CRUD over the wire, server (F-032) | interactive |
+| 043 | Character world entry, server binding (F-033) | interactive |
 
-Next free slice: **043** (verify against `docs/slices/` before reserving).
+Next free slice: **044** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

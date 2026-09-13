@@ -161,6 +161,48 @@ for a developer to pick up. No implementation has started.
 
 ## In Progress Features
 
+### F-033: Character world entry (server binding)
+
+- Status: `In Progress`
+- Feature: An authenticated peer that has selected a Character can enter the
+  world as that Character. The server resolves the selection from the session
+  (the client names neither the account nor the character) and binds the
+  Character's identity/cosmetic to the peer's authoritative Player, fail-closed.
+- Problem solved: [F-032](#f-032-character-crud-over-the-wire-server) lets a peer
+  select a Character, but nothing instantiated the in-world Player *as* that
+  Character — selection had no in-world effect.
+- How it solves the problem: Slice 043 adds
+  `server/character_service.gd::get_selected_character(peer_id)` (derives the
+  account + `selected_character_id` from the session and returns the live
+  `CharacterRecord`, else `NOT_AUTHENTICATED`/`NO_CHARACTER_SELECTED`/
+  `NO_SUCH_CHARACTER`), `server/server_player_state.gd::bind_character()`
+  (identity/cosmetic only — position/combat authority unchanged), and additive
+  `submit_enter_world`/`receive_enter_world_request_on_server`/
+  `receive_enter_world_result`/`world_entry_received` on
+  `client/network_client.gd`, following the Slice 040/042 forwarding pattern.
+  The RPC receiver resolves the Character via `CharacterService` and binds it to
+  the peer's `ServerPlayerState` (both `/root` nodes). Additive: the connect-time
+  anonymous spawn is unchanged, so the real-server e2e harnesses stay green.
+- Phase: 14. Player accounts and characters
+- Implementation slices: [Slice 043](slices/043-character-world-entry.md); the
+  client login/character screens (spec slice 5) follow as Slice 044 (GUI-confirmed).
+- Public seam: `server/character_service.gd` (`get_selected_character`);
+  `server/server_player_state.gd` (`bind_character`, `character_id`,
+  `character_display_name`, `character_cosmetic`); `client/network_client.gd`
+  (`submit_enter_world`, `world_entry_received`).
+- Validation: `tests/integration/test_character_crud_rpc.gd`'s world-entry
+  scenario (unauthenticated / unselected refused; selected resolves). Full suite
+  `scripts/run_gut_validation.sh` 268/268 across 36 scripts, exit 0
+  (`scripts_expected == scripts_ran == 36`); `scripts/check_record_sync.sh` exit 0.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [player-accounts spec](../.scratch/player-accounts/spec.md),
+  [F-032](#f-032-character-crud-over-the-wire-server) (the consumed CRUD/session seam).
+- Change history:
+  - Date: 2026-09-13
+    What changed: Opened F-033 via Slice 043 — added `get_selected_character`,
+    `bind_character`, and the additive `enter_world` RPCs; validated at 268/268.
+    Client screens (spec slice 5) deferred to Slice 044 (needs GUI confirmation).
+
 ### F-032: Character CRUD over the wire (server)
 
 - Status: `In Progress`

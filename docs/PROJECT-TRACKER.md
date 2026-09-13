@@ -244,14 +244,14 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 14 — Player accounts and characters**
 
-Progress: **50%** (2 of 4 items done)
+Progress: **40%** (2 of 5 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the Account/Character data-layer repository (done, boot-wired by Slice 040) plus the in-progress auth/session (Slice 040) and session-gated Character CRUD (Slice 042) RPC seams; client screens and world-entry remain queued, unscoped follow-up slices.
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam), `in-progress` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server) (session-gated Character CRUD RPC; client screens/world-entry not yet built).
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the Account/Character data-layer repository (done, boot-wired by Slice 040) plus the in-progress auth/session (Slice 040), session-gated Character CRUD (Slice 042), and server-side Character world-entry binding (Slice 043) RPC seams; the client login/character screens (spec slice 5) remain a queued, GUI-confirmed follow-up (Slice 044).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam), `in-progress` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server) (session-gated Character CRUD RPC), `in-progress` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (server-side selected-Character world-entry binding; client screens not yet built).
 - Tech debt: none yet.
 
-- **Current slice:** [042 — Character CRUD over the wire (server)](slices/042-character-crud-rpc.md) — **100% complete; session-gated Character CRUD RPC seam with session-derived account scoping; no client UI, no world entry; focused and full-suite validation passed**
-  - **Feature:** [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server)
+- **Current slice:** [043 — Character world entry (server-side binding)](slices/043-character-world-entry.md) — **100% complete; server resolves the selected Character from the session and binds it to the Player; additive (connect-time spawn unchanged); no client UI; focused and full-suite validation passed**
+  - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding)
 
 ### Implementation slice index
 
@@ -508,6 +508,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 4), [handoff-042](../.scratch/player-accounts/handoff-042-character-crud-rpc.md)
   - **Decision:** no new ADR; implements the already-accepted ticket 05 Character lifecycle over the existing Slice 040 auth-RPC pattern
+- **Slice:** [043 — Character world entry (server-side binding)](slices/043-character-world-entry.md) — **100% complete; server resolves the session's selected Character and binds its identity/cosmetic to the Player; additive to the connect-time spawn; no client UI; focused and full-suite validation passed**
+  - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 6), [handoff-043](../.scratch/player-accounts/handoff-043-pregameplay-auth-character-flow.md)
+  - **Decision:** no new ADR; delivers the server half of the coupled spec 5+6 flow additively (no mandatory-auth hard-flip), the client screens following as Slice 044
 
 ## Implementation slice acceptance
 
@@ -672,3 +677,11 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   Character -> Player `start_for_peer` instantiation (spec slice 6). Self-serve
   registration behind the Phase 13 WireGuard gate; up to 5 globally-unique,
   soft-deletable Characters per Account.
+- [x] In progress — Player accounts and characters, world entry (Phase 14):
+  the server-side selected-Character world-entry binding
+  ([Slice 043](slices/043-character-world-entry.md), F-033) is delivered —
+  `get_selected_character` resolves the session's selection and
+  `bind_character` instantiates the Player as it, additive to the connect-time
+  spawn. Still queued, GUI-confirmed: the client login/register/character
+  screens replacing `identity_gate.tscn` (spec slice 5, Slice 044), and the
+  optional mandatory-auth hard-flip.

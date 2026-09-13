@@ -212,3 +212,22 @@ func test_select_and_delete_unknown_character_id_reports_no_such_character() -> 
 
 	var delete_result: Dictionary = _service.delete_character(1, "does-not-exist")
 	assert_eq(delete_result["outcome"], CharacterRecordScript.REJECT_NO_SUCH_CHARACTER)
+
+
+# Slice 043 world entry: get_selected_character requires an authenticated
+# session AND a prior selection, then returns the selected CharacterRecord.
+func test_get_selected_character_requires_auth_and_a_selection() -> void:
+	var unauth: Dictionary = _service.get_selected_character(1)
+	assert_eq(unauth["outcome"], "NOT_AUTHENTICATED", "unauthenticated peer cannot enter the world")
+
+	_bind_account(1, "alice")
+	var no_selection: Dictionary = _service.get_selected_character(1)
+	assert_eq(no_selection["outcome"], "NO_CHARACTER_SELECTED", "an authenticated peer with no selection cannot enter the world")
+
+	var created: Dictionary = _service.create_character(1, "Rowan", {"hair": "brown"})
+	var character_id: String = (created["character"] as CharacterRecord).character_id
+	_service.select_character(1, character_id)
+
+	var selected: Dictionary = _service.get_selected_character(1)
+	assert_eq(selected["outcome"], "ok", "a selected Character resolves for world entry: %s" % selected.get("detail", ""))
+	assert_eq((selected["character"] as CharacterRecord).character_id, character_id)
