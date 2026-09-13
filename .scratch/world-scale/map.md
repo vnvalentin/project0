@@ -45,6 +45,10 @@ capstone ADR are all decided well enough to open implementation tickets safely.
 
 ## Decisions so far
 
+> **Status: COMPLETE** — all five tickets resolved 2026-09-13; the way is clear.
+> Implementation (the `WorldScale` module + meters→yards rename) hands off to downstream
+> slices per [ADR 0003](../../docs/adr/0003-imperial-world-scale.md).
+
 <!-- one line per closed ticket: gist + link -->
 
 - [01 — Grid resolution & Sector span](issues/01-grid-resolution-and-sector-span.md):
@@ -69,6 +73,11 @@ capstone ADR are all decided well enough to open implementation tickets safely.
   speeds/distances stay **literal** (no `WorldScale`-derived — conversion is identity);
   `default_gravity` left at 9.8 (SI ~10.72 deferred to future vertical mechanics); render
   heights left as-is. Full file/constant checklist in the ticket.
+- [05 — World Scale ADR + spec](issues/05-world-scale-adr-and-spec.md): **Capstone —
+  map complete.** Authored [ADR 0003](../../docs/adr/0003-imperial-world-scale.md)
+  (Imperial 1 unit = 1 yard; world unit → Tile → Sector; Sector ≈ ¼ mile
+  region-container; `WorldScale` seam; relabel-only reconciliation), added `CONTEXT.md`
+  terms (World unit, Tile, Sector span), and the downstream-slice handoff brief.
 
 ## Not yet specified
 

@@ -149,7 +149,7 @@ Progress: **71%** (5 of 7 items done)
 
 Progress: **73%** (8 of 11 items done)
 
-- Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019).
+- Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019), `done` [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (cross-cutting scale contract).
 - Tech debt: `done` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — resolved by the Slice 024 geometry pass (merged `ArrayMesh` ground + one merged `Walls` body), decoupling town size from the physics body count.
 
 - **Current slice:** [031 — Bigger rural village with NPC and leader housing](slices/031-bigger-village-npc-leader-housing.md) — **100% complete; focused and full-suite validation passed**
@@ -312,6 +312,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (user request: ~3x bigger + NPC/leader housing)
 
+- **Slice:** [036 — Imperial world-scale measurement contract (WorldScale)](slices/036-world-scale-measurement-contract.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (cross-cutting scale contract)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (tickets 01–05), [ADR 0003](adr/0003-imperial-world-scale.md)
+
 #### Phase 7 — Delivery workflow capabilities
 
 - **Slice:** [010 — Core mechanics architecture contract](slices/010-core-mechanics-architecture.md) — **100% complete; focused documentation and full-suite validation passed**
@@ -396,6 +401,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
   - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 02 decision), packaging the Slice 032 bridge as a GDExtension
+- **Slice:** [035 — wgnetstack Windows DLL cross-compile + client repackage](slices/035-wgnetstack-windows-dll-client-repackage.md) — **delivered (build + package); the GDExtension cross-compiles via mingw to a valid PE32+ Windows DLL, and `dist/Project0-client-windows-x64-0.7.0-tunnel.zip` bundles it next to `Project0.exe`. The Windows runtime spawn-through-tunnel proof is owned by an external tester (open).**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
+  - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 02 decision), Windows packaging of the Slice 034 GDExtension
 
 ## Implementation slice acceptance
 
@@ -452,6 +462,13 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   translation (Slice 015), starting town hub fixture (Slice 016), and
   server-to-client blueprint replication (Slice 017). See
   [starting-town map](../.scratch/starting-town/map.md).
+- [x] World Scale map (Phase 8, cross-cutting scale foundation): charting the
+  Imperial world-scale measurement system (1 unit = 1 yard, world unit → Tile →
+  Sector, ¼-mile Sector). Decisions locked in
+  [ADR 0003](adr/0003-imperial-world-scale.md); delivered as
+  [Slice 036](slices/036-world-scale-measurement-contract.md) (the `WorldScale`
+  contract). Follow-up: the meters→yards relabel of existing constants remains a
+  separate slice. See [world-scale map](../.scratch/world-scale/map.md).
 - [ ] In progress — Basic Monsters map (Phase 10 handoff, pre-slice design):
   charting a minimal server-authoritative monster (flat HP/damage/death,
   detect/chase/attack state machine with a readable attack telegraph per

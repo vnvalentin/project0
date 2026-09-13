@@ -200,9 +200,13 @@ for a developer to pick up. No implementation has started.
   `stop() -> void`) linking a new `cmd/cgoarchive` static build of the same
   bridge logic, plus a `client/network_client.gd` tunnel-mode code path
   (`PROJECT0_TUNNEL`, default off) so the client opens the tunnel in-process
-  with no separate probe process. Still queued: the Windows DLL build/
-  validation (S3b), the invite enrollment service (issue 04), and
-  revocation/ban automation (issue 06).
+  with no separate probe process.
+  [Slice 035](slices/035-wgnetstack-windows-dll-client-repackage.md) delivers
+  S3b: the GDExtension cross-compiled to a PE32+ Windows DLL (mingw) and bundled
+  in the portable Windows client (`dist/Project0-client-windows-x64-0.7.0-tunnel.zip`),
+  so a tester runs one executable with the tunnel available. Still open: the
+  Windows *runtime* spawn-through-tunnel proof (tester-owned), the invite
+  enrollment service (issue 04), and revocation/ban automation (issue 06).
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
 - Phase: 13. Public game access
@@ -635,6 +639,23 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### F-028: Imperial world-scale measurement contract
+
+- Status: `Implemented`
+- Feature: The game has one canonical, versioned world scale — the world is Imperial and one world unit is one yard, in a three-tier world unit → Tile → Sector model where a Sector is a ¼-mile (440-unit) region. A single shared contract (`WorldScale`) converts between world units, feet, and miles.
+- Problem solved: Scale lived implicitly and inconsistently — the blueprint Tile was 1 unit, movement was bare "units/second", and the monster constants silently assumed meters — with no canonical source of truth and no scale term in `CONTEXT.md`.
+- How it solves the problem: Slice 036 adds `shared/world_scale.gd` (`WorldScale`), a pure versioned value contract (constants `SCALE_VERSION`, `UNIT_LABEL`, `FEET_PER_YARD`, `YARDS_PER_MILE`, `TILE_EDGE_UNITS`, `SECTOR_EDGE_UNITS` plus `units_to_feet`/`units_to_miles`/`miles_to_units`), read identically by client and server with no authority. The decision is recorded in [ADR 0003](adr/0003-imperial-world-scale.md) and the [World Scale map](../.scratch/world-scale/map.md); `CONTEXT.md` gains the World unit, Tile, and Sector-span terms.
+- Phase: 8. JIT world generation and local inference (cross-cutting scale contract)
+- Implementation slices: [Slice 036](slices/036-world-scale-measurement-contract.md)
+- Public seam: `shared/world_scale.gd` (`SCALE_VERSION`, `UNIT_LABEL`, `FEET_PER_YARD`, `YARDS_PER_MILE`, `TILE_EDGE_UNITS`, `SECTOR_EDGE_UNITS`, `units_to_feet`, `units_to_miles`, `miles_to_units`).
+- Validation: See [Slice 036](slices/036-world-scale-measurement-contract.md) — focused `test_world_scale` 8/8 (15 asserts, exit 0); full suite `scripts/run_gut_validation.sh` 207/207 across 27 scripts, exit 0 (`scripts_expected == scripts_ran == 27`).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [World Scale map](../.scratch/world-scale/map.md), [ADR 0003](adr/0003-imperial-world-scale.md). Follow-up: the meters→yards relabel of existing constants (world-scale ticket 04) remains a separate slice.
+- Change history:
+  - Date: 2026-09-13
+    What changed: Delivered F-028 via Slice 036 — added the versioned `WorldScale` measurement contract (1 unit = 1 yard; world unit → Tile → Sector; ¼-mile Sector), recorded [ADR 0003](adr/0003-imperial-world-scale.md), and added the `CONTEXT.md` scale terms. Planning charted via the World Scale wayfinder map (tickets 01–05).
+    Why: Scale was implicit and inconsistent (1-unit tiles, bare "units/second", monster constants silently in "meters"); the user asked for a measurement system to define scale, in Imperial units.
+    Validation: Focused `test_world_scale` 8/8 exit 0; full GUT suite 207/207 across 27 scripts, exit 0.
 
 ### F-027: Server-authoritative movement collision
 
