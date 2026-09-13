@@ -16,7 +16,7 @@ func test_fixture_blueprint_passes_schema_validation() -> void:
 
 func test_fixture_identity_fields() -> void:
 	var blueprint: Dictionary = StartingTownHubFixtureScript.blueprint()
-	assert_eq(blueprint["schema_version"], 2, "hub fixture is schema version 2")
+	assert_eq(blueprint["schema_version"], 3, "hub fixture is schema version 3 (organic vocabulary)")
 	assert_eq(blueprint["sector_id"], StartingTownHubFixtureScript.SECTOR_ID, "hub fixture uses the reserved sector id")
 	assert_eq(blueprint["sector_id"], "starting_town_hub", "reserved sector id literal is 'starting_town_hub'")
 	assert_eq(blueprint["origin"], {"x": 0, "y": 0}, "hub fixture origin is {0, 0}")
@@ -24,7 +24,7 @@ func test_fixture_identity_fields() -> void:
 
 func test_fixture_structure_kind_counts() -> void:
 	var structures: Array = StartingTownHubFixtureScript.blueprint()["structures"]
-	var counts: Dictionary = {"house": 0, "smithy": 0, "armor_shop": 0, "inn": 0}
+	var counts: Dictionary = {"house": 0, "smithy": 0, "armor_shop": 0, "inn": 0, "church": 0, "item_shop": 0, "tavern": 0, "well": 0}
 	for structure: Dictionary in structures:
 		var kind: String = structure["kind"]
 		counts[kind] = int(counts.get(kind, 0)) + 1
@@ -32,7 +32,24 @@ func test_fixture_structure_kind_counts() -> void:
 	assert_eq(counts["smithy"], 1, "hub fixture has exactly 1 smithy")
 	assert_eq(counts["armor_shop"], 1, "hub fixture has exactly 1 armor shop")
 	assert_eq(counts["inn"], 1, "hub fixture has exactly 1 inn")
-	assert_eq(structures.size(), 13, "hub fixture has exactly 13 structures total")
+	assert_eq(counts["church"], 1, "hub fixture has exactly 1 church")
+	assert_eq(counts["item_shop"], 1, "hub fixture has exactly 1 item shop")
+	assert_eq(counts["tavern"], 1, "hub fixture has exactly 1 tavern")
+	assert_eq(counts["well"], 1, "hub fixture has exactly 1 well")
+	assert_eq(structures.size(), 17, "hub fixture has exactly 17 structures total")
+
+
+func test_fixture_uses_the_organic_v3_vocabulary() -> void:
+	var blueprint: Dictionary = StartingTownHubFixtureScript.blueprint()
+	assert_eq(blueprint["schema_version"], 3, "the enriched hub is schema v3")
+	var kinds_present: Dictionary = {}
+	for tile: Dictionary in (blueprint["tiles"] as Array):
+		kinds_present[tile["kind"]] = true
+	for organic_kind: String in ["gate", "plaza", "path", "grass", "water"]:
+		assert_true(kinds_present.has(organic_kind), "the hub uses the organic tile kind '%s'" % organic_kind)
+	assert_true(kinds_present.has("wall"), "the hub still has walls")
+	assert_true(kinds_present.has("floor"), "the hub still has floor")
+	assert_false(kinds_present.has("corridor"), "the enriched hub replaced corridors with paths/plaza")
 
 
 func test_fixture_structure_ids_are_unique() -> void:

@@ -10,19 +10,21 @@ class_name SectorBlueprintSchema
 ##
 ## Scope (per .scratch/game-vision/issues/15-sector-blueprint-contract.md and
 ## .scratch/starting-town/issues/01-schema-v2-structures-and-spawn-points.md):
-## coordinates, floor/wall/corridor tiles, and (schema_version 2 only,
-## optional) structure placements and monster spawn markers. No geometry
-## generation, gameplay state, or persistence — those remain explicit
-## non-goals and are not validated or referenced here.
+## coordinates, tiles (base floor/wall/corridor plus the schema-v3 organic
+## vocabulary path/plaza/gate/water/grass), and (schema_version 2+, optional)
+## structure placements and monster spawn markers. No geometry generation,
+## gameplay state, or persistence — those remain explicit non-goals and are
+## not validated or referenced here.
 
 ## Schema versions this validator accepts. A blueprint whose "schema_version"
 ## is not in this set is rejected as wrong-version rather than partially
 ## accepted. Version 1 is the original tiles-only shape (Slice 008); version 2
 ## additionally allows the optional "structures" and "spawn_points" arrays
-## (Slice 014). Both versions remain supported going forward — v2 is not a
-## hard replacement, since ordinary non-town sectors keep generating
+## (Slice 014); version 3 adds the organic tile/structure vocabulary
+## (Slice 025). All versions remain supported going forward — newer versions
+## are not hard replacements, since ordinary non-town sectors keep generating
 ## tiles-only v1 payloads.
-const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2]
+const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3]
 
 ## Bounds the tile array so a single sector response cannot request unbounded
 ## work; this is a contract-validation bound only, not a gameplay/world-size
@@ -31,12 +33,24 @@ const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2]
 const MAX_TILE_COUNT: int = 2048
 const MAX_COORDINATE_ABS: int = 32
 
-const SUPPORTED_TILE_KINDS: PackedStringArray = ["floor", "wall", "corridor"]
+## Tile kinds a blueprint may place. The base kinds (floor/wall/corridor) are
+## valid in every version; the organic vocabulary (path/plaza/gate/water/grass,
+## Slice 025) is gated to schema v3+ by ORGANIC_VOCABULARY_MIN_VERSION.
+const SUPPORTED_TILE_KINDS: PackedStringArray = ["floor", "wall", "corridor", "path", "plaza", "gate", "water", "grass"]
+const _ORGANIC_TILE_KINDS: PackedStringArray = ["path", "plaza", "gate", "water", "grass"]
 
 ## Bounds structure kinds a blueprint may place. No footprint/size field
 ## exists per ticket 01 — a fixed-size prefab per kind is assigned by a
-## future geometry-translation slice, out of scope here.
-const SUPPORTED_STRUCTURE_KINDS: PackedStringArray = ["house", "smithy", "armor_shop", "inn"]
+## future geometry-translation slice, out of scope here. The base kinds
+## (house/smithy/armor_shop/inn) are valid in v2+; the organic flavor kinds
+## (church/item_shop/tavern/well, Slice 025) are gated to schema v3+.
+const SUPPORTED_STRUCTURE_KINDS: PackedStringArray = ["house", "smithy", "armor_shop", "inn", "church", "item_shop", "tavern", "well"]
+const _ORGANIC_STRUCTURE_KINDS: PackedStringArray = ["church", "item_shop", "tavern", "well"]
+
+## The organic vocabulary (the new tile and structure kinds above) requires
+## this schema version; using it in an older-versioned blueprint is rejected so
+## versioning stays meaningful (v1/v2 payloads keep their original vocabulary).
+const ORGANIC_VOCABULARY_MIN_VERSION: int = 3
 const MAX_FACING_DEGREES: float = 360.0
 
 ## Bounds the spawn_points array. 16 is a small, auditable bound sized for
@@ -96,12 +110,12 @@ static func validate(parsed_data: Variant) -> Dictionary:
 		return _result(OUTCOME_INCOMPLETE, "tiles exceeds the maximum of %d entries." % MAX_TILE_COUNT)
 
 	for index in tiles.size():
-		var tile_check: Dictionary = _validate_tile(tiles[index], index)
+		var tile_check: Dictionary = _validate_tile(tiles[index], index, schema_version)
 		if tile_check["outcome"] != OUTCOME_VALID:
 			return tile_check
 
 	if data.has("structures"):
-		var structures_check: Dictionary = _validate_structures(data["structures"])
+		var structures_check: Dictionary = _validate_structures(data["structures"], schema_version)
 		if structures_check["outcome"] != OUTCOME_VALID:
 			return structures_check
 
@@ -118,21 +132,21 @@ static func validate(parsed_data: Variant) -> Dictionary:
 ## style as tiles. structure_id must be unique within the blueprint so every
 ## future consumer (geometry translation, house allocation) can address one
 ## structure unambiguously.
-static func _validate_structures(value: Variant) -> Dictionary:
+static func _validate_structures(value: Variant, schema_version: int) -> Dictionary:
 	if not (value is Array):
 		return _result(OUTCOME_INCOMPLETE, "structures must be an array.")
 	var structures: Array = value
 
 	var seen_ids: Dictionary = {}
 	for index in structures.size():
-		var entry_check: Dictionary = _validate_structure(structures[index], index, seen_ids)
+		var entry_check: Dictionary = _validate_structure(structures[index], index, seen_ids, schema_version)
 		if entry_check["outcome"] != OUTCOME_VALID:
 			return entry_check
 
 	return _result(OUTCOME_VALID, "")
 
 
-static func _validate_structure(value: Variant, index: int, seen_ids: Dictionary) -> Dictionary:
+static func _validate_structure(value: Variant, index: int, seen_ids: Dictionary, schema_version: int) -> Dictionary:
 	if not (value is Dictionary):
 		return _result(OUTCOME_INCOMPLETE, "structures[%d] must be an object." % index)
 	var structure: Dictionary = value
@@ -153,6 +167,8 @@ static func _validate_structure(value: Variant, index: int, seen_ids: Dictionary
 	var kind: String = structure["kind"]
 	if not SUPPORTED_STRUCTURE_KINDS.has(kind):
 		return _result(OUTCOME_UNSUPPORTED_KIND, "structures[%d].kind '%s' is not a supported kind (%s)." % [index, kind, ", ".join(SUPPORTED_STRUCTURE_KINDS)])
+	if _ORGANIC_STRUCTURE_KINDS.has(kind) and schema_version < ORGANIC_VOCABULARY_MIN_VERSION:
+		return _result(OUTCOME_UNSUPPORTED_KIND, "structures[%d].kind '%s' requires schema_version >= %d (blueprint is version %d)." % [index, kind, ORGANIC_VOCABULARY_MIN_VERSION, schema_version])
 
 	for axis: String in ["x", "y"]:
 		if not structure.has(axis):
@@ -227,7 +243,7 @@ static func _validate_coordinate(value: Variant, field_name: String) -> Dictiona
 	return _result(OUTCOME_VALID, "")
 
 
-static func _validate_tile(value: Variant, index: int) -> Dictionary:
+static func _validate_tile(value: Variant, index: int, schema_version: int) -> Dictionary:
 	if not (value is Dictionary):
 		return _result(OUTCOME_INCOMPLETE, "tiles[%d] must be an object." % index)
 	var tile: Dictionary = value
@@ -247,6 +263,8 @@ static func _validate_tile(value: Variant, index: int) -> Dictionary:
 	var kind: String = tile["kind"]
 	if not SUPPORTED_TILE_KINDS.has(kind):
 		return _result(OUTCOME_UNSUPPORTED_KIND, "tiles[%d].kind '%s' is not a supported kind (%s)." % [index, kind, ", ".join(SUPPORTED_TILE_KINDS)])
+	if _ORGANIC_TILE_KINDS.has(kind) and schema_version < ORGANIC_VOCABULARY_MIN_VERSION:
+		return _result(OUTCOME_UNSUPPORTED_KIND, "tiles[%d].kind '%s' requires schema_version >= %d (blueprint is version %d)." % [index, kind, ORGANIC_VOCABULARY_MIN_VERSION, schema_version])
 
 	return _result(OUTCOME_VALID, "")
 

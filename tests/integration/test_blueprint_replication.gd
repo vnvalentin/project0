@@ -32,7 +32,11 @@ func test_valid_hub_blueprint_renders_merged_geometry_and_all_structures() -> vo
 	assert_eq(result["structure_count"], expected_structures, "reported structure count matches the fixture")
 
 	assert_not_null(parent.get_node_or_null("Ground_floor"), "floor tiles render as a merged ground mesh")
-	assert_not_null(parent.get_node_or_null("Ground_corridor"), "corridor tiles render as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Ground_path"), "path avenues render as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Ground_plaza"), "the central plaza renders as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Ground_gate"), "the southern gate renders as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Ground_grass"), "the grass ring renders as a merged ground mesh")
+	assert_not_null(parent.get_node_or_null("Ground_water"), "the ornamental pond renders as a merged ground mesh")
 	assert_not_null(parent.get_node_or_null("Walls"), "wall tiles render under one merged Walls body")
 
 	# DT-008 scale fix: the whole town renders with ONE merged Walls body and

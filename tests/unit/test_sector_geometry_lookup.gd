@@ -35,8 +35,17 @@ func test_wall_is_solid_and_ground_kinds_are_not() -> void:
 	assert_false(SectorGeometryLookupScript.tile_is_solid("lava"), "an unsupported tile kind is not solid")
 
 
+func test_organic_tile_kinds_are_visual_ground_slabs() -> void:
+	var floor_dimensions: Vector3 = SectorGeometryLookupScript.tile_dimensions("floor")
+	for organic_kind: String in ["path", "plaza", "gate", "water", "grass"]:
+		var dimensions: Vector3 = SectorGeometryLookupScript.tile_dimensions(organic_kind)
+		assert_ne(dimensions, Vector3.ZERO, "organic tile kind '%s' has real dimensions" % organic_kind)
+		assert_eq(dimensions, floor_dimensions, "organic ground kind '%s' shares the flat floor slab dimensions" % organic_kind)
+		assert_false(SectorGeometryLookupScript.tile_is_solid(organic_kind), "organic ground kind '%s' is not solid (no collider)" % organic_kind)
+
+
 func test_structure_scene_paths_resolve_to_existing_files() -> void:
-	for kind: String in ["house", "smithy", "armor_shop", "inn"]:
+	for kind: String in SectorBlueprintSchemaScript.SUPPORTED_STRUCTURE_KINDS:
 		var scene_path: String = SectorGeometryLookupScript.structure_scene_path(kind)
 		assert_false(scene_path.is_empty(), "structure kind '%s' resolves to a non-empty scene path" % kind)
 		assert_true(ResourceLoader.exists(scene_path), "structure kind '%s' scene path '%s' exists on disk" % [kind, scene_path])

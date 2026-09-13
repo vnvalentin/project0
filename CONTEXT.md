@@ -35,12 +35,20 @@ action-adventure with JIT-generated, canon-persisted world content`.
   canon.
   _Avoid_: save data, world save.
 - **Structure**: A building placement within a sector blueprint (e.g. house,
-  smithy, armor shop, inn), identified by a unique `structure_id` and an
-  anchor point/facing rather than a footprint. Provisional — schema v2 and
-  geometry translation for structures are not implemented yet; reserved by
-  [Starting Town map](.scratch/starting-town/map.md) ticket 01.
-  _Avoid_: building (a Structure may later cover non-building placeables like
-  a well or gate; keep the neutral term canonical).
+  smithy, armor shop, inn, and the schema-v3 flavor kinds church, item shop,
+  tavern, well), identified by a unique `structure_id` and an anchor
+  point/facing rather than a footprint. Implemented: schema v2 (Slice 014)
+  added the `structures` array, schema v3 (Slice 025) added the organic flavor
+  kinds, and geometry translation (Slices 015/024) instantiates one placeholder
+  prefab per structure.
+  _Avoid_: building (a Structure covers non-house placeables like a well; keep
+  the neutral term canonical). A gate is a Tile kind, not a Structure.
+- **Tile kind**: The terrain class of a blueprint tile. Base kinds
+  (schema v1+): `floor`, `wall`, `corridor`. Organic vocabulary (schema v3,
+  Slice 025): `path`, `plaza`, `gate`, `water`, `grass`. Only `wall` is solid
+  (gets collision); the rest are visual ground merged into one mesh per kind by
+  the geometry pass.
+  _Avoid_: terrain type, biome (kind is the blueprint/validator term).
 - **Spawn point**: A monster-instantiation marker within a sector blueprint,
   distinct from a Structure (not rendered or enterable). Provisional —
   reserved by [Starting Town map](.scratch/starting-town/map.md) ticket 01;
@@ -51,8 +59,8 @@ action-adventure with JIT-generated, canon-persisted world content`.
   (`sector_id = "starting_town_hub"`) every server instance starts with,
   containing the starting town's Structures. Distinct from Canon — it is
   static shipped data, not a persisted, validated-then-frozen LLM output.
-  Provisional — decided by [Starting Town map](.scratch/starting-town/map.md)
-  ticket 03; not implemented yet.
+  Implemented: materialized fail-closed at boot (Slice 016) and enriched to the
+  schema-v3 organic vocabulary (Slice 025).
   _Avoid_: starting sector (ambiguous with a future player-specific spawn
   concept), canon town (it is not Canon in the persisted-and-frozen sense
   until Phase 9 exists).

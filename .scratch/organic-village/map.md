@@ -68,20 +68,52 @@ always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
   (per-tile bodies); true Qeynos/Midgar size waits for the geometry pass + LLM.
   Shipped as [F-026](../../docs/FEATURE-LIST.md#f-026-organic-districted-starting-city)
   / [Slice 023](../../docs/slices/023-organic-districted-town.md); scale limit
-  tracked as [DT-008](../../docs/TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size).
+  tracked as [DT-008](../../docs/TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size).
   Validation: 140/140 full GUT suite, exit 0.
-- Slice 024: schema v3 organic vocabulary (path/plaza/gate/water/grass tiles +
-  church/item_shop/tavern/well structures) + geometry translation + scale.
-- Slice 025: LLM generation of the organic layout via the existing Ollama
-  pipeline + required-structure validation/guarantee + fallback to the enriched
-  fixture.
-- Slice 026: derive the monster exclusion/spawn fields from the actual town
-  bounds instead of a hard-coded constant.
+- Slice 024 (DELIVERED 2026-09-12): the scalable geometry pass. Split out from
+  the original bundle and delivered first because it is the true blocker for
+  scale. Ground tiles (floor/corridor) now render as one merged `ArrayMesh` per
+  kind on a body-free `MeshInstance3D`; wall tiles greedy-merge per row into box
+  colliders under ONE shared `Walls` `StaticBody3D`. Town now renders with a
+  single physics body regardless of tile count — RESOLVES
+  [DT-008](../../docs/TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size).
+  Shipped as [Slice 024](../../docs/slices/024-scalable-geometry-pass.md).
+  Validation: 146/146 full GUT suite, exit 0.
+- Slice 025 (DELIVERED 2026-09-13): schema v3 organic vocabulary
+  (path/plaza/gate/water/grass tiles + church/item_shop/tavern/well structures),
+  version-gated so v1/v2 keep their vocabulary. Four new placeholder prefabs;
+  the hub fixture enriched to schema v3 (gated wall, plaza, path avenues, grass
+  ring, ornamental pond, +4 flavor buildings = 17 structures). Renders via the
+  Slice 024 merged pass with zero new geometry code. Building/player rescale was
+  deliberately deferred (kept the slice bounded + low-risk; flavor buildings do
+  vary in size). Shipped as [Slice 025](../../docs/slices/025-organic-vocabulary.md).
+  Validation: 156/156 full GUT suite, exit 0.
+- Slice 026 (DELIVERED 2026-09-13): the LLM town-layout guarantee
+  (`server/town_layout_provider.gd`). The LLM proposes a town; the server
+  validates it via the schema and requires the fixed structures (10 houses +
+  smithy + armor_shop + inn), else falls back to the hub fixture (never an
+  unusable town — map Q2). Pure `resolve`/`meets_required_structures` + a
+  non-blocking `request_town` coroutine over an injected LLM client, tested with
+  a fake client (no live Ollama). Boot wiring deliberately deferred (the fixture
+  stays the boot default; turning LLM-at-boot on is a latency/availability
+  decision), mirroring how Slice 009 delivered a seam before its live trigger.
+  Shipped as [Slice 026](../../docs/slices/026-llm-town-generation.md).
+  Validation: 168/168 full GUT suite, exit 0.
+- Slice 027 (next): derive the monster exclusion/spawn fields from the actual
+  town bounds instead of a hard-coded constant.
+- Deferred: optionally wire LLM town generation on at server boot (replace the
+  fixture default) once its boot-latency/Ollama-availability tradeoff is
+  accepted — the guarantee seam is ready.
+- Deferred flavor: an explicit building/player rescale pass (make the player
+  small relative to the city) if desired — split out of Slice 025 to keep it
+  bounded.
 
 ## Not yet specified
 
-- Exact LLM prompt wording and the repair/regeneration policy when the LLM omits
-  a required structure (sharpen when slice 025 starts).
+- RESOLVED in Slice 026: the LLM prompt is `TownLayoutProvider.default_town_prompt()`
+  and the omit-a-required-structure policy is fail-safe fallback to the fixture
+  (no iterative repair). An optional prompt-repair/regeneration loop (re-ask the
+  model instead of falling back) remains future work if desired.
 - Whether the town is eventually Canon-frozen (Phase 9 persistence) or
   regenerated per boot — depends on Phase 9, out of this map's scope.
 

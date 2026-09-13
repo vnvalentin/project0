@@ -216,17 +216,25 @@ for a developer to pick up. No implementation has started.
   residential district and a southern trade quarter. It renders through the
   existing per-tile geometry pipeline (`MAX_TILE_COUNT` raised to 2048 to fit
   the ~869-tile town), and the monster exclusion + ground plane grow with it so
-  monsters stay in the fields outside the bigger walls. This is the instant
-  visible win and the future LLM fallback base; schema-v3 organic vocabulary +
-  geometry/scale (Slice 024), LLM generation + required-structure guarantee
-  (Slice 025), and bounds-derived monster exclusion (Slice 026) follow, so the
-  feature stays `In Progress`.
+  monsters stay in the fields outside the bigger walls. Slice 024 then replaced
+  the per-tile geometry with a merged scalable pass (one merged `ArrayMesh` per
+  ground kind, one merged `Walls` body) so town size is no longer bounded by the
+  physics body count (resolving DT-008). Slice 025 added the schema-v3 organic
+  vocabulary (gate/plaza/path/grass/water tiles + church/tavern/item_shop/well)
+  and enriched the hub to use it, and Slice 026 added the `TownLayoutProvider`
+  guarantee — the LLM proposes a town, the server validates it and requires the
+  fixed structures, else falls back to the fixture (never an unusable town).
+  Remaining: wiring LLM generation on at boot (a reliability/latency decision;
+  the fixture stays the default) and deriving the monster exclusion from the
+  town bounds, so the feature stays `In Progress`.
 - Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 023](slices/023-organic-districted-town.md)
+- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md)
 - Public seam: `server/starting_town_hub_fixture.gd`
   (`blueprint()` now generating the organic octagon via `_in_town`/`_tile_kind`,
   districted `_STRUCTURES`, ±22 `_SPAWN_POINTS`),
   `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 2048),
+  `server/town_layout_provider.gd` (`resolve`, `meets_required_structures`,
+  `request_town`, `default_town_prompt`),
   `server/server_monster_manager.gd` (`TOWN_EXCLUSION_HALF_EXTENT` 18.0),
   `client/gameplay.tscn` (60×60 `FlatPlane`).
 - Validation: See [Slice 023](slices/023-organic-districted-town.md) for exact
@@ -235,7 +243,7 @@ for a developer to pick up. No implementation has started.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [Organic LLM Village map](../.scratch/organic-village/map.md),
   supersedes [F-019](#f-019-starting-town-hub-fixture),
-  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size)
+  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) (resolved by Slice 024)
 - Change history:
   - Date: 2026-09-12
     What changed: Implemented Slice 023 — enlarged the hub fixture into an
@@ -249,6 +257,36 @@ for a developer to pick up. No implementation has started.
     base for later LLM generation.
     Related work: [Slice 023](slices/023-organic-districted-town.md)
     Validation: See Slice 023 validation section.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 024 — the scalable geometry pass. Ground
+    tiles now render as one merged `ArrayMesh` per kind (body-free), walls as
+    greedy row-merged colliders under one shared `Walls` body, so the town
+    renders with a single physics body regardless of tile count.
+    Why: Resolve DT-008 and decouple rendered city size from the physics body
+    count, unblocking the schema-v3 vocabulary/scale and LLM-generation slices.
+    Related work: [Slice 024](slices/024-scalable-geometry-pass.md)
+    Validation: See Slice 024 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 025 — enriched the hub to the schema-v3
+    organic vocabulary: a gated wall, central plaza, path avenues, a grass ring,
+    an ornamental pond, and four flavor buildings (church, tavern, item shop,
+    well), 17 structures total.
+    Why: Make the starting town read like an organic town, the visible payoff of
+    the Organic Village effort.
+    Related work: [Slice 025](slices/025-organic-vocabulary.md)
+    Validation: See Slice 025 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 026 — `server/town_layout_provider.gd`, the
+    LLM town-layout guarantee: the model proposes a town, the server validates
+    it via the schema and requires the fixed structures (10 houses + smithy +
+    armor shop + inn), else falls back to the hub fixture so the town is never
+    unusable. Pure `resolve`/`meets_required_structures` plus a non-blocking
+    `request_town` coroutine over an injected LLM client.
+    Why: Deliver the "LLM proposes, server guarantees, fixture fallback" hybrid
+    (map Q2) as a tested seam, the last piece before the town can be safely
+    LLM-generated.
+    Related work: [Slice 026](slices/026-llm-town-generation.md)
+    Validation: See Slice 026 validation section.
 
 ### IP-023: Basic monster combat
 
@@ -677,9 +715,9 @@ for a developer to pick up. No implementation has started.
   (`client/structures/{house,smithy,armor_shop,inn}.tscn`) follow the existing
   `TargetDummy`-style placeholder-art convention.
 - Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 015](slices/015-sector-geometry-translation.md)
-- Public seam: `shared/sector_geometry_lookup.gd`,
-  `client/sector_geometry_translator.gd`.
+- Implementation slices: [Slice 015](slices/015-sector-geometry-translation.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md)
+- Public seam: `shared/sector_geometry_lookup.gd` (`tile_dimensions`,
+  `tile_is_solid`), `client/sector_geometry_translator.gd` (`translate`).
 - Validation: See [Slice 015](slices/015-sector-geometry-translation.md) for
   exact commands and results.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
@@ -695,6 +733,25 @@ for a developer to pick up. No implementation has started.
     interaction, or player house allocation work.
     Related work: [Slice 015](slices/015-sector-geometry-translation.md)
     Validation: See Slice 015 validation section.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 024 — replaced the one-`StaticBody3D`-per-tile
+    strategy with a merged geometry pass: non-solid ground tiles combine into one
+    `ArrayMesh` per kind on a body-free `MeshInstance3D`, and wall tiles
+    greedy-merge per row into box colliders under one shared `Walls`
+    `StaticBody3D`. Added `SectorGeometryLookup.tile_is_solid`.
+    Why: Remediate [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size)
+    so rendered town size is decoupled from the physics body count, unblocking
+    the F-026 city-scale destination and the later schema-v3/LLM slices.
+    Related work: [Slice 024](slices/024-scalable-geometry-pass.md)
+    Validation: See Slice 024 validation section.
+  - Date: 2026-09-13
+    What changed: Added geometry-lookup dimensions for the five organic ground
+    kinds and scene paths for the four new structure prefabs
+    (church/tavern/item_shop/well) (Slice 025).
+    Why: Let the merged geometry pass render the schema-v3 organic vocabulary
+    with no new geometry code.
+    Related work: [Slice 025](slices/025-organic-vocabulary.md)
+    Validation: See Slice 025 validation section.
 
 ### F-017: Sector blueprint schema v2 — structures and spawn points
 
@@ -719,8 +776,8 @@ for a developer to pick up. No implementation has started.
   change since it already forwards whatever outcome/blueprint the validator
   returns.
 - Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 014](slices/014-sector-blueprint-schema-v2-structures.md)
-- Public seam: `shared/sector_blueprint_schema.gd`.
+- Implementation slices: [Slice 014](slices/014-sector-blueprint-schema-v2-structures.md), [Slice 025](slices/025-organic-vocabulary.md)
+- Public seam: `shared/sector_blueprint_schema.gd` (`SUPPORTED_SCHEMA_VERSIONS`, `SUPPORTED_TILE_KINDS`, `SUPPORTED_STRUCTURE_KINDS`, `ORGANIC_VOCABULARY_MIN_VERSION`).
 - Validation: See [Slice 014](slices/014-sector-blueprint-schema-v2-structures.md)
   for exact commands and results (16/16 focused unit tests, 20 assertions;
   77/77 full suite, 188 assertions, exit 0).
@@ -741,6 +798,15 @@ for a developer to pick up. No implementation has started.
     passed 16/16 tests, 20 assertions, exit 0; the full configured GUT suite
     (`scripts/run_gut_validation.sh`) passed 77/77 tests, 188 assertions,
     exit 0.
+  - Date: 2026-09-13
+    What changed: Extended the schema to version 3 with the organic tile
+    vocabulary (path/plaza/gate/water/grass) and structure vocabulary
+    (church/item_shop/tavern/well), version-gated so v1/v2 keep their original
+    vocabulary (Slice 025).
+    Why: Give the starting town an organic town vocabulary while keeping
+    schema_version a meaningful compatibility signal for the future LLM path.
+    Related work: [Slice 025](slices/025-organic-vocabulary.md)
+    Validation: See Slice 025 validation section.
 
 ### F-007: Living architecture anchor
 

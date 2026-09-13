@@ -144,12 +144,12 @@ Progress: **57%** (4 of 7 items done)
 
 **Phase 8 — JIT world generation and local inference**
 
-Progress: **64%** (7 of 11 items done)
+Progress: **73%** (8 of 11 items done)
 
 - Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019).
-- Tech debt: `open` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size) — per-tile StaticBody3D geometry does not scale to true city size; a geometry pass (Slice 024) is required before Qeynos/Midgar scale.
+- Tech debt: `done` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — resolved by the Slice 024 geometry pass (merged `ArrayMesh` ground + one merged `Walls` body), decoupling town size from the physics body count.
 
-- **Current slice:** [023 — Bigger organic districted starting town](slices/023-organic-districted-town.md) — **100% complete; focused and full-suite validation passed**
+- **Current slice:** [026 — LLM town generation with a required-structure guarantee](slices/026-llm-town-generation.md) — **100% complete; focused and full-suite validation passed**
   - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
 
 **Phase 9 — Canon persistence and world mutation**
@@ -285,8 +285,23 @@ the phase exit gate; it is not a count of completed slices.
 
 - **Slice:** [023 — Bigger organic districted starting town](slices/023-organic-districted-town.md) — **100% complete; focused and full-suite validation passed**
   - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (supersedes [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture))
-  - **Tech debt:** [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size) — per-tile geometry does not scale to city size; geometry pass deferred to Slice 024.
+  - **Tech debt:** [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — introduced the per-tile-body scaling liability (resolved by Slice 024).
   - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (decisions Q1–Q5)
+
+- **Slice:** [024 — Scalable geometry pass](slices/024-scalable-geometry-pass.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation) / [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
+  - **Tech debt:** resolves [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — merged `ArrayMesh` ground + one merged `Walls` body; town size decoupled from physics body count.
+  - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (Slice 024, geometry-pass half)
+
+- **Slice:** [025 — Schema v3 organic vocabulary](slices/025-organic-vocabulary.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points) / [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation) / [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (Q3 vocabulary decision)
+
+- **Slice:** [026 — LLM town generation with a required-structure guarantee](slices/026-llm-town-generation.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (Q2 hybrid LLM + guarantee + fallback)
 
 #### Phase 7 — Delivery workflow capabilities
 
@@ -398,11 +413,19 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   validated so the required structures always exist. Decisions Q1–Q5 resolved.
   First slice delivered: [Slice 023](slices/023-organic-districted-town.md) — a
   bigger organic octagon hand-authored town (gate, radial avenues, central
-  plaza, districts) rendered by the existing pipeline. Remaining roadmap: schema
-  v3 organic vocabulary + geometry/scale (Slice 024, gated by
-  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size)),
-  LLM generation + required-structure guarantee (Slice 025), and bounds-derived
-  monster exclusion (Slice 026). See
+  plaza, districts) rendered by the existing pipeline. Then
+  [Slice 024](slices/024-scalable-geometry-pass.md) delivered the merged
+  scalable geometry pass, resolving
+  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size)
+  so town size no longer multiplies physics bodies, and
+  [Slice 025](slices/025-organic-vocabulary.md) added the schema-v3 organic
+  vocabulary (gate/plaza/path/grass/water tiles + church/tavern/item_shop/well)
+  and enriched the hub to use it, and
+  [Slice 026](slices/026-llm-town-generation.md) added the `TownLayoutProvider`
+  guarantee (LLM proposes, server validates + requires the fixed structures,
+  else falls back to the fixture). Remaining roadmap: optionally wire LLM
+  generation on at boot (a reliability/latency decision; the fixture stays the
+  default), and derive the monster exclusion from the town bounds. See
   [organic-village map](../.scratch/organic-village/map.md).
 - [ ] Ready — Public game access via WireGuard (Phase 13, design-complete,
   not yet scoped as a slice): all six

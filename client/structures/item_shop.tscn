@@ -1,0 +1,34 @@
+[gd_scene load_steps=6 format=3 uid="uid://c0structitemshop01"]
+
+[ext_resource type="Script" path="res://client/facade_proximity.gd" id="1_facade"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_item_shop"]
+size = Vector3(3, 3.5, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_item_shop"]
+size = Vector3(3, 3.5, 3)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_item_shop"]
+albedo_color = Color(0.3, 0.55, 0.4, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_item_shop_area"]
+size = Vector3(6, 4.5, 6)
+
+[node name="ItemShop" type="StaticBody3D"]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+mesh = SubResource("BoxMesh_item_shop")
+surface_material_override/0 = SubResource("StandardMaterial3D_item_shop")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.75, 0)
+shape = SubResource("BoxShape3D_item_shop")
+
+[node name="FacadeProximity" type="Area3D" parent="."]
+script = ExtResource("1_facade")
+building_display_name = "Item Shop"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FacadeProximity"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.25, 0)
+shape = SubResource("BoxShape3D_item_shop_area")

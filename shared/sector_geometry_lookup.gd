@@ -19,11 +19,19 @@ const _FLOOR_CORRIDOR_HEIGHT: float = 0.2
 const _WALL_HEIGHT: float = 2.0
 
 ## Ticket 02: walls must read as taller than floor/corridor even as
-## placeholder geometry.
+## placeholder geometry. Slice 025 adds the organic ground kinds
+## (path/plaza/gate/water/grass) as flat walkable slabs sharing the
+## floor/corridor footprint; they render as distinct per-kind ground meshes so
+## a future material pass can differentiate them.
 const _TILE_DIMENSIONS: Dictionary = {
 	"floor": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
 	"corridor": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
 	"wall": Vector3(_TILE_FOOTPRINT, _WALL_HEIGHT, _TILE_FOOTPRINT),
+	"path": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
+	"plaza": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
+	"gate": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
+	"water": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
+	"grass": Vector3(_TILE_FOOTPRINT, _FLOOR_CORRIDOR_HEIGHT, _TILE_FOOTPRINT),
 }
 
 ## Slice 024: which tile kinds are solid (get merged collision) versus visual
@@ -39,6 +47,10 @@ const _STRUCTURE_SCENE_PATHS: Dictionary = {
 	"smithy": "res://client/structures/smithy.tscn",
 	"armor_shop": "res://client/structures/armor_shop.tscn",
 	"inn": "res://client/structures/inn.tscn",
+	"church": "res://client/structures/church.tscn",
+	"item_shop": "res://client/structures/item_shop.tscn",
+	"tavern": "res://client/structures/tavern.tscn",
+	"well": "res://client/structures/well.tscn",
 }
 
 

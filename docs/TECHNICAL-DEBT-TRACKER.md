@@ -99,47 +99,40 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   passed 7/7 tests and 38 assertions. The remaining scripts stay in scope for
   later small lots.
 
-### DT-008: Per-tile StaticBody3D geometry does not scale to city size
-
-- Classification: `Strategic Technical Debt`
-- Debt type: `Architecture`
-- Owner: valentin.vn@gmail.com
-- Date created: 2026-09-12
-- Benefit or reason: Intentional, visible shortcut. The client geometry
-  translator (`client/sector_geometry_translator.gd`, F-018) instantiates one
-  `StaticBody3D` + `MeshInstance3D` + `CollisionShape3D` per floor/wall/corridor
-  tile. Slice 023 deliberately reuses that pipeline to ship a bigger organic
-  town immediately (~869 tiles / bodies) with zero geometry risk and to provide
-  a reliable LLM fallback base, rather than blocking a visible win on a geometry
-  rewrite.
-- Impact: The approach does not reach true Qeynos/Midgar city scale (thousands
-  of tiles). At those counts, one body + mesh + collider per tile becomes a
-  physics/draw-call and memory problem, so the F-026 destination cannot be met
-  by enlarging the fixture further. `MAX_TILE_COUNT` was raised to 2048 to fit
-  the Slice 023 town, which caps how far the fixture alone can grow. Until the
-  geometry pass lands, the "large districted city" scale is bounded to the
-  per-tile-body budget.
-- Remediation plan: Add a large-scale geometry translation pass (Slice 024):
-  merge contiguous floor tiles into a single visual ground mesh with no
-  per-tile collider (floors become visual-only / a shared ground plane), and
-  represent walls as a small number of segment/box colliders rather than one
-  collider per wall tile. Keep structures as prefab instances. This decouples
-  rendered city size from the physics body count and unblocks the schema-v3
-  vocabulary + LLM-generated districted layout (Slices 024–025).
-- Status: `Open`
-- Phase: 8 (JIT world generation and local inference — the Organic Village
-  effort).
-- Links: [Slice 023](slices/023-organic-districted-town.md),
-  [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city),
-  [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation),
-  [Organic LLM Village map](../.scratch/organic-village/map.md),
-  `client/sector_geometry_translator.gd`, `shared/sector_blueprint_schema.gd`
-- Rationale: Recorded on discovery per the debt lifecycle. The per-tile-body
-  design is an accepted, bounded tradeoff for the Slice 023 visible win, with a
-  known remediation (the Slice 024 geometry pass) that must land before true
-  city scale or LLM-generated layouts are attempted.
-
 ## Resolved Items
+
+### DT-008: Per-tile StaticBody3D geometry did not scale to city size
+
+- Closure date: 2026-09-12
+- Closure outcome: Slice 024 replaced the one-`StaticBody3D`-per-tile
+  translation with a merged geometry pass in
+  `client/sector_geometry_translator.gd`: non-solid ground tiles (floor/corridor)
+  are combined into one merged `ArrayMesh` per kind rendered by a single
+  body-free `MeshInstance3D` (`Ground_<kind>`), and wall tiles are greedy-merged
+  along each row into box colliders under ONE shared `Walls` `StaticBody3D`.
+  `shared/sector_geometry_lookup.gd` gained `tile_is_solid(kind)` to classify
+  tiles. The starting town (~869 tiles) now renders with a single physics body
+  plus per-kind ground meshes plus 13 structure instances, versus ~869 bodies
+  before — decoupling rendered town size from the physics body count.
+- Benefit realized or risk reduced: The F-026 large-districted-city scale is no
+  longer bounded by a per-tile-body budget; floor-heavy sectors produce zero
+  ground bodies and a whole town is one wall body regardless of tile count. This
+  unblocks the schema-v3 vocabulary + LLM-generated layout slices (024–025) that
+  would otherwise multiply the body count.
+- Validation evidence: `test_sector_geometry_translation` 8/8 (incl.
+  `test_floor_only_sector_produces_zero_physics_bodies` and the wall-run merge
+  tests), `test_blueprint_replication` 4/4 (hub renders with ONE merged `Walls`
+  body and no `Tile_*` nodes), `test_sector_geometry_lookup` 8/8; full suite
+  `scripts/run_gut_validation.sh` 19/19 scripts, 146/146 tests, 558 asserts,
+  exit 0. See [Slice 024](slices/024-scalable-geometry-pass.md).
+- Residual note: wall colliders merge along horizontal runs only; a further
+  vertical/2-D merge to shrink the collision-shape count on vertical wall columns
+  is a possible future optimization but is not required — every wall tile already
+  shares ONE body. Recorded here rather than as a new open item.
+- Links: [Slice 024](slices/024-scalable-geometry-pass.md),
+  [Slice 023](slices/023-organic-districted-town.md),
+  [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation),
+  [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
 
 ### DT-007: LAN-config tests spawned a real server on the fixed default port 9999 (non-hermetic)
 
