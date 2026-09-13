@@ -9,18 +9,21 @@ env = SConscript("godot-cpp/SConstruct")
 env.Append(CPPPATH=["src/"])
 sources = Glob("src/*.cpp")
 
-WGNETSTACK_ARCHIVE = "#../build/libwgnetstack.a"
+# Link the Go bridge c-archive (per-platform) plus the platform system libs
+# the cgo/Go runtime needs, before creating the SharedLibrary target.
+if env["platform"] == "linux":
+    env.Append(LIBS=[File("#../build/libwgnetstack.a")])
+    # cgo's c-archive output needs pthread, dl, and libm at link time.
+    env.Append(LIBS=["pthread", "dl", "m"])
+elif env["platform"] == "windows":
+    env.Append(LIBS=[File("#../build/libwgnetstack.windows.a")])
+    # Windows system libs the Go runtime, net stack, and crypto/rand need.
+    env.Append(LIBS=["ws2_32", "winmm", "ntdll", "bcrypt", "iphlpapi", "userenv", "psapi", "advapi32"])
 
 library = env.SharedLibrary(
     "build/libwgnetstack_gdext{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
     source=sources,
 )
-
-if env["platform"] == "linux":
-    env.Append(LIBS=[File(WGNETSTACK_ARCHIVE)])
-    # cgo's c-archive output needs pthread, dl, and libm at link time even
-    # though this extension never calls Go concurrency/dl APIs directly.
-    env.Append(LIBS=["pthread", "dl", "m"])
 
 env.NoCache(library)
 Default(library)
