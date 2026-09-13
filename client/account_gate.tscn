@@ -1,0 +1,94 @@
+[gd_scene type="Control" script_class="AccountGate" load_steps=2 format=3 uid="uid://dx91h5jx29txu8q"]
+
+[ext_resource type="Script" path="res://client/account_gate.gd" id="1_0v1q7"]
+
+[node name="AccountGate" type="Control"]
+layout_mode = 3
+anchors_left = 0.0
+anchors_top = 0.0
+anchors_right = 1.0
+anchors_bottom = 1.0
+script = SubResource("1_0v1q7")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_left = 0.5
+anchors_top = 0.5
+anchors_right = 0.5
+anchors_bottom = 0.5
+offset_left = -200.0
+offset_top = -180.0
+offset_right = 200.0
+offset_bottom = 180.0
+alignment = 1
+
+[node name="Title" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Account Login / Register"
+horizontal_alignment = 1
+theme_overrides_font_sizes/font_size = 24
+
+[node name="Spacer1" type="Control" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="UsernameLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Username:"
+
+[node name="UsernameInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+placeholder_text = "username (4-20 chars)"
+max_length = 20
+
+[node name="PasswordLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Password:"
+
+[node name="PasswordInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+placeholder_text = "password (6+ chars)"
+secret = true
+
+[node name="HostLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Server Host:"
+
+[node name="HostInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+placeholder_text = "localhost (or IP/hostname)"
+
+[node name="Spacer2" type="Control" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="ButtonContainer" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+alignment = 1
+
+[node name="LoginButton" type="Button" parent="VBoxContainer/ButtonContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 40)
+text = "Login"
+
+[node name="RegisterButton" type="Button" parent="VBoxContainer/ButtonContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 40)
+text = "Register"
+
+[node name="Spacer3" type="Control" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Status: Waiting for input"
+horizontal_alignment = 1
+autowrap_mode = 2
+custom_minimum_size = Vector2(0, 60)
+
+[connection signal="pressed" from="VBoxContainer/ButtonContainer/LoginButton" to="." method="_on_login_pressed"]
+[connection signal="pressed" from="VBoxContainer/ButtonContainer/RegisterButton" to="." method="_on_register_pressed"]

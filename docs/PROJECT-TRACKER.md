@@ -244,14 +244,14 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 14 — Player accounts and characters**
 
-Progress: **40%** (2 of 5 items done)
+Progress: **50%** (3 of 6 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the Account/Character data-layer repository (done, boot-wired by Slice 040) plus the in-progress auth/session (Slice 040), session-gated Character CRUD (Slice 042), and server-side Character world-entry binding (Slice 043) RPC seams; the client login/character screens (spec slice 5) remain a queued, GUI-confirmed follow-up (Slice 044).
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam), `in-progress` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server) (session-gated Character CRUD RPC), `in-progress` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (server-side selected-Character world-entry binding; client screens not yet built).
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above reflects: the shared engine foundation (done); the Account/Character data-layer repository (done); the in-progress auth/session (Slice 040), session-gated Character CRUD (Slice 042), and server-side Character world-entry binding (Slice 043) RPC seams; and the client login/character screens scaffold (Slice 044, GUI verification pending). The mandatory-auth hard-flip and multi-peer Character replication remain queued follow-ups.
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam), `in-progress` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server) (session-gated Character CRUD RPC), `in-progress` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (server+client: selected-Character world-entry binding and login/character screens), `in-progress` [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (client UI screens; scaffolding complete, Windows GUI verification pending).
 - Tech debt: none yet.
 
-- **Current slice:** [043 — Character world entry (server-side binding)](slices/043-character-world-entry.md) — **100% complete; server resolves the selected Character from the session and binds it to the Player; additive (connect-time spawn unchanged); no client UI; focused and full-suite validation passed**
-  - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding)
+- **Current slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **scaffolding complete (account_gate, character_gate, PlayerIdentity refactor, project.godot update); all 268/268 tests passing; Windows GUI verification pending**
+  - **Features:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens)
 
 ### Implementation slice index
 
@@ -513,6 +513,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 6), [handoff-043](../.scratch/player-accounts/handoff-043-pregameplay-auth-character-flow.md)
   - **Decision:** no new ADR; delivers the server half of the coupled spec 5+6 flow additively (no mandatory-auth hard-flip), the client screens following as Slice 044
+- **Slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **scaffolding complete; account_gate and character_gate scenes + controllers wired to Phase 40-43 RPC seams; project.godot main_scene updated; Windows GUI verification pending**
+  - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (client half), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (new feature for the UI)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 5), [handoff-044](../.scratch/player-accounts/handoff-044-client-login-character-screens.md) (if created)
+  - **Decision:** no new ADR; defensive refactor discovered spawn-deferral brittleness against e2e harnesses; reverted deferral, documented intended pattern (login manages connection, gameplay inherits it); all 268/268 tests passing after revert. Known limitation: spawn may misfire into login menu if Player RPC arrives mid-auth (low probability, low impact, documented as follow-up). GUI-confirmed behavior on Windows before final delivery.
 
 ## Implementation slice acceptance
 

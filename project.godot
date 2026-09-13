@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Project0"
-run/main_scene="res://client/identity_gate.tscn"
+run/main_scene="res://client/account_gate.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 
 [autoload]

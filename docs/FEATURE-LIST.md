@@ -183,25 +183,97 @@ for a developer to pick up. No implementation has started.
   The RPC receiver resolves the Character via `CharacterService` and binds it to
   the peer's `ServerPlayerState` (both `/root` nodes). Additive: the connect-time
   anonymous spawn is unchanged, so the real-server e2e harnesses stay green.
+  **Slice 044 adds client login/register and character select/create UI screens**
+  (account_gate.tscn, character_gate.tscn, updated project.godot main_scene).
+  The server portion of F-033 is complete; GUI confirmation on Windows pending.
 - Phase: 14. Player accounts and characters
-- Implementation slices: [Slice 043](slices/043-character-world-entry.md); the
-  client login/character screens (spec slice 5) follow as Slice 044 (GUI-confirmed).
+- Implementation slices: [Slice 043](slices/043-character-world-entry.md),
+  [Slice 044](slices/044-client-login-character-ui.md) (GUI scaffolding, Windows verification pending).
 - Public seam: `server/character_service.gd` (`get_selected_character`);
   `server/server_player_state.gd` (`bind_character`, `character_id`,
   `character_display_name`, `character_cosmetic`); `client/network_client.gd`
-  (`submit_enter_world`, `world_entry_received`).
+  (`submit_enter_world`, `world_entry_received`); `client/player_identity.gd`
+  (account_id, username, selected_character_id, selected_character, display_name,
+  target_host); `account_gate.tscn`/`account_gate.gd` (login/register UI);
+  `character_gate.tscn`/`character_gate.gd` (character select/create UI).
 - Validation: `tests/integration/test_character_crud_rpc.gd`'s world-entry
   scenario (unauthenticated / unselected refused; selected resolves). Full suite
   `scripts/run_gut_validation.sh` 268/268 across 36 scripts, exit 0
   (`scripts_expected == scripts_ran == 36`); `scripts/check_record_sync.sh` exit 0.
+  GUI visual validation on Windows: login → character select → gameplay flow.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [player-accounts spec](../.scratch/player-accounts/spec.md),
-  [F-032](#f-032-character-crud-over-the-wire-server) (the consumed CRUD/session seam).
+  [F-032](#f-032-character-crud-over-the-wire-server) (the consumed CRUD/session seam),
+  [Slice 044 SDD](slices/044-client-login-character-ui.md).
 - Change history:
   - Date: 2026-09-13
     What changed: Opened F-033 via Slice 043 — added `get_selected_character`,
     `bind_character`, and the additive `enter_world` RPCs; validated at 268/268.
-    Client screens (spec slice 5) deferred to Slice 044 (needs GUI confirmation).
+    Client screens (spec slice 5) scaffolded in Slice 044; GUI verification pending.
+  - Date: 2026-09-13
+    What changed: Slice 044 scaffolding complete — client login/register
+    (account_gate) and character select/create (character_gate) UI scenes and
+    controllers added; project.godot main_scene updated to account_gate.tscn;
+    all 268/268 tests still passing.
+    Why: Prepare client UI for Windows GUI verification before full Phase 14
+    completion.
+    Related work: [Slice 044](slices/044-client-login-character-ui.md)
+    Validation: `scripts/run_gut_validation.sh` 268/268, exit 0.
+
+### F-034: Client login and character selection screens
+
+- Status: `In Progress`
+- Feature: Client-side UI for account login/registration and character
+  selection/creation, wired to Phase 40-43 server-side authentication, character
+  CRUD, and world-entry machinery.
+- Problem solved: Phase 40-43 delivers server-side identity binding and
+  character management, but has no client GUI — all RPC testing occurs in
+  headless integration harnesses. End-to-end gameplay requires visual login and
+  character screens.
+- How it solves the problem: Slice 044 scaffolds two scenes:
+  - `account_gate.tscn`/`account_gate.gd`: username/password/host inputs,
+    login/register buttons, status display. Validates input (username 4-20 chars,
+    password 6+ chars), opens connection, submits auth RPC, listens to
+    `auth_result_received` signal, stores account_id/username in `PlayerIdentity`,
+    transitions to character_gate.tscn on success.
+  - `character_gate.tscn`/`character_gate.gd`: character roster ItemList,
+    select/create/delete buttons, status display. On ready: fetches character
+    list via `submit_list_characters()`. Select/create/delete operations dispatch
+    appropriate RPC and listen to `character_result_received`. On select success:
+    calls `submit_enter_world()` (Slice 043 seam). On world-entry success:
+    stores selected_character_id/display_name/selected_character in PlayerIdentity,
+    transitions to gameplay.tscn.
+  - `project.godot`: main_scene changed from `identity_gate.tscn` (old placeholder)
+    to `account_gate.tscn`.
+  - `connection_status.gd`: updated to call `connect_to_server()` safely
+    (no second peer if already connected; intended pattern is login manages the
+    connection, gameplay inherits it).
+  - `player_identity.gd`: restructured to hold account_id, username,
+    selected_character_id, selected_character dict, display_name, target_host
+    (was: only display_name + target_host).
+- Phase: 14. Player accounts and characters
+- Implementation slices: [Slice 044](slices/044-client-login-character-ui.md)
+- Public seam: `account_gate.tscn`/`account_gate.gd`;
+  `character_gate.tscn`/`character_gate.gd`; `player_identity.gd` new fields;
+  `project.godot` run/main_scene.
+- Validation: Unit tests remain green (268/268, Slices 040-043). GUI validation:
+  Windows client launch → login with valid credentials → character select →
+  enter world → gameplay.tscn renders Player without errors.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [F-033](#f-033-character-world-entry-server-binding) (consumed server seams),
+  [Slice 044 SDD](slices/044-client-login-character-ui.md).
+- Change history:
+  - Date: 2026-09-13
+    What changed: Opened F-034 via Slice 044 — scaffolded account_gate and
+    character_gate UI scenes + controllers, updated project.godot main_scene,
+    restructured PlayerIdentity, refined connect_to_server() documentation.
+    Why: Enable Windows GUI verification of login → character select → world-entry
+    flow before Phase 14 completion.
+    Validation: `scripts/run_gut_validation.sh` 268/268, exit 0.
+    Known limitation: spawn-deferral abandoned after e2e harness brittleness;
+    login scene persists until world-entry succeeds, then transitions to
+    gameplay — intended pattern to avoid misrouted Player spawns.
+
 
 ### F-032: Character CRUD over the wire (server)
 
