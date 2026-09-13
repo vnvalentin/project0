@@ -317,6 +317,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (tickets 01–05), [ADR 0003](adr/0003-imperial-world-scale.md)
 
+- **Slice:** [037 — World-scale constant relabel (meters → yards)](slices/037-world-scale-constant-relabel.md) — **100% complete; rename-only, full-suite validation passed (207/207 unchanged)**
+  - **Feature:** [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (completes constant adoption)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (ticket 04), [ADR 0003](adr/0003-imperial-world-scale.md)
+
 #### Phase 7 — Delivery workflow capabilities
 
 - **Slice:** [010 — Core mechanics architecture contract](slices/010-core-mechanics-architecture.md) — **100% complete; focused documentation and full-suite validation passed**
@@ -467,8 +472,8 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   Sector, ¼-mile Sector). Decisions locked in
   [ADR 0003](adr/0003-imperial-world-scale.md); delivered as
   [Slice 036](slices/036-world-scale-measurement-contract.md) (the `WorldScale`
-  contract). Follow-up: the meters→yards relabel of existing constants remains a
-  separate slice. See [world-scale map](../.scratch/world-scale/map.md).
+  contract) and [Slice 037](slices/037-world-scale-constant-relabel.md) (the
+  meters→yards constant relabel). See [world-scale map](../.scratch/world-scale/map.md).
 - [ ] In progress — Basic Monsters map (Phase 10 handoff, pre-slice design):
   charting a minimal server-authoritative monster (flat HP/damage/death,
   detect/chase/attack state machine with a readable attack telegraph per

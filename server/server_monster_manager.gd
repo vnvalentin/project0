@@ -16,8 +16,8 @@ const MonsterContractsScript: Script = preload("res://shared/monster_contracts.g
 
 ## Ticks a defeated monster waits before respawning (~3s at 60 Hz).
 const RESPAWN_COOLDOWN_TICKS: int = 180
-## Radius (meters) around a spawn point within which a respawn is randomized.
-const RESPAWN_AREA_RADIUS_METERS: float = 2.0
+## Radius (yards) around a spawn point within which a respawn is randomized.
+const RESPAWN_AREA_RADIUS_YARDS: float = 2.0
 ## Ground height monsters spawn at (players sit at y == 1).
 const MONSTER_SPAWN_Y: float = 1.0
 ## Half-extent of the town's square exclusion zone. Just outside the fixture's
@@ -141,12 +141,12 @@ func _nearest_player(player_positions: Array, monster_position: Vector3) -> Vect
 	return nearest
 
 
-## A randomized point within RESPAWN_AREA_RADIUS_METERS of `base`, then pushed
+## A randomized point within RESPAWN_AREA_RADIUS_YARDS of `base`, then pushed
 ## back out along `base`'s dominant axis if it fell inside the town exclusion
 ## box — so a respawn can never land inside the town.
 func _random_position_outside_town(base: Vector3) -> Vector3:
 	var angle: float = _rng.randf() * TAU
-	var radius: float = _rng.randf() * RESPAWN_AREA_RADIUS_METERS
+	var radius: float = _rng.randf() * RESPAWN_AREA_RADIUS_YARDS
 	var candidate: Vector3 = base + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 	candidate.y = MONSTER_SPAWN_Y
 	if absf(candidate.x) < TOWN_EXCLUSION_HALF_EXTENT and absf(candidate.z) < TOWN_EXCLUSION_HALF_EXTENT:

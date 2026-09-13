@@ -20,7 +20,8 @@ const SERVER_ADDRESS: String = "127.0.0.1"
 const DEFAULT_TARGET_HOST: String = "192.69.180.236"
 const MAX_CLIENTS: int = 10
 
-## Slice 004 scope: the fixed server-tick speed (units/second) the server
+## Slice 004 scope: the fixed server-tick speed (yards/second; 1 world unit =
+## 1 yard, see shared/world_scale.gd) the server
 ## applies to a connected Player's authoritative position. Slice 005 also
 ## uses this same value client-side to predict and replay movement, so
 ## reconciliation replay matches the server's own integration exactly. See
@@ -28,7 +29,7 @@ const MAX_CLIENTS: int = 10
 ## docs/slices/005-prediction-reconciliation.md.
 const AUTHORITATIVE_MOVE_SPEED: float = 5.0
 
-## Slice 005 scope: the maximum distance (units) the client smooths the blue
+## Slice 005 scope: the maximum distance (yards) the client smooths the blue
 ## NetworkedPlayer toward an incoming authoritative snapshot per second. Used
 ## as a move_toward() speed, not a teleport threshold, so ordinary snapshot
 ## deltas are visually smoothed rather than jumped. See
@@ -36,7 +37,7 @@ const AUTHORITATIVE_MOVE_SPEED: float = 5.0
 const NETWORKED_PLAYER_SMOOTH_SPEED: float = 10.0
 
 ## Slice 005 scope: if an authoritative snapshot's distance from the blue
-## NetworkedPlayer's current rendered position exceeds this many units, the
+## NetworkedPlayer's current rendered position exceeds this many yards, the
 ## client snaps directly instead of smoothing — bounding the worst case (e.g.
 ## a fresh spawn or a large correction) to a single frame rather than a long
 ## visible slide. See docs/slices/005-prediction-reconciliation.md.

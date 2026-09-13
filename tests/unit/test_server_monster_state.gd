@@ -46,7 +46,7 @@ func test_chase_returns_to_idle_when_player_flees() -> void:
 
 func test_enters_windup_when_player_is_in_reach() -> void:
 	var monster: Object = _monster()
-	var player: Vector3 = Vector3(1.5, 1, 0)  # within MONSTER_REACH_METERS (2) and ahead
+	var player: Vector3 = Vector3(1.5, 1, 0)  # within MONSTER_REACH_YARDS (2) and ahead
 	monster.advance(player, 1.0, 1)  # IDLE -> CHASE
 	monster.advance(player, 1.0, 2)  # CHASE -> WINDUP (in reach)
 	assert_eq(monster.phase, MonsterContractsScript.PHASE_WINDUP, "a player in reach triggers the attack windup")

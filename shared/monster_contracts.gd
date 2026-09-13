@@ -39,17 +39,18 @@ const WINDUP_TICKS: int = 10
 const ATTACK_ACTIVE_TICKS: int = 4
 const RECOVERY_TICKS: int = 10
 
-## Detection radius (meters) checked each tick while IDLE, and horizontal chase
-## speed (meters/second). Independent fixed constants (not a multiplier of
-## player speed) per ticket 02 — coupling them is speculative with one monster
-## archetype and one player speed today.
-const DETECTION_RADIUS_METERS: float = 8.0
-const CHASE_SPEED_METERS_PER_SEC: float = 3.0
+## Detection radius (yards) checked each tick while IDLE, and horizontal chase
+## speed (yards/second). 1 world unit = 1 yard (see shared/world_scale.gd,
+## ADR 0003). Independent fixed constants (not a multiplier of player speed) per
+## ticket 02 — coupling them is speculative with one monster archetype and one
+## player speed today.
+const DETECTION_RADIUS_YARDS: float = 8.0
+const CHASE_SPEED_YARDS_PER_SEC: float = 3.0
 
-## The monster's melee reach/arc, applied through the shared
+## The monster's melee reach/arc (yards), applied through the shared
 ## CombatContracts.is_within_reach_and_arc() hit test rather than a second
 ## implementation.
-const MONSTER_REACH_METERS: float = 2.0
+const MONSTER_REACH_YARDS: float = 2.0
 const MONSTER_ARC_DEGREES: float = 60.0
 
 ## Authoritative attack-phase state names (server-owned; driven by
@@ -97,14 +98,14 @@ static func default_monster(target_id: String) -> Object:
 ## The bounded weapon archetype used ONLY for the monster's reach/arc hit test
 ## via CombatContracts.is_within_reach_and_arc(). Its timing/factor fields
 ## mirror the constants above but are unused by that pure geometric test, which
-## reads only reach_meters and arc_degrees.
+## reads only reach_yards and arc_degrees.
 static func monster_attack_archetype() -> Object:
 	return CombatContractsScript.MeleeWeaponArchetype.new(
 		"MONSTER_CLAW",
 		WINDUP_TICKS,
 		ATTACK_ACTIVE_TICKS,
 		RECOVERY_TICKS,
-		MONSTER_REACH_METERS,
+		MONSTER_REACH_YARDS,
 		MONSTER_ARC_DEGREES,
 		1.0,
 		1.0,

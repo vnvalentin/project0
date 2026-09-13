@@ -32,6 +32,8 @@ extends CharacterBody3D
 ## corrected the same way the predicted locomotion slowdown already is. See
 ## docs/slices/013-melee-strike-visual-indicator.md.
 
+## Planar move speed in yards/second (1 world unit = 1 yard; see
+## shared/world_scale.gd, ADR 0003).
 @export var move_speed: float = 5.0
 
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")

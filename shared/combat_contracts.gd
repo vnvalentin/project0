@@ -117,7 +117,7 @@ class MeleeWeaponArchetype:
 	var windup_ticks: int
 	var active_ticks: int
 	var recovery_ticks: int
-	var reach_meters: float
+	var reach_yards: float
 	var arc_degrees: float
 	var windup_speed_factor: float
 	var recovery_speed_factor: float
@@ -128,7 +128,7 @@ class MeleeWeaponArchetype:
 		p_windup_ticks: int,
 		p_active_ticks: int,
 		p_recovery_ticks: int,
-		p_reach_meters: float,
+		p_reach_yards: float,
 		p_arc_degrees: float,
 		p_windup_speed_factor: float,
 		p_recovery_speed_factor: float,
@@ -138,7 +138,7 @@ class MeleeWeaponArchetype:
 		windup_ticks = p_windup_ticks
 		active_ticks = p_active_ticks
 		recovery_ticks = p_recovery_ticks
-		reach_meters = p_reach_meters
+		reach_yards = p_reach_yards
 		arc_degrees = p_arc_degrees
 		windup_speed_factor = p_windup_speed_factor
 		recovery_speed_factor = p_recovery_speed_factor
@@ -165,7 +165,7 @@ static func generic_sword_archetype() -> MeleeWeaponArchetype:
 
 ## Public seam: deterministic vector reach/arc hit test, pure and
 ## side-effect-free so it is directly unit-testable. Distance uses
-## reach_meters exactly (<=); arc uses the half-angle cosine threshold so a
+## reach_yards exactly (<=); arc uses the half-angle cosine threshold so a
 ## target exactly on the boundary (attacker_forward re-normalized) is
 ## deterministic under floating point per
 ## .scratch/melee-combat/issues/04-choose-first-target-and-hit-rule.md.
@@ -182,7 +182,7 @@ static func is_within_reach_and_arc(
 
 	var to_target: Vector3 = target_position - attacker_position
 	var distance: float = to_target.length()
-	if distance > archetype.reach_meters:
+	if distance > archetype.reach_yards:
 		return false
 	if distance == 0.0:
 		return true

@@ -60,7 +60,7 @@ func is_dead() -> bool:
 ## the authoritative tick stamped onto emitted telemetry.
 func advance(player_position: Vector3, delta: float, server_tick: int) -> void:
 	if phase == MonsterContractsScript.PHASE_IDLE:
-		if _horizontal_distance_to(player_position) <= MonsterContractsScript.DETECTION_RADIUS_METERS:
+		if _horizontal_distance_to(player_position) <= MonsterContractsScript.DETECTION_RADIUS_YARDS:
 			_set_phase(MonsterContractsScript.PHASE_CHASE, server_tick)
 	elif phase == MonsterContractsScript.PHASE_CHASE:
 		_advance_chase(player_position, delta, server_tick)
@@ -90,7 +90,7 @@ func receive_damage(amount: int, attacker_peer_id: int, server_tick: int) -> voi
 
 
 func _advance_chase(player_position: Vector3, delta: float, server_tick: int) -> void:
-	if _horizontal_distance_to(player_position) > MonsterContractsScript.DETECTION_RADIUS_METERS:
+	if _horizontal_distance_to(player_position) > MonsterContractsScript.DETECTION_RADIUS_YARDS:
 		_set_phase(MonsterContractsScript.PHASE_IDLE, server_tick)
 		return
 	_face(player_position)
@@ -135,7 +135,7 @@ func _move_toward(player_position: Vector3, delta: float) -> void:
 	var to_player: Vector3 = _horizontal(player_position - position)
 	if to_player.length_squared() == 0.0:
 		return
-	position += to_player.normalized() * MonsterContractsScript.CHASE_SPEED_METERS_PER_SEC * delta
+	position += to_player.normalized() * MonsterContractsScript.CHASE_SPEED_YARDS_PER_SEC * delta
 
 
 func _horizontal_distance_to(player_position: Vector3) -> float:

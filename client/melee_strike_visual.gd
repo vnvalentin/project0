@@ -1,6 +1,6 @@
 extends Node3D
 ## Slice 013: purely cosmetic client-side melee strike indicator. Draws a
-## bright cyan/white line extending archetype.reach_meters (2.0 m) in front of
+## bright cyan/white line extending archetype.reach_yards (2.0 yd) in front of
 ## whichever Node3D this component is attached under, visible only while the
 ## owning attack is in its ACTIVE phase, and hidden the rest of the time. This
 ## node never reads or writes any authoritative state — it only reacts to a
@@ -39,7 +39,7 @@ func _ready() -> void:
 
 	var archetype: Object = CombatContractsScript.generic_sword_archetype()
 	var mesh: BoxMesh = BoxMesh.new()
-	mesh.size = Vector3(LINE_WIDTH, LINE_WIDTH, archetype.reach_meters)
+	mesh.size = Vector3(LINE_WIDTH, LINE_WIDTH, archetype.reach_yards)
 	_mesh_instance.mesh = mesh
 	# Applied as a surface override (matching client/target_dummy.gd's own
 	# material pattern) rather than BoxMesh.material directly — assigning a
@@ -47,7 +47,7 @@ func _ready() -> void:
 	# under Godot's headless dummy renderer (used by GUT) before the mesh has
 	# an initialized surface to attach it to.
 	_mesh_instance.set_surface_override_material(0, material)
-	_mesh_instance.position = Vector3(0.0, FORWARD_HEIGHT_OFFSET, -archetype.reach_meters / 2.0)
+	_mesh_instance.position = Vector3(0.0, FORWARD_HEIGHT_OFFSET, -archetype.reach_yards / 2.0)
 
 
 ## Public seam: shows the strike line. Called by the owning Player/RemotePlayer

@@ -109,7 +109,7 @@ func test_generic_sword_archetype_matches_resolved_tuning() -> void:
 	assert_eq(archetype.windup_ticks, 6, "windup ticks matches resolution ticket")
 	assert_eq(archetype.active_ticks, 4, "active ticks matches resolution ticket")
 	assert_eq(archetype.recovery_ticks, 10, "recovery ticks matches resolution ticket")
-	assert_eq(archetype.reach_meters, 2.0, "reach meters matches resolution ticket")
+	assert_eq(archetype.reach_yards, 2.0, "reach yards matches resolution ticket")
 	assert_eq(archetype.arc_degrees, 60.0, "arc degrees matches resolution ticket")
 	assert_eq(archetype.windup_speed_factor, 0.5, "windup speed factor matches resolution ticket")
 	assert_eq(archetype.recovery_speed_factor, 0.8, "recovery speed factor matches resolution ticket")
@@ -156,13 +156,13 @@ func test_hit_within_reach_and_directly_ahead_is_a_hit() -> void:
 
 func test_hit_exactly_at_reach_boundary_is_a_hit() -> void:
 	var archetype: Object = CombatContractsScript.generic_sword_archetype()
-	var hit: bool = CombatContractsScript.is_within_reach_and_arc(Vector3.ZERO, Vector3.FORWARD, Vector3.FORWARD * archetype.reach_meters, archetype)
+	var hit: bool = CombatContractsScript.is_within_reach_and_arc(Vector3.ZERO, Vector3.FORWARD, Vector3.FORWARD * archetype.reach_yards, archetype)
 	assert_true(hit, "a target exactly at the reach boundary is a hit")
 
 
 func test_miss_beyond_reach_is_a_miss() -> void:
 	var archetype: Object = CombatContractsScript.generic_sword_archetype()
-	var hit: bool = CombatContractsScript.is_within_reach_and_arc(Vector3.ZERO, Vector3.FORWARD, Vector3.FORWARD * (archetype.reach_meters + 0.01), archetype)
+	var hit: bool = CombatContractsScript.is_within_reach_and_arc(Vector3.ZERO, Vector3.FORWARD, Vector3.FORWARD * (archetype.reach_yards + 0.01), archetype)
 	assert_false(hit, "a target just beyond reach is a miss")
 
 

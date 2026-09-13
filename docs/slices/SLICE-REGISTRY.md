@@ -52,8 +52,9 @@ contended range and everything after it is tracked explicitly:
 | 034 | wgnetstack in-client GDExtension + tunnel integration, Linux (P-024) | interactive |
 | 035 | wgnetstack Windows DLL cross-compile + client repackage (P-024) | autonomous CLI |
 | 036 | Imperial world-scale measurement contract — WorldScale (F-028) | interactive |
+| 037 | World-scale constant relabel: meters → yards (F-028) | interactive |
 
-Next free slice: **037** (verify against `docs/slices/` before reserving).
+Next free slice: **038** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
