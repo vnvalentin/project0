@@ -118,6 +118,12 @@ var _tunnel: Object = null
 ## NetworkConfig.resolve_client_target_host() (CLI arg, then env var, then
 ## localhost); port defaults to the shared NetworkConfig port. Non-blocking —
 ## outcome arrives via the connection_status_changed signal.
+##
+## Slice 044: intended usage is that the login screen opens the connection and
+## stores target_host in PlayerIdentity; gameplay then inherits that connection.
+## To avoid a second peer, the login scene should persist until world-entry
+## succeeds, then transition to gameplay.tscn. Revisit this seam if e2e patterns
+## require connect-before-scene-load.
 func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER_PORT) -> void:
 	var target_host: String = host.strip_edges()
 	if target_host.is_empty():

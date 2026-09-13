@@ -7,6 +7,8 @@ extends Label
 func _ready() -> void:
 	NetworkClient.connection_status_changed.connect(_on_status_changed)
 	_on_status_changed(NetworkClient.status)
+	# Slice 044: idempotent — if the login/character screens already opened the
+	# connection this is a no-op.
 	NetworkClient.connect_to_server(PlayerIdentity.target_host)
 
 
