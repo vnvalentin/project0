@@ -9,16 +9,27 @@ action-adventure with JIT-generated, canon-persisted world content`.
 
 ## Domain terms
 
-- **Identity gate**: The local, pre-gameplay step where a player supplies a
-  display name (or other minimal credential) before a Player is created.
-  Authoritative for the current slice; provisional — it is a stand-in for a
-  real authentication/session design, not a security boundary.
-  _Avoid_: login (implies networked auth that does not exist yet), account.
-- **Player**: The in-scene actor a person controls after passing the identity
-  gate. Authoritative in the current slice as a client-visible node; once
-  networking exists, position/state authority moves to the server.
-  _Avoid_: character, avatar, user (User is a person; Player is their in-world
-  actor).
+- **Identity gate**: The original local, pre-gameplay step where a player
+  supplied a display name before a Player was created. **Superseded** by the
+  Account login and Character select flow (Phase 14, player-accounts); retained
+  here only as the historical provisional stand-in it always was, never a
+  security boundary.
+- **Account**: The persistent, server-owned authenticated credential a person
+  logs in with — an opaque `account_id`, a unique username, and a salted PBKDF2
+  derived secret (never plaintext). One Account owns up to five Characters and
+  is the modelled root of identity.
+  _Avoid_: user (the human person, not a stored entity), profile.
+- **Character**: A persistent, selectable persona owned by exactly one Account —
+  an opaque `character_id`, a globally-unique display name, cosmetic data,
+  timestamps, and a forward-compatible slot for future vessel state. A selected
+  Character is instantiated as the in-world Player. Soft-deleted (retained and
+  reversible; its name stays reserved to its Account).
+  _Avoid_: avatar, hero, class.
+- **Player**: The in-scene actor a person controls in the world — the runtime
+  instantiation of a selected Character, its position and state
+  server-authoritative once networking exists.
+  _Avoid_: character (the persistent persona is the Character; the Player is its
+  in-world instantiation), user.
 - **Flat plane**: The minimal placeholder ground scene used to prove movement
   without committing to any generated or hand-built map. Authoritative as the
   current slice's only world geometry.

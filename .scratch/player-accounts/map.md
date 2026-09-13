@@ -40,7 +40,9 @@ safely. See [Project Tracker](../../docs/PROJECT-TRACKER.md),
 - Decided while charting (round 1, user-accepted):
   - **Destination artifact** = a handoff-ready spec, not code in this map.
   - **Trust level (b)** = home-hosted, invite-gated; real server-side
-    credential verification, not public-internet-grade.
+    credential verification, not public-internet-grade. (Refined 2026-09-13:
+    account **registration is self-serve** — the WireGuard tunnel (Phase 13) is
+    the network gate, so only enrolled peers can reach the server to register.)
   - **Domain model** = User (person) → Account (credential) → owns N Characters
     (persistent persona) → a selected Character is instantiated as the existing
     Player. (Formalized + reconciled with CONTEXT.md by
@@ -61,8 +63,19 @@ safely. See [Project Tracker](../../docs/PROJECT-TRACKER.md),
 
 ## Decisions so far
 
+> **Status: COMPLETE** — all six tickets resolved 2026-09-13. User-accepted
+> forks: self-serve registration behind the WireGuard tunnel gate, 5 Characters
+> per Account, globally-unique names, soft delete, and a new Phase 14. The
+> consolidated handoff-ready spec is [spec.md](spec.md); implementation consumes
+> the Wave 4 shared SQLite foundation.
+
 <!-- one line per closed ticket; zoom the link for detail -->
 
+- [01 — Domain model](issues/01-domain-model-account-character-player.md): User
+  is informal; **Account** (opaque `account_id`) is the modelled root, owning up
+  to 5 **Characters** (opaque `character_id`, globally-unique name); the Identity
+  gate retires into the Account login + Character select flow; CONTEXT.md now
+  carries Account and Character as canonical terms.
 - [02 — Godot 4 password hashing](issues/02-research-godot-password-hashing.md):
   Godot 4 has no native PBKDF2 / bcrypt / argon2 and no SHA-512 — recommend a
   manual PBKDF2-HMAC-SHA256 (16-byte per-account CSPRNG salt, 32-byte derived
@@ -76,29 +89,47 @@ safely. See [Project Tracker](../../docs/PROJECT-TRACKER.md),
   queries only; write-temp-then-`DirAccess.rename` flat file is an atomic
   zero-dependency interim, not the destination; share ONE mechanism with Phase 9
   Canon.
+- [04 — Authentication & session](issues/04-authentication-and-session-model.md):
+  username + password (PBKDF2-HMAC-SHA256, off-thread constant-time verify);
+  **self-serve registration** behind the WireGuard tunnel gate; auth is the
+  first post-connect RPC before any Character/Player; opaque in-memory session
+  bound to the peer; full re-auth on reconnect; the login screen replaces
+  `identity_gate`.
+- [05 — Character data model](issues/05-character-data-model-and-lifecycle.md):
+  versioned `CharacterRecord` (schema_version, opaque ids, globally-unique name
+  3–20, cosmetic, timestamps, soft-`deleted`, forward-compatible `vessel_seam`);
+  max 5 per Account; soft delete keeps the name reserved; no rename in v1; the
+  server owns ids/creation/uniqueness.
+- [06 — Account/Character persistence](issues/06-account-character-persistence-design.md):
+  one shared server-owned `godot-sqlite` engine (WAL, `user_version` fail-closed,
+  parameter-bound), `accounts` + `characters` tables with a partial unique name
+  index WHERE not deleted, atomic create/delete, server-only handle, bounded
+  client DTOs; shares ONE mechanism with Phase 9; the downstream Wave 4 slice
+  builds the engine.
 
-## Not yet specified
+## Specified in the handoff spec
 
-- The client↔server message/RPC contract for auth and character operations
-  (login, list / create / select / delete Character) — graduates once the
-  authentication model and the Character data model are decided.
-- The screen flow and UI states (login → character select → character creation
-  → enter world), and how they replace or evolve `identity_gate.tscn` —
-  graduates once auth and the Character data model are decided.
-- The character-select and character-creation screen designs (fields shown,
-  validation, cosmetic options) — graduates from the Character data model.
-- The Character → Player instantiation seam (how a selected Character binds to
-  `server_player_state.gd`'s `start_for_peer`) — graduates from the Character
-  data model.
-- Account enrollment / registration: self-serve registration vs invite-code
-  gated (Phase 13 tie-in) vs admin-provisioned — graduates from the
-  authentication model.
-- Session persistence and reconnect behavior (does a session survive a client
-  restart; how re-auth works on reconnect) — graduates from the authentication
-  model.
-- Phase and tracker placement (a new phase vs folding into Phase 9 / 12 / 13;
-  feature / debt / slice indexing) — graduates once the core design decisions
-  exist.
+The items below graduated from the decisions above and are now specified in
+[spec.md](spec.md), ready to become implementation tickets:
+
+- The client↔server RPC contract for auth and Character operations (register /
+  login / list / create / select / delete).
+- The screen flow and states (login/register → character select → character
+  creation → enter world) replacing `client/identity_gate.tscn`.
+- The Character → Player instantiation seam (a selected Character binds to
+  `server/server_player_state.gd`'s `start_for_peer`).
+- Enrollment = self-serve registration; session = in-memory per connection with
+  full re-auth on reconnect; tracker placement = a new **Phase 14**.
+
+## Deferred to implementation / later phases
+
+- The concrete character-select / character-creation screen visual design and
+  the cosmetic-option catalog (bounded by the Character data model; authored in
+  the first UI slice).
+- Initial six-node vessel starting values / allocation (Phase 12; only the
+  forward-compatible `vessel_seam` is designed here).
+- The `godot-sqlite` engine build, migrations, and repositories (the Wave 4
+  shared SQLite foundation slice, shared with Phase 9 Canon).
 
 ## Out of scope
 

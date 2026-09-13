@@ -1,5 +1,5 @@
 Type: grilling
-Status: open
+Status: resolved
 
 ## Question
 
@@ -34,3 +34,23 @@ Resolve:
 
 This ticket blocks the authentication model and the Character data model, which
 both depend on these definitions.
+
+## Decision (2026-09-13, user-accepted)
+
+- **User is informal; Account is the modelled root.** The human `User` is not a
+  stored entity. The `Account` is the persistent, server-owned credential and
+  the root of identity.
+- **Identifiers** are opaque server-owned stable strings (CLAUDE.md):
+  `account_id` and `character_id`. Clients never supply them.
+- **Multiplicity**: one Account owns up to **5** Characters; a Character belongs
+  to exactly one Account (no sharing). The Character **display name is globally
+  unique** among non-deleted Characters, so a name denotes exactly one persona
+  in-world.
+- **Identity gate retires** into the new **Account login + Character select**
+  flow (Phase 14). `PlayerIdentity` will hold an authenticated Account handle
+  and the selected Character, not a raw display name.
+- **CONTEXT.md updated**: `Account` and `Character` are now canonical terms; the
+  `Identity gate` and `Player` entries were revised (Identity gate marked
+  superseded; Player redefined as the in-world instantiation of a Character).
+
+Unblocks 04 (authentication) and 05 (Character data model).
