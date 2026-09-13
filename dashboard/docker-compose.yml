@@ -3,7 +3,7 @@ services:
     build: .
     container_name: project0-flow
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_HOST_PORT:-8080}:8080"
     volumes:
       - ..:/repo:ro
       - ./app.py:/app/app.py:ro
