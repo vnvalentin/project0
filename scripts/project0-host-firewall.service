@@ -1,0 +1,16 @@
+[Unit]
+# Reapplies the Project0 game-port (udp/9999) lockdown on boot so the P0_GAME
+# iptables chain (see ci/host-firewall-helper.sh) survives reboots, matching the
+# durability of project0-server.service. Slice 028 / P-024.
+Description=Project0 host firewall lockdown for the game port (udp/9999)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/data/code/project0/ci/host-firewall-helper.sh apply --allow-lan
+ExecStop=/data/code/project0/ci/host-firewall-helper.sh remove
+
+[Install]
+WantedBy=multi-user.target

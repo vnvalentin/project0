@@ -58,7 +58,7 @@ const OUT_OF_BOUNDS_ORIGIN: String = """
 {
   "schema_version": 1,
   "sector_id": "sector-0-0",
-  "origin": {"x": 33, "y": 0},
+  "origin": {"x": 49, "y": 0},
   "tiles": [
     {"x": 0, "y": 0, "kind": "floor"}
   ]
@@ -71,7 +71,7 @@ const OUT_OF_BOUNDS_TILE: String = """
   "sector_id": "sector-0-0",
   "origin": {"x": 0, "y": 0},
   "tiles": [
-    {"x": -33, "y": 0, "kind": "floor"}
+    {"x": -49, "y": 0, "kind": "floor"}
   ]
 }
 """

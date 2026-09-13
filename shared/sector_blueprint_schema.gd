@@ -28,10 +28,12 @@ const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3]
 
 ## Bounds the tile array so a single sector response cannot request unbounded
 ## work; this is a contract-validation bound only, not a gameplay/world-size
-## design. Raised from 512 in the Organic Village effort so a larger,
-## non-square starting village fits within one blueprint.
-const MAX_TILE_COUNT: int = 2048
-const MAX_COORDINATE_ABS: int = 32
+## design. Raised across the Organic Village effort (512 -> 2048 -> 4096) so a
+## large, non-square starting village fits within one blueprint.
+const MAX_TILE_COUNT: int = 4096
+## Absolute coordinate bound. Raised to 48 for the ~3x-bigger village (town
+## outline reaches +/-30; monster spawn markers sit in the fields beyond it).
+const MAX_COORDINATE_ABS: int = 48
 
 ## Tile kinds a blueprint may place. The base kinds (floor/wall/corridor) are
 ## valid in every version; the organic vocabulary (path/plaza/gate/water/grass,
@@ -42,10 +44,11 @@ const _ORGANIC_TILE_KINDS: PackedStringArray = ["path", "plaza", "gate", "water"
 ## Bounds structure kinds a blueprint may place. No footprint/size field
 ## exists per ticket 01 — a fixed-size prefab per kind is assigned by a
 ## future geometry-translation slice, out of scope here. The base kinds
-## (house/smithy/armor_shop/inn) are valid in v2+; the organic flavor kinds
-## (church/item_shop/tavern/well, Slice 025) are gated to schema v3+.
-const SUPPORTED_STRUCTURE_KINDS: PackedStringArray = ["house", "smithy", "armor_shop", "inn", "church", "item_shop", "tavern", "well"]
-const _ORGANIC_STRUCTURE_KINDS: PackedStringArray = ["church", "item_shop", "tavern", "well"]
+## (house/smithy/armor_shop/inn) are valid in v2+; the organic settlement kinds
+## (church/item_shop/tavern/well plus the villager npc_house and the village_hall
+## leader's house) are gated to schema v3+.
+const SUPPORTED_STRUCTURE_KINDS: PackedStringArray = ["house", "smithy", "armor_shop", "inn", "church", "item_shop", "tavern", "well", "npc_house", "village_hall"]
+const _ORGANIC_STRUCTURE_KINDS: PackedStringArray = ["church", "item_shop", "tavern", "well", "npc_house", "village_hall"]
 
 ## The organic vocabulary (the new tile and structure kinds above) requires
 ## this schema version; using it in an older-versioned blueprint is rejected so

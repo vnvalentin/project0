@@ -28,6 +28,15 @@ extends Node
 ## prediction/reconciliation lives in client/player.gd and
 ## client/networked_player_input.gd; target-hit feedback lives in
 ## client/target_dummy.gd, for the same separation-of-concerns reason.
+## Slice 033 adds cosmetic replication of living server-authoritative monsters,
+## mirroring the remote-player spawn/position/despawn pattern one-for-one:
+## receive_monster_spawn/receive_monster_position are thin RPC targets that
+## delegate to the static, parent-injected spawn_monster_representation/
+## apply_monster_position seams (mirroring render_sector_blueprint's
+## testability style) under a dedicated Monsters container. Hit/death reactions
+## and despawn-on-death live in client/monster.gd itself, listening directly to
+## combat_event_received, matching client/target_dummy.gd's existing pattern —
+## this autoload never decides a hit or death.
 
 signal connection_status_changed(status: String)
 signal authoritative_position_received(position: Vector3, last_processed_sequence: int)
@@ -70,6 +79,11 @@ const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geom
 const NETWORKED_PLAYER_SCENE_PATH: String = "res://client/networked_player.tscn"
 const REMOTE_PLAYER_SCENE_PATH: String = "res://client/remote_player.tscn"
 const REMOTE_PLAYERS_CONTAINER_NAME: String = "RemotePlayers"
+const MONSTER_SCENE_PATH: String = "res://client/monster.tscn"
+## Slice 033: dedicated child of the Gameplay root holding every living
+## monster's cosmetic representation, kept separate so
+## FlatPlane/Player/camera/UI/RemotePlayers/SectorGeometry are never disturbed.
+const MONSTERS_CONTAINER_NAME: String = "Monsters"
 ## Slice 017: dedicated child of the Gameplay root holding the rendered
 ## starting-town geometry, kept separate so FlatPlane/Player/camera/UI are
 ## never disturbed by a received blueprint.
@@ -85,6 +99,12 @@ func _ready() -> void:
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 
 
+## Slice 034: holds the in-process wgnetstack WireGuard tunnel (a WgNetstack
+## GDExtension instance) for the lifetime of the connection when tunnel mode
+## is on, so it is not freed while the ENet client uses its loopback port.
+var _tunnel: Object = null
+
+
 ## Public seam: starts an ENet client connection attempt to the given host
 ## and port. When host is left as the default, it resolves via
 ## NetworkConfig.resolve_client_target_host() (CLI arg, then env var, then
@@ -94,6 +114,15 @@ func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER
 	var target_host: String = host.strip_edges()
 	if target_host.is_empty():
 		target_host = NetworkConfigScript.resolve_client_target_host()
+
+	# Slice 034: when PROJECT0_TUNNEL=1, open the in-process userspace WireGuard
+	# tunnel and connect to its loopback port instead of target_host directly,
+	# so a remote tester needs no WireGuard app and no admin/TUN driver.
+	var tunnel_port: int = _maybe_start_tunnel()
+	if tunnel_port > 0:
+		target_host = NetworkConfigScript.SERVER_ADDRESS
+		port = tunnel_port
+
 	_peer = ENetMultiplayerPeer.new()
 	var connect_error: Error = _peer.create_client(target_host, port)
 	if connect_error != OK:
@@ -102,6 +131,44 @@ func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER
 
 	multiplayer.multiplayer_peer = _peer
 	_set_status("connecting")
+
+
+## Slice 034: when PROJECT0_TUNNEL=1, starts the in-process wgnetstack tunnel
+## from PROJECT0_TUNNEL_* env config and returns its loopback UDP port. Returns
+## 0 when tunnel mode is off, the GDExtension is not loaded, or startup fails,
+## so the caller then connects directly exactly as before. The private key is
+## referenced only by file path (PROJECT0_TUNNEL_KEY_PATH); it is never read or
+## logged here.
+func _maybe_start_tunnel() -> int:
+	if OS.get_environment("PROJECT0_TUNNEL") != "1":
+		return 0
+	if not ClassDB.class_exists("WgNetstack"):
+		push_warning("PROJECT0_TUNNEL=1 but the WgNetstack GDExtension is not loaded; connecting directly.")
+		return 0
+	var config: Dictionary = {
+		"client_private_key_path": OS.get_environment("PROJECT0_TUNNEL_KEY_PATH"),
+		"client_address": OS.get_environment("PROJECT0_TUNNEL_CLIENT_ADDRESS"),
+		"server_public_key": OS.get_environment("PROJECT0_TUNNEL_SERVER_PUBKEY"),
+		"server_endpoint": OS.get_environment("PROJECT0_TUNNEL_ENDPOINT"),
+		"game_host": OS.get_environment("PROJECT0_TUNNEL_GAME_HOST"),
+	}
+	var keepalive: String = OS.get_environment("PROJECT0_TUNNEL_KEEPALIVE")
+	if keepalive.is_valid_int():
+		config["persistent_keepalive_interval"] = keepalive.to_int()
+	var mtu: String = OS.get_environment("PROJECT0_TUNNEL_MTU")
+	if mtu.is_valid_int():
+		config["mtu"] = mtu.to_int()
+	_tunnel = ClassDB.instantiate("WgNetstack")
+	if _tunnel == null:
+		push_error("wgnetstack: could not instantiate WgNetstack; connecting directly.")
+		return 0
+	var tunnel_port: int = _tunnel.start(config)
+	if tunnel_port <= 0:
+		push_error("wgnetstack: tunnel failed to start; connecting directly.")
+		_tunnel = null
+		return 0
+	print("wgnetstack tunnel up on 127.0.0.1:%d -> %s via %s" % [tunnel_port, config["game_host"], config["server_endpoint"]])
+	return tunnel_port
 
 
 func _on_connected_to_server() -> void:
@@ -203,6 +270,96 @@ func _get_or_create_remote_players_container(gameplay_root: Node) -> Node:
 
 func _remote_player_node_name(peer_id: int) -> String:
 	return "RemotePlayer_%d" % peer_id
+
+
+## RPC target called by the server on a client for every currently living
+## monster: once per living monster when this client first connects (Slice
+## 032, mirroring spawn_remote_player_representation's peer-connect
+## replication), and once for a monster that just respawned. Spawns a
+## distinct client/monster.gd representation per target_id under a dedicated
+## Monsters container — never reusing one shared node for two different
+## monsters. Delegates to the static, parent-injected spawn_monster_representation()
+## seam below so the idempotent spawn logic stays unit-testable without a live
+## multiplayer peer or current_scene.
+@rpc("authority", "call_remote", "reliable")
+func receive_monster_spawn(target_id: String, start_position: Vector3) -> void:
+	var gameplay_root: Node = get_tree().current_scene
+	if gameplay_root == null:
+		push_error("NetworkClient: cannot spawn monster %s, no current_scene" % target_id)
+		return
+	var container: Node3D = _get_or_create_monsters_container(gameplay_root)
+	spawn_monster_representation(target_id, start_position, container)
+
+
+## RPC target called by the server on every connected peer each physics frame
+## for every currently living monster's authoritative position (Slice 033),
+## mirroring receive_remote_player_position's one-way replication broadcast.
+## A no-op if this client has no representation for target_id yet (e.g. a
+## position broadcast racing ahead of the spawn RPC on an unreliable channel
+## is not possible here since both are reliable, but a stale/duplicate
+## delivery after despawn must still be safe).
+@rpc("authority", "call_remote", "unreliable")
+func receive_monster_position(target_id: String, position: Vector3) -> void:
+	var gameplay_root: Node = get_tree().current_scene
+	if gameplay_root == null:
+		return
+	var container: Node = gameplay_root.get_node_or_null(MONSTERS_CONTAINER_NAME)
+	if container == null:
+		return
+	apply_monster_position(target_id, position, container)
+
+
+## Public seam (static, testable): idempotently creates one node per
+## target_id under `parent`, named by monster_node_name(), seeded at
+## start_position. A duplicate spawn for an already-represented target_id is a
+## no-op, matching spawn_remote_player_representation's idempotency. Static
+## and parent-injected so it is unit-testable without a live multiplayer peer,
+## current_scene, or NetworkClient instance — mirrors render_sector_blueprint's
+## seam style.
+static func spawn_monster_representation(target_id: String, start_position: Vector3, parent: Node3D) -> void:
+	var node_name: String = monster_node_name(target_id)
+	if parent.get_node_or_null(node_name) != null:
+		return
+
+	var monster_scene: PackedScene = load(MONSTER_SCENE_PATH)
+	var monster: Node3D = monster_scene.instantiate()
+	monster.name = node_name
+	monster.position = start_position
+	parent.add_child(monster)
+	monster.call("set_target_id", target_id)
+
+
+## Public seam (static, testable): forwards an authoritative position update
+## to the existing node for target_id under `parent`. A no-op (not an error)
+## if no such node exists — e.g. the monster has already been despawned, or
+## the position broadcast names an unknown target_id.
+static func apply_monster_position(target_id: String, position: Vector3, parent: Node3D) -> void:
+	var monster: Node = parent.get_node_or_null(monster_node_name(target_id))
+	if monster == null:
+		return
+	monster.call("set_target_position", position)
+
+
+## Public seam (static, testable): removes target_id's representation node
+## from `parent`, if any. A no-op (not an error) if the node is already gone,
+## matching despawn_remote_player_representation's idempotency.
+static func despawn_monster_representation(target_id: String, parent: Node3D) -> void:
+	var monster: Node = parent.get_node_or_null(monster_node_name(target_id))
+	if monster != null:
+		monster.queue_free()
+
+
+static func monster_node_name(target_id: String) -> String:
+	return "Monster_%s" % target_id
+
+
+func _get_or_create_monsters_container(gameplay_root: Node) -> Node3D:
+	var container: Node3D = gameplay_root.get_node_or_null(MONSTERS_CONTAINER_NAME) as Node3D
+	if container == null:
+		container = Node3D.new()
+		container.name = MONSTERS_CONTAINER_NAME
+		gameplay_root.add_child(container)
+	return container
 
 
 ## Public seam: called by the client each physics tick to report directional

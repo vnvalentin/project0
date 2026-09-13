@@ -250,6 +250,93 @@ def card(title: str, body: str, css: str = "") -> str:
     return f'<article class="card {css}"><h3>{esc(title)}</h3><p>{esc(body)}</p></article>'
 
 
+# Recommended finish order. Waves run top-to-bottom (sequential); tracks inside a
+# wave with >1 entry run in parallel. Kept in the viz tool as the orchestration
+# layer's recommendation, not (yet) promoted into PROJECT-TRACKER.
+DELIVERY_ROADMAP = {
+    "waves": [
+        {
+            "n": "1", "title": "Finish the combat loop & solid village",
+            "note": "Client rendering is built (Slice 033); last step is settling a recorded monster-position RPC blocker (also gates Slice 032).",
+            "tracks": [
+                {"name": "Combat loop", "feat": "IP-023 \u00b7 IP-015", "steps": [
+                    "Server damage/death (029) + client render (033) \u2014 built",
+                    "Verify/fix monster-position RPC blocker \u2014 also blocks Slice 032"]},
+                {"name": "Walkable village", "feat": "F-026 \u00b7 F-027", "steps": [
+                    "Server collision (F-027) \u2014 done", "Slice 031 bigger village \u2014 done"]},
+            ],
+        },
+        {
+            "n": "2", "title": "Lock cross-cutting decisions",
+            "note": "Planning only \u2014 parallel-safe. Cheap ADRs now prevent expensive re-churn later.",
+            "tracks": [
+                {"name": "World-scale ADR", "feat": "world-scale", "steps": [
+                    "1 unit = 1 yard (Imperial relabel)", "Sector \u2248 \u00bc mile; bounds policy"]},
+                {"name": "Accounts + persistence design", "feat": "player-accounts \u00b7 Phase 9", "steps": [
+                    "Finish account/character charting", "Decide ONE shared SQLite engine"]},
+            ],
+        },
+        {
+            "n": "3", "title": "World-scale migration",
+            "note": "Sequence after town/monster churn settles. Mostly a relabel + a versioned scale seam (low churn).",
+            "tracks": [
+                {"name": "Scale / tuning seam", "feat": "world-scale build", "steps": [
+                    "Versioned server-owned scale seam", "Reconcile existing constants"]},
+            ],
+        },
+        {
+            "n": "4", "title": "Shared SQLite persistence foundation",
+            "note": "Linchpin \u2014 build ONCE. Consumed by accounts, Canon, and progression.",
+            "tracks": [
+                {"name": "SQLite engine", "feat": "Phase 9 core \u00b7 accounts core", "steps": [
+                    "godot-sqlite GDExtension (headless)", "Atomic tx + user_version fail-closed, server-owned"]},
+            ],
+        },
+        {
+            "n": "5", "title": "Two big consumers (parallel)",
+            "note": "Different domains/files \u2014 safe side by side once the engine exists.",
+            "tracks": [
+                {"name": "Player accounts & characters", "feat": "player-accounts", "steps": [
+                    "Auth + session", "Character select/create \u2192 Player instantiation"]},
+                {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
+                    "P-011/012/013 durable sectors + mutation",
+                    "IP-008 boundary \u00b7 F-026 LLM-on \u00b7 P-009 P100 inference"]},
+            ],
+        },
+        {
+            "n": "6", "title": "Harden the runtime",
+            "note": "Needs the persistence design; wants a feature-stable server.",
+            "tracks": [
+                {"name": "Containerized fixed-tick server", "feat": "P-014 \u00b7 Phase 10", "steps": [
+                    "Isolated Docker runtime", "20\u201330 Hz tick, health + clean shutdown"]},
+            ],
+        },
+        {
+            "n": "7", "title": "Signature progression system",
+            "note": "Last on purpose \u2014 largest & most speculative; needs combat + persistence + scale + the accounts vessel seam.",
+            "tracks": [
+                {"name": "Biological progression & kinetic", "feat": "P-016 \u00b7 Phase 12", "steps": [
+                    "Six-node vessel, friction, Meridians", "Burnout, magic equilibrium"]},
+            ],
+        },
+    ],
+    "parallel": [
+        {"name": "Public access \u2014 WireGuard", "feat": "P-024 \u00b7 Phase 13",
+         "note": "Independent files (infra/, ci/, Go GDExtension). Already advancing (Slices 028 \u2192 032)."},
+        {"name": "Workflow fillers", "feat": "P-005 \u00b7 P-006 \u00b7 DT-006",
+         "note": "Remote-SSH, asset quarantine, test migration \u2014 low-risk, anytime."},
+    ],
+    "sequence_rules": [
+        "World-scale ADR \u2192 migration \u2192 any further big generation/bounds work.",
+        "SQLite engine \u2192 accounts storage, Canon storage, progression storage.",
+        "Combat server (Slice 029) \u2192 client monster rendering.",
+        "Persistence design \u2192 containerized runtime (P-014).",
+        "Combat + persistence + scale + accounts vessel seam \u2192 biological progression (P-016).",
+        "Shared hot-spot files (server_player_state.gd, server_main.gd connect, schema/monster constants): edit one track at a time.",
+    ],
+}
+
+
 def render() -> str:
     data = snapshot()
 
@@ -309,6 +396,30 @@ def render() -> str:
         f'<div class="stage {cls}"><span class="n">{n}</span><span class="lbl">{esc(name)}</span></div>'
         for name, n, cls in stage_defs
     )
+    waves_html = ""
+    for w in DELIVERY_ROADMAP["waves"]:
+        tracks = w["tracks"]
+        badge = (f'<span class="par">{len(tracks)} parallel tracks</span>'
+                 if len(tracks) > 1 else '<span class="par seq">single track</span>')
+        track_cards = ""
+        for t in tracks:
+            steps = "".join(f'<li>{esc(s)}</li>' for s in t["steps"])
+            track_cards += (
+                f'<div class="rtrack"><div class="rtrack-h"><strong>{esc(t["name"])}</strong>'
+                f'<span class="rfeat">{esc(t["feat"])}</span></div><ul>{steps}</ul></div>'
+            )
+        waves_html += (
+            f'<div class="wave"><div class="wave-h"><span class="wn">{esc(w["n"])}</span>'
+            f'<h3>{esc(w["title"])}</h3>{badge}</div>'
+            f'<p class="wnote">{esc(w["note"])}</p>'
+            f'<div class="rtracks">{track_cards}</div></div>'
+        )
+    par_html = "".join(
+        f'<div class="pcard"><div class="rtrack-h"><strong>{esc(p["name"])}</strong>'
+        f'<span class="rfeat">{esc(p["feat"])}</span></div><p>{esc(p["note"])}</p></div>'
+        for p in DELIVERY_ROADMAP["parallel"]
+    )
+    seq_html = "".join(f'<li>{esc(r)}</li>' for r in DELIVERY_ROADMAP["sequence_rules"])
     return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="15"><title>Project0 Flow Dashboard</title>
 <style>
@@ -317,10 +428,12 @@ def render() -> str:
 .rmwrap {{ margin-bottom:22px }} .rmwrap h2 {{ display:flex; justify-content:space-between; align-items:baseline }} .rmwrap h2 span {{ color:var(--muted); font-weight:normal; font-size:13px }} .roadmap {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px }} .goal {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px }} .goal-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .goal-head h3 {{ margin:0; color:var(--cyan) }} .pct {{ color:var(--muted); font-size:12px; white-space:nowrap }} .bar {{ height:8px; background:#0e141b; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:10px 0 }} .fill {{ height:100%; background:linear-gradient(90deg,var(--green),var(--cyan)) }} .dest {{ font-size:12px; margin-bottom:10px }} .chips {{ display:flex; flex-wrap:wrap; gap:6px }} .chip {{ font-size:11px; padding:3px 8px; border-radius:12px; border:1px solid var(--line); background:#222d39; color:var(--muted) }} .chip.decided {{ border-color:var(--green); color:var(--green) }} .chip.active {{ border-color:var(--amber); color:var(--amber) }} .chip.todo {{ opacity:.7 }}
 .flow {{ display:flex; align-items:stretch; gap:6px; margin-bottom:22px; flex-wrap:wrap }} .flow .stage {{ flex:1 1 0; min-width:118px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:2px }} .flow .stage .n {{ font-size:22px; font-weight:600 }} .flow .stage .lbl {{ font-size:12px; color:var(--muted) }} .flow .stage.vet {{ border-left:4px solid var(--muted) }} .flow .stage.ready {{ border-left:4px solid var(--cyan) }} .flow .stage.active {{ border-left:4px solid var(--amber) }} .flow .stage.await {{ border-left:4px solid var(--amber) }} .flow .stage.done {{ border-left:4px solid var(--green) }} .flow .arw {{ align-self:center; color:var(--muted); font-size:18px }} .sech {{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted) }}
 .itags {{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px }} .itag {{ font-size:10px; padding:2px 7px; border-radius:10px; background:#1a2430; border:1px solid var(--line); color:var(--muted) }} .itag.none {{ opacity:.6; font-style:italic }} .card.planned {{ border-left-color:var(--muted) }} .flow .stage.planned {{ border-left:4px solid var(--muted) }}
+.dr {{ margin-bottom:22px }} .waves {{ display:flex; flex-direction:column; gap:10px }} .wave {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .wave-h {{ display:flex; align-items:center; gap:10px }} .wave-h h3 {{ margin:0; font-size:14px; color:var(--text) }} .wn {{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:var(--cyan); color:#0b1118; font-weight:700; font-size:13px; flex:none }} .par {{ margin-left:auto; font-size:11px; color:var(--green); border:1px solid var(--green); border-radius:12px; padding:2px 8px }} .par.seq {{ color:var(--muted); border-color:var(--line) }} .wnote {{ font-size:12px; margin:6px 0 10px }} .rtracks {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px }} .rtrack {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--amber); border-radius:6px; padding:8px 10px }} .rtrack-h {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .rtrack-h strong {{ font-size:13px }} .rfeat {{ font-size:10px; color:var(--muted); white-space:nowrap }} .rtrack ul {{ padding-left:16px; margin:6px 0 0 }} .rtrack li {{ margin:3px 0; font-size:12px; color:var(--muted) }} .drband {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px }} .drcol {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .drcol h4 {{ margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted) }} .pcards {{ display:flex; flex-direction:column; gap:8px }} .pcard {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--green); border-radius:6px; padding:8px 10px }} .pcard p {{ font-size:12px; margin:6px 0 0 }} .seqrules {{ padding-left:18px }} .seqrules li {{ margin:5px 0; font-size:12px; color:var(--muted) }} @media(max-width:700px){{ .drband {{ grid-template-columns:1fr }} }}
 </style></head><body>
 <header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="stamp">Read-only · refreshes every 15s</div></header>
 <main><div class="banner"><strong>Action required</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
+<section class="dr"><h2 class="sech">Delivery roadmap \u2014 sequence &amp; parallelization</h2><div class="waves">{waves_html}</div><div class="drband"><div class="drcol"><h4>Runs in parallel throughout</h4><div class="pcards">{par_html}</div></div><div class="drcol"><h4>Must sequence \u2014 hard deps &amp; shared files</h4><ul class="seqrules">{seq_html}</ul></div></div></section>
 <section class="rmwrap"><h2>Vetting \u00b7 goal roadmap <span>{decided_issues}/{total_issues} issues decided \u00b7 {overall_pct}%</span></h2><div class="roadmap">{goal_html}</div></section>
 <h2 class="sech">Implementation pipeline \u2014 features correlated to their issues</h2>
 <section class="board">{column_html}</section>

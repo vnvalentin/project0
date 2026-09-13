@@ -25,3 +25,12 @@ assets/audio/
 *.png
 *.wav
 *.ogg
+
+# Native wgnetstack module: vendored deps, venvs, and compiled artifacts (Slices 032/034)
+native/**/.venv/
+native/**/godot-cpp/
+native/**/*.o
+native/**/*.a
+*.so
+*.dll
+*.dylib

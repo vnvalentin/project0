@@ -17,16 +17,29 @@ extends GutTest
 
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const ServerPlayerStateScript: Script = preload("res://server/server_player_state.gd")
+const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
+const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 
 const PHYSICS_DELTA: float = 1.0 / 60.0
 
 
-func _make_player_state(start_position: Vector3, target_dummies: Dictionary) -> Node:
+func _make_player_state(start_position: Vector3, target_dummies: Dictionary, monster_manager: Object = null) -> Node:
 	var player_state: Node = ServerPlayerStateScript.new()
 	add_child_autofree(player_state)
 	player_state.start_for_peer(1, start_position)
 	player_state.set_target_dummies(target_dummies)
+	if monster_manager != null:
+		player_state.set_monster_manager(monster_manager)
 	return player_state
+
+
+## Swings the already-accepted archetype's full windup + one ACTIVE tick, so
+## a caller can assert on the resulting combat_events after exactly one
+## ACTIVE-phase hit-test pass.
+func _advance_through_windup_and_one_active_tick(player_state: Node, archetype: Object) -> void:
+	for _i in archetype.windup_ticks:
+		player_state._physics_process(PHYSICS_DELTA)
+	player_state._physics_process(PHYSICS_DELTA)
 
 
 func _make_target_dummy(target_position: Vector3) -> Node3D:
@@ -142,3 +155,132 @@ func test_duplicate_intent_during_active_swing_does_not_start_a_second_swing_or_
 		player_state._physics_process(PHYSICS_DELTA)
 
 	assert_eq(combat_events.size(), 1, "a duplicate intent replay during the swing does not cause a double hit")
+
+
+## Slice 029: proves the server-authoritative half of making monsters
+## fightable — a player's accepted ACTIVE-phase hit within reach/arc of a
+## living monster (injected via set_monster_manager, exactly as server_main.gd
+## wires it) is visible to ServerPlayerState's existing hit test, emits the
+## same COMBAT_EVENT_HIT it already emits for dummies, and — via the routing
+## server_main.gd's _on_player_state_combat_event_emitted performs on that
+## signal — applies MonsterContracts.DAMAGE_PER_HIT through the manager's
+## receive_player_hit, with no ServerPlayerState/monster coupling beyond
+## reading position/target_id.
+func _route_hit_to_monster_manager(combat_event: Object, monster_manager: Object, death_events: Array) -> void:
+	if combat_event.kind != CombatContractsScript.COMBAT_EVENT_HIT:
+		return
+	var died: bool = monster_manager.receive_player_hit(combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick)
+	if died:
+		death_events.append(CombatContractsScript.CombatEvent.new(
+			CombatContractsScript.COMBAT_EVENT_DEATH,
+			combat_event.attacker_peer_id,
+			combat_event.target_id,
+			combat_event.impact_position,
+			combat_event.server_tick
+		))
+
+
+func test_melee_hit_within_reach_damages_a_living_monster() -> void:
+	var monster_manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "m0", "x": 0, "y": -1}])
+	var player_state: Node = _make_player_state(Vector3(0.0, 1.0, 0.0), {}, monster_manager)
+	player_state.facing = Vector3.FORWARD * -1.0
+
+	var combat_events: Array = []
+	var death_events: Array = []
+	player_state.combat_event_emitted.connect(func(_peer_id: int, combat_event: Object) -> void:
+		combat_events.append(combat_event)
+		_route_hit_to_monster_manager(combat_event, monster_manager, death_events))
+
+	var intent: Object = CombatContractsScript.ActionIntent.new(1, 0, 0, CombatContractsScript.ACTION_KIND_MELEE_STRIKE, Vector3(0.0, 0.0, -1.0))
+	player_state.apply_action_intent(1, intent)
+	_advance_through_windup_and_one_active_tick(player_state, CombatContractsScript.generic_sword_archetype())
+
+	assert_eq(combat_events.size(), 1, "one HIT is emitted for the monster within reach and arc")
+	assert_eq(combat_events[0].target_id, "m0", "the HIT names the monster's spawn_id as target_id")
+	assert_eq(monster_manager.monster_at(0).current_hp(), MonsterContractsScript.MAX_HP - MonsterContractsScript.DAMAGE_PER_HIT, "the routed hit applies exactly DAMAGE_PER_HIT to the monster")
+	assert_eq(death_events.size(), 0, "one hit does not defeat a full-HP monster")
+
+
+func test_three_hits_defeat_a_monster_with_exactly_one_attacker_attributed_death() -> void:
+	var monster_manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "m0", "x": 0, "y": -1}])
+	var player_state: Node = _make_player_state(Vector3(0.0, 1.0, 0.0), {}, monster_manager)
+	player_state.facing = Vector3.FORWARD * -1.0
+
+	var death_events: Array = []
+	player_state.combat_event_emitted.connect(func(_peer_id: int, combat_event: Object) -> void:
+		_route_hit_to_monster_manager(combat_event, monster_manager, death_events))
+
+	var archetype: Object = CombatContractsScript.generic_sword_archetype()
+	var sequence: int = 0
+	for hit_number in 3:
+		var intent: Object = CombatContractsScript.ActionIntent.new(1, sequence, 0, CombatContractsScript.ACTION_KIND_MELEE_STRIKE, Vector3(0.0, 0.0, -1.0))
+		player_state.apply_action_intent(1, intent)
+		_advance_through_windup_and_one_active_tick(player_state, archetype)
+		for _i in archetype.active_ticks - 1 + archetype.recovery_ticks:
+			player_state._physics_process(PHYSICS_DELTA)
+		sequence += 1
+
+	assert_true(monster_manager.monster_at(0).is_dead(), "three hits defeat the monster")
+	assert_eq(death_events.size(), 1, "exactly one death event is produced")
+	assert_eq(death_events[0].kind, CombatContractsScript.COMBAT_EVENT_DEATH, "the death event carries the DEATH kind")
+	assert_eq(death_events[0].attacker_peer_id, 1, "the death event is attributed to the attacking peer")
+	assert_eq(death_events[0].target_id, "m0", "the death event names the defeated monster")
+
+
+func test_dead_monster_is_not_targetable_by_a_later_swing() -> void:
+	var monster_manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "m0", "x": 0, "y": -1}], 1, 999)
+	monster_manager.monster_at(0).receive_damage(MonsterContractsScript.MAX_HP, 1, 0)
+	monster_manager.advance_all([], 1.0, 1)  # detects death, clears the slot (now respawning)
+
+	var player_state: Node = _make_player_state(Vector3(0.0, 1.0, 0.0), {}, monster_manager)
+	player_state.facing = Vector3.FORWARD * -1.0
+
+	var combat_events: Array = []
+	player_state.combat_event_emitted.connect(func(_peer_id: int, combat_event: Object) -> void: combat_events.append(combat_event))
+
+	var intent: Object = CombatContractsScript.ActionIntent.new(1, 0, 0, CombatContractsScript.ACTION_KIND_MELEE_STRIKE, Vector3(0.0, 0.0, -1.0))
+	player_state.apply_action_intent(1, intent)
+	_advance_through_windup_and_one_active_tick(player_state, CombatContractsScript.generic_sword_archetype())
+
+	assert_eq(combat_events.size(), 0, "a dead/respawning monster is invisible to the hit test — a 4th-hit-equivalent swing is a no-op")
+
+
+func test_one_active_swing_does_not_double_apply_damage_to_a_monster() -> void:
+	var monster_manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "m0", "x": 0, "y": -1}])
+	var player_state: Node = _make_player_state(Vector3(0.0, 1.0, 0.0), {}, monster_manager)
+	player_state.facing = Vector3.FORWARD * -1.0
+
+	var combat_events: Array = []
+	player_state.combat_event_emitted.connect(func(_peer_id: int, combat_event: Object) -> void:
+		combat_events.append(combat_event)
+		_route_hit_to_monster_manager(combat_event, monster_manager, []))
+
+	var intent: Object = CombatContractsScript.ActionIntent.new(1, 0, 0, CombatContractsScript.ACTION_KIND_MELEE_STRIKE, Vector3(0.0, 0.0, -1.0))
+	player_state.apply_action_intent(1, intent)
+	var archetype: Object = CombatContractsScript.generic_sword_archetype()
+	for _i in archetype.windup_ticks:
+		player_state._physics_process(PHYSICS_DELTA)
+	# Advance the full multi-tick ACTIVE window (not just one tick): the
+	# per-swing hit-target dedup must keep the monster from being struck twice.
+	for _i in archetype.active_ticks:
+		player_state._physics_process(PHYSICS_DELTA)
+
+	assert_eq(combat_events.size(), 1, "a multi-tick ACTIVE window hits the same monster only once")
+	assert_eq(monster_manager.monster_at(0).current_hp(), MonsterContractsScript.MAX_HP - MonsterContractsScript.DAMAGE_PER_HIT, "damage is applied exactly once for the whole ACTIVE swing")
+
+
+func test_target_dummy_hit_behavior_is_unchanged_when_a_monster_manager_is_also_present() -> void:
+	var target_dummy: Node3D = _make_target_dummy(Vector3(0.0, 0.0, -1.5))
+	var monster_manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "m0", "x": 100, "y": 100}])
+	var player_state: Node = _make_player_state(Vector3.ZERO, {"target_dummy_0": target_dummy}, monster_manager)
+	player_state.facing = Vector3.FORWARD * -1.0
+
+	var combat_events: Array = []
+	player_state.combat_event_emitted.connect(func(_peer_id: int, combat_event: Object) -> void: combat_events.append(combat_event))
+
+	var intent: Object = CombatContractsScript.ActionIntent.new(1, 0, 0, CombatContractsScript.ACTION_KIND_MELEE_STRIKE, Vector3(0.0, 0.0, -1.0))
+	player_state.apply_action_intent(1, intent)
+	_advance_through_windup_and_one_active_tick(player_state, CombatContractsScript.generic_sword_archetype())
+
+	assert_eq(combat_events.size(), 1, "the target dummy is still hit normally with a monster manager also injected")
+	assert_eq(combat_events[0].target_id, "target_dummy_0", "the dummy's HIT is unaffected by the far-away monster being out of reach")

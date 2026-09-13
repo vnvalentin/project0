@@ -24,11 +24,13 @@ func test_fixture_identity_fields() -> void:
 
 func test_fixture_structure_kind_counts() -> void:
 	var structures: Array = StartingTownHubFixtureScript.blueprint()["structures"]
-	var counts: Dictionary = {"house": 0, "smithy": 0, "armor_shop": 0, "inn": 0, "church": 0, "item_shop": 0, "tavern": 0, "well": 0}
+	var counts: Dictionary = {"house": 0, "npc_house": 0, "village_hall": 0, "smithy": 0, "armor_shop": 0, "inn": 0, "church": 0, "item_shop": 0, "tavern": 0, "well": 0}
 	for structure: Dictionary in structures:
 		var kind: String = structure["kind"]
 		counts[kind] = int(counts.get(kind, 0)) + 1
-	assert_eq(counts["house"], 10, "hub fixture has exactly 10 houses (the 10-player pool)")
+	assert_eq(counts["house"], 10, "hub fixture has exactly 10 player houses (the 10-player pool)")
+	assert_eq(counts["npc_house"], 10, "hub fixture has exactly 10 villager homes")
+	assert_eq(counts["village_hall"], 1, "hub fixture has exactly 1 village hall (the leader's house)")
 	assert_eq(counts["smithy"], 1, "hub fixture has exactly 1 smithy")
 	assert_eq(counts["armor_shop"], 1, "hub fixture has exactly 1 armor shop")
 	assert_eq(counts["inn"], 1, "hub fixture has exactly 1 inn")
@@ -36,7 +38,7 @@ func test_fixture_structure_kind_counts() -> void:
 	assert_eq(counts["item_shop"], 1, "hub fixture has exactly 1 item shop")
 	assert_eq(counts["tavern"], 1, "hub fixture has exactly 1 tavern")
 	assert_eq(counts["well"], 1, "hub fixture has exactly 1 well")
-	assert_eq(structures.size(), 17, "hub fixture has exactly 17 structures total")
+	assert_eq(structures.size(), 28, "hub fixture has exactly 28 structures total")
 
 
 func test_fixture_uses_the_organic_v3_vocabulary() -> void:
@@ -74,13 +76,13 @@ func test_fixture_structure_positions_are_unique() -> void:
 
 func test_fixture_spawn_points_are_all_outside_the_town_wall() -> void:
 	# Monsters must spawn outside the town boundary (the octagon outline, radius
-	# 16), never inside it (user caveat).
+	# 30), never inside it (user caveat).
 	var blueprint: Dictionary = StartingTownHubFixtureScript.blueprint()
 	assert_true(blueprint.has("spawn_points"), "the hub fixture declares monster spawn points")
 	var spawn_points: Array = blueprint["spawn_points"]
 	assert_gt(spawn_points.size(), 0, "there is at least one spawn point")
 	for spawn_point: Dictionary in spawn_points:
-		var outside: bool = absi(int(spawn_point["x"])) > 16 or absi(int(spawn_point["y"])) > 16
+		var outside: bool = absi(int(spawn_point["x"])) > 30 or absi(int(spawn_point["y"])) > 30
 		assert_true(outside, "spawn point %s at (%d,%d) is outside the town outline" % [spawn_point["spawn_id"], int(spawn_point["x"]), int(spawn_point["y"])])
 
 

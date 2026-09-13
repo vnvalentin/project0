@@ -74,6 +74,45 @@ func test_defeated_monster_dies_then_respawns_after_cooldown() -> void:
 	assert_eq(manager.living_count(), 1, "the respawned monster is alive again")
 
 
+func test_living_targets_excludes_dead_monsters() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	var targets: Dictionary = manager.living_targets()
+	assert_true(targets.has("s0"), "a living monster is targetable")
+	assert_eq(targets["s0"], manager.monster_at(0), "living_targets exposes the same monster instance")
+
+	manager.monster_at(0).receive_damage(MonsterContractsScript.MAX_HP, 1, 0)
+	manager.advance_all([], 1.0, 1)  # detects death, clears the slot
+	assert_false(manager.living_targets().has("s0"), "a dead/respawning monster is never targetable")
+
+
+func test_receive_player_hit_applies_damage_per_hit_and_reports_no_death_until_third_hit() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}])
+	assert_false(manager.receive_player_hit("s0", 1, 0), "the first hit does not defeat a full-HP monster")
+	assert_eq(manager.monster_at(0).current_hp(), MonsterContractsScript.MAX_HP - MonsterContractsScript.DAMAGE_PER_HIT, "the first hit applies exactly DAMAGE_PER_HIT")
+
+	assert_false(manager.receive_player_hit("s0", 1, 1), "the second hit still does not defeat the monster")
+	assert_eq(manager.monster_at(0).current_hp(), MonsterContractsScript.MAX_HP - 2 * MonsterContractsScript.DAMAGE_PER_HIT, "the second hit applies another DAMAGE_PER_HIT")
+
+	assert_true(manager.receive_player_hit("s0", 1, 2), "the third hit defeats the monster and reports exactly one death")
+
+
+func test_receive_player_hit_on_dead_monster_is_a_no_op() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	manager.monster_at(0).receive_damage(MonsterContractsScript.MAX_HP, 1, 0)
+	assert_true(manager.monster_at(0).is_dead(), "the monster is dead before the next hit")
+
+	assert_false(manager.receive_player_hit("s0", 1, 1), "a hit on an already-dead monster is a no-op, not a second death")
+
+
+func test_receive_player_hit_on_unknown_or_respawning_target_is_a_no_op() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	assert_false(manager.receive_player_hit("no_such_target", 1, 0), "an unknown target_id is a no-op")
+
+	manager.monster_at(0).receive_damage(MonsterContractsScript.MAX_HP, 1, 0)
+	manager.advance_all([], 1.0, 1)  # detects death, clears the slot (now respawning)
+	assert_false(manager.receive_player_hit("s0", 1, 2), "a hit on a respawning (slotted-null) target is a no-op")
+
+
 func test_every_respawn_stays_outside_town() -> void:
 	# The user caveat: monsters must never (re)appear inside the town. Drive many
 	# kill/respawn cycles across all four hub spawn points and assert every

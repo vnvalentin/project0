@@ -51,6 +51,25 @@ const _STRUCTURE_SCENE_PATHS: Dictionary = {
 	"item_shop": "res://client/structures/item_shop.tscn",
 	"tavern": "res://client/structures/tavern.tscn",
 	"well": "res://client/structures/well.tscn",
+	"npc_house": "res://client/structures/npc_house.tscn",
+	"village_hall": "res://client/structures/village_hall.tscn",
+}
+
+## Slice 030: per-structure-kind collision footprint half-extent in grid cells,
+## mirroring each prefab's BoxMesh width/depth (half = floor(size / 2)). Used by
+## the server-side SectorCollisionMap to make buildings solid. Must stay in sync
+## with the client/structures/<kind>.tscn sizes.
+const _STRUCTURE_FOOTPRINTS: Dictionary = {
+	"house": Vector2i(1, 1),
+	"smithy": Vector2i(1, 1),
+	"armor_shop": Vector2i(1, 1),
+	"inn": Vector2i(2, 2),
+	"church": Vector2i(2, 2),
+	"item_shop": Vector2i(1, 1),
+	"tavern": Vector2i(2, 2),
+	"well": Vector2i(0, 0),
+	"npc_house": Vector2i(1, 1),
+	"village_hall": Vector2i(2, 3),
 }
 
 
@@ -76,6 +95,12 @@ static func structure_scene_path(kind: String) -> String:
 	if not _STRUCTURE_SCENE_PATHS.has(kind):
 		return ""
 	return _STRUCTURE_SCENE_PATHS[kind]
+
+
+## Returns the collision footprint half-extent (in grid cells) for a structure
+## kind, or Vector2i.ZERO for an unknown kind (blocks only the anchor cell).
+static func structure_footprint(kind: String) -> Vector2i:
+	return _STRUCTURE_FOOTPRINTS.get(kind, Vector2i.ZERO)
 
 
 static func supported_tile_kinds() -> PackedStringArray:

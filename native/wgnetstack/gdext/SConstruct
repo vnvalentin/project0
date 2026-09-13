@@ -1,0 +1,26 @@
+#!/usr/bin/env python
+# Slice 034: builds the wgnetstack GDExtension, statically linking the Go
+# bridge c-archive produced by `make -C .. cgoarchive`
+# (../build/libwgnetstack.a). Linux only in this slice; the Windows build
+# (S3b) will add its own platform branch here.
+
+env = SConscript("godot-cpp/SConstruct")
+
+env.Append(CPPPATH=["src/"])
+sources = Glob("src/*.cpp")
+
+WGNETSTACK_ARCHIVE = "#../build/libwgnetstack.a"
+
+library = env.SharedLibrary(
+    "build/libwgnetstack_gdext{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+    source=sources,
+)
+
+if env["platform"] == "linux":
+    env.Append(LIBS=[File(WGNETSTACK_ARCHIVE)])
+    # cgo's c-archive output needs pthread, dl, and libm at link time even
+    # though this extension never calls Go concurrency/dl APIs directly.
+    env.Append(LIBS=["pthread", "dl", "m"])
+
+env.NoCache(library)
+Default(library)

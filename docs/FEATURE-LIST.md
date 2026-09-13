@@ -158,9 +158,11 @@ replication) is completed in Slices 002, 004, 005, and 007.
 Design-complete capabilities whose originating issues are all `resolved`, ready
 for a developer to pick up. No implementation has started.
 
+## In Progress Features
+
 ### P-024: Public game access via OPNsense-native WireGuard
 
-- Status: `Ready`
+- Status: `In Progress`
 - Feature: Remote players reach the home-hosted authoritative server over a
   split-tunnel WireGuard connection — an in-process userspace netstack
   GDExtension in the Godot client, an invite-code enrollment service, and
@@ -168,25 +170,68 @@ for a developer to pick up. No implementation has started.
 - Problem solved: The server is only reachable on the LAN today; public play
   needs secure remote access that neither routes through a cloud relay nor
   grants tunnel clients broader reach than the single game host.
+- How it solves the problem so far: Slice 028 opens the first implementation
+  slice against the design-complete basis — a dedicated, isolated OPNsense
+  WireGuard instance (`wg0`, UDP 51900, `10.77.0.0/24`) split-tunneled to
+  `192.168.1.254:9999` only, server-side firewall isolation
+  (pass WG→game-host, default-deny WG→LAN), a host-side firewall lockdown on
+  `192.168.1.254` (accept UDP 9999 only from `10.77.0.0/24`), and one
+  hand-enrolled Windows tester peer. This is a records-first handoff: the SDD/
+  BDD/validation plan is recorded now; `infra/opnsense/setup_wireguard_game_tunnel.py`,
+  `ci/host-firewall-helper.sh`, and live execution evidence are owned by
+  Copilot in a follow-up. The existing admin WireGuard server (UDP 51820 /
+  `10.14.0.0/24`) is untouched. [Slice 032](slices/032-wgnetstack-netstack-bridge-linux-prototype.md)
+  then proves the S2 in-client `wgnetstack` bridge itself: a `native/wgnetstack/`
+  Go module embeds `wireguard-go` netstack (real loopback UDP socket, real
+  WireGuard handshake against the live OPNsense endpoint, real netstack UDP
+  dial to the live game host) with no OS TUN device and no admin rights. The
+  existing Godot client's ENet connection was proven to complete through the
+  bridge on Linux and reach the full `connected: player spawned` state against
+  the live, restarted game server. An earlier run had shown `status: connected`
+  without the player-spawned transition and a `receive_monster_position`
+  convert error; re-running against a freshly restarted server (and an
+  identical direct, no-bridge run against that same server) reproduced neither
+  symptom, confirming the gap was a stale server process still executing
+  pre-Slice-033 `network_client.gd` (an RPC method-table mismatch), not a
+  bridge defect or a genuine type bug in Slice 033's monster-replication code.
+  [Slice 034](slices/034-wgnetstack-godot-gdextension-tunnel-integration-linux.md)
+  delivers S3a: `native/wgnetstack/gdext/`, a godot-cpp GDExtension that
+  registers a `WgNetstack` class (`start(config: Dictionary) -> int`,
+  `stop() -> void`) linking a new `cmd/cgoarchive` static build of the same
+  bridge logic, plus a `client/network_client.gd` tunnel-mode code path
+  (`PROJECT0_TUNNEL`, default off) so the client opens the tunnel in-process
+  with no separate probe process. Still queued: the Windows DLL build/
+  validation (S3b), the invite enrollment service (issue 04), and
+  revocation/ban automation (issue 06).
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
-  (SDD-GAME-WG-001); no implementation slice has started.
+  (SDD-GAME-WG-001).
 - Phase: 13. Public game access
-- Public seam: Future `wgnetstack` GDExtension and its Godot loopback bridge,
-  the enrollment service API, `infra/opnsense/` WireGuard/firewall automation,
-  and the host firewall lockdown script.
-- Validation: Future slices must prove an unprivileged client tunnel on Windows
-  and Linux, invite-code enrollment and OPNsense peer registration, split-tunnel
-  isolation (WireGuard → game host `/32` only, default-deny to LAN), and peer
-  revocation/ban teardown within one keepalive interval.
+- Public seam: `infra/opnsense/setup_wireguard_game_tunnel.py` and
+  `ci/host-firewall-helper.sh` (Slice 028); `native/wgnetstack/` producing
+  `libwgnetstack.so`/`wgnetstack.dll` with C-exported `wgnetstack_start`/
+  `wgnetstack_stop` (Slice 032). The Godot `.gdextension` binding and the
+  enrollment service API remain separately scoped.
+- Validation: Slice 028's acceptance evidence is an external WireGuard peer
+  handshake, split-tunnel isolation proof (game host reachable, LAN
+  default-denied) from inside the tunnel, the host firewall dropping
+  untunneled direct hits to 9999, and one Windows peer connecting the Godot
+  client. Slice 032's acceptance evidence is the same Godot client connecting
+  through the in-process `wgnetstack` loopback bridge instead; the ENet
+  connection handshake through the tunnel is proven on Linux, and the full
+  `connected: player spawned` string is observed end to end against the live,
+  restarted game server, with an identical direct (no-bridge) run against the
+  same server confirming the earlier gap was a stale-server RPC method-table
+  mismatch rather than a bridge or monster-replication defect. Future slices
+  still owe the Windows DLL validation, `.gdextension` packaging, invite-code
+  enrollment, and peer revocation/ban teardown within one keepalive interval.
 - Related work: [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md),
   [ENet netstack bridging](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md),
   [GDExtension netstack prototype](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md),
   [OPNsense infra automation](../.scratch/wan-wireguard/issues/03-opnsense-wireguard-infra-automation.md),
   [enrollment invite service](../.scratch/wan-wireguard/issues/04-enrollment-service-invite-system.md),
   [host firewall lockdown](../.scratch/wan-wireguard/issues/05-host-firewall-lockdown-script.md),
-  [revocation and ban lifecycle](../.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md)
-
-## In Progress Features
+  [revocation and ban lifecycle](../.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md),
+  [Slice 028](slices/028-wireguard-remote-access-infrastructure-foundation.md)
 
 ### F-026: Organic districted starting city
 
@@ -217,17 +262,21 @@ for a developer to pick up. No implementation has started.
   fixed structures, else falls back to the fixture (never an unusable town).
   Remaining: wiring LLM generation on at boot (a reliability/latency decision;
   the fixture stays the default) and deriving the monster exclusion from the
-  town bounds, so the feature stays `In Progress`.
+  town bounds, so the feature stays `In Progress`. Slice 031 grew the village to
+  ~3x area (radius 30) and added 10 villager homes (`npc_house`) plus the
+  village leader's hall (`village_hall`) for a rural-village feel.
 - Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md)
+- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md), [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
 - Public seam: `server/starting_town_hub_fixture.gd`
-  (`blueprint()` now generating the organic octagon via `_in_town`/`_tile_kind`,
-  districted `_STRUCTURES`, ±22 `_SPAWN_POINTS`),
-  `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 2048),
+  (`blueprint()` generating the radius-30 organic octagon via `_in_town`/`_tile_kind`
+  with main + secondary streets, 28 `_STRUCTURES` incl. `npc_house`/`village_hall`,
+  ±38 `_SPAWN_POINTS`),
+  `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 4096, `MAX_COORDINATE_ABS` 48,
+  `npc_house`/`village_hall` in the v3 vocabulary),
   `server/town_layout_provider.gd` (`resolve`, `meets_required_structures`,
   `request_town`, `default_town_prompt`),
-  `server/server_monster_manager.gd` (`TOWN_EXCLUSION_HALF_EXTENT` 18.0),
-  `client/gameplay.tscn` (60×60 `FlatPlane`).
+  `server/server_monster_manager.gd` (`TOWN_EXCLUSION_HALF_EXTENT` 32.0),
+  `client/gameplay.tscn` (100×100 `FlatPlane`).
 - Validation: See [Slice 023](slices/023-organic-districted-town.md) for exact
   commands and results (8/8 fixture + 7/7 manager + 4/4 replication focused
   tests, 140/140 full suite, exit 0).
@@ -278,10 +327,21 @@ for a developer to pick up. No implementation has started.
     LLM-generated.
     Related work: [Slice 026](slices/026-llm-town-generation.md)
     Validation: See Slice 026 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 031 — grew the village to radius 30 (~3.5x
+    area, secondary streets, bigger plaza/pond), added 10 villager homes
+    (`npc_house`) and the village leader's hall (`village_hall`) for 28
+    structures, raised `MAX_TILE_COUNT` to 4096 and `MAX_COORDINATE_ABS` to 48,
+    grew the monster exclusion to 32 and the ground plane to 100×100, and added
+    the two new v3 structure kinds + prefabs.
+    Why: User request — a bigger rural village (Qeynos/Elliot feel) with NPC and
+    leader housing, not just player houses.
+    Related work: [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
+    Validation: See Slice 031 validation section.
 
 ### IP-023: Basic monster combat
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Server-authoritative "basic monsters" the player can fight — a flat
   HP/damage/death model now, with a detect/chase/attack AI and spawning to
   follow.
@@ -300,10 +360,30 @@ for a developer to pick up. No implementation has started.
   spawns one monster per town spawn point (authored outside the town wall),
   drives them each server frame against the nearest player, and respawns
   defeated monsters after a cooldown at a position clamped to stay outside the
-  town. Making monsters visible to and damageable by players is a later slice,
-  so the feature stays `In Progress`.
+  town. Slice 029 wires a player's already-accepted authoritative melee hit to
+  monster damage and death: `ServerPlayerState`'s ACTIVE-phase hit test is
+  generalized to also check every currently-living monster (injected via
+  `set_monster_manager`, duck-typed on `.position` alongside the existing
+  target dummies) and still only emits the existing `COMBAT_EVENT_HIT`;
+  `ServerMonsterManager.receive_player_hit` is the sole seam that applies
+  `DAMAGE_PER_HIT` and reports a defeat, and `server_main.gd` routes that HIT
+  to it and broadcasts an attacker-attributed `COMBAT_EVENT_DEATH` over the
+  same existing channel when it lands the killing blow. Monsters are now fully
+  fightable and defeatable server-side. Slice 033 closes the remaining
+  implementation gap: `client/monster.gd`/`client/monster.tscn` is a purely
+  cosmetic per-living-monster node — spawned, positioned, and despawned only in
+  reaction to server broadcasts, and reacting visually to the existing
+  `COMBAT_EVENT_HIT`/`COMBAT_EVENT_DEATH` events — so monsters are now visible
+  to and fightable by players, not just authoritatively simulated. It decides
+  nothing itself: no damage, hit, death, or respawn logic runs on the client.
+  With Slice 033 in place the feature is complete: headless GUT coverage and a
+  headless `connected: player spawned` connect proof pass, and interactive GUI
+  visual/fight confirmation was obtained on 2026-09-13 — a human ran the
+  graphical client against the live server and saw the monster render, chase,
+  flash on each hit, die on the third hit, and respawn. IP-023 is
+  `Implemented`.
 - Phase: 10. Authoritative runtime and action input
-- Implementation slices: [Slice 020](slices/020-monster-hp-damage-death.md), [Slice 021](slices/021-monster-ai-state-machine.md), [Slice 022](slices/022-monster-spawning-and-respawn.md)
+- Implementation slices: [Slice 020](slices/020-monster-hp-damage-death.md), [Slice 021](slices/021-monster-ai-state-machine.md), [Slice 022](slices/022-monster-spawning-and-respawn.md), [Slice 029](slices/029-authoritative-monster-melee-damage.md), [Slice 033](slices/033-client-monster-replication-and-rendering.md)
 - Public seam: `shared/monster_contracts.gd`
   (`MAX_HP`, `DAMAGE_PER_HIT`, `WINDUP_TICKS`, `ATTACK_ACTIVE_TICKS`,
   `RECOVERY_TICKS`, `DETECTION_RADIUS_METERS`, `CHASE_SPEED_METERS_PER_SEC`,
@@ -312,13 +392,27 @@ for a developer to pick up. No implementation has started.
   (`COMBAT_EVENT_DEATH`), `server/server_monster_state.gd`
   (`advance`, `receive_damage`, `phase_changed`, `attack_resolved`, `died`),
   `server/server_monster_manager.gd` (`advance_all`, `monster_at`,
-  `monster_count`, `living_count`, `monster_died`, `monster_respawned`),
-  `server/starting_town_hub_fixture.gd` (spawn points outside the town wall).
+  `monster_count`, `living_count`, `living_targets`, `receive_player_hit`,
+  `monster_died`, `monster_respawned`),
+  `server/server_player_state.gd` (`set_monster_manager`, its generalized
+  `_perform_hit_test`), `server/starting_town_hub_fixture.gd` (spawn points
+  outside the town wall), `client/monster.gd`/`client/monster.tscn`
+  (`spawn_monster_representation`, `receive_monster_position`,
+  `despawn_monster_representation`, hit/death reaction), `client/network_client.gd`
+  (monster replication RPCs), `server/server_main.gd` (monster broadcast
+  wiring).
 - Validation: See [Slice 020](slices/020-monster-hp-damage-death.md),
-  [Slice 021](slices/021-monster-ai-state-machine.md), and
-  [Slice 022](slices/022-monster-spawning-and-respawn.md) for exact commands and
-  results (Slice 022: 7/7 manager + 8/8 fixture focused tests, 140/140 full
-  suite, exit 0).
+  [Slice 021](slices/021-monster-ai-state-machine.md),
+  [Slice 022](slices/022-monster-spawning-and-respawn.md),
+  [Slice 029](slices/029-authoritative-monster-melee-damage.md), and
+  [Slice 033](slices/033-client-monster-replication-and-rendering.md) for exact
+  commands and results (Slice 029: 11/11 manager + 9/9 authoritative-melee
+  focused tests, 177/177 full suite, exit 0; Slice 033: 4/4 unit +
+  7/7 integration focused tests, full gate `scripts/run_gut_validation.sh`
+  26/26 scripts, 199/199 tests, 793 asserts, exit 0, plus a headless
+  `connected: player spawned` connect proof and a clean monster-broadcast
+  runtime run with zero RPC errors; interactive GUI visual/fight confirmation
+  was obtained 2026-09-13, human-confirmed).
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [Basic Monsters map](../.scratch/basic-monsters/map.md),
   [issue 01](../.scratch/basic-monsters/issues/01-hp-damage-death-model.md),
@@ -354,6 +448,61 @@ for a developer to pick up. No implementation has started.
     honoring the caveat that monsters spawn outside the town boundary.
     Related work: [Slice 022](slices/022-monster-spawning-and-respawn.md)
     Validation: See Slice 022 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 029 — wired a player's accepted
+    authoritative melee hit to monster damage and death. Generalized
+    `ServerPlayerState`'s ACTIVE-phase hit test to also check every
+    currently-living monster (via a new `ServerMonsterManager.living_targets()`
+    snapshot, duck-typed on `.position` alongside the existing target dummies),
+    added `ServerMonsterManager.receive_player_hit` as the sole seam that
+    applies `DAMAGE_PER_HIT` and reports a defeat, and extended
+    `server_main.gd`'s existing HIT-broadcast routing to also broadcast an
+    attacker-attributed `COMBAT_EVENT_DEATH` over the same channel when a hit
+    lands the killing blow. Monster mutation stays single-owned by
+    `ServerMonsterManager`; `ServerPlayerState` still only resolves geometry.
+    Why: Complete the server-authoritative half of the "make monsters visible
+    to and fightable by players" boundary recorded in Slice 022's next
+    boundary, so monsters are now genuinely damageable and defeatable in the
+    live server loop; client rendering follows as a later slice.
+    Related work: [Slice 029](slices/029-authoritative-monster-melee-damage.md)
+    Validation: See Slice 029 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 033 — client-side monster replication and
+    rendering. Added `client/monster.gd`/`client/monster.tscn`, a purely
+    cosmetic node per living monster, spawned/positioned/despawned only by
+    server broadcasts and reacting visually to the existing
+    `COMBAT_EVENT_HIT`/`COMBAT_EVENT_DEATH` events, plus the corresponding
+    monster-replication RPCs on `client/network_client.gd` and broadcast wiring
+    on `server/server_main.gd`. The client decides nothing: no damage, hit,
+    death, or respawn logic runs outside the server.
+    Why: Close the "make monsters visible to and fightable by players" boundary
+    left open by Slice 029, so the server-authoritative monster lifecycle
+    (Slices 020-022, 029) finally has a visible, fightable client presentation.
+    Related work: [Slice 033](slices/033-client-monster-replication-and-rendering.md)
+    Validation: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit
+    -gselect=test_monster_node -gexit` passed 4/4 tests, 4 asserts, exit 0;
+    `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/integration
+    -gselect=test_monster_replication -gexit` passed 7/7 tests, 12 asserts,
+    exit 0; the full configured GUT suite (`scripts/run_gut_validation.sh`)
+    passed 26/26 scripts, 199/199 tests, 793 asserts, exit 0. Separately, a
+    headless client run reached `connected: player spawned` and observed 4
+    spawned monsters with zero `Cannot convert argument .. int to String`
+    monster-position RPC errors against a freshly restarted server on current
+    code. Interactive GUI visual/fight confirmation (a human seeing the
+    monster render, hitting it three times to kill it, and watching it
+    respawn) was obtained on 2026-09-13 (human-confirmed), completing the
+    slice's runtime evidence.
+  - Date: 2026-09-13
+    What changed: IP-023 moved to `Implemented`. The Slice 033 interactive GUI
+    visual/fight confirmation was obtained — a human ran the graphical client
+    against the live server and saw the dark-red monster render, chase, flash
+    on each melee hit, die on the third hit, and respawn — completing the
+    "visible to and fightable by players" boundary on top of the green headless
+    suite (26/26 scripts, 199/199 tests, 793 asserts, exit 0).
+    Why: Final acceptance evidence for the feature was captured, so its status
+    reflects delivered reality.
+    Related work: [Slice 033](slices/033-client-monster-replication-and-rendering.md)
+    Validation: Full gate green (199/199) plus the human GUI confirmation above.
 
 ### IP-008: Just-in-time sector generation
 
@@ -486,6 +635,23 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### F-027: Server-authoritative movement collision
+
+- Status: `Implemented`
+- Feature: The server keeps the player out of walls and buildings — authoritative movement resolves against the town's solid cells (wall tiles + building footprints) with wall-sliding, so the village is physically solid to walk around in.
+- Problem solved: The server owned player position by pure integration with no collision, so the player walked straight through walls, houses, and the village hall.
+- How it solves the problem: Slice 030 adds `shared/sector_collision_map.gd` (`SectorCollisionMap`), built from the validated blueprint into a blocked grid-cell set (every `wall` tile plus each structure's per-kind footprint from `SectorGeometryLookup.structure_footprint`); `resolve_move(from, to)` does axis-separated sliding so the player stops at a solid cell's face and slides along walls. `server/server_player_state.gd`'s movement integration applies `resolve_move` when a map is injected (null = free movement, backward compatible), and `server/server_main.gd` builds the map from the hub at boot and injects it into every peer. Walkable ground (floor/path/plaza/gate/grass/water) stays open; the southern gate is passable.
+- Phase: 10. Authoritative runtime and action input
+- Implementation slices: [Slice 030](slices/030-server-side-collision.md)
+- Public seam: `shared/sector_collision_map.gd` (`is_blocked`, `resolve_move`, `blocked_count`), `shared/sector_geometry_lookup.gd` (`structure_footprint`), `server/server_player_state.gd` (`set_collision_map`), `server/server_main.gd` (`_town_collision`).
+- Validation: See [Slice 030](slices/030-server-side-collision.md) — 6/6 collision-map + 4/4 player-state-collision + 10/10 lookup focused tests; full suite `scripts/run_gut_validation.sh` 188/188 across 24 scripts, exit 0. Live client-blocked confirmation is pending a server restart.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), extends [IP-001](#ip-001-server-authoritative-networked-multiplayer), makes [F-026](#f-026-organic-districted-starting-city) solid.
+- Change history:
+  - Date: 2026-09-13
+    What changed: Implemented Slice 030 — server-side wall/building collision (`SectorCollisionMap` + per-kind footprints), applied in `ServerPlayerState` movement and injected from server boot, so the village is physically solid with wall-sliding.
+    Why: The village rendered but the player walked through everything (no collision authority); a "is it walkable?" review surfaced the gap.
+    Validation: See Slice 030 validation section.
 
 ### P-004: Agent-assisted delivery orchestration
 
@@ -760,6 +926,13 @@ for a developer to pick up. No implementation has started.
     with no new geometry code.
     Related work: [Slice 025](slices/025-organic-vocabulary.md)
     Validation: See Slice 025 validation section.
+  - Date: 2026-09-13
+    What changed: Added scene paths and placeholder prefabs for the two new
+    structure kinds `npc_house` (villager home) and `village_hall` (the rural
+    leader's hall) (Slice 031).
+    Why: Render the bigger village's NPC and leader housing.
+    Related work: [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
+    Validation: See Slice 031 validation section.
 
 ### F-017: Sector blueprint schema v2 — structures and spawn points
 
@@ -815,6 +988,14 @@ for a developer to pick up. No implementation has started.
     schema_version a meaningful compatibility signal for the future LLM path.
     Related work: [Slice 025](slices/025-organic-vocabulary.md)
     Validation: See Slice 025 validation section.
+  - Date: 2026-09-13
+    What changed: Raised `MAX_TILE_COUNT` to 4096 and `MAX_COORDINATE_ABS` to 48
+    for the ~3x-bigger village, and added `npc_house` and `village_hall` to the
+    v3 organic structure vocabulary (Slice 031).
+    Why: Fit the larger rural village and its NPC/leader housing within the
+    validated blueprint contract.
+    Related work: [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
+    Validation: See Slice 031 validation section.
 
 ### F-007: Living architecture anchor
 

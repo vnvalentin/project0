@@ -67,7 +67,7 @@ delivery evidence for each slice; they are not optional narrative diagrams.
 | 9. Canon persistence and world mutation | queued | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
-| 13. Public game access | queued | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
+| 13. Public game access | in-progress | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
 
 ### Phase work index
 
@@ -152,7 +152,7 @@ Progress: **73%** (8 of 11 items done)
 - Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019).
 - Tech debt: `done` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — resolved by the Slice 024 geometry pass (merged `ArrayMesh` ground + one merged `Walls` body), decoupling town size from the physics body count.
 
-- **Current slice:** [026 — LLM town generation with a required-structure guarantee](slices/026-llm-town-generation.md) — **100% complete; focused and full-suite validation passed**
+- **Current slice:** [031 — Bigger rural village with NPC and leader housing](slices/031-bigger-village-npc-leader-housing.md) — **100% complete; focused and full-suite validation passed**
   - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
 
 **Phase 9 — Canon persistence and world mutation**
@@ -164,12 +164,12 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 10 — Authoritative runtime and action input**
 
-Progress: **0%** (0 of 3 items done)
+Progress: **50%** (2 of 4 items done)
 
-- Features: `queued` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `in-progress` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
+- Features: `queued` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [022 — Monster spawning and respawn (outside town)](slices/022-monster-spawning-and-respawn.md) — **100% complete; focused and full-suite validation passed**
+- **Current slice:** [033 — Client monster replication and rendering](slices/033-client-monster-replication-and-rendering.md) — **100% complete; focused and full-suite validation passed; interactive GUI confirmation obtained (2026-09-13)**
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -181,10 +181,11 @@ Progress: **0%** (0 of 1 items done)
 
 **Phase 13 — Public game access**
 
-Progress: **0%** (0 of 1 items done)
+Progress: **0%** (0 of 3 items done)
 
-- Features: `ready` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — WireGuard public access is design-complete (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001) but has no implementation slice yet.
+- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process.
 - Tech debt: none yet.
+- **Current slice:** [034 — wgnetstack in-client GDExtension + tunnel integration (Linux)](slices/034-wgnetstack-godot-gdextension-tunnel-integration-linux.md)
 
 ### Implementation slice index
 
@@ -306,6 +307,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (Q2 hybrid LLM + guarantee + fallback)
 
+- **Slice:** [031 — Bigger rural village with NPC and leader housing](slices/031-bigger-village-npc-leader-housing.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (user request: ~3x bigger + NPC/leader housing)
+
 #### Phase 7 — Delivery workflow capabilities
 
 - **Slice:** [010 — Core mechanics architecture contract](slices/010-core-mechanics-architecture.md) — **100% complete; focused documentation and full-suite validation passed**
@@ -354,6 +360,42 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
   - **Tech debt:** none identified
   - **Planning ticket:** [Basic Monsters map](../.scratch/basic-monsters/map.md), [issue 03](../.scratch/basic-monsters/issues/03-monster-spawn-points-from-town-schema.md)
+
+- **Slice:** [029 — Authoritative monster melee damage and death broadcast](slices/029-authoritative-monster-melee-damage.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Basic Monsters map](../.scratch/basic-monsters/map.md)
+  - **Decision:** no new ADR; wires existing Slice 012 hit-test and Slice 020/021 damage/death seams through the existing combat-event broadcast channel
+
+- **Slice:** [033 — Client monster replication and rendering](slices/033-client-monster-replication-and-rendering.md) — **100% complete; focused and full-suite validation passed; interactive GUI confirmation obtained (2026-09-13)**
+  - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Basic Monsters map](../.scratch/basic-monsters/map.md)
+  - **Decision:** no new ADR; purely cosmetic client layer over the existing Slice 020-022/029 authoritative monster lifecycle, following the established remote-player replication pattern
+
+- **Slice:** [030 — Server-side wall and building collision](slices/030-server-side-collision.md) — **100% complete; focused and full-suite validation passed**
+  - **Feature:** [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision)
+  - **Tech debt:** none identified
+  - **Planning ticket:** none (arose from the "is the village walkable?" review)
+  - **Decision:** no new ADR; extends the ADR 0001 server-authoritative movement model with collision
+
+#### Phase 13 — Public game access
+
+- **Slice:** [028 — WireGuard remote-access infrastructure foundation](slices/028-wireguard-remote-access-infrastructure-foundation.md) — **records-first handoff complete; awaiting live OPNsense/host execution evidence**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 03](../.scratch/wan-wireguard/issues/03-opnsense-wireguard-infra-automation.md), [issue 05](../.scratch/wan-wireguard/issues/05-host-firewall-lockdown-script.md)
+  - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis
+- **Slice:** [032 — wgnetstack netstack bridge (Linux prototype)](slices/032-wgnetstack-netstack-bridge-linux-prototype.md) — **delivered; Godot client reaches `connected: player spawned` through the bridge against the live, restarted server; direct (no-bridge) re-run against the same server confirms the earlier gap was a stale-server RPC method-table mismatch, not a bridge or Slice 033 code defect**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 01](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
+  - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 01/02 decisions)
+- **Slice:** [034 — wgnetstack in-client GDExtension + tunnel integration (Linux)](slices/034-wgnetstack-godot-gdextension-tunnel-integration-linux.md) — **delivered; the real Godot client opens the WireGuard tunnel in-process via the `WgNetstack` GDExtension (no external process, no OS TUN, no admin) and reaches `connected: player spawned` against the live server; tunnel mode is env-gated and default-off (direct connect unchanged), and `scripts/run_gut_validation.sh` stays green 199/199**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
+  - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 02 decision), packaging the Slice 032 bridge as a GDExtension
 
 ## Implementation slice acceptance
 
@@ -414,9 +456,17 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   charting a minimal server-authoritative monster (flat HP/damage/death,
   detect/chase/attack state machine with a readable attack telegraph per
   `CLAUDE.md`'s Combat Reading rules), spawned from the Starting Town map's
-  spawn points. No decisions recorded yet; cross-map blocked on the Starting
-  Town map's spawn-point schema. See
-  [basic-monsters map](../.scratch/basic-monsters/map.md). Not yet a slice.
+  spawn points. Delivered as slices: HP/damage/death contract (Slice 020), the
+  detect/chase/attack state machine (Slice 021), spawning and respawn outside
+  town (Slice 022), wiring a player's accepted melee hit to monster
+  damage/death server-side
+  ([Slice 029](slices/029-authoritative-monster-melee-damage.md)), and client
+  rendering of monsters and their hit/death reactions
+  ([Slice 033](slices/033-client-monster-replication-and-rendering.md)).
+  Monsters are now fully damageable, defeatable, and visibly renderable/
+  fightable; only interactive GUI visual/fight confirmation remains before
+  this map's "make monsters visible to and fightable by players" boundary is
+  complete. See [basic-monsters map](../.scratch/basic-monsters/map.md).
 - [ ] In progress — Organic LLM Village map (Phase 8): replacing the small
   Slice 016 square hub with a large, organic, districted, walled starting city
   on the scale/feel of EverQuest Qeynos or FF7 Midgar, LLM-generated but
@@ -433,14 +483,38 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   and enriched the hub to use it, and
   [Slice 026](slices/026-llm-town-generation.md) added the `TownLayoutProvider`
   guarantee (LLM proposes, server validates + requires the fixed structures,
-  else falls back to the fixture). Remaining roadmap: optionally wire LLM
-  generation on at boot (a reliability/latency decision; the fixture stays the
-  default), and derive the monster exclusion from the town bounds. See
+  else falls back to the fixture). Slice 031 grew the village to ~3x area
+  (radius 30) with villager homes (`npc_house`) and the village leader's hall
+  (`village_hall`). Remaining roadmap: optionally wire LLM generation on at boot
+  (a reliability/latency decision; the fixture stays the default), and derive
+  the monster exclusion from the town bounds. See
   [organic-village map](../.scratch/organic-village/map.md).
-- [ ] Ready — Public game access via WireGuard (Phase 13, design-complete,
-  not yet scoped as a slice): all six
-  [wan-wireguard map](../.scratch/wan-wireguard/map.md) tickets are resolved
-  (netstack bridging, GDExtension prototype, OPNsense infra automation,
-  enrollment invite service, host firewall lockdown, and revocation/ban
-  lifecycle) under SDD-GAME-WG-001, but no implementation slice exists yet for
+- [x] In progress — Public game access via WireGuard (Phase 13): the first
+  implementation slice,
+  [028 — WireGuard remote-access infrastructure foundation](slices/028-wireguard-remote-access-infrastructure-foundation.md),
+  is scoped against issues
+  [03](../.scratch/wan-wireguard/issues/03-opnsense-wireguard-infra-automation.md)
+  and
+  [05](../.scratch/wan-wireguard/issues/05-host-firewall-lockdown-script.md)
+  of the resolved [wan-wireguard map](../.scratch/wan-wireguard/map.md) under
+  SDD-GAME-WG-001. Records-first: the infra scripts
+  (`infra/opnsense/setup_wireguard_game_tunnel.py`,
+  `ci/host-firewall-helper.sh`) and live-execution validation evidence are a
+  follow-up handoff owned by Copilot.
+  [032 — wgnetstack netstack bridge (Linux prototype)](slices/032-wgnetstack-netstack-bridge-linux-prototype.md)
+  is scoped against issues
+  [01](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md)
+  and
+  [02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
+  to deliver S2: a `native/wgnetstack/` Go netstack bridge proven on Linux
+  with the existing Godot client, ahead of S3 (Windows DLL validation,
+  `.gdextension` packaging) and S4 (enrollment automation).
+  [034 — wgnetstack in-client GDExtension + tunnel integration (Linux)](slices/034-wgnetstack-godot-gdextension-tunnel-integration-linux.md)
+  delivers S3a: the Slice 032 bridge wrapped as a real in-process Godot 4.3
+  GDExtension (`native/wgnetstack/gdext/`, godot-cpp-based, linking a new
+  `cmd/cgoarchive` static build of the same bridge logic) plus a
+  `client/network_client.gd` tunnel-mode integration, so the client opens the
+  tunnel itself with no separate probe process. The Windows DLL build/
+  validation (S3b), enrollment service (issue 04), and revocation/ban
+  automation (issue 06) remain queued, unscoped work for
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).

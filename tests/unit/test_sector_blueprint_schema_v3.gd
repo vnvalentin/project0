@@ -30,7 +30,7 @@ func test_each_organic_tile_kind_is_valid_in_v3() -> void:
 
 
 func test_each_organic_structure_kind_is_valid_in_v3() -> void:
-	for kind: String in ["church", "item_shop", "tavern", "well"]:
+	for kind: String in ["church", "item_shop", "tavern", "well", "npc_house", "village_hall"]:
 		var data: Dictionary = _base(3)
 		data["structures"] = [{"structure_id": "s1", "kind": kind, "x": 1, "y": 1, "facing_degrees": 0.0}]
 		var result: Dictionary = SectorBlueprintSchemaScript.validate(data)

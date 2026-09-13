@@ -14,7 +14,8 @@ extends Node
 ## docs/slices/005-prediction-reconciliation.md,
 ## docs/slices/007-multi-peer-player-replication.md,
 ## docs/slices/012-authoritative-melee-strike.md, and docs/adr/0001 for
-## scope: no collision authority, no persistence. The server still never
+## scope: no persistence, and (until Slice 030) no collision. Slice 030 adds
+## server-side wall/building collision to movement. The server still never
 ## accepts a client-supplied position or sequence-tagged position — sequence
 ## numbers only identify which input the client's intent came from, never
 ## override the server's own computed position.
@@ -83,11 +84,30 @@ var _last_action_resolution: Object = null
 var _hit_target_ids_this_swing: Dictionary = {}
 
 ## Server-owned target dummies this peer's swings can hit, injected by
-## server_main.gd. Keyed by target_id (String) to Node3D. Never
-## client-supplied — a client can only submit an aim direction, never name a
-## target to strike (see CLAUDE.md's Kinetic destructive-output rule, which
-## the same "server names the target" principle mirrors for melee).
+## server_main.gd. Keyed by target_id (String) to any Object exposing
+## `.position` (a plain Node3D for dummies today; see _monster_manager below
+## for the Slice 029 RefCounted monster case). Never client-supplied — a
+## client can only submit an aim direction, never name a target to strike (see
+## CLAUDE.md's Kinetic destructive-output rule, which the same "server names
+## the target" principle mirrors for melee).
 var _target_dummies: Dictionary = {}
+
+## Slice 030: server-side sector collision (walls + building footprints),
+## injected by server_main.gd. When set, authoritative movement integration
+## slides the player against solids so the town is physically solid. null in
+## tests/standalone contexts means free movement (backward compatible).
+var _collision_map: Object = null
+
+## Slice 029: the server-owned monster manager this peer's hit test also
+## checks against, injected by server_main.gd. Only living monsters (a fresh
+## snapshot pulled every ACTIVE tick via living_targets(), never cached) are
+## ever targetable, so a dead/respawning monster cannot be hit. This node
+## never mutates a monster itself — it only reads `.position`/`target_id` for
+## the geometric hit test and emits a target_id-keyed HIT event exactly as it
+## already does for dummies; applying damage stays solely owned by
+## ServerMonsterManager, reached through server_main.gd's routing of that HIT
+## event (see server_main.gd's _on_player_state_combat_event_emitted).
+var _monster_manager: Object = null
 
 
 ## Public seam: called by the server when a peer connects, to bind this state
@@ -108,6 +128,19 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 ## dummies this peer's melee hit tests may check against.
 func set_target_dummies(target_dummies: Dictionary) -> void:
 	_target_dummies = target_dummies
+
+
+## Public seam: injects the server-side sector collision map used to keep the
+## player out of walls and buildings during authoritative movement integration.
+func set_collision_map(collision_map: Object) -> void:
+	_collision_map = collision_map
+
+
+## Public seam (Slice 029): called by server_main.gd to register the
+## server-owned monster manager this peer's melee hit tests also check
+## against, alongside the target dummies above.
+func set_monster_manager(monster_manager: Object) -> void:
+	_monster_manager = monster_manager
 
 
 ## Public seam: called (as a plain in-process call, not an RPC — this node
@@ -203,7 +236,8 @@ func _physics_process(delta: float) -> void:
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
 
-	position += direction * NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor * delta
+	var desired_position: Vector3 = position + direction * NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor * delta
+	position = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
 
 	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
 	# Requiring CONNECTION_CONNECTED guards test/standalone contexts — e.g.
@@ -248,24 +282,28 @@ func _advance_action_phase() -> void:
 
 
 ## Deterministic vector reach/arc hit test against every registered target
-## dummy, performed once per ACTIVE tick. max_targets bounds how many
-## distinct targets one swing can hit; a target already hit this swing is
-## never re-emitted, so a multi-tick ACTIVE window cannot double-hit the same
-## dummy. See
-## .scratch/melee-combat/issues/04-choose-first-target-and-hit-rule.md.
+## dummy plus every currently living monster (Slice 029), performed once per
+## ACTIVE tick. max_targets bounds how many distinct targets one swing can
+## hit; a target already hit this swing is never re-emitted, so a multi-tick
+## ACTIVE window cannot double-hit the same target — dummy or monster alike.
+## See .scratch/melee-combat/issues/04-choose-first-target-and-hit-rule.md.
 func _perform_hit_test() -> void:
 	if _hit_target_ids_this_swing.size() >= _archetype.max_targets:
 		return
 
-	for target_id: String in _target_dummies.keys():
+	var targets: Dictionary = _target_dummies.duplicate()
+	if _monster_manager != null:
+		targets.merge(_monster_manager.living_targets())
+
+	for target_id: String in targets.keys():
 		if _hit_target_ids_this_swing.has(target_id):
 			continue
 
-		var target_node: Node3D = _target_dummies[target_id]
-		if target_node == null:
+		var target: Object = targets[target_id]
+		if target == null:
 			continue
 
-		if not CombatContractsScript.is_within_reach_and_arc(position, facing, target_node.position, _archetype):
+		if not CombatContractsScript.is_within_reach_and_arc(position, facing, target.position, _archetype):
 			continue
 
 		_hit_target_ids_this_swing[target_id] = true
@@ -274,7 +312,7 @@ func _perform_hit_test() -> void:
 			CombatContractsScript.COMBAT_EVENT_HIT,
 			owning_peer_id,
 			target_id,
-			target_node.position,
+			target.position,
 			server_tick
 		)
 		combat_event_emitted.emit(owning_peer_id, combat_event)

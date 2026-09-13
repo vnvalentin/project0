@@ -81,20 +81,22 @@ static func meets_required_structures(blueprint: Dictionary) -> Dictionary:
 ## the wording, so a lazy or adversarial model cannot produce an unusable town.
 static func default_town_prompt() -> String:
 	return "\n".join([
-		"Return ONLY one JSON object (no prose) describing a small fantasy starting town as a sector blueprint.",
+		"Return ONLY one JSON object (no prose) describing a small rural fantasy village as a sector blueprint.",
 		"Required shape:",
 		"- \"schema_version\": 3",
 		"- \"sector_id\": \"starting_town_hub\"",
 		"- \"origin\": {\"x\": 0, \"y\": 0}",
-		"- \"tiles\": 1..2048 entries of {\"x\": int, \"y\": int, \"kind\": string}; x and y within -16..16;",
-		"  kind is one of floor, wall, corridor, path, plaza, gate, water, grass. Enclose the town in a",
-		"  \"wall\" ring with a \"gate\" opening; use \"path\"/\"plaza\" for roads and a central square,",
+		"- \"tiles\": 1..4096 entries of {\"x\": int, \"y\": int, \"kind\": string}; x and y within -30..30;",
+		"  kind is one of floor, wall, corridor, path, plaza, gate, water, grass. Enclose the village in a",
+		"  \"wall\" ring with a \"gate\" opening; use \"path\"/\"plaza\" for streets and a central square,",
 		"  \"grass\"/\"water\" for scenery, and \"floor\" elsewhere.",
 		"- \"structures\": entries of {\"structure_id\": unique string, \"kind\": string, \"x\": int, \"y\": int,",
-		"  \"facing_degrees\": number in [0,360)}; kind is one of house, smithy, armor_shop, inn, church,",
-		"  item_shop, tavern, well. You MUST include at least 10 house structures and at least one each of",
-		"  smithy, armor_shop, and inn. You MAY add church, item_shop, tavern, and well for flavor.",
-		"  Place every structure on an interior non-wall tile within -16..16.",
+		"  \"facing_degrees\": number in [0,360)}; kind is one of house, npc_house, village_hall, smithy,",
+		"  armor_shop, inn, church, item_shop, tavern, well. You MUST include at least 10 house structures",
+		"  (the player homes) and at least one each of smithy, armor_shop, and inn. You SHOULD add several",
+		"  npc_house (villager homes) and one village_hall (the rural village leader's house, not a noble's).",
+		"  You MAY add church, item_shop, tavern, and well for flavor. Place every structure on an interior",
+		"  non-wall tile within -30..30.",
 		"Output valid JSON only.",
 	])
 

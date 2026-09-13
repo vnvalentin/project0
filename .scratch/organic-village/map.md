@@ -56,6 +56,17 @@ always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
   existing pipeline (instant visible win + future LLM fallback); (2) schema v3
   vocabulary + geometry + scale; (3) LLM generation + required-structure
   validation/fallback; (4) recompute monster exclusion from town bounds.
+- [Spatial-validity strategy: validate + deterministic repair](issues/01-spatial-validity-strategy.md):
+  LLM layouts stack buildings because structures are dimensionless and nothing
+  checks placement; fix = server-owned per-kind footprints (versioned tuning) +
+  deterministic repair, non-overlap + valid-tile first, aesthetic placement
+  deferred to fog, external MCP/OSM planner deferred to research. Opens the
+  spatial-validity cluster in `issues/` (02 footprints, 03 repair, 04 research).
+- [External spatial-planner research: DROP](issues/04-external-spatial-planner-research.md):
+  the OSM/GIS/CityGML MCP servers ingest/convert *real-world* geodata and none
+  do non-overlap placement; they would add a Python bridge + third-party code +
+  external egress for zero benefit, so the deterministic in-engine
+  footprint+repair (issues 02/03) is the path. [Findings](research/04-external-spatial-planner.md).
 
 ## Delivery slices (implementation roadmap)
 
@@ -99,14 +110,23 @@ always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
   decision), mirroring how Slice 009 delivered a seam before its live trigger.
   Shipped as [Slice 026](../../docs/slices/026-llm-town-generation.md).
   Validation: 168/168 full GUT suite, exit 0.
-- Slice 027 (next): derive the monster exclusion/spawn fields from the actual
+- Slice 031 (DELIVERED 2026-09-13, user request): grew the village to ~3x area
+  (radius 16 -> 30, ~3037 tiles) with main + secondary streets, a bigger plaza
+  and pond, and added 10 villager homes (`npc_house`) plus the village leader's
+  hall (`village_hall`) — a rural village (Qeynos/Elliot feel), no nobles — for
+  28 structures. Raised the schema bounds (MAX_TILE_COUNT 4096, MAX_COORDINATE_ABS
+  48), grew the monster exclusion to 32 and ground plane to 100×100, and updated
+  the LLM prompt. Shipped as
+  [Slice 031](../../docs/slices/031-bigger-village-npc-leader-housing.md).
+  Validation: 168/168 full GUT suite, exit 0.
+- A later slice: derive the monster exclusion/spawn fields from the actual
   town bounds instead of a hard-coded constant.
 - Deferred: optionally wire LLM town generation on at server boot (replace the
   fixture default) once its boot-latency/Ollama-availability tradeoff is
   accepted — the guarantee seam is ready.
-- Deferred flavor: an explicit building/player rescale pass (make the player
-  small relative to the city) if desired — split out of Slice 025 to keep it
-  bounded.
+- Deferred flavor: NPC behaviour/occupancy for the villager homes and village
+  hall (they are visual buildings only), and an explicit player rescale pass if
+  desired.
 
 ## Not yet specified
 
@@ -116,6 +136,10 @@ always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
   model instead of falling back) remains future work if desired.
 - Whether the town is eventually Canon-frozen (Phase 9 persistence) or
   regenerated per boot — depends on Phase 9, out of this map's scope.
+- Aesthetically "logical" placement beyond hard non-overlap (inter-building
+  spacing, buildings facing a road/plaza, clustering by district, keeping off
+  water/wall edges) — graduates once the footprint + repair seam (issues 02/03)
+  exists.
 
 ## Out of scope
 

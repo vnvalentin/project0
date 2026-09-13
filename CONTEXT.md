@@ -24,25 +24,45 @@ action-adventure with JIT-generated, canon-persisted world content`.
   current slice's only world geometry.
   _Avoid_: level, map, world (those terms are reserved for the future
   generated/canon world).
+- **World unit**: The base spatial unit of the game world. One world unit =
+  **1 yard** (Imperial); the world scale reads in feet/yards up close and miles
+  at the region level. All in-engine positions, speeds, and sizes are expressed
+  in world units, anchored and converted through `WorldScale`
+  (`shared/world_scale.gd`); see [ADR 0003](docs/adr/0003-imperial-world-scale.md).
+  _Avoid_: meter (Godot's default convention, which this project overrides),
+  pixel.
 - **Sector**: A unit of JIT-generated world content produced by the local LLM
-  and, once validated, written to the SQLite canon store. Provisional — no
-  generation or persistence exists yet; defined here only so the term is
-  reserved and not reused for the flat plane.
+  and, once validated, written to the SQLite canon store. Its nominal span is
+  **≈ ¼ mile = 440 world units** (tunable via `WorldScale`, growing toward
+  1 mile = 1760); a Sector is a **region container** whose fine Tile detail
+  covers only a bounded sub-area, not every yard (see
+  [ADR 0003](docs/adr/0003-imperial-world-scale.md)). Provisional — no generation
+  or persistence exists yet; the span is a measurement decision, not a built
+  feature.
   _Avoid_: chunk, tile map, level.
 - **Canon**: World state that has been validated and persisted to SQLite,
   making it authoritative and durable across sessions. Provisional — canon
   persistence is not implemented in this slice; nothing produced today is
   canon.
   _Avoid_: save data, world save.
-- **Structure**: A building placement within a sector blueprint (e.g. house,
-  smithy, armor shop, inn, and the schema-v3 flavor kinds church, item shop,
-  tavern, well), identified by a unique `structure_id` and an anchor
-  point/facing rather than a footprint. Implemented: schema v2 (Slice 014)
-  added the `structures` array, schema v3 (Slice 025) added the organic flavor
-  kinds, and geometry translation (Slices 015/024) instantiates one placeholder
-  prefab per structure.
+- **Structure**: A building placement within a sector blueprint (e.g. player
+  `house`, villager `npc_house`, the `village_hall` leader's house, smithy,
+  armor shop, inn, and the schema-v3 flavor kinds church, item shop, tavern,
+  well), identified by a unique `structure_id` and an anchor point/facing rather
+  than a footprint. Implemented: schema v2 (Slice 014) added the `structures`
+  array, schema v3 (Slices 025/031) added the organic settlement kinds, and
+  geometry translation (Slices 015/024) instantiates one placeholder prefab per
+  structure. Only `house` structures form the player pool (HouseAllocator);
+  `npc_house` and `village_hall` are non-player buildings.
   _Avoid_: building (a Structure covers non-house placeables like a well; keep
   the neutral term canonical). A gate is a Tile kind, not a Structure.
+- **Tile**: The fine grid cell of a sector blueprint — one world unit (1 yard)
+  square — placed by the blueprint `tiles` array as walkable detail (floors,
+  walls, paths). The detail grid: a Sector's fine content is a bounded field of
+  Tiles, not the whole region (see
+  [ADR 0003](docs/adr/0003-imperial-world-scale.md)). Distinct from **Tile kind**
+  (the Tile's terrain class).
+  _Avoid_: cell, square; do not conflate with the coarser Sector.
 - **Tile kind**: The terrain class of a blueprint tile. Base kinds
   (schema v1+): `floor`, `wall`, `corridor`. Organic vocabulary (schema v3,
   Slice 025): `path`, `plaza`, `gate`, `water`, `grass`. Only `wall` is solid

@@ -51,6 +51,15 @@ func test_structure_scene_paths_resolve_to_existing_files() -> void:
 		assert_true(ResourceLoader.exists(scene_path), "structure kind '%s' scene path '%s' exists on disk" % [kind, scene_path])
 
 
+func test_structure_footprints_are_defined_for_every_kind() -> void:
+	for kind: String in SectorBlueprintSchemaScript.SUPPORTED_STRUCTURE_KINDS:
+		var footprint: Vector2i = SectorGeometryLookupScript.structure_footprint(kind)
+		assert_true(footprint.x >= 0 and footprint.y >= 0, "structure kind '%s' has a non-negative footprint half-extent" % kind)
+	assert_eq(SectorGeometryLookupScript.structure_footprint("house"), Vector2i(1, 1), "a house is a 3x3 footprint (half-extent 1)")
+	assert_eq(SectorGeometryLookupScript.structure_footprint("village_hall"), Vector2i(2, 3), "the village hall is a 5x7 footprint")
+	assert_eq(SectorGeometryLookupScript.structure_footprint("unknown_kind"), Vector2i.ZERO, "an unknown structure kind has no footprint")
+
+
 func test_unsupported_structure_kind_returns_empty_string() -> void:
 	var scene_path: String = SectorGeometryLookupScript.structure_scene_path("castle")
 	assert_eq(scene_path, "", "an unsupported structure kind returns an empty string as an explicit failure marker")

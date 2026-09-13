@@ -113,4 +113,4 @@ Then it passes (the fallback can never itself be unusable).
   fixture.
 - No prompt-tuning or regeneration/repair loop when the model omits a structure
   (the guarantee simply falls back); an iterative repair policy is future work.
-- No monster-exclusion-from-bounds (Slice 027).
+- No monster-exclusion-from-bounds (a later slice).

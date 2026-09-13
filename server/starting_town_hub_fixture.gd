@@ -25,50 +25,64 @@ const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_bluepri
 const SECTOR_ID: String = "starting_town_hub"
 
 ## The organic town is an octagon: a square of radius _TOWN_RADIUS with its
-## corners clipped along |x| + |y| <= _TOWN_DIAGONAL, so the city reads as
-## rounded/districted rather than a hard square. Both are well inside
-## SectorBlueprintSchema.MAX_COORDINATE_ABS (32). _PLAZA_HALF sizes the central
-## paved plaza.
-const _TOWN_RADIUS: int = 16
-const _TOWN_DIAGONAL: int = 22
-const _PLAZA_HALF: int = 2
+## corners clipped along |x| + |y| <= _TOWN_DIAGONAL, so the village reads as
+## rounded/districted rather than a hard square. Both are within
+## SectorBlueprintSchema.MAX_COORDINATE_ABS (48). _PLAZA_HALF sizes the central
+## paved plaza. Enlarged to ~3x area for the rural-village layout (Qeynos/Elliot
+## feel); _SECONDARY_STREET adds cross-streets so districts read as a village
+## grid rather than one big square.
+const _TOWN_RADIUS: int = 30
+const _TOWN_DIAGONAL: int = 42
+const _PLAZA_HALF: int = 4
+const _SECONDARY_STREET: int = 14
 
-## The 17 structures placed in the city, clustered into districts: a northern
-## residential ring of 10 houses, a southern trade quarter (smithy, armor shop,
-## inn near the gate road), and four organic flavor buildings (a church, a
-## tavern, an item shop, and a well). Every structure_id is unique and every
-## (x, y) is a distinct interior cell with x != 0 and y != 0 (so none sit on the
-## radial path avenues) and none inside the central plaza.
+## The 28 structures placed in the village, clustered into districts: a northern
+## residential ring of 10 player houses, east/west rings of 10 villager homes
+## (npc_house), the village leader's hall (village_hall) by the central plaza, a
+## southern trade quarter (smithy, armor shop, item shop, inn), a tavern and a
+## church, and a well in the square. Every structure_id is unique and every
+## (x, y) is a distinct interior cell with x != 0 and y != 0. The 10 player
+## houses (kind "house") are the only pool HouseAllocator hands to players.
 const _STRUCTURES: Array[Dictionary] = [
-	{"structure_id": "house_01", "kind": "house", "x": -11, "y": 6, "facing_degrees": 180.0},
-	{"structure_id": "house_02", "kind": "house", "x": -8, "y": 9, "facing_degrees": 180.0},
-	{"structure_id": "house_03", "kind": "house", "x": -4, "y": 11, "facing_degrees": 180.0},
-	{"structure_id": "house_04", "kind": "house", "x": -12, "y": 2, "facing_degrees": 90.0},
-	{"structure_id": "house_05", "kind": "house", "x": -6, "y": 5, "facing_degrees": 90.0},
-	{"structure_id": "house_06", "kind": "house", "x": 4, "y": 11, "facing_degrees": 180.0},
-	{"structure_id": "house_07", "kind": "house", "x": 8, "y": 9, "facing_degrees": 180.0},
-	{"structure_id": "house_08", "kind": "house", "x": 11, "y": 6, "facing_degrees": 270.0},
-	{"structure_id": "house_09", "kind": "house", "x": 12, "y": 2, "facing_degrees": 270.0},
-	{"structure_id": "house_10", "kind": "house", "x": 6, "y": 5, "facing_degrees": 270.0},
-	{"structure_id": "smithy_01", "kind": "smithy", "x": -5, "y": -6, "facing_degrees": 0.0},
-	{"structure_id": "armor_shop_01", "kind": "armor_shop", "x": 5, "y": -6, "facing_degrees": 0.0},
-	{"structure_id": "inn_01", "kind": "inn", "x": -3, "y": -10, "facing_degrees": 0.0},
-	{"structure_id": "church_01", "kind": "church", "x": -2, "y": 12, "facing_degrees": 180.0},
-	{"structure_id": "tavern_01", "kind": "tavern", "x": 2, "y": -12, "facing_degrees": 0.0},
-	{"structure_id": "item_shop_01", "kind": "item_shop", "x": 9, "y": -3, "facing_degrees": 270.0},
-	{"structure_id": "well_01", "kind": "well", "x": 3, "y": 4, "facing_degrees": 0.0},
+	{"structure_id": "house_01", "kind": "house", "x": -20, "y": 10, "facing_degrees": 180.0},
+	{"structure_id": "house_02", "kind": "house", "x": -16, "y": 12, "facing_degrees": 180.0},
+	{"structure_id": "house_03", "kind": "house", "x": -11, "y": 15, "facing_degrees": 180.0},
+	{"structure_id": "house_04", "kind": "house", "x": -7, "y": 18, "facing_degrees": 180.0},
+	{"structure_id": "house_05", "kind": "house", "x": -20, "y": 16, "facing_degrees": 90.0},
+	{"structure_id": "house_06", "kind": "house", "x": 7, "y": 18, "facing_degrees": 180.0},
+	{"structure_id": "house_07", "kind": "house", "x": 11, "y": 15, "facing_degrees": 180.0},
+	{"structure_id": "house_08", "kind": "house", "x": 16, "y": 12, "facing_degrees": 270.0},
+	{"structure_id": "house_09", "kind": "house", "x": 20, "y": 10, "facing_degrees": 270.0},
+	{"structure_id": "house_10", "kind": "house", "x": 20, "y": 16, "facing_degrees": 270.0},
+	{"structure_id": "npc_house_01", "kind": "npc_house", "x": -24, "y": 2, "facing_degrees": 90.0},
+	{"structure_id": "npc_house_02", "kind": "npc_house", "x": -22, "y": -3, "facing_degrees": 90.0},
+	{"structure_id": "npc_house_03", "kind": "npc_house", "x": -19, "y": 5, "facing_degrees": 90.0},
+	{"structure_id": "npc_house_04", "kind": "npc_house", "x": -19, "y": -7, "facing_degrees": 90.0},
+	{"structure_id": "npc_house_05", "kind": "npc_house", "x": -24, "y": -2, "facing_degrees": 90.0},
+	{"structure_id": "npc_house_06", "kind": "npc_house", "x": 24, "y": 2, "facing_degrees": 270.0},
+	{"structure_id": "npc_house_07", "kind": "npc_house", "x": 22, "y": -3, "facing_degrees": 270.0},
+	{"structure_id": "npc_house_08", "kind": "npc_house", "x": 19, "y": 5, "facing_degrees": 270.0},
+	{"structure_id": "npc_house_09", "kind": "npc_house", "x": 19, "y": -7, "facing_degrees": 270.0},
+	{"structure_id": "npc_house_10", "kind": "npc_house", "x": 24, "y": -2, "facing_degrees": 270.0},
+	{"structure_id": "village_hall_01", "kind": "village_hall", "x": -5, "y": 6, "facing_degrees": 180.0},
+	{"structure_id": "smithy_01", "kind": "smithy", "x": -8, "y": -10, "facing_degrees": 0.0},
+	{"structure_id": "armor_shop_01", "kind": "armor_shop", "x": 8, "y": -10, "facing_degrees": 0.0},
+	{"structure_id": "item_shop_01", "kind": "item_shop", "x": 12, "y": -16, "facing_degrees": 0.0},
+	{"structure_id": "inn_01", "kind": "inn", "x": -12, "y": -16, "facing_degrees": 0.0},
+	{"structure_id": "tavern_01", "kind": "tavern", "x": 5, "y": -8, "facing_degrees": 0.0},
+	{"structure_id": "church_01", "kind": "church", "x": -5, "y": -20, "facing_degrees": 0.0},
+	{"structure_id": "well_01", "kind": "well", "x": 2, "y": 2, "facing_degrees": 0.0},
 ]
 
-## Monster spawn markers, each placed OUTSIDE the town wall ring
-## (|x| or |y| > _WALL_EXTENT, i.e. beyond the town boundary) so monsters spawn
-## in the wilds around town and never inside it (user caveat, 2026-09-12). Well
-## within SectorBlueprintSchema.MAX_COORDINATE_ABS (32); consumed by the Basic
-## Monsters runtime (server/server_monster_manager.gd).
+## Monster spawn markers, each placed OUTSIDE the town outline (beyond
+## _TOWN_RADIUS == 30) so monsters spawn in the fields around the village and
+## never inside it (user caveat). Within SectorBlueprintSchema.MAX_COORDINATE_ABS
+## (48); consumed by the Basic Monsters runtime (server/server_monster_manager.gd).
 const _SPAWN_POINTS: Array[Dictionary] = [
-	{"spawn_id": "wild_east", "x": 22, "y": 0},
-	{"spawn_id": "wild_west", "x": -22, "y": 0},
-	{"spawn_id": "wild_north", "x": 0, "y": 22},
-	{"spawn_id": "wild_south", "x": 0, "y": -22},
+	{"spawn_id": "wild_east", "x": 38, "y": 0},
+	{"spawn_id": "wild_west", "x": -38, "y": 0},
+	{"spawn_id": "wild_north", "x": 0, "y": 38},
+	{"spawn_id": "wild_south", "x": 0, "y": -38},
 ]
 
 
@@ -111,10 +125,10 @@ static func _in_town(x: int, y: int) -> bool:
 	return maxi(absi(x), absi(y)) <= _TOWN_RADIUS and (absi(x) + absi(y)) <= _TOWN_DIAGONAL
 
 
-## Tile kind at (x, y) for the organic v3 town: a walled octagon with a 3-wide
-## southern gate, a central paved plaza, radial path avenues, a small ornamental
-## pond, and a grass ring hugging the inside of the wall. Everything else is
-## floor.
+## Tile kind at (x, y) for the organic v3 village: a walled octagon with a
+## 3-wide southern gate, a central paved plaza, main + secondary path streets,
+## an ornamental pond, and a grass ring hugging the inside of the wall.
+## Everything else is floor.
 static func _tile_kind(x: int, y: int) -> String:
 	if _is_gate(x, y):
 		return "gate"
@@ -122,7 +136,7 @@ static func _tile_kind(x: int, y: int) -> String:
 		return "wall"
 	if absi(x) <= _PLAZA_HALF and absi(y) <= _PLAZA_HALF:
 		return "plaza"
-	if x == 0 or y == 0:
+	if x == 0 or y == 0 or absi(x) == _SECONDARY_STREET or absi(y) == _SECONDARY_STREET:
 		return "path"
 	if _in_pond(x, y):
 		return "water"
@@ -152,10 +166,10 @@ static func _touches_wall(x: int, y: int) -> bool:
 	return _is_wall(x + 1, y) or _is_wall(x - 1, y) or _is_wall(x, y + 1) or _is_wall(x, y - 1)
 
 
-## A small 2x2 ornamental pond in a southwest district gap, clear of every
-## structure and of the plaza/avenues.
+## A 3x3 ornamental village pond in a southwest district gap, clear of every
+## structure and of the plaza/streets.
 static func _in_pond(x: int, y: int) -> bool:
-	return x >= -8 and x <= -7 and y >= -3 and y <= -2
+	return x >= -13 and x <= -11 and y >= -22 and y <= -20
 
 
 ## Fail-closed materialization seam. Validates `source` against the sector

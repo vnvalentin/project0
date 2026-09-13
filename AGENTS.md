@@ -95,3 +95,9 @@ Do not create implementation slices or product code while this gate is open.
 - Before the first edit, confirm the foundation gate is closed and record the
   primary phase, feature or liability, and implementation slice in the three
   delivery records.
+- Allocate slice and feature numbers only via
+  [docs/slices/SLICE-REGISTRY.md](docs/slices/SLICE-REGISTRY.md): reserve the
+  next free number there before creating a slice. A single integrator owns
+  number allocation and the delivery trackers; any parallel autonomous worker
+  MUST use its reserved block (100–199) and disjoint files so concurrent work
+  never collides on a slice/feature number.

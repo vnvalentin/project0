@@ -24,12 +24,20 @@ extends SceneTree
 ## docs/slices/002-client-connects-to-server.md,
 ## docs/slices/004-authoritative-player-movement.md, and
 ## docs/slices/007-multi-peer-player-replication.md for scope.
+## Slice 033 replicates every currently living monster to clients in the same
+## style as remote players: a new peer receives a spawn RPC for each living
+## monster, every physics frame broadcasts each living monster's position to
+## all peers, and a respawn re-sends a spawn RPC at the new position. Monster
+## death/despawn reuses the existing COMBAT_EVENT_DEATH broadcast rather than a
+## parallel channel — see docs/slices/033-client-monster-replication-and-rendering.md.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const ServerPlayerStateScript: Script = preload("res://server/server_player_state.gd")
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const HouseAllocatorScript: Script = preload("res://server/house_allocator.gd")
 const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
+const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
+const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 
 ## Maximum concurrently connected peers supported on this server instance.
 ## Additional connection attempts beyond this limit are rejected (see
@@ -74,6 +82,10 @@ var _target_dummies: Dictionary = {}
 ## clients; empty until _start_server() validates the fixture.
 var _starting_town_hub_blueprint: Dictionary = {}
 
+## Slice 030: server-side wall/building collision for the hub, built from the
+## validated blueprint at boot and injected into each peer's ServerPlayerState.
+var _town_collision: Object = null
+
 ## Slice 019: server-authoritative allocation of the hub's fixed 10-house pool,
 ## one unique house per connected peer, freed immediately on disconnect. Built
 ## from the validated hub blueprint at boot. Typed as Object and accessed
@@ -111,6 +123,11 @@ func _start_server() -> void:
 		return
 	_starting_town_hub_blueprint = hub["blueprint"]
 	print("Starting town hub fixture validated: %d structures." % (_starting_town_hub_blueprint["structures"] as Array).size())
+
+	# Slice 030: build the server-side collision map (solid walls + building
+	# footprints) from the validated hub, injected into each peer below.
+	_town_collision = SectorCollisionMapScript.new(_starting_town_hub_blueprint)
+	print("Town collision map ready: %d solid cells." % _town_collision.blocked_count())
 
 	# Slice 019: build the house pool from the validated hub so each peer can be
 	# assigned a unique house on connect.
@@ -185,6 +202,8 @@ func _on_peer_connected(peer_id: int) -> void:
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
 	player_state.set_target_dummies(_target_dummies)
+	player_state.set_monster_manager(_monster_manager)
+	player_state.set_collision_map(_town_collision)
 	_player_states[peer_id] = player_state
 
 	# Slice 019: assign this peer a unique house from the pool and tell only the
@@ -206,6 +225,15 @@ func _on_peer_connected(peer_id: int) -> void:
 		var existing_state: Node = _player_states[existing_peer_id]
 		network_client.rpc_id(peer_id, "spawn_remote_player_representation", existing_peer_id, existing_state.position)
 		network_client.rpc_id(existing_peer_id, "spawn_remote_player_representation", peer_id, start_position)
+
+	# Slice 033: replicate every currently living monster to the new peer only
+	# — existing peers already have a representation for each from their own
+	# connect (or the initial spawn) and do not need it re-sent.
+	if _monster_manager != null:
+		var living: Dictionary = _monster_manager.living_targets()
+		for target_id: String in living.keys():
+			var monster: Object = living[target_id]
+			network_client.rpc_id(peer_id, "receive_monster_spawn", target_id, monster.position)
 
 
 ## Called whenever a client peer disconnects. Removes that peer's
@@ -300,14 +328,44 @@ func _on_physics_frame() -> void:
 		player_positions.append(player_state.position)
 	_monster_manager.advance_all(player_positions, MONSTER_TICK_DELTA, _monster_tick)
 	_monster_tick += 1
+	_broadcast_monster_positions()
+
+
+## Slice 033: broadcasts every currently living monster's authoritative
+## position to every connected peer, in the same per-entity relay style as
+## _on_player_state_position_updated. Reuses ServerMonsterManager.living_targets()
+## so a dead/respawning monster is simply never sent — the client despawns it
+## via the existing COMBAT_EVENT_DEATH broadcast instead (client/monster.gd),
+## rather than a redundant "monster removed" channel.
+func _broadcast_monster_positions() -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	var living: Dictionary = _monster_manager.living_targets()
+	for target_id: String in living.keys():
+		var monster: Object = living[target_id]
+		for receiving_peer_id: int in _player_states.keys():
+			network_client.rpc_id(receiving_peer_id, "receive_monster_position", target_id, monster.position)
 
 
 func _on_monster_died(spawn_id: String, server_tick: int) -> void:
 	print("Monster %s defeated at tick %d." % [spawn_id, server_tick])
 
 
+## Slice 033: in addition to existing telemetry, tells every connected peer to
+## (re)spawn a cosmetic representation for the respawned monster at its new
+## position — mirrors the peer-connect replication above but triggered by the
+## respawn event rather than a new connection. The death/despawn side of this
+## lifecycle is already covered by the existing COMBAT_EVENT_DEATH broadcast
+## (_on_player_state_combat_event_emitted), which client/monster.gd reacts to
+## directly, so no separate "monster removed" RPC is added here.
 func _on_monster_respawned(spawn_id: String, position: Vector3, server_tick: int) -> void:
 	print("Monster %s respawned at %s (tick %d)." % [spawn_id, position, server_tick])
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for receiving_peer_id: int in _player_states.keys():
+		network_client.rpc_id(receiving_peer_id, "receive_monster_spawn", spawn_id, position)
 
 
 ## Relays one peer's authoritative ActionResolution back to that same peer
@@ -331,7 +389,36 @@ func _on_player_state_action_resolved(peer_id: int, resolution: Object) -> void:
 ## Broadcasts a confirmed CombatEvent.HIT to every connected peer (including
 ## the attacker) so each client's target_dummy.gd can render the same
 ## authoritative feedback, regardless of which peer's swing produced it.
+## Slice 029: a HIT against a living monster's target_id also routes the
+## authoritative damage application through ServerMonsterManager — the sole
+## owner of monster mutation, per CLAUDE.md's single-owner rule; this
+## ServerPlayerState-originated signal never touches monster state itself.
+## When that application defeats the monster, broadcasts a second,
+## attacker-attributed CombatEvent.DEATH over the same existing channel so
+## Slice 030's client rendering can react without a parallel event path.
 func _on_player_state_combat_event_emitted(_peer_id: int, combat_event: Object) -> void:
+	_broadcast_combat_event(combat_event)
+
+	if combat_event.kind != CombatContractsScript.COMBAT_EVENT_HIT or _monster_manager == null:
+		return
+
+	var died: bool = _monster_manager.receive_player_hit(combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick)
+	if died:
+		var death_event: Object = CombatContractsScript.CombatEvent.new(
+			CombatContractsScript.COMBAT_EVENT_DEATH,
+			combat_event.attacker_peer_id,
+			combat_event.target_id,
+			combat_event.impact_position,
+			combat_event.server_tick
+		)
+		print("Monster %s defeated by peer %d at tick %d." % [combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick])
+		_broadcast_combat_event(death_event)
+
+
+## Shared broadcast helper for both CombatEvent.HIT and CombatEvent.DEATH, so
+## both reuse the exact same receive_combat_event channel rather than a
+## parallel one.
+func _broadcast_combat_event(combat_event: Object) -> void:
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
