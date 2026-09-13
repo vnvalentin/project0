@@ -41,15 +41,6 @@ feature so future drift is easier to detect.
 
 ## Planned Features
 
-### P-004: Agent-assisted delivery orchestration
-
-- Status: `Planned`
-- Feature: Copilot in VS Code can produce a bounded implementation handoff that triggers Claude CLI for the named multi-file changes and returns validation evidence for review.
-- Problem solved: Planning, implementation, and review can drift when agent ownership and handoff evidence are implicit.
-- Phase: 7. Delivery workflow capabilities
-- Public seam: Matt Pocock skill workflows, Wayfinder/grilling artifacts, Claude CLI handoff, and slice records.
-- Validation: A future workflow slice must demonstrate one traceable handoff without unscoped edits or missing feature synchronization.
-
 ### P-005: Remote-SSH server workspace
 
 - Status: `Planned`
@@ -495,6 +486,23 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### P-004: Agent-assisted delivery orchestration
+
+- Status: `Implemented`
+- Feature: Copilot in VS Code produces a bounded implementation handoff that triggers Claude Code CLI for the named multi-file changes and returns validation evidence for review, backed by a durable handoff template and a defined traceable-handoff evidence record.
+- Problem solved: Planning, implementation, and review can drift when agent ownership and handoff evidence are implicit.
+- How it solves the problem: Slice 027 promotes the handoff brief to a durable template (`docs/templates/claude-code-handoff-template.md`), adds an "Agent-assisted delivery orchestration" section to `DEVELOPMENT-WORKFLOW.md` defining the loop (Copilot brief → Claude Code CLI implements → returns evidence → Copilot reviews) and the five-part traceable-handoff evidence record, and demonstrates one real traceable handoff (Slice 008) whose review caught a missing-evidence gap and tracked it as DT-006 rather than accepting it. Ownership stays authoritative in `AGENTS.md` and `.github/copilot-instructions.md`.
+- Phase: 7. Delivery workflow capabilities
+- Implementation slices: [Slice 027](slices/027-agent-assisted-delivery-orchestration.md)
+- Public seam: `docs/templates/claude-code-handoff-template.md`, the `DEVELOPMENT-WORKFLOW.md` "Agent-assisted delivery orchestration" section, and the slice records with their synchronized `FEATURE-LIST.md`/`PROJECT-TRACKER.md` entries.
+- Validation: See [Slice 027](slices/027-agent-assisted-delivery-orchestration.md) — focused documentation check (required template sections present, workflow section present, no unresolved placeholders) PASS exit 0, plus `scripts/run_gut_validation.sh` 168/168 across 22 scripts, exit 0 (no regression).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [game-vision map](../.scratch/game-vision/map.md)
+- Change history:
+  - Date: 2026-09-13
+    What changed: Delivered P-004 via Slice 027 — promoted the Claude Code handoff template into `docs/templates/`, documented the orchestration loop and traceable-handoff evidence record in `DEVELOPMENT-WORKFLOW.md`, and demonstrated one traceable handoff (Slice 008). Moved P-004 `Planned` → `Implemented`.
+    Why: Make agent ownership and handoff evidence explicit and traceable so planning, implementation, and review no longer drift.
+    Validation: Focused documentation check exit 0; full GUT suite 168/168, exit 0.
 
 ### F-025: Project flow visual-management dashboard
 

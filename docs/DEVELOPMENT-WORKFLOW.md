@@ -198,3 +198,37 @@ Whenever a slice is started, in progress, or completed, all 4 sections of
 4. **`## Work queue`**:
    - Mark `[x]` for items that have been scoped and delivered by slices.
    - Update status labels (`Ready`, `Queued`, `In progress`) for active design mapping.
+
+## Agent-assisted delivery orchestration
+
+Implementation in this repository is split between an orchestration/review layer
+and an implementation layer. The authoritative ownership rules live in
+[AGENTS.md](../AGENTS.md) and
+[.github/copilot-instructions.md](../.github/copilot-instructions.md); this
+section defines how a handoff is expressed and what makes it *traceable*.
+
+The loop:
+
+1. **Brief** — Copilot fills the durable
+   [handoff template](templates/claude-code-handoff-template.md) from a governing
+   ticket with a recorded decision: user outcome, bounded scope and non-goals,
+   target public seam, safety invariants, acceptance scenarios, the exact
+   validation command, and the required return evidence.
+2. **Implement** — Claude Code CLI makes the named multi-file changes and runs
+   the validation, owning application/test and implementation-facing record
+   edits. Copilot makes these edits directly only when the user explicitly
+   authorizes it.
+3. **Return evidence** — the implementer reports files changed, exact commands
+   and exit codes, behavior observed, limitations, and any scope deviation.
+4. **Review** — Copilot checks scope, safety, specification compliance, and
+   synchronization, opening a `TECHNICAL-DEBT-TRACKER.md` liability for any gap
+   rather than accepting it.
+
+A handoff is **traceable** only when the slice record and delivery records
+together carry the brief, the change set at the declared seam, the validation
+evidence (focused command, expected pass signal, and the machine-readable
+artifact with its exit code), the review outcome, and the synchronized
+`FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates. An edit outside the declared
+scope is an unscoped edit; a session limit, timeout, or validation failure
+leaves the slice `blocked`/`awaiting evidence`. Completion is never inferred
+from files appearing in the tree.

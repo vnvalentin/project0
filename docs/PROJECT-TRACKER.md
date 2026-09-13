@@ -137,10 +137,13 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 7 — Delivery workflow capabilities**
 
-Progress: **57%** (4 of 7 items done)
+Progress: **71%** (5 of 7 items done)
 
-- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard); `queued` [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
+- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
+
+- **Current slice:** [027 — Agent-assisted delivery orchestration](slices/027-agent-assisted-delivery-orchestration.md) — **100% complete; documentation checks and full-suite validation passed**
+  - **Feature:** [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)
 
 **Phase 8 — JIT world generation and local inference**
 
@@ -317,6 +320,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Mind versus Tool architecture refinement](../.scratch/game-vision/issues/18-mind-tool-architecture-refinement.md)
   - **Decision:** updates [ADR 0002](adr/0002-authoritative-mechanics-and-progression.md)
 
+- **Slice:** [027 — Agent-assisted delivery orchestration](slices/027-agent-assisted-delivery-orchestration.md) — **100% complete; documentation checks and full-suite validation passed**
+  - **Feature:** [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [game-vision map](../.scratch/game-vision/map.md) (Delivery workflow / Handoff rule)
+  - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
+
 #### Phase 10 — Authoritative runtime and action input
 
 - **Slice:** [012 — Server-authoritative melee strike and hit registration](slices/012-authoritative-melee-strike.md) — **100% complete; focused and full-suite validation passed**
@@ -386,13 +395,14 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   needs the runtime-boundary questions in
   [game-vision issue 06](../.scratch/game-vision/issues/06-define-runtime-boundaries.md)
   resolved, which is itself blocked on the canon persistence design above.
-- [ ] Queued — Delivery workflow capabilities (Phase 7, no blockers, not yet
-  scoped as a slice): agent-assisted delivery orchestration
-  ([P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)),
-  Remote-SSH server workspace
-  ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)), and
+- [ ] Queued — Remaining delivery workflow capabilities (Phase 7): Remote-SSH
+  server workspace
+  ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)) and
   token-efficient asset quarantine
   ([P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine)).
+  Agent-assisted delivery orchestration
+  ([P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)) was
+  delivered by [Slice 027](slices/027-agent-assisted-delivery-orchestration.md).
 - [x] Starting Town map (Phase 8/9 handoff, pre-slice design): charting a
   JIT-generated hub sector with facade House/Smithy/Armor Shop/Inn structures
   and per-player house allocation. Delivered as slices: sector-blueprint
