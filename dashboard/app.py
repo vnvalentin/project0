@@ -2,10 +2,11 @@
 import html
 import os
 import re
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
@@ -33,6 +34,50 @@ def read_repo_file(name: str) -> str:
         return path.read_text(encoding="utf-8")
     except OSError:
         return ""
+
+
+RECORD_FILES = (
+    "docs/FEATURE-LIST.md",
+    "docs/PROJECT-TRACKER.md",
+    "docs/TECHNICAL-DEBT-TRACKER.md",
+    "docs/slices/SLICE-REGISTRY.md",
+)
+
+
+def _git(args: list[str]) -> tuple[int, str]:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(REPO), "-c", "safe.directory=*", *args],
+            capture_output=True, text=True, timeout=5,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", "HOME": "/tmp"},
+        )
+        return proc.returncode, proc.stdout
+    except (OSError, subprocess.SubprocessError):
+        return 1, ""
+
+
+def read_committed_file(name: str) -> str:
+    # Render last-committed truth, not the live half-merged working tree.
+    path = (REPO / name).resolve()
+    if REPO.resolve() not in path.parents:
+        return ""
+    rc, out = _git(["show", f"HEAD:{name}"])
+    return out if rc == 0 else read_repo_file(name)
+
+
+def calibration() -> dict:
+    rc, out = _git(["log", "-1", "--format=%h\t%s"])
+    sha, subject = "", ""
+    if rc == 0 and "\t" in out:
+        sha, subject = out.strip().split("\t", 1)
+    _, diff = _git(["diff", "--name-only", "HEAD", "--", *RECORD_FILES])
+    dirty = [line.strip() for line in diff.splitlines() if line.strip()]
+    _, others = _git(["ls-files", "--others", "--exclude-standard"])
+    _, tracked = _git(["diff", "--name-only", "HEAD"])
+    in_flight = sum(1 for line in others.splitlines() if line.strip())
+    in_flight += sum(1 for line in tracked.splitlines() if line.strip())
+    return {"sha": sha, "subject": subject, "dirty_records": dirty,
+            "in_flight": in_flight, "available": bool(sha)}
 
 
 def list_repo_dir(rel: str) -> list[str]:
@@ -137,8 +182,8 @@ def feature_stage(status: str) -> str:
     return "Planned"
 
 
-def feature_cards() -> list[dict]:
-    text = read_repo_file("docs/FEATURE-LIST.md")
+def feature_cards(reader=read_committed_file) -> list[dict]:
+    text = reader("docs/FEATURE-LIST.md")
     cards = []
     for match in re.finditer(r"^### ((?:IP|P|F)-\d+):\s*(.+?)[ \t]*$\n([\s\S]*?)(?=^### |\Z)", text, re.M):
         fid, title, body = match.group(1), match.group(2).strip(), match.group(3)
@@ -233,13 +278,118 @@ def action_items(phases: list[dict[str, str]], debts: list[dict[str, str]], slic
     return actions
 
 
-def snapshot() -> dict:
-    tracker = read_repo_file("docs/PROJECT-TRACKER.md")
-    debt = read_repo_file("docs/TECHNICAL-DEBT-TRACKER.md")
+def phase_progress_map(tracker: str) -> dict:
+    out = {}
+    for m in re.finditer(r"\*\*Phase (\d+)\s*[—-]\s*([^*]+?)\*\*\s+Progress:\s*\*\*(\d+)%\*\*", tracker):
+        out[int(m.group(1))] = {"title": m.group(2).strip(), "progress": int(m.group(3))}
+    return out
+
+
+def current_slice_numbers(tracker: str) -> set:
+    return {int(n) for n in re.findall(r"\*\*Current slice:\*\* \[(\d+)", tracker)}
+
+
+def slice_index_rows(tracker: str) -> list[dict]:
+    # Walk the whole tracker, tracking phase context from both the work-index
+    # (**Phase N — Title**) and slice-index (#### Phase N — Title) headers, and
+    # collect every Slice/Current slice entry deduped by number.
+    rows: dict[int, dict] = {}
+    phase_num, phase_title, last = 0, "", None
+    for line in tracker.splitlines():
+        h = re.match(r"^#{3,4} Phase (\d+)\s*[—-]\s*(.+)$", line) or re.match(r"^\*\*Phase (\d+)\s*[—-]\s*(.+?)\*\*", line)
+        if h:
+            phase_num, phase_title, last = int(h.group(1)), h.group(2).strip(), None
+            continue
+        s = re.match(r"^- \*\*(?:Current s|S)lice:\*\* \[(\d+)\s*[—-]\s*([^\]]+)\]\([^)]*\)(?:\s*[—-]\s*\*\*([^*]+)\*\*)?", line)
+        if s:
+            num, status = int(s.group(1)), (s.group(3) or "").strip()
+            row = rows.get(num)
+            if row is None:
+                rows[num] = {"num": num, "title": s.group(2).strip(), "status_text": status,
+                             "phase_num": phase_num, "phase_title": phase_title,
+                             "feature": "", "done": "100% complete" in status}
+            elif status and not row["status_text"]:
+                row["status_text"], row["done"] = status, "100% complete" in status
+            last = num
+            continue
+        f = re.match(r"^\s*- \*\*Features?:\*\* \[([A-Za-z]+-\d+)\]", line)
+        if f and last is not None and not rows[last]["feature"]:
+            rows[last]["feature"] = f.group(1)
+    return list(rows.values())
+
+
+def _phase_wave_rank(phase_num: int, features: set) -> int:
+    pat = re.compile(rf"Phase {phase_num}\b")
+
+    def hit(blob: str) -> bool:
+        return bool(pat.search(blob)) or any(
+            re.search(rf"(?<![A-Za-z]){re.escape(fid)}\b", blob) for fid in features)
+
+    waves = DELIVERY_ROADMAP["waves"]
+    for i, w in enumerate(waves):
+        blob = w["title"] + " " + w["note"] + " " + " ".join(
+            t["name"] + " " + t["feat"] + " " + " ".join(t["steps"]) for t in w["tracks"])
+        if hit(blob):
+            return i
+    par = " ".join(p["name"] + " " + p["feat"] + " " + p["note"] for p in DELIVERY_ROADMAP["parallel"])
+    if hit(par):
+        return len(waves)
+    return 100 + phase_num
+
+
+def next_slice_to_create(tracker: str) -> dict:
+    m = re.search(r"^## Work queue\n([\s\S]*?)(?=\n## |\Z)", tracker, re.M)
+    if not m:
+        return {}
+    section = m.group(1)
+    pick, label = None, "Ready"
+    for lbl in ("Ready", "Queued"):
+        hit = re.search(rf"^- \[ \]\s*{lbl}\s*[—-]\s*([\s\S]*?)(?=\n- \[|\Z)", section, re.M)
+        if hit:
+            pick, label = hit, lbl
+            break
+    if not pick:
+        return {}
+    text = " ".join(pick.group(1).split())
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    concise = re.split(r"(?<=[.:])\s", text, 1)[0]
+    feats = list(dict.fromkeys(re.findall(r"\b((?:F|IP|P)-\d+)\b", text)))
+    phase = re.search(r"Phase (\d+)", text)
+    return {"label": label, "text": concise[:240], "features": feats[:4],
+            "phase": phase.group(1) if phase else ""}
+
+
+def build_slice_lane(tracker: str) -> dict:
+    rows = slice_index_rows(tracker)
+    currents = current_slice_numbers(tracker)
+    prog = phase_progress_map(tracker)
+    by_phase: dict[int, list] = {}
+    for r in rows:
+        r["current"] = r["num"] in currents
+        by_phase.setdefault(r["phase_num"], []).append(r)
+    phases = []
+    for pn, slices in by_phase.items():
+        feats = {s["feature"] for s in slices if s["feature"]}
+        slices.sort(key=lambda s: s["num"])
+        meta = prog.get(pn, {})
+        rank = _phase_wave_rank(pn, feats)
+        if rank >= 100 and meta.get("progress") == 100:
+            rank += 100  # fully-delivered phases sink below unfinished ones
+        phases.append({"num": pn, "title": meta.get("title") or (slices[0]["phase_title"] if slices else ""),
+                       "progress": meta.get("progress"), "slices": slices, "rank": rank})
+    phases.sort(key=lambda p: (p["rank"], p["num"]))
+    return {"phases": phases, "next_slice": next_slice_to_create(tracker)}
+
+
+def snapshot(view: str = "committed") -> dict:
+    reader = read_repo_file if view == "working" else read_committed_file
+    tracker = reader("docs/PROJECT-TRACKER.md")
+    debt = reader("docs/TECHNICAL-DEBT-TRACKER.md")
     phases = phase_rows(tracker)
     slices = slice_cards(tracker) + queue_items(tracker)
     debts = debt_cards(debt)
-    return {"phases": phases, "slices": slices, "debts": debts, "goals": goal_maps(), "features": feature_cards(), "actions": action_items(phases, debts, slices)}
+    return {"phases": phases, "slices": slices, "debts": debts, "goals": goal_maps(), "features": feature_cards(reader), "actions": action_items(phases, debts, slices), "calibration": calibration(), "slice_lane": build_slice_lane(tracker), "view": view}
 
 
 def esc(value: str) -> str:
@@ -250,14 +400,95 @@ def card(title: str, body: str, css: str = "") -> str:
     return f'<article class="card {css}"><h3>{esc(title)}</h3><p>{esc(body)}</p></article>'
 
 
+def roadmap_step_li(step: str, force_done: bool = False) -> str:
+    had_marker = re.search("\u2014 done\\.?$", step) is not None
+    label = re.sub("\\s*\u2014 done\\.?$", "", step)
+    done = force_done or had_marker
+    icon = "\u2713" if done else "\u25cb"
+    cls = "sdone" if done else ""
+    return f'<li class="{cls}"><span class="si">{icon}</span>{esc(label)}</li>'
+
+
+def track_card(track: dict, force_done: bool = False) -> str:
+    steps = "".join(roadmap_step_li(step, force_done) for step in track["steps"])
+    return (
+        f'<div class="rtrack"><div class="rtrack-h"><strong>{esc(track["name"])}</strong>'
+        f'<span class="rfeat">{esc(track["feat"])}</span></div><ul class="rsteps">{steps}</ul></div>'
+    )
+
+
+# Extra CSS for the "do this next" hero and done/next/queued roadmap states.
+PRIORITY_CSS = (
+    ".hero { background:linear-gradient(180deg,#13212b,#16242f); border:1px solid var(--cyan); "
+    "border-left:6px solid var(--cyan); border-radius:10px; padding:16px 18px 18px; margin-bottom:22px; "
+    "box-shadow:0 0 0 1px rgba(88,212,232,.15),0 6px 22px rgba(0,0,0,.35); }"
+    ".hero-tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.14em; "
+    "text-transform:uppercase; color:#0b1118; background:var(--cyan); padding:3px 10px; border-radius:12px; margin-bottom:12px; }"
+    ".hero-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }"
+    ".hero-head h2 { margin:0; font-size:21px; color:var(--text); }"
+    ".hero-wn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; "
+    "border-radius:50%; background:var(--cyan); color:#0b1118; font-weight:800; font-size:16px; flex:none; }"
+    ".hero-of { margin-left:auto; font-size:11px; color:var(--muted); white-space:nowrap; }"
+    ".hero-note { font-size:13px; color:var(--muted); margin:10px 0 12px; }"
+    ".hero-par { font-size:11px; color:var(--muted); margin-top:12px; border-top:1px dashed var(--line); padding-top:10px; }"
+    ".hero.done { border-color:var(--green); border-left-color:var(--green); }"
+    ".hero.done .hero-tag { background:var(--green); }"
+    ".wbadge { font-size:11px; font-weight:700; letter-spacing:.04em; padding:2px 9px; border-radius:12px; "
+    "text-transform:uppercase; flex:none; }"
+    ".wbadge.done { background:rgba(84,209,138,.16); color:var(--green); border:1px solid var(--green); }"
+    ".wbadge.next { background:var(--cyan); color:#0b1118; border:1px solid var(--cyan); }"
+    ".wbadge.queued { background:transparent; color:var(--muted); border:1px solid var(--line); }"
+    ".wave.done { opacity:.72; }"
+    ".wave.done .wn { background:var(--green); }"
+    ".wave.done .wave-h h3 { color:var(--muted); }"
+    ".wave.next { border-color:var(--cyan); border-left:4px solid var(--cyan); box-shadow:0 0 0 1px rgba(88,212,232,.18); }"
+    ".wave.next .wn { background:var(--cyan); }"
+    ".wave.queued .wn { background:var(--muted); color:#0b1118; }"
+    ".wave-h h3 { margin-right:4px; }"
+    ".rtrack ul.rsteps { list-style:none; padding-left:2px; margin:6px 0 0; }"
+    ".rtrack ul.rsteps li { display:flex; gap:7px; align-items:flex-start; margin:3px 0; font-size:12px; color:var(--muted); }"
+    ".rtrack ul.rsteps li .si { font-size:12px; line-height:1.45; flex:none; color:var(--muted); }"
+    ".rtrack ul.rsteps li.sdone { color:var(--text); }"
+    ".rtrack ul.rsteps li.sdone .si { color:var(--green); font-weight:700; }"
+    ".calib { font-size:12px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:14px; }"
+    ".calib.warn { border-color:var(--amber); background:#332619; color:#ffe0a0; }"
+    ".calib code { color:var(--cyan); }"
+    ".sl { margin-bottom:22px; }"
+    ".nextslice { background:#122a1e; border:1px solid var(--green); border-left:5px solid var(--green); border-radius:8px; padding:12px 14px; margin-bottom:14px; }"
+    ".ns-tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#0b1118; background:var(--green); padding:2px 9px; border-radius:12px; margin-bottom:8px; }"
+    ".nextslice p { color:var(--text); font-size:13px; margin:4px 0 8px; }"
+    ".planes { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:12px; align-items:start; }"
+    ".plane { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }"
+    ".plane-h { display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }"
+    ".plane-h h3 { margin:0; font-size:13px; color:var(--cyan); }"
+    ".pl-prog { font-size:12px; color:var(--muted); flex:none; }"
+    ".slrows { display:flex; flex-direction:column; gap:4px; }"
+    ".slrow { display:flex; align-items:baseline; gap:8px; font-size:12px; padding:4px 7px; border-radius:5px; border-left:3px solid var(--line); background:#1a2430; }"
+    ".slrow.done { border-left-color:var(--green); }"
+    ".slrow.done .sltitle { color:var(--muted); }"
+    ".slrow.active { border-left-color:var(--amber); }"
+    ".slrow.current { box-shadow:0 0 0 1px var(--cyan); border-left-color:var(--cyan); }"
+    ".slnum { font-family:monospace; color:var(--muted); flex:none; }"
+    ".sltitle { flex:1; color:var(--text); }"
+    ".sl-feat { font-size:10px; color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:1px 6px; flex:none; }"
+    ".sl-cur { font-size:10px; color:var(--cyan); border:1px solid var(--cyan); border-radius:8px; padding:1px 6px; margin-left:6px; }"
+    ".hdr-right { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }"
+    ".viewtoggle { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; }"
+    ".viewtoggle .vt { font-size:12px; padding:5px 12px; color:var(--muted); text-decoration:none; background:var(--panel); }"
+    ".viewtoggle .vt + .vt { border-left:1px solid var(--line); }"
+    ".viewtoggle .vt.on { background:var(--cyan); color:#0b1118; font-weight:700; }"
+    ".calib-link { color:var(--cyan); text-decoration:none; white-space:nowrap; }"
+)
+
+
 # Recommended finish order. Waves run top-to-bottom (sequential); tracks inside a
 # wave with >1 entry run in parallel. Kept in the viz tool as the orchestration
 # layer's recommendation, not (yet) promoted into PROJECT-TRACKER.
 DELIVERY_ROADMAP = {
     "waves": [
         {
-            "n": "1", "title": "Finish the combat loop & solid village",
-            "note": "Done \u2014 monster combat is GUI-confirmed (Slice 033); the monster-RPC blocker was a stale-server method-table artifact, not code (Slice 032 re-run reaches 'player spawned').",
+            "n": "1", "title": "Finish the combat loop & solid village", "done": True,
+            "note": "Monster combat is GUI-confirmed (Slice 033); the monster-RPC blocker was a stale-server method-table artifact, not code (Slice 032 re-run reaches 'player spawned').",
             "tracks": [
                 {"name": "Combat loop", "feat": "IP-023 \u00b7 IP-015", "steps": [
                     "Server damage/death (029) + client render (033) \u2014 done",
@@ -267,8 +498,8 @@ DELIVERY_ROADMAP = {
             ],
         },
         {
-            "n": "2", "title": "Lock cross-cutting decisions \u2014 done",
-            "note": "Complete. World-scale contract landed (F-028 / ADR 0003); player-accounts design resolved (all 6 tickets, spec.md, new Phase 14).",
+            "n": "2", "title": "Lock cross-cutting decisions", "done": True,
+            "note": "World-scale contract landed (F-028 / ADR 0003); player-accounts design resolved (all 6 tickets, spec.md, new Phase 14).",
             "tracks": [
                 {"name": "World-scale", "feat": "F-028 \u00b7 ADR 0003", "steps": [
                     "1 unit = 1 yard; Sector \u2248 \u00bc mile \u2014 done",
@@ -287,11 +518,12 @@ DELIVERY_ROADMAP = {
             ],
         },
         {
-            "n": "4", "title": "Shared SQLite persistence foundation",
-            "note": "Linchpin \u2014 build ONCE. Consumed by accounts, Canon, and progression.",
+            "n": "4", "title": "Shared SQLite persistence foundation", "done": True,
+            "note": "Linchpin, built once (Slice 038, F-029): one server-owned SQLite engine consumed by accounts, Canon, and progression. Engine only \u2014 no domain tables yet.",
             "tracks": [
                 {"name": "SQLite engine", "feat": "Phase 9 core \u00b7 accounts core", "steps": [
-                    "godot-sqlite GDExtension (headless)", "Atomic tx + user_version fail-closed, server-owned"]},
+                    "godot-sqlite GDExtension (headless) \u2014 done",
+                    "Atomic tx + user_version fail-closed, server-owned \u2014 done"]},
             ],
         },
         {
@@ -325,8 +557,8 @@ DELIVERY_ROADMAP = {
     "parallel": [
         {"name": "Public access \u2014 WireGuard", "feat": "P-024 \u00b7 Phase 13",
          "note": "Independent files (infra/, ci/, Go GDExtension). Already advancing (Slices 028 \u2192 032)."},
-        {"name": "Workflow fillers", "feat": "P-005 \u00b7 P-006 \u00b7 DT-006",
-         "note": "Remote-SSH, asset quarantine, test migration \u2014 low-risk, anytime."},
+        {"name": "Workflow fillers", "feat": "P-005 \u00b7 P-006 \u00b7 DT-006 (resolved)",
+         "note": "Remote-SSH, asset quarantine \u2014 low-risk, anytime. Test migration (DT-006) done via Slice 041."},
     ],
     "sequence_rules": [
         "World-scale ADR \u2192 migration \u2192 any further big generation/bounds work.",
@@ -339,8 +571,9 @@ DELIVERY_ROADMAP = {
 }
 
 
-def render() -> str:
-    data = snapshot()
+def render(view: str = "committed") -> str:
+    data = snapshot(view)
+    working_view = data["view"] == "working"
 
     features = data["features"]
     stage_order = ["Planned", "Ready", "Active", "Done"]
@@ -358,7 +591,8 @@ def render() -> str:
         )
 
     column_html = ""
-    for name in stage_order:
+    board_stages = [name for name in stage_order if name != "Done"] if working_view else stage_order
+    for name in board_stages:
         items = fcols[name]
         body = "".join(feature_card(feat) for feat in items) or '<p class="empty">Nothing here</p>'
         column_html += f'<section class="column"><h2>{esc(name)} <span>{len(items)}</span></h2>{body}</section>'
@@ -398,21 +632,27 @@ def render() -> str:
         f'<div class="stage {cls}"><span class="n">{n}</span><span class="lbl">{esc(name)}</span></div>'
         for name, n, cls in stage_defs
     )
+    waves = DELIVERY_ROADMAP["waves"]
+    next_wave = next((w for w in waves if not w.get("done")), None)
+    done_count = sum(1 for w in waves if w.get("done"))
+    wave_total = len(waves)
+
     waves_html = ""
-    for w in DELIVERY_ROADMAP["waves"]:
+    for w in waves:
         tracks = w["tracks"]
-        badge = (f'<span class="par">{len(tracks)} parallel tracks</span>'
-                 if len(tracks) > 1 else '<span class="par seq">single track</span>')
-        track_cards = ""
-        for t in tracks:
-            steps = "".join(f'<li>{esc(s)}</li>' for s in t["steps"])
-            track_cards += (
-                f'<div class="rtrack"><div class="rtrack-h"><strong>{esc(t["name"])}</strong>'
-                f'<span class="rfeat">{esc(t["feat"])}</span></div><ul>{steps}</ul></div>'
-            )
+        is_done = bool(w.get("done"))
+        if is_done:
+            state, sbadge = "done", '<span class="wbadge done">\u2713 Done</span>'
+        elif w is next_wave:
+            state, sbadge = "next", '<span class="wbadge next">\u25b6 Do next</span>'
+        else:
+            state, sbadge = "queued", '<span class="wbadge queued">Queued</span>'
+        par = (f'<span class="par">{len(tracks)} parallel tracks</span>'
+               if len(tracks) > 1 else '<span class="par seq">single track</span>')
+        track_cards = "".join(track_card(t, is_done) for t in tracks)
         waves_html += (
-            f'<div class="wave"><div class="wave-h"><span class="wn">{esc(w["n"])}</span>'
-            f'<h3>{esc(w["title"])}</h3>{badge}</div>'
+            f'<div class="wave {state}"><div class="wave-h"><span class="wn">{esc(w["n"])}</span>'
+            f'{sbadge}<h3>{esc(w["title"])}</h3>{par}</div>'
             f'<p class="wnote">{esc(w["note"])}</p>'
             f'<div class="rtracks">{track_cards}</div></div>'
         )
@@ -422,6 +662,90 @@ def render() -> str:
         for p in DELIVERY_ROADMAP["parallel"]
     )
     seq_html = "".join(f'<li>{esc(r)}</li>' for r in DELIVERY_ROADMAP["sequence_rules"])
+
+    if next_wave:
+        hero_tracks = "".join(track_card(t) for t in next_wave["tracks"])
+        hero_par = " \u00b7 ".join(esc(p["name"]) for p in DELIVERY_ROADMAP["parallel"])
+        hero_html = (
+            f'<section class="hero"><span class="hero-tag">\u25b6 Do this next</span>'
+            f'<div class="hero-head"><span class="hero-wn">{esc(next_wave["n"])}</span>'
+            f'<h2>{esc(next_wave["title"])}</h2>'
+            f'<span class="hero-of">wave {esc(next_wave["n"])} of {wave_total} \u00b7 {done_count} done</span></div>'
+            f'<p class="hero-note">{esc(next_wave["note"])}</p>'
+            f'<div class="rtracks">{hero_tracks}</div>'
+            f'<p class="hero-par">Safe to run in parallel: {hero_par}</p></section>'
+        )
+    else:
+        hero_html = (
+            '<section class="hero done"><span class="hero-tag">\u2713 All waves complete</span>'
+            '<p class="hero-note">Every delivery-roadmap wave is done. Pick the next goal from the vetting roadmap below.</p></section>'
+        )
+
+    calib = data["calibration"]
+    if not calib["available"]:
+        calib_html = '<div class="calib">Showing the working tree (git unavailable in this environment).</div>'
+    elif working_view:
+        files = ", ".join(esc(f.rsplit("/", 1)[-1]) for f in calib["dirty_records"]) or "none"
+        calib_html = (
+            f'<div class="calib warn"><strong>\u26a0 Live working tree \u2014 unfinished work only</strong> \u2014 includes uncommitted edits and '
+            f'may be mid-slice; done items are hidden. Dirty record files: {files}. {calib["in_flight"]} file(s) in flight total.</div>'
+        )
+    else:
+        src = f'board reflects committed <code>{esc(calib["sha"])}</code> \u00b7 {esc(calib["subject"][:70])}'
+        if calib["dirty_records"]:
+            files = ", ".join(esc(f.rsplit("/", 1)[-1]) for f in calib["dirty_records"])
+            calib_html = (
+                f'<div class="calib warn"><strong>\u26a0 {len(calib["dirty_records"])} record file(s) uncommitted / in-flight</strong> '
+                f'\u2014 not reflected below: {files}. {calib["in_flight"]} file(s) in flight total. The {src}. '
+                f'<a class="calib-link" href="/?view=working">View working tree \u2192</a></div>'
+            )
+        else:
+            calib_html = (
+                f'<div class="calib"><strong>\u2713 Records clean</strong> \u2014 the {src}. '
+                f'{calib["in_flight"]} non-record file(s) in flight.</div>'
+            )
+
+    lane = data["slice_lane"]
+    ns = lane["next_slice"]
+    if ns:
+        ns_feats = "".join(f'<span class="itag">{esc(f)}</span>' for f in ns["features"])
+        ns_ph = f' \u00b7 Phase {esc(ns["phase"])}' if ns["phase"] else ""
+        next_slice_html = (
+            f'<div class="nextslice"><span class="ns-tag">Next slice to create</span>'
+            f'<p>{esc(ns["text"])}</p>'
+            f'<div class="itags">{ns_feats}<span class="itag none">{esc(ns["label"])}{ns_ph}</span></div></div>'
+        )
+    else:
+        next_slice_html = ''
+    plane_html = ""
+    for p in lane["phases"]:
+        plane_slices = [s for s in p["slices"] if not s["done"]] if working_view else p["slices"]
+        if working_view and not plane_slices:
+            continue
+        srows = ""
+        for s in plane_slices:
+            cls = "done" if s["done"] else "active"
+            cur = ' current' if s["current"] else ''
+            feat = f'<span class="sl-feat">{esc(s["feature"])}</span>' if s["feature"] else ''
+            mark = '\u2713 ' if s["done"] else ''
+            curlbl = '<span class="sl-cur">current</span>' if s["current"] else ''
+            srows += (
+                f'<div class="slrow {cls}{cur}" title="{esc(s["status_text"])}">'
+                f'<span class="slnum">{s["num"]:03d}</span>'
+                f'<span class="sltitle">{mark}{esc(s["title"])}{curlbl}</span>{feat}</div>'
+            )
+        prog = f'<span class="pl-prog">{p["progress"]}%</span>' if p["progress"] is not None else ''
+        plane_html += (
+            f'<div class="plane"><div class="plane-h"><h3>Phase {p["num"]} \u00b7 {esc(p["title"])}</h3>{prog}</div>'
+            f'<div class="slrows">{srows}</div></div>'
+        )
+    slices_html = next_slice_html + f'<div class="planes">{plane_html}</div>'
+    toggle_html = (
+        '<div class="viewtoggle">'
+        f'<a class="vt{"" if working_view else " on"}" href="/">Committed</a>'
+        f'<a class="vt{" on" if working_view else ""}" href="/?view=working">Working tree</a>'
+        '</div>'
+    )
     return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="15"><title>Project0 Flow Dashboard</title>
 <style>
@@ -431,11 +755,13 @@ def render() -> str:
 .flow {{ display:flex; align-items:stretch; gap:6px; margin-bottom:22px; flex-wrap:wrap }} .flow .stage {{ flex:1 1 0; min-width:118px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:2px }} .flow .stage .n {{ font-size:22px; font-weight:600 }} .flow .stage .lbl {{ font-size:12px; color:var(--muted) }} .flow .stage.vet {{ border-left:4px solid var(--muted) }} .flow .stage.ready {{ border-left:4px solid var(--cyan) }} .flow .stage.active {{ border-left:4px solid var(--amber) }} .flow .stage.await {{ border-left:4px solid var(--amber) }} .flow .stage.done {{ border-left:4px solid var(--green) }} .flow .arw {{ align-self:center; color:var(--muted); font-size:18px }} .sech {{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted) }}
 .itags {{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px }} .itag {{ font-size:10px; padding:2px 7px; border-radius:10px; background:#1a2430; border:1px solid var(--line); color:var(--muted) }} .itag.none {{ opacity:.6; font-style:italic }} .card.planned {{ border-left-color:var(--muted) }} .flow .stage.planned {{ border-left:4px solid var(--muted) }}
 .dr {{ margin-bottom:22px }} .waves {{ display:flex; flex-direction:column; gap:10px }} .wave {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .wave-h {{ display:flex; align-items:center; gap:10px }} .wave-h h3 {{ margin:0; font-size:14px; color:var(--text) }} .wn {{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:var(--cyan); color:#0b1118; font-weight:700; font-size:13px; flex:none }} .par {{ margin-left:auto; font-size:11px; color:var(--green); border:1px solid var(--green); border-radius:12px; padding:2px 8px }} .par.seq {{ color:var(--muted); border-color:var(--line) }} .wnote {{ font-size:12px; margin:6px 0 10px }} .rtracks {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px }} .rtrack {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--amber); border-radius:6px; padding:8px 10px }} .rtrack-h {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .rtrack-h strong {{ font-size:13px }} .rfeat {{ font-size:10px; color:var(--muted); white-space:nowrap }} .rtrack ul {{ padding-left:16px; margin:6px 0 0 }} .rtrack li {{ margin:3px 0; font-size:12px; color:var(--muted) }} .drband {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px }} .drcol {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .drcol h4 {{ margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted) }} .pcards {{ display:flex; flex-direction:column; gap:8px }} .pcard {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--green); border-radius:6px; padding:8px 10px }} .pcard p {{ font-size:12px; margin:6px 0 0 }} .seqrules {{ padding-left:18px }} .seqrules li {{ margin:5px 0; font-size:12px; color:var(--muted) }} @media(max-width:700px){{ .drband {{ grid-template-columns:1fr }} }}
+{PRIORITY_CSS}
 </style></head><body>
-<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="stamp">Read-only · refreshes every 15s</div></header>
-<main><div class="banner"><strong>Action required</strong><ul>{actions_html}</ul></div>
+<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="hdr-right">{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
+<main>{calib_html}{hero_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
-<section class="dr"><h2 class="sech">Delivery roadmap \u2014 sequence &amp; parallelization</h2><div class="waves">{waves_html}</div><div class="drband"><div class="drcol"><h4>Runs in parallel throughout</h4><div class="pcards">{par_html}</div></div><div class="drcol"><h4>Must sequence \u2014 hard deps &amp; shared files</h4><ul class="seqrules">{seq_html}</ul></div></div></section>
+<section class="dr"><h2 class="sech">Delivery roadmap \u2014 {done_count}/{wave_total} waves complete</h2><div class="waves">{waves_html}</div><div class="drband"><div class="drcol"><h4>Runs in parallel throughout</h4><div class="pcards">{par_html}</div></div><div class="drcol"><h4>Must sequence \u2014 hard deps &amp; shared files</h4><ul class="seqrules">{seq_html}</ul></div></div></section>
+<section class="sl"><h2 class="sech">Slices \u2014 what's part of what, in priority order</h2>{slices_html}</section>
 <section class="rmwrap"><h2>Vetting \u00b7 goal roadmap <span>{decided_issues}/{total_issues} issues decided \u00b7 {overall_pct}%</span></h2><div class="roadmap">{goal_html}</div></section>
 <h2 class="sech">Implementation pipeline \u2014 features correlated to their issues</h2>
 <section class="board">{column_html}</section>
@@ -446,13 +772,15 @@ def render() -> str:
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         restart_if_source_changed()
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/health":
             body = b'{"status":"ok"}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
         elif path in ("/", "/index.html"):
-            body = render().encode("utf-8")
+            view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
+            body = render(view).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:
