@@ -50,6 +50,55 @@ delivery evidence for each slice; they are not optional narrative diagrams.
 - [x] `FEATURE-LIST.md` and `TECHNICAL-DEBT-TRACKER.md` are installed with the
   initial phase work indexed here.
 
+## Delivery order and parallelization
+
+This is the recommended finish order across the remaining phases, with the
+tracks that may run in parallel and the dependencies that must be sequenced. It
+mirrors the "Delivery roadmap" panel on the Flow Dashboard (`dashboard/app.py`).
+Waves are sequential; tracks inside a wave run in parallel.
+
+1. **Finish the combat loop and make the village solid — done.** Monster
+   damage/death (Slice 029), client rendering (Slice 033, GUI-confirmed), and
+   server-side collision (F-027) are delivered. The earlier monster-position
+   RPC error was a stale-server method-table artifact, not a code defect
+   (Slice 032 re-run reaches `connected: player spawned`).
+2. **Lock cross-cutting decisions (parallel, planning only).** The world-scale
+   ADR (`.scratch/world-scale/`: 1 unit = 1 yard, Sector ~= 1/4 mile) and the
+   player-accounts + shared-persistence design (`.scratch/player-accounts/`)
+   can be charted in parallel; both are docs-only.
+3. **World-scale migration.** Introduce the versioned server-owned scale/tuning
+   seam and reconcile existing constants (mostly a relabel, low churn).
+   Sequence after the town/monster constant churn settles.
+4. **Shared SQLite persistence foundation (linchpin, build once).** One
+   server-owned SQLite engine consumed by both player-accounts and Phase 9
+   Canon; it unblocks the containerized runtime and the progression store.
+5. **Two consumers in parallel.** Player accounts and characters
+   (`.scratch/player-accounts/`) alongside Canon persistence (P-011/P-012/P-013)
+   and JIT-generation completion (IP-008 boundary detection, F-026 LLM-on-boot,
+   P-009 hardware inference). Mostly disjoint files.
+6. **Containerized fixed-tick runtime (P-014).** Needs the Phase 9 persistence
+   design and a feature-stable server.
+7. **Biological progression and kinetic systems (P-016) — last.** Largest and
+   most speculative; needs the combat loop, persistence, the locked scale, and
+   the accounts vessel seam.
+
+**Runs in parallel throughout (independent files):** public game access via
+WireGuard (P-024: `infra/`, `ci/`, the `native/wgnetstack/` GDExtension), and
+the workflow fillers (P-005 Remote-SSH, P-006 asset quarantine, DT-006 test
+migration).
+
+**Must sequence (hard dependencies or shared files):**
+
+- World-scale ADR then migration then any further large generation/bounds work.
+- SQLite engine then accounts storage, Canon storage, and progression storage.
+- Persistence design then the containerized runtime (P-014).
+- Combat loop + persistence + locked scale + accounts vessel seam then
+  biological progression (P-016).
+- Shared hot-spot files (`server/server_player_state.gd`,
+  `server/server_main.gd` connect lifecycle, `shared/sector_blueprint_schema.gd`
+  constants, `shared/monster_contracts.gd`): edit one track at a time even when
+  the tracks are otherwise parallel.
+
 ## Phases
 
 | Phase | Status | Exit gate |
@@ -68,6 +117,7 @@ delivery evidence for each slice; they are not optional narrative diagrams.
 | 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
 | 13. Public game access | in-progress | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
+| 14. Player accounts and characters | queued | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
 
 ### Phase work index
 
@@ -186,6 +236,12 @@ Progress: **0%** (0 of 3 items done)
 - Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process.
 - Tech debt: none yet.
 - **Current slice:** [034 — wgnetstack in-client GDExtension + tunnel integration (Linux)](slices/034-wgnetstack-godot-gdextension-tunnel-integration-linux.md)
+
+**Phase 14 — Player accounts and characters**
+
+Progress: **0%** (0 of 0 items done)
+
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. No feature record exists yet — per the delivery lifecycle these were `grilling`/`research` tickets that resolve into the spec, so the first `F-<n>` feature is created when the first implementation `task` slice starts. Implementation is queued and consumes the Wave 4 shared SQLite persistence foundation (one engine shared with Phase 9 Canon).
 
 ### Implementation slice index
 

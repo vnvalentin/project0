@@ -257,23 +257,25 @@ DELIVERY_ROADMAP = {
     "waves": [
         {
             "n": "1", "title": "Finish the combat loop & solid village",
-            "note": "Client rendering is built (Slice 033); last step is settling a recorded monster-position RPC blocker (also gates Slice 032).",
+            "note": "Done \u2014 monster combat is GUI-confirmed (Slice 033); the monster-RPC blocker was a stale-server method-table artifact, not code (Slice 032 re-run reaches 'player spawned').",
             "tracks": [
                 {"name": "Combat loop", "feat": "IP-023 \u00b7 IP-015", "steps": [
-                    "Server damage/death (029) + client render (033) \u2014 built",
-                    "Verify/fix monster-position RPC blocker \u2014 also blocks Slice 032"]},
+                    "Server damage/death (029) + client render (033) \u2014 done",
+                    "Monster-RPC blocker resolved \u2014 stale server, not code"]},
                 {"name": "Walkable village", "feat": "F-026 \u00b7 F-027", "steps": [
                     "Server collision (F-027) \u2014 done", "Slice 031 bigger village \u2014 done"]},
             ],
         },
         {
-            "n": "2", "title": "Lock cross-cutting decisions",
-            "note": "Planning only \u2014 parallel-safe. Cheap ADRs now prevent expensive re-churn later.",
+            "n": "2", "title": "Lock cross-cutting decisions \u2014 done",
+            "note": "Complete. World-scale contract landed (F-028 / ADR 0003); player-accounts design resolved (all 6 tickets, spec.md, new Phase 14).",
             "tracks": [
-                {"name": "World-scale ADR", "feat": "world-scale", "steps": [
-                    "1 unit = 1 yard (Imperial relabel)", "Sector \u2248 \u00bc mile; bounds policy"]},
-                {"name": "Accounts + persistence design", "feat": "player-accounts \u00b7 Phase 9", "steps": [
-                    "Finish account/character charting", "Decide ONE shared SQLite engine"]},
+                {"name": "World-scale", "feat": "F-028 \u00b7 ADR 0003", "steps": [
+                    "1 unit = 1 yard; Sector \u2248 \u00bc mile \u2014 done",
+                    "WorldScale contract shipped (Slice 036)"]},
+                {"name": "Accounts + persistence design", "feat": "player-accounts \u00b7 Phase 14", "steps": [
+                    "All 6 tickets resolved; CONTEXT reconciled \u2014 done",
+                    "Handoff spec + shared-SQLite decision \u2014 done"]},
             ],
         },
         {
