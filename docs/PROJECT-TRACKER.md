@@ -596,3 +596,9 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   validation (S3b), enrollment service (issue 04), and revocation/ban
   automation (issue 06) remain queued, unscoped work for
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
+- [ ] Ready — Player accounts and characters (Phase 14): design complete
+  (`.scratch/player-accounts/spec.md`, all six tickets resolved, `CONTEXT.md`
+  reconciled). First implementation slice = shared account/character
+  contracts; the durable store is the Wave 4 shared SQLite foundation (shared
+  with Phase 9). Self-serve registration behind the Phase 13 WireGuard gate;
+  up to 5 globally-unique, soft-deletable Characters per Account.
