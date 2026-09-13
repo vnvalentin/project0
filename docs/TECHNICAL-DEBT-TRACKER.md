@@ -53,12 +53,17 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
+None currently open.
+
+## Resolved Items
+
 ### DT-006: Remaining hand-rolled smoke tests not yet migrated to GUT
 
 - Classification: `Strategic Technical Debt`
 - Debt type: `Quality`
 - Owner: valentin.vn@gmail.com
 - Date created: 2026-09-12
+- Closure date: 2026-09-13
 - Benefit or reason: DT-002 remediated the primary liability (no test
   framework) by installing GUT and migrating Slice 001's smoke test as the
   proof-of-concept. Migrating the remaining hand-rolled
@@ -70,36 +75,79 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   orchestration, contrary to TPSA small-lot delivery; deferring it to
   incremental follow-on slices keeps each migration independently reversible
   and verifiable.
-- Impact: Those scripts remain outside the standard GUT report/CI shape
+- Impact: Those scripts remained outside the standard GUT report/CI shape
   (still individually invoked `godot --headless -s <script.gd>` checks with
   manual PASS/FAIL parsing) until migrated. No loss of coverage versus before
-  DT-002; only the reporting/tooling consistency gap remains.
+  DT-002; only the reporting/tooling consistency gap remained.
 - Remediation plan: Migrate each remaining `scripts/test_*.gd` smoke test
   into a `tests/unit/` or `tests/integration/` GUT test file, one script at a
   time, verified by `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gexit`
   (and a `tests/integration/` dir for the networking/multi-process scripts),
   deleting the superseded `scripts/test_*.gd` file in the same change that
   adds its replacement.
-- Status: `Open`
+- Status: `Resolved`
 - Phase: 1 (residual), 2, 4, 5, 8 (residual removed by this migration), 11 — carried from DT-002 for the scripts
-  still pending migration.
+  that were pending migration.
 - Links: [Project Tracker](PROJECT-TRACKER.md#implementation-slice-index),
   [Slice 002](slices/002-client-connects-to-server.md),
   [Slice 004](slices/004-authoritative-player-movement.md),
   [Slice 005](slices/005-prediction-reconciliation.md),
-  [Slice 007](slices/007-multi-peer-player-replication.md)
+  [Slice 007](slices/007-multi-peer-player-replication.md),
+  [Slice 041](slices/041-dt-006-remaining-smoke-test-gut-migration.md)
 - Rationale: Intentional, visible scope cut (migrate incrementally rather
   than as one large batch) with a known benefit (bounded, reversible slices)
   and a known remediation path (one script migrated per follow-on change).
+- Closure outcome: All five originally-named scripts are now in the standard
+  GUT report shape. `scripts/test_lan_config.gd` and the Slice 008 contract
+  script were already migrated in earlier small lots (see prior change
+  history below). [Slice 041](slices/041-dt-006-remaining-smoke-test-gut-migration.md)
+  closed the remainder: `scripts/test_sector_blueprint_contract.gd` deleted
+  as an exact duplicate of the already-migrated
+  `tests/integration/test_sector_blueprint_contract.gd`;
+  `scripts/test_ollama.gd` renamed to `scripts/probe_ollama.gd` and
+  reclassified as a manual connectivity probe (no assertions, calls a live
+  Ollama endpoint) rather than wrapped as a test; and three real-process E2E
+  harnesses (`scripts/test_prediction_reconciliation.gd`,
+  `scripts/test_multi_peer_replication.gd`,
+  `scripts/test_authoritative_melee_strike_e2e.gd`) each got a thin GUT
+  wrapper (`tests/integration/test_prediction_reconciliation_e2e.gd`,
+  `tests/integration/test_multi_peer_replication_e2e.gd`,
+  `tests/integration/test_authoritative_melee_strike_socket_e2e.gd`) that
+  shells out to the unmodified harness and asserts its exit code and `ALL
+  PASS` marker. Wrapping the melee harness surfaced a latent break: Slice 030's
+  town collision silently defeated it, because the harness's hard-coded
+  forward+left walk from `START_POSITIONS[0]` and the server's hard-coded
+  `TARGET_DUMMY_POSITION` both sit inside the starting-town hub, so town
+  geometry deflected the walk before it reached melee range — the RPC/socket
+  path itself was always fine. Fixed with an additive, default-off E2E
+  isolation seam: `PROJECT0_E2E_DISABLE_TOWN_COLLISION=1` (read in
+  `server/server_main.gd`) skips injecting the town collision map into
+  connected peers, so `ServerPlayerState`'s existing null-safe fallback
+  bypasses `resolve_move()` and restores the original flat-arena path; the
+  harness sets this variable for its own spawned child server only. Real
+  gameplay and the LAN server path are unaffected.
+- Benefit realized: Every `tests/**/test_*.gd` script — including the three
+  multi-process E2E harnesses — now reports through one standard GUT
+  run/report (`scripts/run_gut_validation.sh`, `build/validation/gut.xml`)
+  instead of separately invoked scripts with hand-parsed console output, and a
+  previously undetected melee-E2E regression from Slice 030 is now fixed and
+  covered going forward.
+- Validation evidence: `scripts/run_gut_validation.sh` exit 0;
+  `build/validation/validation-summary.json` reports
+  `"scripts_expected": 35`, `"scripts_ran": 35` (DT-007 gate satisfied). Full
+  run: 35 scripts, 251 tests, 251 passing, 954 asserts. The three new wrapper
+  testsuites each pass 1/1, including
+  `test_authoritative_melee_strike_socket_harness_passes`, whose wrapped child
+  process prints `ALL PASS`. See
+  [Slice 041](slices/041-dt-006-remaining-smoke-test-gut-migration.md) for the
+  full before/after evidence.
 - Change history: On 2026-09-12, migrated `scripts/test_lan_config.gd` to
   `tests/unit/test_lan_config.gd`; focused GUT validation passed 4/4 tests and
   8 assertions, and the full configured unit run passed 7/7 tests and 14
   assertions. Also migrated the Slice 008 contract to
   `tests/integration/test_sector_blueprint_contract.gd`; focused validation
-  passed 7/7 tests and 38 assertions. The remaining scripts stay in scope for
-  later small lots.
-
-## Resolved Items
+  passed 7/7 tests and 38 assertions. On 2026-09-13, Slice 041 closed the
+  remainder as described in the closure outcome above.
 
 ### DT-008: Per-tile StaticBody3D geometry did not scale to city size
 
@@ -173,8 +221,8 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   pass/fail report for the migrated seam.
 - Validation evidence: `godot --headless --import` (clean, no errors) then
   `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gexit`
-  → `3/3 passed`, exit 0. Remaining hand-rolled scripts are tracked for
-  incremental migration under
+  → `3/3 passed`, exit 0. Remaining hand-rolled scripts were migrated
+  incrementally and closed under
   [DT-006](#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut).
 
 ### DT-003: No interactive GUI confirmation of Slice 002's visual result

@@ -72,6 +72,14 @@ signal sector_blueprint_received(sector_id: String, outcome: String, tile_count:
 ## relay-only pattern.
 signal assigned_house_received(house_id: String)
 
+## Slice 040: emitted on the owning client with the server's authoritative
+## outcome for this client's own register/login request — an AccountHandle's
+## fields on success (never salt/hash material) or a bounded rejection reason
+## on failure. Relayed via a signal so a future login/register screen (spec
+## slice 5, not built here) decides how to present it, matching this file's
+## relay-only pattern; test/harness code may also listen to this directly.
+signal auth_result_received(outcome: String, account_id: String, username: String)
+
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
@@ -544,3 +552,78 @@ func _get_or_create_sector_geometry_container(gameplay_root: Node) -> Node3D:
 		container.name = SECTOR_GEOMETRY_CONTAINER_NAME
 		gameplay_root.add_child(container)
 	return container
+
+
+## Public seam (test/harness helper, not a UI screen — spec slice 5 owns the
+## login/register screens): submits a register request, mirroring
+## submit_input_intent's shape. A no-op before this client is connected.
+func submit_register(username: String, password: String) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_register_request_on_server", username, password)
+
+
+## Public seam (test/harness helper, matching submit_register above): submits
+## a login request. A no-op before this client is connected.
+func submit_login(username: String, password: String) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_login_request_on_server", username, password)
+
+
+## RPC target: runs only on the server's NetworkClient instance, called by a
+## connected client via submit_register() above. Reliable/any_peer, matching
+## receive_action_intent_on_server's forwarding pattern: forwards to the
+## server-only auth dispatch (server_main.gd's AuthService instance) with a
+## plain function call rather than a second RPC hop, since both live in the
+## same server process. This client never contacts the repository, hasher, or
+## session registry directly.
+@rpc("any_peer", "call_remote", "reliable")
+func receive_register_request_on_server(username: String, password: String) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var auth_service: Node = get_tree().root.get_node_or_null("AuthService")
+	if auth_service == null:
+		return
+	var result: Dictionary = await auth_service.register(sender_id, username, password)
+	_reply_auth_result(sender_id, result)
+
+
+## RPC target: mirrors receive_register_request_on_server above for
+## submit_login().
+@rpc("any_peer", "call_remote", "reliable")
+func receive_login_request_on_server(username: String, password: String) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var auth_service: Node = get_tree().root.get_node_or_null("AuthService")
+	if auth_service == null:
+		return
+	var result: Dictionary = await auth_service.login(sender_id, username, password)
+	_reply_auth_result(sender_id, result)
+
+
+## Sends the auth_result RPC back to the requesting peer only, translating
+## AuthService's result Dictionary into the wire shape: an AccountHandle's
+## fields on success, or a bounded reason with empty account fields on
+## rejection. Never forwards a "detail" string (may echo caller-supplied
+## input) over the network — only the bounded outcome/reason enum and the
+## account identity fields travel to the client.
+func _reply_auth_result(peer_id: int, result: Dictionary) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(
+		peer_id,
+		"receive_auth_result",
+		result["outcome"],
+		String(result.get("account_id", "")),
+		String(result.get("username", ""))
+	)
+
+
+## RPC target: called by the server on the requesting client only, with the
+## authoritative outcome of that client's own register/login request. Relayed
+## via a signal so a future login/register screen or test harness decides how
+## to present it, matching this file's relay-only pattern (e.g.
+## receive_auth_result never itself stores an AccountHandle client-side).
+@rpc("authority", "call_remote", "reliable")
+func receive_auth_result(outcome: String, account_id: String, username: String) -> void:
+	auth_result_received.emit(outcome, account_id, username)

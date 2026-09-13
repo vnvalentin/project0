@@ -88,6 +88,7 @@ feature so future drift is easier to detect.
     any geometry or persistence work.
     Related work: [Slice 008](slices/008-sector-blueprint-contract.md),
     [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut)
+    (resolved by [Slice 041](slices/041-dt-006-remaining-smoke-test-gut-migration.md))
     Validation: `godot --headless -s addons/gut/gut_cmdln.gd
     -gdir=res://tests/integration -gexit` passed 7/7 tests, 24 assertions,
     exit 0; the full configured GUT suite (`scripts/run_gut_validation.sh`)
@@ -160,76 +161,81 @@ for a developer to pick up. No implementation has started.
 
 ## In Progress Features
 
-### F-030: Accounts and characters persistence repository
+### F-031: Account authentication and session (server)
 
 - Status: `In Progress`
-- Feature: The server durably creates, reads, selects, and soft-deletes
-  Accounts and their Characters through one server-only repository on the
-  shared SQLite engine — enforcing username uniqueness, global live
-  Character-name uniqueness, the 5-Character cap, and ownership, with every
-  mutation atomic and fail-closed. No RPC, no password hashing, no client, no
-  world entry yet — those remain later player-accounts implementation slices.
-- Problem solved: Phase 14's spec (self-serve registration, up to 5 durable
-  Characters per Account, global live name uniqueness) has no data layer yet;
-  the Wave 4 shared SQLite engine ([F-029](#f-029-shared-server-owned-sqlite-persistence-foundation))
-  is inert until a consumer creates domain tables and a repository seam on it.
-- How it solves the problem: Slice 039 adds the pure, versioned
-  `shared/character_record.gd` (`CharacterRecord`) and
-  `shared/account_handle.gd` (`AccountHandle`) value contracts plus bounded
-  rejection enums and `display_name` validation (length 3-20, charset
-  `[A-Za-z0-9 _-]`, no leading/trailing/double spaces) — no DB handle or
-  secrets. `server/account_character_repository.gd`
-  (`class_name AccountCharacterRepository`) wraps a `SqliteStore` and creates
-  the `accounts`/`characters` tables (`ensure_schema()`, idempotent
-  `CREATE TABLE IF NOT EXISTS`), including a partial unique index on
-  `characters.display_name WHERE deleted = 0` and an index on `account_id`.
-  Every mutating operation (`create_account`, `create_character`,
-  `select_character`, `soft_delete_character`) runs inside one
-  `SqliteStore.transaction()` `BEGIN`/`COMMIT`, uses only
-  `query_with_bindings` (never string-concatenated SQL), and enforces name
-  uniqueness and the 5-cap at both the app layer (pre-check) and the DB layer
-  (partial unique index) as defense in depth, surfacing a DB-layer race loss
-  as the same bounded `NAME_TAKEN`/`USERNAME_TAKEN` reason rather than a
-  crash. The repository stores and returns the PBKDF2 credential bytes it is
-  given verbatim; it never computes or compares them.
-- Name-reservation reconciliation: ticket 06's explicit partial unique index
-  `WHERE deleted = 0` is authoritative over ticket 05's prose ("name stays
-  reserved to the Account"). A soft-deleted Character row is retained (for
-  history/possible future restore) but its `display_name` is no longer
-  reserved — any Account, including a different one, may reuse it once it is
-  the only claim on that name among live rows. See
-  [Slice 039](slices/039-accounts-characters-repository.md#reconciliation-name-reservation-across-soft-delete)
-  for the full rationale.
+- Feature: A connected peer can register a new Account or log in to an
+  existing one over the ENet link; the server verifies credentials with
+  PBKDF2-HMAC-SHA256 off the main thread, binds an opaque in-memory session to
+  the peer on success, and returns an `AccountHandle` or a bounded rejection —
+  all server-authoritative and fail-closed. Auth is additive: the existing
+  connect → (blueprint, spawn, house, replication) lifecycle is unchanged and
+  the world stays always-playable with no login required yet.
+- Problem solved: [F-030](#f-030-accounts-and-characters-persistence-repository)'s
+  repository can durably store credential bytes but has no RPC, no hashing,
+  and no session concept — nothing in the running server actually computes or
+  verifies a PBKDF2 hash, and no peer can be told "you are Account X" for the
+  lifetime of a connection.
+- How it solves the problem: Slice 040 adds `server/password_hasher.gd`
+  (`class_name PasswordHasher`) — a from-scratch RFC 8018 PBKDF2-HMAC-SHA256
+  block construction on top of Godot `Crypto.hmac_digest` (Godot has no native
+  PBKDF2), 16-byte CSPRNG salt, 32-byte key, `constant_time_compare`
+  verification — and `server/session_registry.gd` (`class_name
+  SessionRegistry`), an in-memory `peer_id -> session` binding that is never
+  persisted and is cleared on disconnect. `server/auth_service.gd`
+  (`class_name AuthService`) wires both to the F-030 repository: `register`
+  auto-authenticates on success; `login` verifies and binds a session;
+  unknown-username and wrong-password both reject with the identical
+  `BAD_CREDENTIALS` reason (no user enumeration), and the unknown-username
+  path still pays the full hashing cost so the timing is indistinguishable
+  too. `client/network_client.gd` gains additive
+  `receive_register_request_on_server`/`receive_login_request_on_server`
+  C→S RPCs and a `receive_auth_result` S→C RPC (`AccountHandle` fields only —
+  never salt/hash), following the existing
+  `receive_input_intent_on_server`/`receive_authoritative_position` pattern.
+  `server/server_main.gd` now opens a real `SqliteStore` and calls
+  `AccountCharacterRepository.ensure_schema()` at boot — the first runtime
+  consumer of the F-029/F-030 persistence stack — and fails closed (refuses to
+  start) if either step fails, matching the existing hub-fixture check.
+- Threading: PBKDF2 at a real iteration count is deliberately slow (~1s CPU on
+  this host at 100000 iterations). `AuthService.register`/`login` dispatch the
+  hash/verify call to a `WorkerThreadPool` task and `await` a
+  `process_frame` poll loop for its completion, so the authoritative
+  simulation tick and every other connected peer's movement/combat processing
+  never stall while a hash runs — see
+  [Slice 040](slices/040-account-auth-session.md#threading) for detail.
 - Phase: 14. Player accounts and characters
-- Implementation slices: [Slice 039](slices/039-accounts-characters-repository.md)
-- Public seam: `server/account_character_repository.gd`
-  (`AccountCharacterRepository.ensure_schema`, `create_account`,
-  `find_account_by_username`, `create_character`, `list_characters`,
-  `select_character`, `soft_delete_character`); `shared/character_record.gd`
-  (`CharacterRecord`, rejection enums, `is_valid_display_name`);
-  `shared/account_handle.gd` (`AccountHandle`).
-- Validation: Focused `tests/unit/test_character_record.gd` 10/10 and
-  `tests/integration/test_account_character_repository.gd` 10/10 (against a
-  temporary `user://` database per test). Full suite
-  `scripts/run_gut_validation.sh` 233/233 across 30 scripts, exit 0
-  (`scripts_expected == scripts_ran == 30`).
+- Implementation slices: [Slice 040](slices/040-account-auth-session.md)
+- Public seam: `server/password_hasher.gd` (`PasswordHasher.hash_password`,
+  `verify_password`); `server/session_registry.gd` (`SessionRegistry.bind`,
+  `is_authenticated`, `get_session`, `clear`); `server/auth_service.gd`
+  (`AuthService.register`, `login`, `is_authenticated`, `clear_session`);
+  `client/network_client.gd` (`submit_register`, `submit_login`,
+  `auth_result_received`).
+- Validation: Focused `tests/unit/test_password_hasher.gd` 7/7 (including a
+  published PBKDF2-HMAC-SHA256 known-answer vector) and
+  `tests/integration/test_account_auth_session.gd` 8/8. Full suite
+  `scripts/run_gut_validation.sh` 248/248 across 32 scripts, exit 0
+  (`scripts_expected == scripts_ran == 32`). Manual runtime boot smoke
+  confirmed the accounts DB opens/ensures schema and the server still reaches
+  `Server listening` with the existing connect lifecycle unchanged.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [player-accounts spec](../.scratch/player-accounts/spec.md),
-  [player-accounts issue 05](../.scratch/player-accounts/issues/05-character-data-model-and-lifecycle.md),
-  [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md),
-  [F-029](#f-029-shared-server-owned-sqlite-persistence-foundation) (the
-  consumed SQLite engine foundation).
+  [F-030](#f-030-accounts-and-characters-persistence-repository) (the
+  consumed repository), [F-029](#f-029-shared-server-owned-sqlite-persistence-foundation)
+  (the consumed SQLite engine foundation).
 - Change history:
   - Date: 2026-09-13
-    What changed: Opened F-030 via Slice 039 — added the shared
-    `CharacterRecord`/`AccountHandle` contracts and the server-only
-    `AccountCharacterRepository` with atomic, parameter-bound, fail-closed
-    account/character CRUD on top of the Slice 038 `SqliteStore` engine.
-    Why: Phase 14's spec needs a durable data layer before auth/RPC/client
-    slices can be built on it; this is the next unblocked slice now that the
-    Wave 4 shared SQLite foundation (F-029) is delivered.
-    Validation: Focused suites 10/10 and 10/10; full GUT suite 233/233 across
-    30 scripts, exit 0.
+    What changed: Opened F-031 via Slice 040 — added `PasswordHasher`,
+    `SessionRegistry`, `AuthService`, the additive register/login/auth_result
+    RPC seam, and `server_main.gd` boot wiring that opens the accounts SQLite
+    store and ensures its schema for the first time at runtime.
+    Why: Phase 14's spec needs real credential verification and a session
+    concept before Character CRUD (slice 4) or client screens (slice 5) can be
+    built; this is the next unblocked slice now that F-030's repository is
+    delivered.
+    Validation: Focused suites 7/7 and 8/8; full GUT suite 248/248 across 32
+    scripts, exit 0.
 
 ### P-024: Public game access via OPNsense-native WireGuard
 
@@ -710,6 +716,93 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### F-030: Accounts and characters persistence repository
+
+- Status: `Implemented`
+- Feature: The server durably creates, reads, selects, and soft-deletes
+  Accounts and their Characters through one server-only repository on the
+  shared SQLite engine — enforcing username uniqueness, global live
+  Character-name uniqueness, the 5-Character cap, and ownership, with every
+  mutation atomic and fail-closed. Slice 040 boot-wires this repository into
+  the running server for the first time (`server_main.gd` now opens the store
+  and calls `ensure_schema()` at startup); RPC/client/world-entry consumption
+  of Characters specifically remains later player-accounts slices (4-6).
+- Problem solved: Phase 14's spec (self-serve registration, up to 5 durable
+  Characters per Account, global live name uniqueness) had no data layer;
+  the Wave 4 shared SQLite engine ([F-029](#f-029-shared-server-owned-sqlite-persistence-foundation))
+  was inert until a consumer created domain tables and a repository seam on
+  it, and nothing in the running server opened that store until Slice 040.
+- How it solves the problem: Slice 039 adds the pure, versioned
+  `shared/character_record.gd` (`CharacterRecord`) and
+  `shared/account_handle.gd` (`AccountHandle`) value contracts plus bounded
+  rejection enums and `display_name` validation (length 3-20, charset
+  `[A-Za-z0-9 _-]`, no leading/trailing/double spaces) — no DB handle or
+  secrets. `server/account_character_repository.gd`
+  (`class_name AccountCharacterRepository`) wraps a `SqliteStore` and creates
+  the `accounts`/`characters` tables (`ensure_schema()`, idempotent
+  `CREATE TABLE IF NOT EXISTS`), including a partial unique index on
+  `characters.display_name WHERE deleted = 0` and an index on `account_id`.
+  Every mutating operation (`create_account`, `create_character`,
+  `select_character`, `soft_delete_character`) runs inside one
+  `SqliteStore.transaction()` `BEGIN`/`COMMIT`, uses only
+  `query_with_bindings` (never string-concatenated SQL), and enforces name
+  uniqueness and the 5-cap at both the app layer (pre-check) and the DB layer
+  (partial unique index) as defense in depth, surfacing a DB-layer race loss
+  as the same bounded `NAME_TAKEN`/`USERNAME_TAKEN` reason rather than a
+  crash. The repository stores and returns the PBKDF2 credential bytes it is
+  given verbatim; it never computes or compares them — Slice 040's
+  `PasswordHasher`/`AuthService` ([F-031](#f-031-account-authentication-and-session-server))
+  is the first real caller that computes those bytes.
+- Name-reservation reconciliation: ticket 06's explicit partial unique index
+  `WHERE deleted = 0` is authoritative over ticket 05's prose ("name stays
+  reserved to the Account"). A soft-deleted Character row is retained (for
+  history/possible future restore) but its `display_name` is no longer
+  reserved — any Account, including a different one, may reuse it once it is
+  the only claim on that name among live rows. See
+  [Slice 039](slices/039-accounts-characters-repository.md#reconciliation-name-reservation-across-soft-delete)
+  for the full rationale.
+- Phase: 14. Player accounts and characters
+- Implementation slices: [Slice 039](slices/039-accounts-characters-repository.md),
+  [Slice 040](slices/040-account-auth-session.md) (boot-wires the repository
+  into the running server for the first time)
+- Public seam: `server/account_character_repository.gd`
+  (`AccountCharacterRepository.ensure_schema`, `create_account`,
+  `find_account_by_username`, `create_character`, `list_characters`,
+  `select_character`, `soft_delete_character`); `shared/character_record.gd`
+  (`CharacterRecord`, rejection enums, `is_valid_display_name`);
+  `shared/account_handle.gd` (`AccountHandle`).
+- Validation: Focused `tests/unit/test_character_record.gd` 10/10 and
+  `tests/integration/test_account_character_repository.gd` 10/10 (against a
+  temporary `user://` database per test). Full suite
+  `scripts/run_gut_validation.sh` 248/248 across 32 scripts, exit 0
+  (`scripts_expected == scripts_ran == 32`, current as of Slice 040).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [player-accounts spec](../.scratch/player-accounts/spec.md),
+  [player-accounts issue 05](../.scratch/player-accounts/issues/05-character-data-model-and-lifecycle.md),
+  [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md),
+  [F-029](#f-029-shared-server-owned-sqlite-persistence-foundation) (the
+  consumed SQLite engine foundation), [F-031](#f-031-account-authentication-and-session-server)
+  (the first runtime consumer).
+- Change history:
+  - Date: 2026-09-13
+    What changed: Opened F-030 via Slice 039 — added the shared
+    `CharacterRecord`/`AccountHandle` contracts and the server-only
+    `AccountCharacterRepository` with atomic, parameter-bound, fail-closed
+    account/character CRUD on top of the Slice 038 `SqliteStore` engine.
+    Why: Phase 14's spec needs a durable data layer before auth/RPC/client
+    slices can be built on it; this is the next unblocked slice now that the
+    Wave 4 shared SQLite foundation (F-029) is delivered.
+    Validation: Focused suites 10/10 and 10/10; full GUT suite 233/233 across
+    30 scripts, exit 0.
+  - Date: 2026-09-13
+    What changed: Promoted F-030 to `Implemented` via Slice 040, which
+    boot-wires `server_main.gd` to open the accounts `SqliteStore` and call
+    `ensure_schema()` at startup — the repository's first runtime consumer.
+    Why: the handoff for Slice 040 named this promotion explicitly, since a
+    repository that is only ever exercised by tests is not yet a delivered
+    runtime capability; Slice 040's boot wiring closes that gap.
+    Validation: full GUT suite 248/248 across 32 scripts, exit 0.
 
 ### F-029: Shared server-owned SQLite persistence foundation
 

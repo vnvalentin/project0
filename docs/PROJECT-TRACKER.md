@@ -86,8 +86,8 @@ Waves are sequential; tracks inside a wave run in parallel.
 
 **Runs in parallel throughout (independent files):** public game access via
 WireGuard (P-024: `infra/`, `ci/`, the `native/wgnetstack/` GDExtension), and
-the workflow fillers (P-005 Remote-SSH, P-006 asset quarantine, DT-006 test
-migration).
+the workflow fillers (P-005 Remote-SSH, P-006 asset quarantine; DT-006 test
+migration is now resolved — Slice 041).
 
 **Must sequence (hard dependencies or shared files):**
 
@@ -140,10 +140,10 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 1 — First playable vertical slice**
 
-Progress: **67%** (2 of 3 items done)
+Progress: **100%** (3 of 3 items done)
 
 - Features: `done` [F-001](FEATURE-LIST.md#f-001-local-identity-gate-flat-plane-scene-and-player-movement) — local identity gate, flat-plane scene, and player movement.
-- Tech debt: `done` [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework) — GUT framework installed and Slice 001's smoke test migrated; `open` [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) — remaining hand-rolled scripts pending incremental migration.
+- Tech debt: `done` [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework) — GUT framework installed and Slice 001's smoke test migrated; `done` [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) — remaining hand-rolled scripts migrated/wrapped/reclassified (Slice 041).
 
 **Phase 2 — Network connection proof**
 
@@ -244,14 +244,14 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 14 — Player accounts and characters**
 
-Progress: **50%** (1 of 2 items done)
+Progress: **67%** (2 of 3 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the first Account/Character data-layer feature (in progress); RPC/auth/client/world-entry remain queued, unscoped follow-up slices.
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `in-progress` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029; RPC/auth/client/world-entry not yet built).
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above now reflects the shared engine foundation (done) plus the Account/Character data-layer repository (done, boot-wired by Slice 040) plus the in-progress auth/session RPC seam; Character CRUD/client/world-entry remain queued, unscoped follow-up slices.
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 9), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository) (server-only accounts/characters repository on top of F-029, boot-wired into the running server by Slice 040), `in-progress` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server) (PBKDF2 auth + in-memory session RPC seam; Character CRUD/client/world-entry not yet built).
 - Tech debt: none yet.
 
-- **Current slice:** [039 — Accounts and characters persistence repository](slices/039-accounts-characters-repository.md) — **100% complete; server-only data layer, no RPC/auth/client; focused and full-suite validation passed**
-  - **Feature:** [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository)
+- **Current slice:** [040 — Account authentication and session (server)](slices/040-account-auth-session.md) — **100% complete; additive auth/session RPC seam, no mandatory-auth gate, no client UI; focused and full-suite validation passed**
+  - **Feature:** [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server)
 
 ### Implementation slice index
 
@@ -268,13 +268,18 @@ the phase exit gate; it is not a count of completed slices.
 
 - **Slice:** [001 — Identity gate, flat plane, and player movement](slices/001-identity-gate-flat-plane-movement.md) — **100% complete**
   - **Features:** [F-001](FEATURE-LIST.md#f-001-local-identity-gate-flat-plane-scene-and-player-movement)
-  - **Tech debt:** [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework) is done; residual migration is tracked by [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut)
+  - **Tech debt:** [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework) is done; [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (residual migration) is now also done (Slice 041)
+
+- **Slice:** [041 — DT-006 remaining-smoke-test GUT migration](slices/041-dt-006-remaining-smoke-test-gut-migration.md) — **100% complete; test-tooling/records only; focused and full-suite validation passed**
+  - **Features:** none new
+  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) — resolved. Deleted the duplicate `scripts/test_sector_blueprint_contract.gd`, reclassified `scripts/test_ollama.gd` to `scripts/probe_ollama.gd`, and wrapped the three remaining real-process E2E harnesses in GUT (`tests/integration/test_prediction_reconciliation_e2e.gd`, `tests/integration/test_multi_peer_replication_e2e.gd`, `tests/integration/test_authoritative_melee_strike_socket_e2e.gd`). Wrapping the melee harness surfaced and fixed a latent Slice 030 town-collision regression via a new default-off `PROJECT0_E2E_DISABLE_TOWN_COLLISION` server env-var isolation seam.
+  - **Planning ticket:** none (technical-debt closure)
 
 #### Phase 2 — Network connection proof
 
 - **Slice:** [002 — Client connects to headless server and shows connected Player](slices/002-client-connects-to-server.md) — **100% complete**
   - **Feature:** [IP-001](FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer)
-  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result)
+  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (done, Slice 041), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result)
   - **Planning ticket:** [Connect client to server](../.scratch/game-vision/issues/07-connect-client-to-server.md)
 
 #### Phase 3 — LAN client connection
@@ -287,7 +292,7 @@ the phase exit gate; it is not a count of completed slices.
 
 - **Slice:** [004 — Server-authoritative movement for one connected Player](slices/004-authoritative-player-movement.md) — **100% complete; interactive GUI confirmation and physical two-machine LAN run verified by user**
   - **Feature:** [IP-001](FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer)
-  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003)
+  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (done, Slice 041), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003)
   - **Planning ticket:** [Authoritative Player movement](../.scratch/game-vision/issues/09-authoritative-player-movement.md)
   - **Planning ticket:** [LAN client connection](../.scratch/game-vision/issues/08-lan-client-connection.md)
 
@@ -295,7 +300,7 @@ the phase exit gate; it is not a count of completed slices.
 
 - **Slice:** [005 — Predicted local movement with authoritative reconciliation](slices/005-prediction-reconciliation.md) — **100% complete; interactive GUI confirmation and physical two-machine LAN run verified by user**
   - **Feature:** [IP-001](FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer)
-  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003)
+  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (done, Slice 041), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003)
   - **Planning ticket:** [Prediction and reconciliation](../.scratch/game-vision/issues/11-prediction-reconciliation.md)
 
 #### Phase 6 — Windows client package
@@ -307,7 +312,7 @@ the phase exit gate; it is not a count of completed slices.
 
 - **Slice:** [007 — Two-client Player replication and disconnect cleanup](slices/007-multi-peer-player-replication.md) — **100% complete; interactive GUI confirmation and physical two-machine LAN run verified by user**
   - **Feature:** [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication)
-  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003)
+  - **Tech debt:** [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (done, Slice 041), [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003)
   - **Planning ticket:** [Multi-peer Player replication](../.scratch/game-vision/issues/13-multi-peer-player-replication.md)
   - **Planning ticket:** [Windows client package](../.scratch/game-vision/issues/12-windows-client-package.md)
 
@@ -315,12 +320,12 @@ the phase exit gate; it is not a count of completed slices.
 
 - **Slice:** [008 — Async validated sector blueprint contract](slices/008-sector-blueprint-contract.md) — **100% complete; focused public-seam validation passed**
   - **Feature:** [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation)
-  - **Tech debt:** no Slice 008-specific test migration debt remains; residual [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) covers unrelated hand-rolled scripts.
+  - **Tech debt:** no Slice 008-specific test migration debt remains; [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (unrelated hand-rolled scripts) is now resolved (Slice 041).
   - **Planning ticket:** [Sector blueprint contract](../.scratch/game-vision/issues/15-sector-blueprint-contract.md)
 
 - **Slice:** [009 — Asynchronous provisional sector generation](slices/009-provisional-sector-generation.md) — **100% complete; focused and full-suite public-seam validation passed**
   - **Feature:** [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation)
-  - **Tech debt:** none new; residual [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) covers unrelated hand-rolled scripts.
+  - **Tech debt:** none new; [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) (unrelated hand-rolled scripts) is now resolved (Slice 041).
   - **Planning ticket:** [Provisional sector generation](../.scratch/game-vision/issues/16-provisional-sector-generation.md)
 
 - **Slice:** [014 — Sector blueprint schema v2: structures and spawn points](slices/014-sector-blueprint-schema-v2-structures.md) — **100% complete; focused and full-suite validation passed**
@@ -493,6 +498,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md), [player-accounts issue 05](../.scratch/player-accounts/issues/05-character-data-model-and-lifecycle.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md)
   - **Decision:** no new ADR; implements the already-accepted ticket 05/06 design with one documented reconciliation (ticket 06's partial unique index `WHERE deleted = 0` is authoritative over ticket 05's "name stays reserved" prose — see the slice record's Reconciliation section)
+- **Slice:** [040 — Account authentication and session (server)](slices/040-account-auth-session.md) — **100% complete; additive PBKDF2 auth/session RPC seam and first-runtime accounts-DB boot wiring; existing connect/spawn lifecycle unchanged; focused and full-suite validation passed**
+  - **Feature:** [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 3), [handoff-040](../.scratch/player-accounts/handoff-040-account-auth-session.md)
+  - **Decision:** no new ADR; implements the already-accepted ticket 04 design (PBKDF2-HMAC-SHA256, opaque in-memory sessions, no-enumeration `BAD_CREDENTIALS`) with one implementation-level detail — hand-rolling the RFC 8018 PBKDF2 block construction on `Crypto.hmac_digest` since Godot 4.3 has no native PBKDF2 API, proven against a published known-answer vector (see the slice record's No-ADR rationale)
 
 ## Implementation slice acceptance
 
@@ -545,6 +555,15 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   Agent-assisted delivery orchestration
   ([P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)) was
   delivered by [Slice 027](slices/027-agent-assisted-delivery-orchestration.md).
+- [x] Done — DT-006 remaining hand-rolled smoke test migration (Phase 1
+  residual, cross-cutting): the last hand-rolled `scripts/test_*.gd` scripts
+  are now closed out —
+  [Slice 041](slices/041-dt-006-remaining-smoke-test-gut-migration.md) deleted
+  the duplicate blueprint-contract script, reclassified the Ollama script as a
+  probe, and wrapped the three remaining real-process E2E harnesses in GUT,
+  fixing a latent Slice 030 town-collision regression it surfaced in the melee
+  harness along the way. See
+  [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut).
 - [x] Starting Town map (Phase 8/9 handoff, pre-slice design): charting a
   JIT-generated hub sector with facade House/Smithy/Armor Shop/Inn structures
   and per-player house allocation. Delivered as slices: sector-blueprint
@@ -631,9 +650,16 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029)
   and the `accounts`/`characters` schema and repository on top of it
   ([Slice 039](slices/039-accounts-characters-repository.md), F-030) are now
-  delivered. Still queued, unscoped: ENet RPC (register/login/list/create/
-  select/delete), PBKDF2 hashing/session objects, client login/character
-  screens, and Character -> Player `start_for_peer` instantiation (spec
-  Implementation slices 3-6). Self-serve registration behind the Phase 13
-  WireGuard gate; up to 5 globally-unique, soft-deletable Characters per
-  Account.
+  delivered.
+- [x] In progress — Player accounts and characters, auth + session (Phase 14):
+  the register/login ENet RPC seam, PBKDF2-HMAC-SHA256 hashing (off the main
+  thread), and the opaque in-memory `SessionRegistry`
+  ([Slice 040](slices/040-account-auth-session.md), F-031) are now delivered,
+  additive to the existing always-playable connect lifecycle (auth is not yet
+  mandatory for world entry). Still queued, unscoped: `list_characters`/
+  `create_character`/`select_character`/`delete_character` RPC (spec
+  Implementation slice 4), client login/character screens replacing
+  `identity_gate.tscn` (spec slice 5), and Character -> Player
+  `start_for_peer` instantiation (spec slice 6). Self-serve registration
+  behind the Phase 13 WireGuard gate; up to 5 globally-unique, soft-deletable
+  Characters per Account.

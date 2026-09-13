@@ -1,6 +1,9 @@
 extends SceneTree
-## Headless smoke test for the local Ollama connection.
-## Run with: godot --headless -s scripts/test_ollama.gd
+## Manual diagnostic probe for the local Ollama connection. Requires a live
+## Ollama server with a loaded model and real GPU inference, so it can never
+## be a deterministic, hermetic CI test (see DT-006) — it is not registered
+## with scripts/run_gut_validation.sh and must be run by hand.
+## Run with: godot --headless -s scripts/probe_ollama.gd
 
 const LocalLLMClientScript: GDScript = preload("res://shared/local_llm_client.gd")
 
@@ -24,22 +27,22 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	await _test_ollama()
+	await _probe_ollama()
 
 
-func _test_ollama() -> void:
+func _probe_ollama() -> void:
 	var client: Node = LocalLLMClientScript.new()
 	root.add_child(client)
 
-	print("[test_ollama] Sending dungeon-layout prompt to Ollama...")
+	print("[probe_ollama] Sending dungeon-layout prompt to Ollama...")
 	var result: Dictionary = await client.generate_json(TEST_PROMPT)
 
 	if result["success"]:
-		print("[test_ollama] Success. Parsed JSON blueprint:")
+		print("[probe_ollama] Success. Parsed JSON blueprint:")
 		print(JSON.stringify(result["data"], "\t"))
 	else:
-		push_error("[test_ollama] Failed: %s" % result["error"])
-		print("[test_ollama] Raw response: %s" % result["raw"])
+		push_error("[probe_ollama] Failed: %s" % result["error"])
+		print("[probe_ollama] Raw response: %s" % result["raw"])
 
 	client.queue_free()
 	quit()

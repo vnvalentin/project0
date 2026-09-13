@@ -38,6 +38,16 @@ const HouseAllocatorScript: Script = preload("res://server/house_allocator.gd")
 const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
 const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
+const AccountCharacterRepositoryScript: Script = preload("res://server/account_character_repository.gd")
+const AuthServiceScript: Script = preload("res://server/auth_service.gd")
+
+## Slice 040: the accounts/characters database file, opened at server boot
+## under user:// (never a shipped res:// asset — see SqliteStore's own rule).
+## A relative path so multiple concurrently running server instances (e.g.
+## local dev + CI) can each pass a distinct PROJECT0_ACCOUNTS_DB_PATH without
+## colliding on one file.
+const DEFAULT_ACCOUNTS_DB_PATH: String = "accounts.db"
 
 ## Maximum concurrently connected peers supported on this server instance.
 ## Additional connection attempts beyond this limit are rejected (see
@@ -99,6 +109,14 @@ var _house_allocator: Object = null
 var _monster_manager: Object = null
 var _monster_tick: int = 0
 
+## Slice 040: the shared server-owned SQLite handle and the Account/Character
+## repository/auth dispatch built on top of it. Opened/wired during
+## _start_server() before the socket opens; a DB-open failure refuses to
+## start the server (fail-closed, matching the existing hub-fixture check).
+var _accounts_store: SqliteStore = null
+var _account_repository: Object = null
+var _auth_service: Object = null
+
 ## Fixed simulation delta used to drive monster chase movement each physics
 ## frame (the SceneTree physics_frame signal carries no delta).
 const MONSTER_TICK_DELTA: float = 1.0 / 60.0
@@ -141,6 +159,32 @@ func _start_server() -> void:
 	_monster_manager.monster_respawned.connect(_on_monster_respawned)
 	physics_frame.connect(_on_physics_frame)
 	print("Spawned %d monsters outside the town." % _monster_manager.monster_count())
+
+	# Slice 040: open the shared accounts/characters SQLite store and ensure its
+	# schema before opening a socket. This is the first runtime consumer of the
+	# Slice 038/039 SqliteStore/AccountCharacterRepository seams. Fail closed
+	# (refuse to start), matching the hub-fixture check above: a DB that cannot
+	# open or whose schema cannot be ensured must never silently run with no
+	# durable accounts layer.
+	var accounts_db_path: String = OS.get_environment("PROJECT0_ACCOUNTS_DB_PATH")
+	if accounts_db_path.is_empty():
+		accounts_db_path = DEFAULT_ACCOUNTS_DB_PATH
+	_accounts_store = SqliteStoreScript.new()
+	var open_result: Dictionary = _accounts_store.open(accounts_db_path)
+	if open_result["outcome"] != SqliteStoreScript.OUTCOME_OK:
+		push_error("Refusing to start: accounts database failed to open: %s — %s" % [open_result["outcome"], open_result["detail"]])
+		quit(1)
+		return
+	_account_repository = AccountCharacterRepositoryScript.new(_accounts_store)
+	var schema_result: Dictionary = _account_repository.ensure_schema()
+	if schema_result["outcome"] != "ok":
+		push_error("Refusing to start: accounts schema failed to initialize: %s — %s" % [schema_result["outcome"], schema_result["detail"]])
+		quit(1)
+		return
+	_auth_service = AuthServiceScript.new(_account_repository)
+	_auth_service.name = "AuthService"
+	root.add_child(_auth_service)
+	print("Accounts database ready at user://%s (schema ensured)." % accounts_db_path)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
 	var server_port: int = NetworkConfigScript.resolve_server_port()
@@ -203,7 +247,13 @@ func _on_peer_connected(peer_id: int) -> void:
 	player_state.start_for_peer(peer_id, start_position)
 	player_state.set_target_dummies(_target_dummies)
 	player_state.set_monster_manager(_monster_manager)
-	player_state.set_collision_map(_town_collision)
+	# DT-006/E2E isolation seam: PROJECT0_E2E_DISABLE_TOWN_COLLISION=1 skips
+	# injecting the town collision map so ServerPlayerState's null-safe
+	# fallback (server/server_player_state.gd) leaves movement unconstrained,
+	# restoring the flat-arena path scripts/test_authoritative_melee_strike_e2e.gd
+	# depends on. Default OFF; never set on the real LAN server path.
+	if OS.get_environment("PROJECT0_E2E_DISABLE_TOWN_COLLISION") != "1":
+		player_state.set_collision_map(_town_collision)
 	_player_states[peer_id] = player_state
 
 	# Slice 019: assign this peer a unique house from the pool and tell only the
@@ -242,6 +292,11 @@ func _on_peer_connected(peer_id: int) -> void:
 ## peer to despawn that departed peer's remote representation.
 func _on_peer_disconnected(peer_id: int) -> void:
 	print("Peer disconnected: %d" % peer_id)
+	# Slice 040: clear this peer's in-memory session, if any. Sessions are
+	# never persisted, so a reconnecting peer always finds no session and must
+	# fully re-authenticate — see server/session_registry.gd.
+	if _auth_service != null:
+		_auth_service.clear_session(peer_id)
 	# Slice 019: free this peer's house back to the pool immediately (no
 	# reconnect reservation).
 	if _house_allocator != null:

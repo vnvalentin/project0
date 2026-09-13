@@ -55,8 +55,10 @@ contended range and everything after it is tracked explicitly:
 | 037 | World-scale constant relabel: meters → yards (F-028) | interactive |
 | 038 | Shared server-owned SQLite persistence foundation, Wave 4 (F-029) | interactive |
 | 039 | Accounts and characters persistence repository (F-030) | interactive |
+| 040 | Account authentication and session, server (F-031) | interactive |
+| 041 | DT-006 remaining-smoke-test GUT migration (interactive) | interactive |
 
-Next free slice: **040** (verify against `docs/slices/` before reserving).
+Next free slice: **042** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

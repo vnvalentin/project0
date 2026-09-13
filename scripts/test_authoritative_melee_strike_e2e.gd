@@ -57,6 +57,15 @@ func _assert(condition: bool, message: String) -> void:
 
 
 func _test_authoritative_melee_strike() -> void:
+	# DT-006: this harness's hard-coded forward+left walk from START_POSITIONS[0]
+	# (3,1,3) toward TARGET_DUMMY_POSITION (0,1,-2) predates Slice 030's town
+	# collision — both points now sit inside the starting-town hub, so town
+	# geometry deflects the walk before it reaches melee range. Set the E2E
+	# isolation env var (inherited by the child process below) so the spawned
+	# server skips injecting town collision, restoring the original flat-arena
+	# path this harness was written against.
+	OS.set_environment("PROJECT0_E2E_DISABLE_TOWN_COLLISION", "1")
+
 	var godot_executable: String = OS.get_executable_path()
 	_server_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", ProjectSettings.globalize_path("res://"),

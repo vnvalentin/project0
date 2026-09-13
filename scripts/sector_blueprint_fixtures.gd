@@ -4,8 +4,9 @@ class_name SectorBlueprintFixtures
 ## Each fixture is the raw text that would appear as Ollama's inner
 ## "response" field (i.e. the model's own output text, already unwrapped from
 ## the Ollama envelope) — see shared/local_llm_client.gd's _parse_response().
-## Used by scripts/test_sector_blueprint_contract.gd so validator/service
-## behavior can be asserted without any live Ollama instance.
+## Used by tests/integration/test_sector_blueprint_contract.gd so
+## validator/service behavior can be asserted without any live Ollama
+## instance.
 
 const VALID: String = """
 {
