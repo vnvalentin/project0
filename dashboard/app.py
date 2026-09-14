@@ -529,10 +529,10 @@ DELIVERY_ROADMAP = {
         },
         {
             "n": "5", "title": "Two big consumers (parallel)",
-            "note": "Both tracks well advanced. Accounts: auth/session/CRUD/world-entry landed (Slices 040-044); Linux authoritative validation is green, with Windows GUI confirmation still pending for Slice 044. Canon/JIT: IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045-047); P-009 local-inference config/telemetry (Slice 051) and F-026 LLM-on-boot + town-derived monster exclusion (Slices 052-053) Implemented \u2014 F-026 done, Phase 8 is 11/11. Remaining: P-013 GUIDs/RPC/replay and Slice 044 GUI evidence.",
+            "note": "Accounts: auth/session/CRUD/world-entry server work is implemented and validated on Linux (315/315 tests, 44/44 scripts); only Slice 044 Windows GUI evidence remains. Canon/JIT: IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045-047); P-009 local-inference config/telemetry (Slice 051) and F-026 LLM-on-boot + town-derived monster exclusion (Slices 052-053) implemented \u2014 Phase 8 is 11/11. Remaining: P-013 GUIDs/RPC/replay, Slice 044 GUI evidence, and F-035 secure-launcher live tunnel validation.",
             "tracks": [
-                {"name": "Player accounts & characters", "feat": "F-032 \u00b7 F-033", "steps": [
-                    "Auth + session (Slice 040) \u2014 done",
+                {"name": "Player accounts & characters", "feat": "F-031 \u00b7 F-032 \u00b7 F-033 \u00b7 F-034", "steps": [
+                    "Auth/session + Character CRUD/world entry (Slices 040, 042-043) \u2014 done",
                     "Character CRUD/select/create \u2192 world entry (Slices 042-043) \u2014 done; Slice 044 Windows GUI evidence pending"]},
                 {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
                     "IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045/046) \u2014 done",
