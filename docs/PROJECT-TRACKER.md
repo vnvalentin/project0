@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [062 — Operator control plane: job/audit model + service restart action](slices/062-operator-restart-action.md) — **delivered; first mutating action (POST /services/{name}/restart) behind an audited job lifecycle (requested→running→succeeded/failed) + GET /jobs; allowlisted, token-authed, fail-closed; 24 operator pytest tests**
+- **Current slice:** [063 — Operator control plane: audited mint-invite action](slices/063-operator-mint-invite-action.md) — **delivered; POST /invites mints a single-use invite as an audited job, reusing the enrollment store; secret code returned in the response but never in the audit log; 32 operator pytest tests**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [063 — Operator control plane: audited mint-invite action](slices/063-operator-mint-invite-action.md) — **delivered; POST /invites reuses the enrollment store to mint a single-use invite as an audited job; secret code in the response only, never audited; 32 operator pytest tests; GUT unaffected**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (operator control-plane decision: reuse the enrollment invite seam through the job/audit model)
+  - **Public seam:** `infra/operator/invites.py`, `infra/operator/operations.py` (`mint_invite`), `infra/operator/app.py` (`POST /invites`)
+  - **Planning ticket:** [operator control-plane decision](../.scratch/container-platform/issues/04-operator-control-plane-and-telemetry.md)
+  - **Decision:** no new ADR; reuses the enrollment invite seam behind the audited job model; secret-redaction invariant enforced by test
 
 - **Slice:** [062 — Operator control plane: job/audit model + service restart action](slices/062-operator-restart-action.md) — **delivered; audited restart job lifecycle + GET /jobs; allowlisted, token-authed, fail-closed; 24 operator pytest tests; GUT unaffected**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (operator control-plane decision: first mutating action behind the job/audit model)

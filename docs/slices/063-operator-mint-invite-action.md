@@ -1,6 +1,6 @@
 # Slice 063 — Operator control plane: audited mint-invite action
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -71,6 +71,15 @@ no real enrollment DB is touched.
   `.venv-enrollment`).
 - `scripts/check_record_sync.sh` (exit 0); GUT unaffected (Python-only).
   Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`.venv-enrollment/bin/python -m pytest infra/operator/tests` passed **32 tests**
+(24 from Slices 061–062 + 8 new: 4 `test_invites` + 4 `test_invites_api`), 0
+failures — covering the audited mint lifecycle, the secret-redaction invariant
+(the invite code never appears in the job detail or `GET /jobs`), and
+fail-closed mint failure. `scripts/check_record_sync.sh` reported 0 errors,
+exit 0. GUT unaffected (no `.gd` change).
 
 ## Root-cause learning
 
