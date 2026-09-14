@@ -42,6 +42,9 @@ native/**/*.a
 infra/enrollment/.data/
 *.sqlite3
 
+# Enrollment service deployment virtualenv (Slice 054) — host-local, never committed
+.venv-enrollment/
+
 # Windows one-click launcher payloads and local builds; payloads may contain
 # tester-specific private keys and must never enter source control.
 native/windows_launcher/payload/

@@ -1,6 +1,6 @@
 # Slice 054: Secure Windows tunnel enrollment and credential storage
 
-**Status:** In Progress (secure launcher implemented; live enrollment validation pending)
+**Status:** In Progress (secure launcher implemented; enrollment service deployed live and validated; Windows-launcher live tunnel validation pending)
 **Linked Feature:** F-035
 **Parent Feature:** P-024
 **Related Slices:** 035 (Windows tunnel package), 048 (enrollment service), 049 (revocation lifecycle)
@@ -127,12 +127,47 @@ curl -fsS http://127.0.0.1:8080/healthz
 ```
 
 The HTTPS reverse proxy should publish only `/redeem` and `/healthz` to the
-ASGI service at `127.0.0.1:8080`. After DNS and TLS are live, set the Windows
-launcher build/runtime value `PROJECT0_ENROLLMENT_URL` to
+ASGI service. After DNS and TLS are live, set the Windows launcher
+build/runtime value `PROJECT0_ENROLLMENT_URL` to
 `https://enroll.valentin.vip/redeem`.
 
-Remaining evidence is deliberately blocked until the enrollment service is
-deployed behind its live HTTPS endpoint and a fresh invite can be redeemed.
-The configured endpoint `https://enroll.valentin.vip/redeem` currently fails
-DNS resolution from this Windows environment, so no live invite or OPNsense
-mutation was attempted.
+## Live enrollment-service deployment (deployed and validated)
+
+The enrollment service is now deployed and publicly reachable, operationally
+delivered and validated by Copilot:
+
+- systemd unit `project0-enrollment.service` runs uvicorn `infra.enrollment.asgi:app`
+  bound to `192.168.1.254:8095` on the okami Linux host (port 8080 was already
+  taken by docker-proxy). Config lives at `/etc/project0/enrollment.env`
+  (mode 600); OPNsense API secrets are sourced from the host without exposure,
+  and `ENROLLMENT_SERVER_PUBLIC_KEY` is pulled live from the `project0-game`
+  WireGuard server.
+- `ENROLLMENT_WIREGUARD_ENDPOINT=192.69.180.236:51900` — the WireGuard tunnel
+  endpoint uses the static WAN IP directly. There is no `game` DNS record and
+  no DNS dependency for the WireGuard tunnel itself, by design.
+- OPNsense nginx TLS vhost `/usr/local/etc/nginx/opnsense_http_vhost_plugins/enroll-proxy.conf`
+  (listen 443 ssl, `*.valentin.vip` wildcard cert) reverse-proxies to
+  `192.168.1.254:8095`, publishing only `GET /healthz` and `POST /redeem`;
+  every other path/method returns 403.
+- OPNsense Unbound host override `enroll.valentin.vip → 192.168.1.1` (LAN
+  split-horizon) and a Cloudflare-proxied CNAME `enroll → valentin.vip` (the
+  public path rides the existing WAN-443-from-Cloudflare-IPs rule; no
+  firewall change was needed).
+
+Validation evidence:
+
+- `.venv-enrollment/bin/python -m pytest infra/enrollment/tests` → 55 passed.
+- `https://enroll.valentin.vip/healthz` through Cloudflare → HTTP/2 200
+  `{"status":"ok"}`.
+- `POST /redeem` through the Cloudflare edge → HTTP 200 with a valid peer
+  bundle (`assigned_address 10.77.0.2/32`, `endpoint 192.69.180.236:51900`),
+  i.e. a real OPNsense peer registration; then `revoke-peer` → `REVOKED`,
+  allocation released.
+- Method guard verified: `GET /redeem` → 403, `GET /` → 403.
+- No private key was ever transmitted (the client sends only the public key).
+
+This closes the service-deployment gap described above; the DNS-resolution
+failure noted earlier no longer applies. The remaining open item is the
+Windows-launcher live tunnel validation (Acceptance checks 1-7 and the
+Validation section's Windows-side `go test`/build/runtime evidence), which is
+separate from the enrollment service's own deployment and is not yet complete.
