@@ -211,7 +211,7 @@ Progress: **73%** (8 of 11 items done)
 
 **Phase 9 — Canon persistence and world mutation**
 
-Progress: **25%** (1 of 4 items done)
+Progress: **75%** (3 of 4 items done)
 
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `queued` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.

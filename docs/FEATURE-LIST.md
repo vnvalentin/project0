@@ -96,14 +96,23 @@ feature so future drift is easier to detect.
 
 ### IP-008: Just-in-time sector generation
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: The authoritative server detects when a Player enters a new sector and requests an unseen sector blueprint without blocking the multiplayer loop.
 - Problem solved: Provisional generation existed, but nothing connected it to authoritative world movement or prevented repeated requests for the same peer/sector.
 - Phase: 8. JIT world generation and local inference
 - Public seam: `server/sector_boundary_detector.gd`, `server/provisional_sector_generator.gd`, and the Canon lookup boundary.
-- Implementation slices: [Slice 009](slices/009-provisional-sector-generation.md), [Slice 046](slices/046-sector-boundary-detection.md)
-- Validation: Slice 046 proves floor-based X/Z sector mapping, per-peer transition detection, Canon suppression, duplicate-request suppression, and live server wiring. Async blueprint canonicalization remains a follow-up integration slice.
+- Implementation slices: [Slice 009](slices/009-provisional-sector-generation.md), [Slice 046](slices/046-sector-boundary-detection.md), [Slice 047](slices/047-jit-result-canonicalization-replication.md)
+- Validation: Slice 046 proves floor-based X/Z sector mapping, per-peer transition detection, Canon suppression, duplicate-request suppression, and live server wiring. Slice 047 closed the remaining async follow-up: valid generation results are canonicalized and only the stored Canon blueprint is reliably replicated to connected peers.
 - Change history:
+  - Date: 2026-09-14
+    What changed: Marked IP-008 Implemented — Slice 047 delivered the async
+    canonicalization/replication follow-up that Slice 046 named as remaining,
+    closing the boundary→generate→canonicalize→replicate loop.
+    Why: The tracker phase-8 index already badged IP-008 done; this syncs the
+    feature record to that reality and to the delivered Slice 047 evidence.
+    Related work: [Slice 047](slices/047-jit-result-canonicalization-replication.md)
+    Validation: Full GUT 282/282 across 39/39 scripts, 1073 assertions, exit 0;
+    `scripts/check_record_sync.sh` exit 0.
   - Date: 2026-09-14
     What changed: Added the authoritative sector-boundary detector that requests only unseen sectors.
     Why: Close the remaining trigger gap between validated provisional generation and live authoritative movement.
@@ -487,9 +496,12 @@ for a developer to pick up. No implementation has started.
   [Slice 035](slices/035-wgnetstack-windows-dll-client-repackage.md) delivers
   S3b: the GDExtension cross-compiled to a PE32+ Windows DLL (mingw) and bundled
   in the portable Windows client (`dist/Project0-client-windows-x64-0.7.0-tunnel.zip`),
-  so a tester runs one executable with the tunnel available. Still open: the
-  Windows *runtime* spawn-through-tunnel proof (tester-owned), the invite
-  enrollment service (issue 04), and revocation/ban automation (issue 06).
+  so a tester runs one executable with the tunnel available. Slice 035's
+  Windows *runtime* spawn-through-tunnel proof is now user-confirmed
+  (2026-09-14): a remote Windows tester ran the packaged in-process tunnel
+  client and reached the in-world state against the home-hosted authoritative
+  server over the public WAN split-tunnel. Still open: the invite enrollment
+  service (issue 04) and revocation/ban automation (issue 06).
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
 - Phase: 13. Public game access
@@ -508,9 +520,24 @@ for a developer to pick up. No implementation has started.
   `connected: player spawned` string is observed end to end against the live,
   restarted game server, with an identical direct (no-bridge) run against the
   same server confirming the earlier gap was a stale-server RPC method-table
-  mismatch rather than a bridge or monster-replication defect. Future slices
-  still owe the Windows DLL validation, `.gdextension` packaging, invite-code
-  enrollment, and peer revocation/ban teardown within one keepalive interval.
+  mismatch rather than a bridge or monster-replication defect. The Windows DLL
+  cross-compile and `.gdextension` packaging (Slice 035) are delivered, and the
+  remote-Windows WAN runtime is now user-confirmed (2026-09-14). Future slices
+  still owe invite-code enrollment and peer revocation/ban teardown within one
+  keepalive interval.
+- Change history:
+  - Date: 2026-09-14
+    What changed: Recorded the user-confirmed WAN runtime proof — a remote
+    Windows tester ran the packaged in-process tunnel client and reached the
+    in-world state over the public WAN split-tunnel, closing Slice 035's
+    tester-owned open item.
+    Why: WAN connectivity is the core Phase 13 milestone; the record must
+    reflect the confirmed runtime evidence (same basis as DT-003/DT-004
+    user-confirmed GUI/LAN runs). Invite enrollment (issue 04) and revocation
+    (issue 06) remain the open Phase 13 gate items.
+    Related work: [Slice 035](slices/035-wgnetstack-windows-dll-client-repackage.md)
+    Validation: User-confirmed remote-Windows WAN run (2026-09-14); no automated
+    GUT seam covers a live WAN hop.
 - Related work: [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md),
   [ENet netstack bridging](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md),
   [GDExtension netstack prototype](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md),

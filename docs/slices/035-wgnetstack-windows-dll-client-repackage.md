@@ -3,7 +3,8 @@
 Status: delivered (build + package: the wgnetstack GDExtension cross-compiles
 to a valid PE32+ Windows DLL and the portable Windows client package bundles
 it alongside `Project0.exe`; the Windows *runtime* spawn-through-tunnel proof
-is owned by an external tester)
+over the public WAN is now user-confirmed, 2026-09-14 — see WAN runtime proof
+below)
 
 Tracker context: Phase 13 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
@@ -103,10 +104,15 @@ copied the Windows GDExtension library next to the executable automatically.
 SConstruct restructure left the Linux extension intact — it still loads
 (`class_exists("WgNetstack") == true`, `start`/`stop` present).
 
-**Open (tester-owned).** The Windows runtime proof — the packaged client on a
-real Windows host, tunnel mode enabled, reaching `connected: player spawned`
-through the in-process tunnel over the WAN — requires a Windows machine and is
-the tester's evidence, the Windows analogue of Slice 034's Linux proof.
+**WAN runtime proof (user-confirmed 2026-09-14).** The packaged Windows tunnel
+client, launched on a real remote Windows host with tunnel mode enabled,
+connected to the home-hosted authoritative server through the in-process
+WireGuard split-tunnel over the public WAN and entered the world — the Windows
+analogue of Slice 034's Linux proof. This is the tester/user's runtime
+confirmation (same evidentiary basis as the DT-003/DT-004 user-confirmed GUI
+and two-machine LAN runs); no automated GUT seam covers a live WAN hop. Still
+owed for the full Phase 13 exit gate: invite-code enrollment (issue 04) and
+revocation/ban automation (issue 06).
 
 ## Non-goals (restated)
 
