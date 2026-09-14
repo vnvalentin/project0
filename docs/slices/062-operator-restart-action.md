@@ -1,6 +1,6 @@
 # Slice 062 — Operator control plane: job/audit model + service restart action
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -85,6 +85,15 @@ updated to pass the operations service). No real systemctl/docker call is made.
   `.venv-enrollment`).
 - `scripts/check_record_sync.sh` (exit 0); GUT unaffected (Python-only).
   Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`.venv-enrollment/bin/python -m pytest infra/operator/tests` passed **24 tests**
+(13 read-only status from Slice 061 + 11 new: 5 `test_operations` + 6
+`test_restart_api`), 0 failures — covering the audited restart lifecycle
+(succeeded/failed), fail-closed unknown service, `X-Operator` identity capture,
+and `GET /jobs`. `scripts/check_record_sync.sh` reported 0 errors, exit 0. The
+GUT suite is unaffected (no `.gd` change).
 
 ## Root-cause learning
 
