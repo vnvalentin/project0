@@ -84,4 +84,19 @@ a wrong token, 200 with the right token; `/status/{unknown}` 404;
 
 ## Root-cause learning
 
-None yet.
+Observed: `python -m pytest infra/operator/tests` failed at collection with
+`ModuleNotFoundError: No module named 'operator.tests'; 'operator' is not a
+package`.
+
+Hypothesis and check: `infra/` had no `__init__.py`, so pytest's prepend import
+mode walked up only to `operator/` and named the test module `operator.tests.*`,
+which resolves to Python's built-in stdlib `operator` module (not a package).
+Discriminating check: the enrollment package avoided this only because there is
+no stdlib module named `enrollment`.
+
+Root cause and countermeasure: a package named `operator` collides with the
+stdlib when `infra` is a namespace package. Added `infra/__init__.py` so `infra`
+is a real package and its tests import as `infra.operator.tests.*` (and
+`infra.enrollment.*`, `infra.opnsense.*`), never bare `operator`. Regression
+evidence: the operator pytest suite now collects and passes, and the existing
+enrollment suite still passes under the same import naming.
