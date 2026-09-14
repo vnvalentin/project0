@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [059 — Signed session assertion contract, issuer, and validator](slices/059-session-assertions.md) — **delivered; shared `SessionAssertion` contract + server-only HMAC-SHA256 issuer/validator (constant-time sig, issuer/audience/expiry checks); GUT 352/352 across 48/48 scripts exit 0**
+- **Current slice:** [060 — Assertion-backed session establishment in the login gateway](slices/060-assertion-session-binding.md) — **delivered; gateway mints account/selected-Character assertions and establishes a session from a validated one (Slice 059 seams wired in server_main); GUT 359/359 across 49/49 exit 0, e2e green**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [060 — Assertion-backed session establishment in the login gateway](slices/060-assertion-session-binding.md) — **delivered; issue/establish session assertions wired into the gateway (Slice 059 seams); additive, e2e green; GUT 359/359 across 49/49**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: the assertion mechanism the game server uses to trust the login authority)
+  - **Public seam:** `server/login_gateway.gd` (`set_assertion_seams`, `issue_account_assertion`, `issue_character_assertion`, `establish_session_from_assertion`); `server/server_main.gd` (issuer/validator construction from `PROJECT0_ASSERTION_SECRET`)
+  - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+  - **Decision:** no new ADR; implements the accepted login-boundary assertion mechanism (HMAC shared-secret per Slice 059)
 
 - **Slice:** [059 — Signed session assertion contract, issuer, and validator](slices/059-session-assertions.md) — **delivered; shared `SessionAssertion` + server-only HMAC-SHA256 issuer/validator; full rejection matrix tested; GUT 352/352 across 48/48; no wiring/behavior change yet**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: the signed assertion the game server validates)

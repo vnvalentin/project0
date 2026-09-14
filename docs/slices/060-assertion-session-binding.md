@@ -1,6 +1,6 @@
 # Slice 060 — Assertion-backed session establishment in the login gateway
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -88,6 +88,17 @@ issuing without a session is rejected. Existing `test_login_gateway.gd`,
 - Full GUT gate on the Linux host: `scripts/run_gut_validation.sh` (exit 0,
   including the e2e harnesses); `scripts/check_record_sync.sh` (exit 0).
   Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`scripts/run_gut_validation.sh` passed **359/359 tests across 49/49 scripts**
+(`scripts_expected == scripts_ran == 49`), exit 0 — up from 352/48 (the 7 new
+assertion-binding tests). `test_login_gateway_assertions` passed, and the
+real-server e2e harnesses (`test_multi_peer_replication_e2e`,
+`test_prediction_reconciliation_e2e`,
+`test_authoritative_melee_strike_socket_e2e`) passed, confirming the
+`server_main` boot wiring is additive and behavior-preserving.
+`scripts/check_record_sync.sh` reported 0 errors, exit 0.
 
 ## Root-cause learning
 
