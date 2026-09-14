@@ -529,13 +529,14 @@ DELIVERY_ROADMAP = {
         },
         {
             "n": "5", "title": "Two big consumers (parallel)",
-            "note": "Different domains/files \u2014 safe side by side once the engine exists.",
+            "note": "Both tracks well advanced. Accounts: auth/session/CRUD/world-entry landed (Slices 040-044). Canon: IP-008 JIT boundary + P-011/P-012 durable canon Implemented (Slices 045/046). Remaining: P-013 world mutation, F-026 LLM-on-boot, P-009 P100 inference, and final accounts validation.",
             "tracks": [
-                {"name": "Player accounts & characters", "feat": "player-accounts", "steps": [
-                    "Auth + session", "Character select/create \u2192 Player instantiation"]},
+                {"name": "Player accounts & characters", "feat": "F-032 \u00b7 F-033", "steps": [
+                    "Auth + session (Slice 040) \u2014 done",
+                    "Character CRUD/select/create \u2192 world entry (Slices 042-044) \u2014 in validation"]},
                 {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
-                    "P-011/012/013 durable sectors + mutation",
-                    "IP-008 boundary \u00b7 F-026 LLM-on \u00b7 P-009 P100 inference"]},
+                    "IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045/046) \u2014 done",
+                    "P-013 mutation \u00b7 F-026 LLM-on \u00b7 P-009 P100 inference \u2014 remaining"]},
             ],
         },
         {
