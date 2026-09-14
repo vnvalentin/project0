@@ -121,7 +121,7 @@ migration is now resolved — Slice 041).
 | 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
 | 13. Public game access | in-progress | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
-| 14. Player accounts and characters | in-progress | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
+| 14. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
 
 ### Phase work index
 
@@ -246,13 +246,13 @@ Progress: **0%** (0 of 3 items done)
 
 **Phase 14 — Player accounts and characters**
 
-Progress: **83%** (5 of 6 items done)
+Progress: **100%** (6 of 6 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. Progress above reflects: the shared engine foundation, Account/Character repository, auth/session, Character CRUD, and server-side Character world-entry binding are implemented and validated; only the client login/character screens (Slice 044) remain open for Windows GUI evidence. The mandatory-auth hard-flip and multi-peer Character replication remain queued follow-ups.
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository), `done` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server), `done` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server), `done` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), `in-progress` [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (client UI screens; Windows GUI verification pending).
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 14 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. The mandatory-auth hard-flip and multi-peer Character replication remain queued follow-ups.
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository), `done` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server), `done` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server), `done` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), `done` [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens).
 - Tech debt: none yet.
 
-- **Current slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **server validation complete at 315/315 tests across 44/44 scripts; Windows GUI verification pending**
+- **Current slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **delivered; server validation 315/315 and Windows GUI lifecycle confirmed**
   - **Features:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens)
 
 ### Implementation slice index
@@ -573,7 +573,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 6), [handoff-043](../.scratch/player-accounts/handoff-043-pregameplay-auth-character-flow.md)
   - **Decision:** no new ADR; delivers the server half of the coupled spec 5+6 flow additively (no mandatory-auth hard-flip), the client screens following as Slice 044
-- **Slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **server validation complete; account_gate and character_gate scenes + controllers wired to Phase 40-43 RPC seams; Windows GUI verification pending**
+- **Slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **delivered; server validation and Windows GUI lifecycle confirmed**
   - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (client half), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (new feature for the UI)
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 5), [handoff-044](../.scratch/player-accounts/handoff-044-client-login-character-screens.md) (if created)
