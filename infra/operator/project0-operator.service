@@ -1,0 +1,20 @@
+[Unit]
+Description=Project0 operator control plane (read-only status)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vic
+WorkingDirectory=/data/code/project0
+EnvironmentFile=/etc/project0/operator.env
+# Bound to loopback by default (see operator.env); never the public path.
+# Reuses the enrollment virtualenv (same FastAPI/uvicorn deps).
+ExecStart=/data/code/project0/.venv-enrollment/bin/uvicorn infra.operator.asgi:app --host 127.0.0.1 --port 8099 --workers 1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
