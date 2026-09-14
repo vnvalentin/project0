@@ -123,6 +123,21 @@ For GUI verification on Windows: launch client, navigate login → character sel
 - Enrollment service: 55/55 pytest cases, exit 0.
 - Record synchronization: exit 0 with six existing warnings and no errors.
 
+### Native UI Validation Tooling
+
+The repository now includes a bounded native Godot UI smoke runner:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_client_ui_smoke.ps1
+```
+
+It loads `account_gate.tscn`, `character_gate.tscn`, and `gameplay.tscn`,
+checks their required public control paths, and writes
+`build/validation/client-ui-summary.json`. A windowed Godot invocation can
+also capture scene PNGs under `build/validation/ui`; headless validation skips
+PNG capture because Godot's dummy renderer has no framebuffer image. The
+validator passed all three scene contracts on Windows with exit 0.
+
 ### GUI-Level Tests (manual, Windows verification)
 - Launch account_gate.tscn on Windows client
 - Enter username, password, server host → verify connection status updates
@@ -140,6 +155,43 @@ For GUI verification on Windows: launch client, navigate login → character sel
 3. **Spawn-deferral pattern** (defer for full queuing/scene-aware dispatch): e2e harness brittleness taught us that fragile timing logic is hard to debug on headless remote. Prefer explicit scene transitions over defensive deferral. May revisit when server broadcasts Player state before client renders scene tree.
 
 4. **Multi-peer character identity** (Phase 16): Server binds Character to peer's own Player, but doesn't yet replicate Character name/cosmetics to other peers. Gameplay doesn't render remote player display names yet.
+
+## Root-cause learning
+
+The Windows GUI pass exposed several integration failures that headless
+server-side tests did not cover:
+
+- **Scene resource/layout syntax:** the new gate scenes used invalid anchor
+   property names, referenced an external script as `SubResource`, and later
+   placed a new `ext_resource` before the `[gd_scene]` header. Godot ignored or
+   rejected these at scene load. The countermeasure was to validate actual scene
+   startup, not only standalone script checks, and to use a focused gameplay
+   scene load after every scene edit.
+- **RPC contract/casing:** the UI expected `"OK"` and a Dictionary payload,
+   while the server emitted lowercase `"ok"` and an Array of wire records. The
+   countermeasure was to validate UI handlers against the NetworkClient signal
+   declarations and the real service outcome constants.
+- **Connection lifecycle:** gameplay reopened a connection after login,
+   replacing the authenticated peer. The countermeasure was to make login own
+   the connection and guard gameplay startup against a connected session.
+- **Scene-transition state loss:** connect-time town, monster, and
+   authoritative-player RPCs arrived while Character Select was active. The
+   countermeasure was to queue/cache validated replication state and replay it
+   after gameplay enters the scene tree.
+- **Session/replay state across Character changes:** returning to Character
+   Select initially disconnected or reset selected state, and a new gameplay
+   scene reset movement sequence numbers to zero. The countermeasure was to
+   preserve the authenticated session, clear only selected Character state, and
+   allocate movement sequences from persistent NetworkClient state.
+- **Dialog/event semantics:** the delete ConfirmationDialog was not shown, and
+   its `confirmed` signal was incorrectly treated as a boolean payload. The
+   countermeasure was an interactive dialog check plus awaiting the signal
+   itself.
+
+These findings are now part of the repository-wide root-cause learning gate in
+`docs/DEVELOPMENT-WORKFLOW.md` and `AGENTS.md`. Future GUI/runtime fixes must
+add the same symptom → hypothesis → check → root cause → countermeasure →
+regression evidence record before closure.
 
 ## Slice Metadata
 

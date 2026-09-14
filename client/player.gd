@@ -62,7 +62,6 @@ class PendingInput:
 		intent = p_intent
 		delta = p_delta
 
-var _next_sequence: int = 0
 var _pending_inputs: Array[PendingInput] = []
 
 ## Slice 013: cosmetic child node showing the strike line during the
@@ -88,8 +87,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_advance_predicted_phase()
 
-	var sequence: int = _next_sequence
-	_next_sequence += 1
+	var sequence: int = NetworkClient.next_input_sequence()
 	_pending_inputs.append(PendingInput.new(sequence, planar_input, delta))
 	NetworkClient.submit_input_intent(planar_input, sequence)
 

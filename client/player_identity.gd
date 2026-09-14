@@ -13,3 +13,15 @@ var selected_character_id: String = ""
 var selected_character: Dictionary = {}
 ## Kept as the selected Character's display name for any legacy reader.
 var display_name: String = ""
+
+
+func clear_session() -> void:
+	account_id = ""
+	username = ""
+	clear_selected_character()
+
+
+func clear_selected_character() -> void:
+	selected_character_id = ""
+	selected_character = {}
+	display_name = ""

@@ -21,7 +21,6 @@ func _ready() -> void:
 	
 	# Connect UI signals
 	character_list.item_selected.connect(_on_character_selected)
-	create_dialog.confirmed.connect(_on_create_dialog_ok)
 	
 	# Immediately request character list
 	status_label.text = "Status: Loading characters..."
@@ -142,12 +141,12 @@ func _on_delete_pressed() -> void:
 	confirm.title = "Confirm Deletion"
 	confirm.dialog_text = "Delete '%s'? This cannot be undone." % name
 	add_child(confirm)
+	confirm.popup_centered()
 	
-	var confirmed = await confirm.confirmed
-	if confirmed:
-		delete_button.disabled = true
-		status_label.text = "Status: Deleting character..."
-		NetworkClient.submit_delete_character(character_id)
+	await confirm.confirmed
+	delete_button.disabled = true
+	status_label.text = "Status: Deleting character..."
+	NetworkClient.submit_delete_character(character_id)
 	
 	confirm.queue_free()
 

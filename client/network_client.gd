@@ -99,6 +99,14 @@ const SECTOR_GEOMETRY_CONTAINER_NAME: String = "SectorGeometry"
 
 var status: String = "disconnected"
 var _peer: ENetMultiplayerPeer
+var _next_input_sequence: int = 0
+var _own_player_spawn_pending: bool = false
+var _pending_sector_blueprint: Dictionary = {}
+var _latest_sector_blueprint: Dictionary = {}
+var _pending_monster_spawns: Dictionary = {}
+var _pending_monster_positions: Dictionary = {}
+var _latest_monster_spawns: Dictionary = {}
+var _latest_monster_positions: Dictionary = {}
 
 
 func _ready() -> void:
@@ -145,6 +153,18 @@ func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER
 
 	multiplayer.multiplayer_peer = _peer
 	_set_status("connecting")
+
+## Public seam: ends the current client session before returning to Character
+## selection. No server-side account state is persisted by this client action.
+func disconnect_from_server() -> void:
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer.close()
+		multiplayer.multiplayer_peer = null
+	_peer = null
+	if _tunnel != null:
+		_tunnel.stop()
+		_tunnel = null
+	_set_status("disconnected")
 
 
 ## Slice 034: when PROJECT0_TUNNEL=1, starts the in-process wgnetstack tunnel
@@ -212,8 +232,8 @@ func _set_status(new_status: String) -> void:
 @rpc("authority", "call_remote", "reliable")
 func spawn_own_player_representation() -> void:
 	var gameplay_root: Node = get_tree().current_scene
-	if gameplay_root == null:
-		push_error("NetworkClient: cannot spawn networked Player, no current_scene")
+	if not gameplay_root is Node3D:
+		_own_player_spawn_pending = true
 		return
 
 	var existing: Node = gameplay_root.get_node_or_null("NetworkedPlayer")
@@ -224,7 +244,14 @@ func spawn_own_player_representation() -> void:
 	var networked_player: Node3D = networked_player_scene.instantiate()
 	networked_player.name = "NetworkedPlayer"
 	gameplay_root.add_child(networked_player)
+	_own_player_spawn_pending = false
 	_set_status("connected: player spawned")
+
+
+func render_pending_player_representations() -> void:
+	if not _own_player_spawn_pending:
+		return
+	spawn_own_player_representation()
 
 
 ## RPC target called by the server on this client for every other connected
@@ -297,9 +324,12 @@ func _remote_player_node_name(peer_id: int) -> String:
 ## multiplayer peer or current_scene.
 @rpc("authority", "call_remote", "reliable")
 func receive_monster_spawn(target_id: String, start_position: Vector3) -> void:
+	_latest_monster_spawns[target_id] = start_position
+	_latest_monster_positions[target_id] = start_position
 	var gameplay_root: Node = get_tree().current_scene
-	if gameplay_root == null:
-		push_error("NetworkClient: cannot spawn monster %s, no current_scene" % target_id)
+	if not gameplay_root is Node3D:
+		_pending_monster_spawns[target_id] = start_position
+		_pending_monster_positions[target_id] = start_position
 		return
 	var container: Node3D = _get_or_create_monsters_container(gameplay_root)
 	spawn_monster_representation(target_id, start_position, container)
@@ -314,13 +344,29 @@ func receive_monster_spawn(target_id: String, start_position: Vector3) -> void:
 ## delivery after despawn must still be safe).
 @rpc("authority", "call_remote", "unreliable")
 func receive_monster_position(target_id: String, position: Vector3) -> void:
+	_latest_monster_positions[target_id] = position
 	var gameplay_root: Node = get_tree().current_scene
-	if gameplay_root == null:
+	if not gameplay_root is Node3D:
+		_pending_monster_positions[target_id] = position
 		return
 	var container: Node = gameplay_root.get_node_or_null(MONSTERS_CONTAINER_NAME)
 	if container == null:
+		_pending_monster_positions[target_id] = position
 		return
 	apply_monster_position(target_id, position, container)
+
+
+func render_pending_monsters() -> void:
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		return
+	var container: Node3D = _get_or_create_monsters_container(gameplay_root)
+	for target_id: String in _latest_monster_spawns:
+		spawn_monster_representation(target_id, _latest_monster_spawns[target_id], container)
+	for target_id: String in _latest_monster_positions:
+		apply_monster_position(target_id, _latest_monster_positions[target_id], container)
+	_pending_monster_spawns.clear()
+	_pending_monster_positions.clear()
 
 
 ## Public seam (static, testable): idempotently creates one node per
@@ -393,6 +439,15 @@ func submit_input_intent(intent: Vector2, sequence: int) -> void:
 	if not status.begins_with("connected"):
 		return
 	rpc_id(1, "receive_input_intent_on_server", intent, sequence)
+
+
+## Public seam: allocates the next movement-intent sequence for this client
+## session. It lives on the persistent autoload so reloading gameplay after
+## Character Select cannot reset the server's monotonic sequence boundary.
+func next_input_sequence() -> int:
+	var sequence: int = _next_input_sequence
+	_next_input_sequence += 1
+	return sequence
 
 
 ## RPC target: runs only on the server's NetworkClient instance (the peer
@@ -518,10 +573,33 @@ func receive_assigned_house(house_id: String) -> void:
 ## nothing (logged), never partial geometry.
 @rpc("authority", "call_remote", "reliable")
 func receive_sector_blueprint(blueprint: Dictionary) -> void:
+	_latest_sector_blueprint = blueprint.duplicate(true)
 	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		_pending_sector_blueprint = blueprint.duplicate(true)
+		print("Queued sector blueprint until gameplay scene is ready.")
+		return
 	if gameplay_root == null:
 		push_error("NetworkClient: cannot render sector blueprint, no current_scene")
 		return
+	_render_sector_blueprint_into_scene(gameplay_root, blueprint)
+
+
+func render_pending_sector_blueprint() -> void:
+	var blueprint: Dictionary = _latest_sector_blueprint
+	if blueprint.is_empty() and not _pending_sector_blueprint.is_empty():
+		blueprint = _pending_sector_blueprint
+	if blueprint.is_empty():
+		return
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		return
+	_pending_sector_blueprint = {}
+	print("Replaying queued sector blueprint into gameplay scene.")
+	_render_sector_blueprint_into_scene(gameplay_root, blueprint)
+
+
+func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Dictionary) -> void:
 	var container: Node3D = _get_or_create_sector_geometry_container(gameplay_root)
 	var result: Dictionary = render_sector_blueprint(blueprint, container)
 	var sector_id: String = String(blueprint.get("sector_id", ""))
