@@ -71,5 +71,27 @@ def test_restart_controller_failure_reports_failed_job():
     assert body["detail"] == "systemd boom"
 
 
+@pytest.mark.parametrize("action", ["start", "stop"])
+def test_lifecycle_action_requires_token(client, action):
+    assert client.post(f"/services/game-server/{action}").status_code == 401
+
+
+@pytest.mark.parametrize("action", ["start", "stop"])
+def test_lifecycle_action_unknown_service_is_404(client, action):
+    assert client.post(f"/services/nope/{action}", headers=_auth()).status_code == 404
+
+
+@pytest.mark.parametrize("action", ["start", "stop"])
+def test_lifecycle_action_succeeds_and_audits(client, action):
+    resp = client.post(f"/services/game-server/{action}", headers={**_auth(), "X-Operator": "carol"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "succeeded"
+    assert body["action"] == action
+    assert body["operator"] == "carol"
+    jobs = client.get("/jobs", headers=_auth()).json()["jobs"]
+    assert jobs[-1]["job_id"] == body["job_id"]
+
+
 def test_jobs_requires_token(client):
     assert client.get("/jobs").status_code == 401

@@ -36,13 +36,22 @@ class OperationsService:
         self._peers = peer_admin
 
     def restart(self, name: str, operator: str) -> Job:
+        return self._lifecycle(name, operator, "restart")
+
+    def start(self, name: str, operator: str) -> Job:
+        return self._lifecycle(name, operator, "start")
+
+    def stop(self, name: str, operator: str) -> Job:
+        return self._lifecycle(name, operator, "stop")
+
+    def _lifecycle(self, name: str, operator: str, action: str) -> Job:
         if name not in self._services:
             raise UnknownServiceError(name)
         kind, identifier = self._services[name]
 
         job = Job(
             job_id=self._id(),
-            action="restart",
+            action=action,
             target=name,
             operator=operator,
             requested_at=self._clock(),
@@ -50,12 +59,7 @@ class OperationsService:
         job.state = JobState.RUNNING
         job.started_at = self._clock()
 
-        if kind == "systemd":
-            ok, detail = self._controller.restart_systemd(identifier)
-        elif kind == "docker":
-            ok, detail = self._controller.restart_docker(identifier)
-        else:
-            ok, detail = False, "unknown service kind"
+        ok, detail = self._controller.run(kind, action, identifier)
 
         job.finished_at = self._clock()
         job.state = JobState.SUCCEEDED if ok else JobState.FAILED

@@ -1,32 +1,36 @@
-"""Mutating service control (restart) over allowlisted identifiers. Fixed
-argument vectors only — no shell, no caller-supplied command.
+"""Mutating service control (start/stop/restart) over allowlisted identifiers.
+Fixed argument vectors only — no shell, no caller-supplied command.
 """
 from __future__ import annotations
 
 import subprocess
 from typing import Protocol
 
+_LIFECYCLE_ACTIONS = ("start", "stop", "restart")
+
 
 class ServiceController(Protocol):
-    def restart_systemd(self, unit: str) -> tuple[bool, str]: ...
-    def restart_docker(self, container: str) -> tuple[bool, str]: ...
+    def run(self, kind: str, action: str, identifier: str) -> tuple[bool, str]: ...
 
 
 class RealServiceController:
-    """Runs fixed restart commands. Never used in tests.
+    """Runs fixed lifecycle commands. Never used in tests.
 
-    Restarting a systemd unit as the non-root service user requires a
+    Managing a systemd unit as the non-root service user requires a
     polkit/sudoers grant for that specific unit (an ops prerequisite); docker
-    restarts work for a user in the docker group.
+    lifecycle commands work for a user in the docker group.
     """
 
     _TIMEOUT_SECONDS = 30
 
-    def restart_systemd(self, unit: str) -> tuple[bool, str]:
-        return self._run(["systemctl", "restart", unit])
-
-    def restart_docker(self, container: str) -> tuple[bool, str]:
-        return self._run(["docker", "restart", container])
+    def run(self, kind: str, action: str, identifier: str) -> tuple[bool, str]:
+        if action not in _LIFECYCLE_ACTIONS:
+            return False, "unknown action"
+        if kind == "systemd":
+            return self._run(["systemctl", action, identifier])
+        if kind == "docker":
+            return self._run(["docker", action, identifier])
+        return False, "unknown service kind"
 
     def _run(self, argv: list[str]) -> tuple[bool, str]:
         try:
