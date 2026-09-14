@@ -99,6 +99,13 @@ Do not create implementation slices or product code while this gate is open.
 - Test at the public seam and run the narrowest relevant validation first.
 - Stop on unexpected failure, degraded health, missing evidence, or unclear
   security boundaries.
+- Root-cause learning gate: every unexpected runtime failure, user-reported
+  defect, validation failure, or integration surprise must be recorded in the
+  affected slice's `Root-cause learning` section before completion. Record the
+  symptom, public seam, falsifiable hypothesis, discriminating check,
+  confirmed root cause, why existing tests missed it, countermeasure,
+  regression evidence, and any remaining limitation or debt link. A chat or
+  terminal log alone is not durable evidence.
 - Never claim runtime behavior without runtime evidence.
 - Do not add dependencies, migrations, permissions, or external side effects
   without documenting their safety and rollback implications.

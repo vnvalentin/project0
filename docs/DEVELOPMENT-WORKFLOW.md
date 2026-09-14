@@ -147,6 +147,31 @@ failures, retries, rejections, and stop signals at the public seam. Stop on
 unexpected failure or contradictory evidence. Review scope, safety,
 specification compliance, observability, reversibility, and missing tests.
 
+## 7. Root-cause learning gate
+
+Every unexpected runtime failure, failed validation, user-reported defect, or
+integration surprise MUST produce a durable learning record before the slice,
+fix, or PR can be marked done. The record belongs in the affected slice's
+`Root-cause learning` section and, when the liability remains open, in
+`TECHNICAL-DEBT-TRACKER.md` as well. A chat message, terminal log, or commit
+message alone is not a sufficient record.
+
+Each learning record MUST state:
+
+- observed symptom and affected public seam;
+- falsifiable hypothesis and the discriminating check;
+- confirmed root cause, including why the existing tests did not catch it;
+- countermeasure and its rollback boundary;
+- regression test or executable validation added/run;
+- remaining limitation, owner, and linked follow-up when the issue is not
+   fully closed.
+
+The review gate MUST reject completion when a fix has no root-cause record,
+when the record describes only the symptom, or when a repeated failure mode
+has not been converted into a regression check or an explicit accepted
+limitation. This gate applies equally to application code, test code,
+deployment, dashboard, and workflow changes.
+
 The delivery validation itself is an observable contract. Every implementation
 slice must have an executable focused validation command, an explicit expected
 pass signal, and a machine-readable result artifact. For the current GUT unit
