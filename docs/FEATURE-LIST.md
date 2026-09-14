@@ -315,9 +315,11 @@ for a developer to pick up. No implementation has started.
 - Public seam: `account_gate.tscn`/`account_gate.gd`;
   `character_gate.tscn`/`character_gate.gd`; `player_identity.gd` new fields;
   `project.godot` run/main_scene.
-- Validation: Unit tests remain green (268/268, Slices 040-043). GUI validation:
-  Windows client launch → login with valid credentials → character select →
-  enter world → gameplay.tscn renders Player without errors.
+- Validation: Server-side dependencies remain green in the authoritative Linux
+  run at 315/315 tests across 44/44 scripts and 1224 assertions, exit 0. The
+  remaining acceptance gate is Windows GUI validation: launch the client →
+  login/register → Character roster → create/select → enter world →
+  `gameplay.tscn` renders Player without errors.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [F-033](#f-033-character-world-entry-server-binding) (consumed server seams),
   [Slice 044 SDD](slices/044-client-login-character-ui.md).
@@ -399,7 +401,7 @@ for a developer to pick up. No implementation has started.
 
 ### F-031: Account authentication and session (server)
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: A connected peer can register a new Account or log in to an
   existing one over the ENet link; the server verifies credentials with
   PBKDF2-HMAC-SHA256 off the main thread, binds an opaque in-memory session to
@@ -452,9 +454,11 @@ for a developer to pick up. No implementation has started.
   published PBKDF2-HMAC-SHA256 known-answer vector) and
   `tests/integration/test_account_auth_session.gd` 8/8. Full suite
   `scripts/run_gut_validation.sh` 248/248 across 32 scripts, exit 0
-  (`scripts_expected == scripts_ran == 32`). Manual runtime boot smoke
-  confirmed the accounts DB opens/ensures schema and the server still reaches
-  `Server listening` with the existing connect lifecycle unchanged.
+  (`scripts_expected == scripts_ran == 32`). The authoritative Linux run then
+  passed 315/315 tests across 44/44 scripts and 1224 assertions, exit 0.
+  Manual runtime boot smoke confirmed the accounts DB opens/ensures schema and
+  the server still reaches `Server listening` with the existing connect
+  lifecycle unchanged.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [player-accounts spec](../.scratch/player-accounts/spec.md),
   [F-030](#f-030-accounts-and-characters-persistence-repository) (the
