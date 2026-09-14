@@ -529,14 +529,14 @@ DELIVERY_ROADMAP = {
         },
         {
             "n": "5", "title": "Two big consumers (parallel)",
-            "note": "Both tracks well advanced. Accounts: auth/session/CRUD/world-entry landed (Slices 040-044). Canon: IP-008 JIT boundary + P-011/P-012 durable canon Implemented (Slices 045/046). Remaining: P-013 world mutation, F-026 LLM-on-boot, P-009 P100 inference, and final accounts validation.",
+            "note": "Both tracks well advanced. Accounts: auth/session/CRUD/world-entry landed (Slices 040-044). Canon/JIT: IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045-047); P-009 local-inference config/telemetry (Slice 051) and F-026 LLM-on-boot + town-derived monster exclusion (Slices 052-053) Implemented \u2014 F-026 done, Phase 8 is 11/11. Remaining: P-013 GUIDs/RPC/replay and final accounts validation.",
             "tracks": [
                 {"name": "Player accounts & characters", "feat": "F-032 \u00b7 F-033", "steps": [
                     "Auth + session (Slice 040) \u2014 done",
                     "Character CRUD/select/create \u2192 world entry (Slices 042-044) \u2014 in validation"]},
                 {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
                     "IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045/046) \u2014 done",
-                    "P-013 mutation persistence first slice (Slice 050) \u2014 done; GUIDs/RPC/replay, F-026 LLM-on, P-009 inference remaining"]},
+                    "P-009 inference (Slice 051) + F-026 LLM-on-boot & monster exclusion (Slices 052-053) \u2014 done; P-013 mutation (Slice 050) done, GUIDs/RPC/replay remaining"]},
             ],
         },
         {
