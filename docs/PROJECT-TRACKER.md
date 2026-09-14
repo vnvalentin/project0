@@ -223,10 +223,10 @@ Progress: **75%** (3 of 4 items done)
 
 Progress: **50%** (2 of 4 items done)
 
-- Features: `queued` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
+- Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [033 — Client monster replication and rendering](slices/033-client-monster-replication-and-rendering.md) — **100% complete; focused and full-suite validation passed; interactive GUI confirmation obtained (2026-09-13)**
+- **Current slice:** [055 — Server fixed-tick and health snapshot contract](slices/055-server-fixed-tick-and-health-contract.md) — **delivered; pure ServerHealth contract seam (bounded 20-30 Hz tick + fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0, record sync exit 0**
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,6 +444,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
+- **Slice:** [055 — Server fixed-tick and health snapshot contract](slices/055-server-fixed-tick-and-health-contract.md) — **delivered; pure, server-only `ServerHealth` contract seam; authoritative Linux gate 326/326 across 45/45 scripts, exit 0; record sync exit 0**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (first foundation slice; the container runtime itself remains later work)
+  - **Public seam:** `server/server_health.gd` (`resolve_tick_rate`, `build_snapshot`, bounded 20-30 Hz tick, versioned fail-closed health snapshot)
+  - **Planning ticket:** [container-platform map](../.scratch/container-platform/map.md), [runtime-boundary decision](../.scratch/container-platform/issues/01-runtime-boundary-and-container-adapter.md)
+  - **Decision:** no new ADR; implements CLAUDE.md Runtime Ownership and the accepted runtime-boundary decision
+
 - **Slice:** [012 — Server-authoritative melee strike and hit registration](slices/012-authoritative-melee-strike.md) — **100% complete; focused and full-suite validation passed**
   - **Feature:** [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input)
   - **Tech debt:** none identified
@@ -621,11 +627,14 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   live scene state) and the JIT boundary path continue as follow-up slices,
   resolving the open event-model questions in
   [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md).
-- [ ] Queued — Containerized fixed-tick server runtime (Phase 10, blocked):
+- [ ] Queued — Containerized fixed-tick server runtime (Phase 10, in progress):
   [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
-  needs the runtime-boundary questions in
-  [game-vision issue 06](../.scratch/game-vision/issues/06-define-runtime-boundaries.md)
-  resolved, which is itself blocked on the canon persistence design above.
+  is now `in-progress` — its runtime boundary is decided by the
+  [container-platform map](../.scratch/container-platform/map.md) and
+  [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) delivered the
+  bounded fixed-tick + fail-closed health contract foundation. Remaining P-014
+  work: the container image under `/apps/project0`, tick-loop wiring, and
+  run-beside-native equivalence per the migration decision.
 - [ ] Queued — Remaining delivery workflow capabilities (Phase 7): Remote-SSH
   server workspace
   ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)) and

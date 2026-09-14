@@ -181,12 +181,20 @@ feature so future drift is easier to detect.
 
 ### P-014: Containerized fixed-tick authoritative server runtime
 
-- Status: `Planned`
+- Status: `In Progress`
 - Feature: The authoritative Godot server runs in an isolated Docker container with a bounded 20–30 Hz simulation tick and server-owned physics/state.
 - Problem solved: Multiplayer behavior needs a reproducible Linux runtime boundary and predictable simulation cadence.
 - Phase: 10. Authoritative runtime and action input
 - Public seam: Server container entrypoint, tick loop, health output, and runtime telemetry.
-- Validation: A future slice must prove container startup, tick-rate bounds, clean shutdown, and no client-side authority over server state.
+- Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam).
+- Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Remaining slices must prove container startup, tick-rate bounds, clean shutdown, and no client-side authority over server state.
+- Related work: [container-platform map](../.scratch/container-platform/map.md) and its resolved runtime, login, persistence, operator, migration, and worker decisions.
+- Change history:
+  - Date: 2026-09-14
+    What changed: Moved P-014 to `In Progress` and delivered its first foundation slice — the pure, server-only `ServerHealth` fixed-tick and health-snapshot contract — as the first delivery of the container-platform wayfinder map.
+    Why: The runtime boundary is now decided (OCI image, systemd supervision, `/apps/project0`, `/var/lib/project0`, UDP 9999, non-root, health/tick/shutdown), so the bounded tick and machine-readable health contract can land before the container image consumes it.
+    Related work: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md), [container-platform map](../.scratch/container-platform/map.md)
+    Validation: Authoritative Linux gate `scripts/run_gut_validation.sh` 326/326 across 45/45 scripts, exit 0; `scripts/check_record_sync.sh` exit 0.
 
 ### P-016: Biological progression and kinetic combat systems
 

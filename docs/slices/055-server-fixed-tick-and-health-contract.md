@@ -1,6 +1,6 @@
 # Slice 055 — Server fixed-tick and health snapshot contract
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime).
@@ -81,9 +81,16 @@ spawns a real Godot subprocess and binds a socket via `OS.execute`;
 `OS.set_environment`). This change is purely additive (git shows only new
 `server/server_health.gd`, `tests/unit/test_server_health.gd`, this record, and
 the registry row), so it cannot cause failures in those unrelated socket/env
-tests. The authoritative full-suite gate must run on the Linux host
-(`192.168.1.254`), where those environment-sensitive tests pass; that green run
-is pending and required before this slice is marked complete.
+tests.
+
+Authoritative result on the Linux host `192.168.1.254` (`okami`, 2026-09-14),
+run in an isolated `git worktree` of branch `slice/055-server-fixed-tick-health`
+so the live server checkout was untouched: `scripts/run_gut_validation.sh`
+passed **326/326 tests across 45/45 scripts** (`scripts_expected == scripts_ran
+== 45`), status `passed`, exit 0; `test_server_health` passed;
+`scripts/check_record_sync.sh` reported 0 errors and 6 pre-existing warnings,
+exit 0. This confirms the Windows-only failures are environment-specific and the
+slice is green on the authoritative gate.
 
 ## Root-cause learning
 
