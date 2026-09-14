@@ -18,11 +18,13 @@ echo "[restore] stopping container"
 docker compose -f "${COMPOSE}" stop || true
 
 echo "[restore] restoring ${BACKUP} into ${DATA_DIR}"
-docker run --rm \
+# --entrypoint sh is required: the image ENTRYPOINT starts the server, so a
+# one-shot maintenance container must override it to run cp/sqlite3 instead.
+docker run --rm --entrypoint sh \
 	-v "${DATA_DIR}:/data" \
 	-v "$(cd "$(dirname "${BACKUP}")" && pwd):/src:ro" \
 	"${IMAGE}" \
-	sh -c "mkdir -p \"$(dirname ${REL})\" \
+	-c "mkdir -p \"$(dirname ${REL})\" \
 		&& cp \"/src/$(basename "${BACKUP}")\" \"${REL}\" \
 		&& rm -f \"${REL}-wal\" \"${REL}-shm\" \
 		&& sqlite3 \"${REL}\" 'PRAGMA integrity_check;'"

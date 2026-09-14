@@ -86,4 +86,17 @@ beside the native server:
 
 ## Root-cause learning
 
-None yet.
+Observed: the independent restore path via a one-shot `docker run <image> sh -c
+...` started the game server instead of running the copy/`sqlite3` commands.
+
+Hypothesis and check: the image `ENTRYPOINT` is `tini -- entrypoint.sh`, which
+`exec`s the server and ignores the container `CMD`; a `docker run` override
+replaces `CMD`, not `ENTRYPOINT`. Discriminating check: the run logged
+`Server listening` rather than the restore commands.
+
+Root cause and countermeasure: a one-shot maintenance container must override
+the entrypoint. `restore.sh` now uses `docker run --rm --entrypoint sh ... -c
+"..."`. `backup.sh` was already correct because it uses `docker exec`, which
+runs a command in the already-started container and bypasses the entrypoint.
+Regression evidence: the restore proof below (wipe data → restore → boot Canon
+`idempotent`) exercises the fixed path.
