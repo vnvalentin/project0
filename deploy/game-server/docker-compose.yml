@@ -1,0 +1,32 @@
+# Candidate deployment of the authoritative Project0 game server, run BESIDE the
+# native systemd server on an isolated host UDP port (default 127.0.0.1:19999)
+# so it never contends with the live server on 9999. No cutover; stop/remove
+# leaves the host unchanged. Persistence split to /var/lib/project0 is Slice 057.
+services:
+  game-server:
+    build:
+      context: ../..
+      dockerfile: deploy/game-server/Dockerfile
+    image: project0-game-server:candidate
+    container_name: project0-game-server-candidate
+    environment:
+      PROJECT0_SERVER_BIND_ADDRESS: "0.0.0.0"
+      PROJECT0_SERVER_PORT: "9999"
+      PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
+    ports:
+      - "${GAME_HOST_BIND:-127.0.0.1}:${GAME_HOST_PORT:-19999}:9999/udp"
+    volumes:
+      - game-data:/data
+    mem_limit: 1g
+    cpus: 2.0
+    stop_grace_period: 20s
+    restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "ss -uln | grep -q ':9999' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  game-data:
