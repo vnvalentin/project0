@@ -240,9 +240,9 @@ Progress: **0%** (0 of 1 items done)
 
 Progress: **0%** (0 of 3 items done)
 
-- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process. Slice 035 delivered S3b (Windows DLL cross-compile + client repackage), with the remote-Windows WAN runtime now user-confirmed (2026-09-14). Slice 048 delivers the invite-code enrollment service's logic (issue 04) — single-use invites, strict public-key validation, `/32` pool allocation, and an injectable, fail-closed OPNsense client — proven by 39/39 passing automated tests. Slice 049 delivers the revocation/ban lifecycle's logic (issue 06) on top of it — OPNsense `delClient` + `reconfigure` before releasing the local `/32`, fail-closed on upstream failure, idempotent no-op on an unknown/already-revoked peer, CLI/operator-only — proven by 54/54 passing automated tests. Live deployment, the real tunnel-teardown timing, and idempotent re-enrollment remain open.
+- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process. Slice 035 delivered S3b (Windows DLL cross-compile + client repackage), with the remote-Windows WAN runtime now user-confirmed (2026-09-14). Slice 048 delivers the invite-code enrollment service's logic (issue 04) — single-use invites, strict public-key validation, `/32` pool allocation, and an injectable, fail-closed OPNsense client — proven by 39/39 passing automated tests. Slice 049 delivers the revocation/ban lifecycle's logic (issue 06) on top of it — OPNsense `delClient` + `reconfigure` before releasing the local `/32`, fail-closed on upstream failure, idempotent no-op on an unknown/already-revoked peer, CLI/operator-only — proven by 54/54 passing automated tests. `in-progress` [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage) now has its secure Windows launcher implementation and focused validation. Live enrollment deployment, the real tunnel-teardown timing, and idempotent re-enrollment remain open.
 - Tech debt: none yet.
-- **Current slice:** [049 — WireGuard peer revocation/ban lifecycle, logic + tests](slices/049-wireguard-revocation-lifecycle.md)
+- **Current slice:** [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — **in progress; secure launcher implemented, live enrollment validation pending**
 
 **Phase 14 — Player accounts and characters**
 
@@ -544,6 +544,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 06 decision) with one non-architectural choice — revocation is keyed on the peer's `public_key`, not `ip_address` or `invite_code` (see the slice record's Identifier choice section); idempotent re-enrollment (issue 06 point 4) is deliberately deferred as a documented follow-up
   - **Public seam:** `infra/enrollment/service.py`'s `RevocationService.revoke()`, exposed only via the operator CLI (`infra/enrollment/cli.py revoke-peer <public_key>`) — no HTTP admin route, deliberately
   - **Validation:** `python3 -m pytest infra/enrollment/tests -q` passed 54/54 (39 pre-existing, 15 new), exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings, exit 0; no `.gd` files changed, so the GUT suite was not run
+- **Slice:** [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — **in progress; secure launcher implemented, live enrollment validation pending**
+  - **Feature:** [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage), under [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Planning basis:** [Slice 048](slices/048-wireguard-enrollment-service.md), [Slice 049](slices/049-wireguard-revocation-lifecycle.md), and the resolved WAN WireGuard issue map
+  - **Public seam:** Windows enrollment client, `POST /redeem`, DPAPI credential store, and the existing `NetworkClient`/`WgNetstack` startup seam
+  - **Non-goal:** no change to the verified temporary WAN path until replacement enrollment evidence exists
 
 #### Phase 14 — Player accounts and characters
 
@@ -705,6 +710,13 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   (`infra/opnsense/setup_wireguard_game_tunnel.py`,
   `ci/host-firewall-helper.sh`) and live-execution validation evidence are a
   follow-up handoff owned by Copilot.
+- [~] Active — Secure Windows tunnel enrollment and credential storage (Phase
+  13): [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)
+  and [Slice 054](slices/054-secure-windows-tunnel-enrollment.md) replace the
+  temporary embedded-key WAN verifier with invite redemption, client-generated
+  keys, Windows DPAPI protection, automatic tunnel startup, and operator
+  revocation. Keep the current verifier available until replacement evidence
+  is complete.
   [032 — wgnetstack netstack bridge (Linux prototype)](slices/032-wgnetstack-netstack-bridge-linux-prototype.md)
   is scoped against issues
   [01](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md)

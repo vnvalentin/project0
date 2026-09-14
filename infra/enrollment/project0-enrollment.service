@@ -1,0 +1,21 @@
+[Unit]
+Description=Project0 WireGuard enrollment API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vic
+WorkingDirectory=/data/code/project0
+EnvironmentFile=/etc/project0/enrollment.env
+ExecStart=/data/code/project0/.venv-enrollment/bin/uvicorn infra.enrollment.asgi:app --host 127.0.0.1 --port 8080 --workers 1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/code/project0/infra/enrollment/.data
+
+[Install]
+WantedBy=multi-user.target

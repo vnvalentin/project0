@@ -69,8 +69,9 @@ contended range and everything after it is tracked explicitly:
 | 051 | Hardware-accelerated local inference: env config + bounded request telemetry (P-009) | interactive |
 | 052 | F-026 LLM town generation ON at server boot (opt-in flag) | interactive |
 | 053 | F-026 derive monster exclusion from town bounds | interactive |
+| 054 | Secure Windows tunnel enrollment and credential storage (P-024, F-035) | interactive |
 
-Next free slice: **054** (verify against `docs/slices/` before reserving).
+Next free slice: **055** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

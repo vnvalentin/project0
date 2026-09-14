@@ -471,6 +471,52 @@ for a developer to pick up. No implementation has started.
     Validation: Focused suites 7/7 and 8/8; full GUT suite 248/248 across 32
     scripts, exit 0.
 
+### F-035: Secure Windows tunnel enrollment and credential storage
+
+- Status: `In Progress`
+- Feature: A Windows client provisions its own WireGuard peer from a single-use
+  invite, stores the private key with Windows DPAPI, starts the in-process
+  tunnel without a batch file, and supports operator revocation without
+  distributing a shared tester key.
+- Problem solved: The current WAN verifier embeds a disposable private key in
+  a one-click executable. That is convenient for validation but recoverable by
+  anyone who receives the executable and cannot scale to multiple testers.
+- How it solves the problem: Slice 054 generates the client keypair
+  locally, redeem the existing enrollment service using only the public key,
+  protect the private key with a user-scoped Windows DPAPI wrapper, and load
+  the resulting peer configuration at application startup. The existing
+  `wgnetstack` tunnel seam remains the transport adapter; the key never enters
+  Git, telemetry, HTTP requests, or a distributable binary.
+- Deployment boundary: the Linux host builds and runs the independent
+  `infra/enrollment` FastAPI service behind `enroll.valentin.vip`; the Windows
+  client only calls its `/redeem` endpoint and never owns the enrollment
+  service, OPNsense credentials, or allocation database.
+- Phase: 13. Public game access
+- Implementation slices: [Slice 054](slices/054-secure-windows-tunnel-enrollment.md)
+- Public seam: Windows bootstrapper/enrollment client, `POST /redeem`, DPAPI
+  credential store, and the existing `NetworkClient` tunnel startup seam.
+- Validation: Future Slice 054 evidence must cover fresh enrollment, persisted
+  restart, malformed/expired invite rejection, DPAPI access scoping, revoked
+  peer rejection, and a one-launch WAN gameplay run. The current embedded-key
+  verifier remains a temporary validation artifact until then.
+- Related work: [P-024](#p-024-public-game-access-via-opnsense-native-wireguard),
+  [Slice 048](slices/048-wireguard-enrollment-service.md),
+  [Slice 049](slices/049-wireguard-revocation-lifecycle.md),
+  [Slice 054](slices/054-secure-windows-tunnel-enrollment.md).
+- Change history:
+  - Date: 2026-09-14
+    What changed: Started Slice 054 implementation with a Windows one-click
+    launcher that generates an X25519 keypair, redeems only the public key,
+    protects the private key with DPAPI, and reuses the protected peer state.
+    Validation: Windows launcher tests and release build pass; live enrollment
+    service deployment and fresh-invite WAN proof remain pending.
+  - Date: 2026-09-14
+    What changed: Queued F-035 after user-confirmed WAN connectivity using the
+    temporary embedded-key launcher.
+    Why: Replace recoverable shared tester credentials with per-client
+    enrollment and OS-protected private-key storage without interrupting the
+    verified WAN path.
+
 ### P-024: Public game access via OPNsense-native WireGuard
 
 - Status: `In Progress`

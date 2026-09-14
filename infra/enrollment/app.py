@@ -48,6 +48,10 @@ def create_app(service: EnrollmentService) -> FastAPI:
     """
     app = FastAPI(title="Project0 WireGuard Enrollment Service")
 
+    @app.get("/healthz")
+    def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.post("/redeem", response_model=RedeemResponse)
     def redeem(request: RedeemRequest) -> RedeemResponse:
         try:

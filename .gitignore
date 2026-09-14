@@ -41,3 +41,8 @@ native/**/*.a
 # Enrollment service local sqlite data (Slice 048) — never commit real invite/allocation state
 infra/enrollment/.data/
 *.sqlite3
+
+# Windows one-click launcher payloads and local builds; payloads may contain
+# tester-specific private keys and must never enter source control.
+native/windows_launcher/payload/
+dist/Project0-WAN.exe
