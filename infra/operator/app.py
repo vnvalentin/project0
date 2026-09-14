@@ -9,15 +9,22 @@ touch a real systemctl/docker call.
 from __future__ import annotations
 
 import hmac
+import os
 from dataclasses import asdict
 
 from fastapi import Depends, FastAPI, Header, HTTPException
+from pydantic import BaseModel
 
 from .config import load_config
 from .control import RealServiceController
+from .invites import RealInviteAdmin
 from .jobs import AuditLog
 from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
+
+
+class MintInviteRequest(BaseModel):
+    expires_in_seconds: int | None = None
 
 
 def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str) -> FastAPI:
@@ -57,11 +64,29 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
     def jobs() -> dict:
         return {"jobs": [job.to_dict() for job in operations_service.recent_jobs()]}
 
+    @app.post("/invites", dependencies=[Depends(require_operator)])
+    def mint_invite(body: MintInviteRequest | None = None, x_operator: str | None = Header(default=None)) -> dict:
+        expires = body.expires_in_seconds if body else None
+        job, code = operations_service.mint_invite((x_operator or "operator").strip() or "operator", expires)
+        result: dict = {"job": job.to_dict()}
+        if code:
+            # The invite code is a secret returned to the operator only; it is
+            # never in the job/audit log.
+            result["invite_code"] = code
+        return result
+
     return app
 
 
 def build_production_app() -> FastAPI:
     config = load_config()
     status_service = StatusService(config.services, RealServiceInspector())
-    operations_service = OperationsService(config.services, RealServiceController(), AuditLog())
+    from infra.enrollment.config import DEFAULT_DB_PATH as ENROLLMENT_DEFAULT_DB_PATH
+    from infra.enrollment.store import EnrollmentStore
+
+    enrollment_db = os.getenv("ENROLLMENT_DB_PATH", ENROLLMENT_DEFAULT_DB_PATH)
+    invite_admin = RealInviteAdmin(EnrollmentStore(enrollment_db))
+    operations_service = OperationsService(
+        config.services, RealServiceController(), AuditLog(), invite_admin=invite_admin
+    )
     return create_app(status_service, operations_service, config.operator_token)

@@ -78,8 +78,9 @@ contended range and everything after it is tracked explicitly:
 | 060 | Assertion-backed session establishment in the login gateway (P-014) | interactive |
 | 061 | Operator control plane: read-only status service (P-014) | interactive |
 | 062 | Operator control plane: job/audit model + service restart action (P-014) | interactive |
+| 063 | Operator control plane: audited mint-invite action (P-014) | interactive |
 
-Next free slice: **063** (verify against `docs/slices/` before reserving).
+Next free slice: **064** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
