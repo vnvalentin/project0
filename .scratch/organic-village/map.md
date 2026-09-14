@@ -121,9 +121,10 @@ always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
   Validation: 168/168 full GUT suite, exit 0.
 - A later slice: derive the monster exclusion/spawn fields from the actual
   town bounds instead of a hard-coded constant.
-- Deferred: optionally wire LLM town generation on at server boot (replace the
-  fixture default) once its boot-latency/Ollama-availability tradeoff is
-  accepted — the guarantee seam is ready.
+- DELIVERED by [Slice 052](../../docs/slices/052-f026-llm-town-at-boot.md):
+  wiring LLM town generation on at server boot behind a default-off
+  `PROJECT0_LLM_TOWN_AT_BOOT` flag — the fixture stays the default and
+  always-safe fallback on any failure.
 - Deferred flavor: NPC behaviour/occupancy for the villager homes and village
   hall (they are visual buildings only), and an explicit player rescale pass if
   desired.

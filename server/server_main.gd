@@ -46,6 +46,8 @@ const SectorBoundaryDetectorScript: Script = preload("res://server/sector_bounda
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const AuthServiceScript: Script = preload("res://server/auth_service.gd")
 const CharacterServiceScript: Script = preload("res://server/character_service.gd")
+const TownLayoutProviderScript: Script = preload("res://server/town_layout_provider.gd")
+const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 
 ## Slice 040: the accounts/characters database file, opened at server boot
 ## under user:// (never a shipped res:// asset — see SqliteStore's own rule).
@@ -149,8 +151,27 @@ func _start_server() -> void:
 		push_error("Refusing to start: starting town hub fixture failed validation: %s — %s" % [hub["outcome"], hub["detail"]])
 		quit(1)
 		return
-	_starting_town_hub_blueprint = hub["blueprint"]
-	print("Starting town hub fixture validated: %d structures." % (_starting_town_hub_blueprint["structures"] as Array).size())
+	var fixture_blueprint: Dictionary = hub["blueprint"]
+	print("Starting town hub fixture validated: %d structures." % (fixture_blueprint["structures"] as Array).size())
+
+	# Slice 052: default-off opt-in. When PROJECT0_LLM_TOWN_AT_BOOT=1, await the
+	# LLM-proposed/server-guaranteed town (Slice 026's TownLayoutProvider) before
+	# opening the socket; on any transport/timeout/invalid-output failure it
+	# falls back to the validated fixture above, so boot can never yield an
+	# unusable town. _start_server() already runs deferred from _initialize(),
+	# so this await only delays when the socket opens, not SceneTree
+	# responsiveness. Accepted tradeoff: opt-in boot latency bounded by
+	# LocalLLMClient's configured request timeout (see the slice doc).
+	_starting_town_hub_blueprint = fixture_blueprint
+	if TownLayoutProviderScript.llm_at_boot_enabled():
+		var llm_client: Node = LocalLLMClientScript.new()
+		llm_client.name = "BootTownLLMClient"
+		llm_client.configure_from_env()
+		root.add_child(llm_client)
+		var boot_town: Dictionary = await TownLayoutProviderScript.resolve_boot_town(true, llm_client, fixture_blueprint)
+		_starting_town_hub_blueprint = boot_town["blueprint"]
+		print("LLM-at-boot town: source=%s outcome=%s." % [boot_town["source"], boot_town["outcome"]])
+		llm_client.queue_free()
 
 	# Slice 030: build the server-side collision map (solid walls + building
 	# footprints) from the validated hub, injected into each peer below.

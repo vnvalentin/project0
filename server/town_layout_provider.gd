@@ -25,6 +25,11 @@ const REQUIRED_SINGLETON_KINDS: PackedStringArray = ["smithy", "armor_shop", "in
 const SOURCE_LLM: String = "llm"
 const SOURCE_FALLBACK: String = "fallback"
 
+## Slice 052: default-off boot flag. Only the literal "1" is ON, matching the
+## repo's existing PROJECT0_E2E_DISABLE_TOWN_COLLISION == "1" convention —
+## unset or any other value leaves boot behavior exactly as before.
+const ENV_LLM_TOWN_AT_BOOT: String = "PROJECT0_LLM_TOWN_AT_BOOT"
+
 ## Resolution outcome codes (beyond SectorBlueprintSchema's own OUTCOME_*, which
 ## are surfaced verbatim when a candidate fails schema validation).
 const OUTCOME_ACCEPTED: String = "accepted"
@@ -118,6 +123,25 @@ func request_town(llm_client: Object, fallback: Dictionary) -> Dictionary:
 	print("Town layout resolved: source=%s, outcome=%s." % [result["source"], result["outcome"]])
 	town_resolved.emit(result)
 	return result
+
+
+## Slice 052: pure boot-flag read, unit-testable without booting a SceneTree.
+## Returns true only when PROJECT0_LLM_TOWN_AT_BOOT is exactly "1".
+static func llm_at_boot_enabled() -> bool:
+	return OS.get_environment(ENV_LLM_TOWN_AT_BOOT) == "1"
+
+
+## Slice 052: the boot-level decision server_main.gd's _start_server() calls.
+## When `flag_enabled` is false, returns `fallback` directly as a
+## SOURCE_FALLBACK result with no client call at all — matching today's
+## behavior exactly and letting a unit test assert the client is never
+## touched. When true, delegates to request_town() (LLM proposes, guarantee
+## validates, fixture is the unconditional failure fallback).
+static func resolve_boot_town(flag_enabled: bool, llm_client: Object, fallback: Dictionary) -> Dictionary:
+	if not flag_enabled:
+		return _fallback_result(fallback, OUTCOME_ACCEPTED, "LLM-at-boot flag is off")
+	var provider: TownLayoutProvider = TownLayoutProvider.new()
+	return await provider.request_town(llm_client, fallback)
 
 
 static func _fallback_result(fallback: Dictionary, outcome: String, detail: String) -> Dictionary:

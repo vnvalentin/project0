@@ -61,12 +61,24 @@ feature so future drift is easier to detect.
 
 ### P-009: Hardware-accelerated local inference
 
-- Status: `Planned`
-- Feature: Server-side Ollama inference uses the local Tesla P100 and a configured Llama model for generation without external cloud inference costs.
-- Problem solved: World generation needs an on-premise inference path with predictable ownership and no cloud token dependency.
+- Status: `Implemented`
+- Feature: Server-side Ollama inference uses the local Tesla P100 and a configured Llama model for generation without external cloud inference costs. Configuration is environment-driven with safe defaults, and every request outcome is classified into bounded, non-sensitive telemetry.
+- Problem solved: World generation needs an on-premise inference path with predictable ownership, no cloud token dependency, and observable request outcomes without leaking prompt content.
 - Phase: 8. JIT world generation and local inference
-- Public seam: `shared/local_llm_client.gd`, Ollama endpoint/model configuration, and request outcome telemetry.
-- Validation: A future integration slice must prove configured-model success, timeout/error handling, and that the client never calls Ollama directly.
+- Public seam: `shared/local_llm_client.gd` (`resolve_config()`, `configure_from_env()`, `request_outcome_reported` signal, and bounded `outcome`/`duration_ms` result fields), `PROJECT0_OLLAMA_HOST`/`PROJECT0_OLLAMA_MODEL`/`PROJECT0_OLLAMA_TIMEOUT_SEC` environment configuration, and `tests/integration/test_client_never_contacts_ollama.gd`.
+- Implementation slices: [Slice 051](slices/051-p009-hardware-accelerated-local-inference.md)
+- Validation: Slice 051 covers configured-model success, HTTP error, malformed envelope, invalid inner JSON, and timeout outcomes against a hermetic fake Ollama harness, plus env-config resolution/precedence and a structural scan proving no `client/` file references Ollama. GUT validation passed 304/304 tests across 43/43 scripts and 1182 assertions, exit 0. Record sync passed with 0 errors. A live probe against the running Ollama instance (`llama3:latest` on the Tesla P100) returned a successful parsed JSON response, confirmed 2026-09-14.
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index)
+- Change history:
+  - Date: 2026-09-14
+    What changed: Implemented Slice 051's environment-driven `LocalLLMClient`
+    configuration resolver and bounded request-outcome telemetry
+    (`success`/`http_error`/`malformed_envelope`/`invalid_json`/`transport_error`/`timeout`),
+    with a structural test proving the client process never references Ollama.
+    Why: Close the P-009 hardware-accelerated local inference contract with
+    observable, non-sensitive request telemetry before boot-wiring JIT
+    generation in a later slice.
+    Related work: [Slice 051](slices/051-p009-hardware-accelerated-local-inference.md)
 
 ### IP-004: Structured sector blueprint translation
 
@@ -654,13 +666,16 @@ for a developer to pick up. No implementation has started.
   and enriched the hub to use it, and Slice 026 added the `TownLayoutProvider`
   guarantee — the LLM proposes a town, the server validates it and requires the
   fixed structures, else falls back to the fixture (never an unusable town).
-  Remaining: wiring LLM generation on at boot (a reliability/latency decision;
-  the fixture stays the default) and deriving the monster exclusion from the
-  town bounds, so the feature stays `In Progress`. Slice 031 grew the village to
-  ~3x area (radius 30) and added 10 villager homes (`npc_house`) plus the
-  village leader's hall (`village_hall`) for a rural-village feel.
+  Slice 031 grew the village to ~3x area (radius 30) and added 10 villager
+  homes (`npc_house`) plus the village leader's hall (`village_hall`) for a
+  rural-village feel. Slice 052 wired LLM generation on at boot behind a
+  default-off `PROJECT0_LLM_TOWN_AT_BOOT` flag — when set, the server awaits
+  `TownLayoutProvider.request_town()` before opening its socket and falls back
+  to the fixture on any failure; unset boots exactly as before. Remaining:
+  deriving the monster exclusion from the town bounds, so the feature stays
+  `In Progress`.
 - Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md), [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
+- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md), [Slice 031](slices/031-bigger-village-npc-leader-housing.md), [Slice 052](slices/052-f026-llm-town-at-boot.md)
 - Public seam: `server/starting_town_hub_fixture.gd`
   (`blueprint()` generating the radius-30 organic octagon via `_in_town`/`_tile_kind`
   with main + secondary streets, 28 `_STRUCTURES` incl. `npc_house`/`village_hall`,
@@ -668,9 +683,12 @@ for a developer to pick up. No implementation has started.
   `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 4096, `MAX_COORDINATE_ABS` 48,
   `npc_house`/`village_hall` in the v3 vocabulary),
   `server/town_layout_provider.gd` (`resolve`, `meets_required_structures`,
-  `request_town`, `default_town_prompt`),
+  `request_town`, `default_town_prompt`, `llm_at_boot_enabled`,
+  `resolve_boot_town`),
   `server/server_monster_manager.gd` (`TOWN_EXCLUSION_HALF_EXTENT` 32.0),
-  `client/gameplay.tscn` (100×100 `FlatPlane`).
+  `client/gameplay.tscn` (100×100 `FlatPlane`),
+  `server/server_main.gd` (`_start_server()` boot wiring behind
+  `PROJECT0_LLM_TOWN_AT_BOOT`).
 - Validation: See [Slice 023](slices/023-organic-districted-town.md) for exact
   commands and results (8/8 fixture + 7/7 manager + 4/4 replication focused
   tests, 140/140 full suite, exit 0).
@@ -732,6 +750,19 @@ for a developer to pick up. No implementation has started.
     leader housing, not just player houses.
     Related work: [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
     Validation: See Slice 031 validation section.
+  - Date: 2026-09-14
+    What changed: Implemented Slice 052 — wired `TownLayoutProvider`'s LLM
+    generation on at server boot behind a default-off
+    `PROJECT0_LLM_TOWN_AT_BOOT` flag (`llm_at_boot_enabled()` /
+    `resolve_boot_town()`). When set, `server_main.gd`'s `_start_server()`
+    awaits `request_town()` against a `LocalLLMClient` configured from
+    environment (Slice 051) before opening its socket; on any failure it falls
+    back to the fixture. Unset boots exactly as before.
+    Why: Close the last "wire it on" item from the Slice 026 guarantee seam so
+    an operator can opt into LLM-generated starting towns without risking an
+    unusable boot.
+    Related work: [Slice 052](slices/052-f026-llm-town-at-boot.md)
+    Validation: See Slice 052 validation section.
 
 ### IP-023: Basic monster combat
 

@@ -201,13 +201,13 @@ Progress: **71%** (5 of 7 items done)
 
 **Phase 8 — JIT world generation and local inference**
 
-Progress: **73%** (8 of 11 items done)
+Progress: **82%** (9 of 11 items done)
 
-- Features: `done` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019), `done` [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (cross-cutting scale contract).
+- Features: `done` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `done` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019), `done` [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (cross-cutting scale contract).
 - Tech debt: `done` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — resolved by the Slice 024 geometry pass (merged `ArrayMesh` ground + one merged `Walls` body), decoupling town size from the physics body count.
 
-- **Current slice:** [031 — Bigger rural village with NPC and leader housing](slices/031-bigger-village-npc-leader-housing.md) — **100% complete; focused and full-suite validation passed**
-  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
+- **Current slice:** [052 — F-026 LLM town generation ON at server boot](slices/052-f026-llm-town-at-boot.md) — **100% complete; focused, server parse, full-suite, record-sync, and runtime boot validation passed**
+  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (boot wiring; monster-exclusion-from-bounds remains, feature stays in-progress)
 
 **Phase 9 — Canon persistence and world mutation**
 
@@ -329,6 +329,17 @@ the phase exit gate; it is not a count of completed slices.
   - **Features:** [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization)
   - **Public seam:** `server/canon_generation_coordinator.gd` plus the server's reliable blueprint broadcast
   - **Validation:** coordinator test ran after forced import; unit suite passed 188/188 tests, exit 0; server check-only passed, exit 0; full GUT telemetry passed 282/282 tests across 39/39 scripts and 1073 assertions, exit 0
+
+- **Slice:** [051 — Hardware-accelerated local inference](slices/051-p009-hardware-accelerated-local-inference.md) — **100% complete; focused, full GUT, and record-sync validation passed; live P100 probe confirmed**
+  - **Feature:** [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference)
+  - **Public seam:** `shared/local_llm_client.gd` (`resolve_config()`, `configure_from_env()`, `request_outcome_reported` signal, bounded `outcome`/`duration_ms` result fields)
+  - **Validation:** focused unit passed 5/5 tests (16 assertions), exit 0; focused integration passed 6/6 tests across 2 scripts (52 assertions), exit 0; full GUT passed 304/304 tests across 43/43 scripts and 1182 assertions, exit 0; record sync passed with 0 errors; live `scripts/probe_ollama.gd` run against `llama3:latest` on the Tesla P100 returned a successful parsed JSON response (2026-09-14)
+
+- **Slice:** [052 — F-026 LLM town generation ON at server boot](slices/052-f026-llm-town-at-boot.md) — **100% complete; focused, server parse, full GUT, record-sync, and runtime boot validation passed**
+  - **Feature:** [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city)
+  - **Public seam:** `server/town_layout_provider.gd` (`llm_at_boot_enabled()`, `resolve_boot_town()`), `server/server_main.gd` (`_start_server()` boot wiring behind `PROJECT0_LLM_TOWN_AT_BOOT`)
+  - **Validation:** focused unit passed 6/6 tests (15 assertions), exit 0; `server/server_main.gd` check-only exit 0; full GUT passed 310/310 tests across 44/44 scripts and 1197 assertions, exit 0; record sync exit 0; runtime boot evidence captured for both the default-OFF and opt-in-ON paths against a locally running `llama3:latest` Ollama instance (2026-09-14)
+  - **Planning ticket:** [Organic LLM Village map](../.scratch/organic-village/map.md) (deferred "wire LLM at boot" item)
 
 - **Slice:** [008 — Async validated sector blueprint contract](slices/008-sector-blueprint-contract.md) — **100% complete; focused public-seam validation passed**
   - **Feature:** [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation)
@@ -667,9 +678,10 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   guarantee (LLM proposes, server validates + requires the fixed structures,
   else falls back to the fixture). Slice 031 grew the village to ~3x area
   (radius 30) with villager homes (`npc_house`) and the village leader's hall
-  (`village_hall`). Remaining roadmap: optionally wire LLM generation on at boot
-  (a reliability/latency decision; the fixture stays the default), and derive
-  the monster exclusion from the town bounds. See
+  (`village_hall`). [Slice 052](slices/052-f026-llm-town-at-boot.md) wired LLM
+  generation on at boot behind a default-off `PROJECT0_LLM_TOWN_AT_BOOT` flag
+  (the fixture stays the default and always-safe fallback). Remaining roadmap:
+  derive the monster exclusion from the town bounds. See
   [organic-village map](../.scratch/organic-village/map.md).
 - [x] In progress — Public game access via WireGuard (Phase 13): the first
   implementation slice,
