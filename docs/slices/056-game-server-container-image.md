@@ -1,6 +1,6 @@
 # Slice 056 — Game-server container image and run-beside-native
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime).
@@ -87,6 +87,46 @@ native server:
   stop) captured on `192.168.1.254` beside the native server. Recorded on
   completion.
 
+### Runtime evidence (Linux host `192.168.1.254`, 2026-09-14)
+
+Built and run beside the live native server in an isolated `git worktree`, on
+isolated host port `127.0.0.1:19999` (native server untouched on UDP 9999):
+
+1. **Build.** `docker compose ... build` exit 0; pinned Godot 4.3-stable
+   downloaded, `godot --version` succeeded, import cache baked, image
+   `project0-game-server:candidate` created.
+2. **Boot.** Container log reached `Server listening on 0.0.0.0:9999`;
+   `Opened database successfully (.../accounts.db)`, `Starting town Canon
+   ready: ok.`, `Accounts database ready ... (schema ensured)`. The
+   server-critical `godot-sqlite` extension loaded at runtime (no `Native class
+   "SQLite" not found` at run time).
+3. **Bind.** `ss -uln` showed `127.0.0.1:19999` bound while running.
+4. **Health.** `docker inspect` reported `healthy` (port-bound HEALTHCHECK).
+5. **Graceful shutdown.** `docker compose stop` completed in ~0.39s, exit 143
+   (clean SIGTERM via tini), well under the 20s stop-grace/SIGKILL timeout.
+6. **Non-interference.** Native UDP 9999 stayed bound and
+   `systemctl is-active project0-server` reported `active` throughout; the
+   candidate container, volume, network, and image were removed afterward,
+   leaving the host as before.
+
 ## Root-cause learning
 
-None yet.
+Observed: the container log emits a non-fatal `GDExtension dynamic library not
+found: /app/native/wgnetstack/gdext/build/libwgnetstack_gdext.linux.template_debug.x86_64.so`
+and `Failed loading ... wgnetstack.gdextension` at startup.
+
+Hypothesis and check: the wgnetstack `.so` is a compiled, git-ignored build
+artifact (client WireGuard tunnel), so a fresh git checkout used as the build
+context does not contain it. Discriminating check: the server nonetheless
+reached `Server listening` and `healthy`, and the server-only `godot-sqlite`
+extension loaded, confirming wgnetstack is not on the server's runtime path.
+
+Root cause: the server image ships the client tunnel extension descriptor but
+not its (client-only, uncommitted) binary. The `NetworkClient` autoload
+tolerates the class being unavailable at runtime, so this is a benign warning,
+not a failure. Removing the descriptor from the server image was deliberately
+not done in this slice to avoid a parse-time `WgNetstack` identifier break in
+the shared `client/network_client.gd` autoload; a dedicated follow-up should
+either exclude client-only tunnel code from the server image behind a verified
+seam or make the tunnel reference fully optional. Tracked as a benign
+limitation of the container image, not a P-014 blocker.

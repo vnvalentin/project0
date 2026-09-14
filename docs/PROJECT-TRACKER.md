@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [055 — Server fixed-tick and health snapshot contract](slices/055-server-fixed-tick-and-health-contract.md) — **delivered; pure ServerHealth contract seam (bounded 20-30 Hz tick + fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0, record sync exit 0**
+- **Current slice:** [056 — Game-server container image and run-beside-native](slices/056-game-server-container-image.md) — **delivered; OCI image boots the authoritative server headless (Server listening, SQLite+Canon ready), healthy, graceful SIGTERM stop ~0.39s, run beside native on isolated port with the native server untouched**
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [056 — Game-server container image and run-beside-native](slices/056-game-server-container-image.md) — **delivered; OCI image builds and boots the authoritative server headless beside the native server on an isolated port; healthy; graceful SIGTERM stop; native service untouched**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (container image; runtime cutover remains later work)
+  - **Public seam:** `deploy/game-server/` (Dockerfile, entrypoint.sh, docker-compose.yml), repo `.dockerignore`/`.gitattributes`
+  - **Planning ticket:** [container-platform map](../.scratch/container-platform/map.md), [runtime-boundary decision](../.scratch/container-platform/issues/01-runtime-boundary-and-container-adapter.md)
+  - **Decision:** no new ADR; implements the accepted runtime-boundary decision (OCI, systemd supervision, `/apps/project0`, `/var/lib/project0`, UDP 9999, non-root)
 
 - **Slice:** [055 — Server fixed-tick and health snapshot contract](slices/055-server-fixed-tick-and-health-contract.md) — **delivered; pure, server-only `ServerHealth` contract seam; authoritative Linux gate 326/326 across 45/45 scripts, exit 0; record sync exit 0**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (first foundation slice; the container runtime itself remains later work)

@@ -186,10 +186,15 @@ feature so future drift is easier to detect.
 - Problem solved: Multiplayer behavior needs a reproducible Linux runtime boundary and predictable simulation cadence.
 - Phase: 10. Authoritative runtime and action input
 - Public seam: Server container entrypoint, tick loop, health output, and runtime telemetry.
-- Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam).
-- Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Remaining slices must prove container startup, tick-rate bounds, clean shutdown, and no client-side authority over server state.
+- Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam), [Slice 056](slices/056-game-server-container-image.md) (game-server container image, run beside native).
+- Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Slice 056 delivered the OCI image (pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful SIGTERM) and proved build, boot (`Server listening`, SQLite+Canon ready), healthy port-bound healthcheck, ~0.39s graceful stop, and run-beside-native with the native service untouched. Remaining slices must prove the persistence split, tick-loop cadence bounds, health-signal wiring, and the production cutover.
 - Related work: [container-platform map](../.scratch/container-platform/map.md) and its resolved runtime, login, persistence, operator, migration, and worker decisions.
 - Change history:
+  - Date: 2026-09-14
+    What changed: Delivered Slice 056 — the game-server OCI image (`deploy/game-server/`) and run-beside-native Compose descriptor. Built and booted on the Linux host beside the live native server on an isolated port.
+    Why: The runtime-boundary decision requires the container built and proven beside the native server (rollback preserved) before any cutover.
+    Related work: [Slice 056](slices/056-game-server-container-image.md), [runtime-boundary decision](../.scratch/container-platform/issues/01-runtime-boundary-and-container-adapter.md)
+    Validation: Runtime evidence on `192.168.1.254` — build exit 0; `Server listening on 0.0.0.0:9999` with SQLite+Canon ready; isolated port `127.0.0.1:19999` bound; healthcheck `healthy`; graceful SIGTERM stop ~0.39s; native `project0-server` untouched (still `active` on 9999). Full GUT gate and record sync green (no `.gd` changes).
   - Date: 2026-09-14
     What changed: Moved P-014 to `In Progress` and delivered its first foundation slice — the pure, server-only `ServerHealth` fixed-tick and health-snapshot contract — as the first delivery of the container-platform wayfinder map.
     Why: The runtime boundary is now decided (OCI image, systemd supervision, `/apps/project0`, `/var/lib/project0`, UDP 9999, non-root, health/tick/shutdown), so the bounded tick and machine-readable health contract can land before the container image consumes it.
