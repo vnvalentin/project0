@@ -12,9 +12,19 @@ audit/job model.
 - `GET /healthz` — unauthenticated liveness.
 - `GET /status` — all allowlisted services' state (bearer token required).
 - `GET /status/{name}` — one allowlisted service (404 if not allowlisted).
+- `POST /services/{name}/restart` — restart an allowlisted service; returns an
+  audited job (bearer token required; optional `X-Operator` header for identity;
+  404 if not allowlisted).
+- `GET /jobs` — recent operator jobs (bearer token required).
 
 Authentication is a bearer token compared with `hmac.compare_digest`: missing →
 401, wrong → 403.
+
+Every mutating action is wrapped in an audited job (`requested → running →
+succeeded/failed`) with a correlation id, operator identity, target,
+timestamps, and a bounded outcome. Restarting a systemd unit as the non-root
+service user needs a polkit/sudoers grant for that unit; docker restarts work
+for a user in the docker group.
 
 ## Allowlist
 

@@ -4,8 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from infra.operator.app import create_app
+from infra.operator.jobs import AuditLog
+from infra.operator.operations import OperationsService
 from infra.operator.services import StatusService
-from infra.operator.tests.fakes import FakeServiceInspector
+from infra.operator.tests.fakes import FakeServiceController, FakeServiceInspector
 
 TOKEN = "operator-secret-token"
 
@@ -20,7 +22,8 @@ def client() -> TestClient:
         systemd={"project0-server": "active"},
         docker={"project0-flow": "running"},
     )
-    return TestClient(create_app(StatusService(services, inspector), TOKEN))
+    operations = OperationsService(services, FakeServiceController(), AuditLog())
+    return TestClient(create_app(StatusService(services, inspector), operations, TOKEN))
 
 
 def _auth() -> dict[str, str]:

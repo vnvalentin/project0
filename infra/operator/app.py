@@ -1,8 +1,10 @@
-"""FastAPI surface for the operator control plane (read-only status).
+"""FastAPI surface for the operator control plane (read-only status + audited
+mutating actions).
 
-Private and operator-token authenticated; loopback/management-only. No mutating
-endpoints in this slice. Mirrors infra/enrollment/app.py's create_app factory so
-tests inject a fake inspector and never touch a real systemctl/docker call.
+Private and operator-token authenticated; loopback/management-only. Mutating
+actions are allowlisted and wrapped in audited jobs. Mirrors
+infra/enrollment/app.py's create_app factory so tests inject fakes and never
+touch a real systemctl/docker call.
 """
 from __future__ import annotations
 
@@ -12,10 +14,13 @@ from dataclasses import asdict
 from fastapi import Depends, FastAPI, Header, HTTPException
 
 from .config import load_config
+from .control import RealServiceController
+from .jobs import AuditLog
+from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
 
 
-def create_app(status_service: StatusService, operator_token: str) -> FastAPI:
+def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str) -> FastAPI:
     app = FastAPI(title="Project0 Operator Control Plane")
 
     def require_operator(authorization: str | None = Header(default=None)) -> None:
@@ -40,10 +45,23 @@ def create_app(status_service: StatusService, operator_token: str) -> FastAPI:
         except UnknownServiceError as exc:
             raise HTTPException(status_code=404, detail="unknown service") from exc
 
+    @app.post("/services/{name}/restart", dependencies=[Depends(require_operator)])
+    def restart(name: str, x_operator: str | None = Header(default=None)) -> dict:
+        try:
+            job = operations_service.restart(name, (x_operator or "operator").strip() or "operator")
+        except UnknownServiceError as exc:
+            raise HTTPException(status_code=404, detail="unknown service") from exc
+        return job.to_dict()
+
+    @app.get("/jobs", dependencies=[Depends(require_operator)])
+    def jobs() -> dict:
+        return {"jobs": [job.to_dict() for job in operations_service.recent_jobs()]}
+
     return app
 
 
 def build_production_app() -> FastAPI:
     config = load_config()
     status_service = StatusService(config.services, RealServiceInspector())
-    return create_app(status_service, config.operator_token)
+    operations_service = OperationsService(config.services, RealServiceController(), AuditLog())
+    return create_app(status_service, operations_service, config.operator_token)

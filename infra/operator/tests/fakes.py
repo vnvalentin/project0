@@ -13,3 +13,18 @@ class FakeServiceInspector:
 
     def docker_state(self, container: str) -> str:
         return self._docker.get(container, "unknown")
+
+
+class FakeServiceController:
+    def __init__(self, systemd_ok: bool = True, docker_ok: bool = True) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._systemd_ok = systemd_ok
+        self._docker_ok = docker_ok
+
+    def restart_systemd(self, unit: str) -> tuple[bool, str]:
+        self.calls.append(("systemd", unit))
+        return (self._systemd_ok, "ok" if self._systemd_ok else "systemd boom")
+
+    def restart_docker(self, container: str) -> tuple[bool, str]:
+        self.calls.append(("docker", container))
+        return (self._docker_ok, "ok" if self._docker_ok else "docker boom")
