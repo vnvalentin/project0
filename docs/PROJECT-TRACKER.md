@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [058 — In-process login gateway seam over AuthService/CharacterService](slices/058-login-gateway-seam.md) — **delivered; single `/root/LoginGateway` facade composes AuthService+CharacterService, RPC dispatch rerouted through it (pure delegation); GUT 330/330 across 46/46 scripts exit 0, e2e harnesses green**
+- **Current slice:** [059 — Signed session assertion contract, issuer, and validator](slices/059-session-assertions.md) — **delivered; shared `SessionAssertion` contract + server-only HMAC-SHA256 issuer/validator (constant-time sig, issuer/audience/expiry checks); GUT 352/352 across 48/48 scripts exit 0**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [059 — Signed session assertion contract, issuer, and validator](slices/059-session-assertions.md) — **delivered; shared `SessionAssertion` + server-only HMAC-SHA256 issuer/validator; full rejection matrix tested; GUT 352/352 across 48/48; no wiring/behavior change yet**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: the signed assertion the game server validates)
+  - **Public seam:** `shared/session_assertion.gd` (`SessionAssertion`); `server/assertion_issuer.gd` (`AssertionIssuer`); `server/assertion_validator.gd` (`AssertionValidator`)
+  - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+  - **Decision:** no new ADR; HMAC-SHA256 shared-secret assertions at the home-hosted trust level, consistent with the existing Crypto usage
 
 - **Slice:** [058 — In-process login gateway seam over AuthService/CharacterService](slices/058-login-gateway-seam.md) — **delivered; single `/root/LoginGateway` facade (pure delegation), RPC dispatch rerouted through it; GUT 330/330 across 46/46, e2e harnesses green; no behavior change**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision step 1: extract the login interface)
