@@ -30,6 +30,28 @@ The container mounts the repository read-only and has no write endpoint. It
 refreshes the tracker files every 15 seconds, so status changes appear without
 rebuilding the image.
 
+## Reflecting GitHub `origin/main` instead of the local working tree
+
+By default the dashboard renders the parent working tree (`..`), so it shows
+whatever branch or uncommitted edits are checked out locally. To make it
+reflect the canonical GitHub `main` instead, point it at a mirror checkout that
+is kept synced to `origin/main`:
+
+```bash
+git clone https://github.com/vnvalentin/project0.git /data/code/project0-flow-mirror
+sudo install -m 644 project0-flow-mirror-sync.service /etc/systemd/system/
+sudo install -m 644 project0-flow-mirror-sync.timer /etc/systemd/system/
+sudo systemctl enable --now project0-flow-mirror-sync.timer   # fetch + reset --hard origin/main every 2 min
+DASHBOARD_REPO_SOURCE=/data/code/project0-flow-mirror \
+  DASHBOARD_BIND_ADDRESS=192.168.1.254 DASHBOARD_HOST_PORT=18083 \
+  docker compose up -d --force-recreate
+```
+
+`DASHBOARD_REPO_SOURCE` (default `..`) selects the source; a host-local
+`dashboard/.env` can persist it. The sync unit also normalizes file
+permissions to world-readable, because this host's `umask` (077) otherwise
+writes checkouts as `0600`, which the container's `nobody` user cannot read.
+
 If port `8080` is already occupied, start the same image on another local
 port, for example:
 
