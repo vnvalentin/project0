@@ -75,6 +75,11 @@ Do not create implementation slices or product code while this gate is open.
   agent completing the change merges when green and deletes the branch. See
   [docs/DEVELOPMENT-WORKFLOW.md](docs/DEVELOPMENT-WORKFLOW.md) "Branching and
   pull requests".
+- Shared agent context: at the start of a session, consult
+  [.agents/repo-memory.md](.agents/repo-memory.md) — a git-tracked, portable copy
+  of the repo-scoped agent working notes (agent `/memories/repo/` is per-machine
+  and does not sync via the remote). Seed your repository memory from it, and
+  keep it in sync when a convention changes.
 - Implementation ownership: Copilot performs orchestration, bounded handoffs,
   validation coordination, and review. Claude CLI owns application-code,
   test-code, and implementation-facing delivery-record edits unless the user
