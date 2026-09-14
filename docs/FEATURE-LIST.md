@@ -495,15 +495,40 @@ for a developer to pick up. No implementation has started.
 - Implementation slices: [Slice 054](slices/054-secure-windows-tunnel-enrollment.md)
 - Public seam: Windows bootstrapper/enrollment client, `POST /redeem`, DPAPI
   credential store, and the existing `NetworkClient` tunnel startup seam.
-- Validation: Future Slice 054 evidence must cover fresh enrollment, persisted
-  restart, malformed/expired invite rejection, DPAPI access scoping, revoked
-  peer rejection, and a one-launch WAN gameplay run. The current embedded-key
-  verifier remains a temporary validation artifact until then.
+- Validation: The enrollment service itself is now deployed live and validated
+  (see the 2026-09-14 deployment change history entry below). Remaining Slice
+  054 evidence must still cover the Windows-launcher side: fresh enrollment,
+  persisted restart, malformed/expired invite rejection, DPAPI access scoping,
+  revoked peer rejection, and a one-launch WAN gameplay run against the live
+  service. The current embedded-key verifier remains a temporary validation
+  artifact until then.
 - Related work: [P-024](#p-024-public-game-access-via-opnsense-native-wireguard),
   [Slice 048](slices/048-wireguard-enrollment-service.md),
   [Slice 049](slices/049-wireguard-revocation-lifecycle.md),
   [Slice 054](slices/054-secure-windows-tunnel-enrollment.md).
 - Change history:
+  - Date: 2026-09-14
+    What changed: Deployed the enrollment service live and publicly reachable
+    (operational deployment by Copilot): systemd unit `project0-enrollment.service`
+    running uvicorn on the okami Linux host bound to `192.168.1.254:8095`,
+    config at `/etc/project0/enrollment.env` (mode 600), the WireGuard endpoint
+    configured to the static WAN IP `192.69.180.236:51900` (no `game` DNS
+    dependency), an OPNsense nginx TLS vhost publishing only `GET /healthz` and
+    `POST /redeem` (all else 403), an OPNsense Unbound host override for LAN
+    split-horizon, and a Cloudflare-proxied CNAME for the public path.
+    Why: Move the enrollment service from service-logic-only (Slices 048/049)
+    to a live, publicly reachable endpoint so the Windows launcher's
+    `PROJECT0_ENROLLMENT_URL` default can actually be exercised.
+    Related work: [Slice 054](slices/054-secure-windows-tunnel-enrollment.md)
+    Validation: `.venv-enrollment/bin/python -m pytest infra/enrollment/tests`
+    passed 55/55; `https://enroll.valentin.vip/healthz` through Cloudflare
+    returned HTTP/2 200 `{"status":"ok"}`; `POST /redeem` through the
+    Cloudflare edge returned a real OPNsense peer registration
+    (`assigned_address 10.77.0.2/32`, `endpoint 192.69.180.236:51900`),
+    followed by a successful `revoke-peer` releasing the allocation; method
+    guard confirmed (`GET /redeem` → 403, `GET /` → 403); no private key was
+    ever transmitted. The Windows-launcher live tunnel validation remains a
+    separate, still-open item.
   - Date: 2026-09-14
     What changed: Started Slice 054 implementation with a Windows one-click
     launcher that generates an X25519 keypair, redeems only the public key,
