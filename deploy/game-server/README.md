@@ -26,11 +26,42 @@ docker compose -f deploy/game-server/docker-compose.yml down -v
 Override the published binding with `GAME_HOST_BIND` / `GAME_HOST_PORT`. The
 native `project0-server.service` on UDP 9999 is never modified by this slice.
 
+## Host-persistent data and backups (Slice 057)
+
+Durable state lives on the host, outside the image and the `/apps/project0`
+application tree, per the
+[persistence decision](../../.scratch/container-platform/issues/03-persistence-and-data-ownership.md).
+
+One-time host setup (data + backup dirs owned by the container's non-root uid
+`10001`):
+
+```sh
+sudo install -d -o 10001 -g 10001 -m 700 /var/lib/project0/game
+sudo install -d -o 10001 -g 10001 -m 700 /var/backups/project0
+```
+
+The Compose file bind-mounts `${GAME_DATA_DIR:-/var/lib/project0/game}` at
+`/data` (durable `user://` state) and `${GAME_BACKUP_DIR:-/var/backups/project0}`
+at `/backup`. Data survives container replacement.
+
+Consistent SQLite online backup (safe on a live WAL database) and restore:
+
+```sh
+# Back up the running container's DB into /var/backups/project0 (integrity-checked).
+deploy/game-server/backup.sh
+
+# Restore a chosen backup, then restart the container.
+deploy/game-server/restore.sh /var/backups/project0/project0-game-<timestamp>.sqlite3
+```
+
 ## Boundaries
 
 - Non-root (`uid 10001`); no OPNsense credentials or client keys.
-- Writable state is confined to the `/data` volume (`user://`); the source tree
-  is otherwise read-only at runtime.
-- Persistence split to `/var/lib/project0` and backup/restore are Slice 057.
+- Writable state is confined to the `/data` (host `/var/lib/project0/game`) and
+  `/backup` (host `/var/backups/project0`) mounts; the source tree is otherwise
+  read-only at runtime.
+- Splitting accounts into a separate `login/accounts.sqlite3` lands with the
+  login-service extraction (Slices 058–060); this slice keeps the current single
+  DB but on the durable host boundary.
 - Health snapshot wiring (Slice 055 `ServerHealth`) to a machine-readable
   endpoint is a later slice; this image uses a port-bound `HEALTHCHECK`.

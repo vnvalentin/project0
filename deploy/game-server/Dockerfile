@@ -12,10 +12,11 @@ ARG GODOT_BINARY=Godot_v4.3-stable_linux.x86_64
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Godot headless needs fontconfig for its text server; iproute2 provides `ss`
-# for the port-bound healthcheck; tini gives correct PID 1 signal forwarding.
+# for the port-bound healthcheck; sqlite3 provides the online-backup API for
+# consistent DB backups; tini gives correct PID 1 signal forwarding.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		ca-certificates wget unzip libfontconfig1 iproute2 tini \
+		ca-certificates wget unzip libfontconfig1 iproute2 sqlite3 tini \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN wget -q "${GODOT_URL}" -O /tmp/godot.zip \
