@@ -64,8 +64,9 @@ contended range and everything after it is tracked explicitly:
 | 046 | Authoritative sector-boundary detection for JIT generation (IP-008) | interactive |
 | 047 | JIT result canonicalization and sector replication (IP-008, P-011, P-012) | interactive |
 | 048 | WireGuard invite-code enrollment service, logic + tests (P-024, issue 04) | interactive |
+| 049 | WireGuard peer revocation/ban lifecycle, logic + tests (P-024, issue 06) | interactive |
 
-Next free slice: **049** (verify against `docs/slices/` before reserving).
+Next free slice: **050** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

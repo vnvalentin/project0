@@ -126,3 +126,24 @@ def test_reconfigure_raises_on_failure(monkeypatch, no_real_subprocess):
 
     with pytest.raises(OpnsenseApiError, match="did not report ok"):
         client.reconfigure()
+
+
+def test_delete_client_posts_to_delclient_path(monkeypatch, no_real_subprocess):
+    api = RecordingApi({"wireguard/client/delClient/peer-uuid": {"result": "deleted"}})
+    monkeypatch.setattr(wg.subprocess, "run", api)
+    client = RealOpnsenseWireguardClient("key", "secret")
+
+    client.delete_client("peer-uuid")
+
+    delete_calls = [c for c in api.calls if c["url"].endswith("wireguard/client/delClient/peer-uuid")]
+    assert len(delete_calls) == 1
+    assert delete_calls[0]["method"] == "POST"
+
+
+def test_delete_client_raises_on_unsuccessful_response(monkeypatch, no_real_subprocess):
+    api = RecordingApi({"wireguard/client/delClient/peer-uuid": {"result": "failed"}})
+    monkeypatch.setattr(wg.subprocess, "run", api)
+    client = RealOpnsenseWireguardClient("key", "secret")
+
+    with pytest.raises(OpnsenseApiError, match="did not report success"):
+        client.delete_client("peer-uuid")

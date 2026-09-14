@@ -9,13 +9,20 @@ from infra.enrollment.opnsense_client import OpnsenseApiError
 
 
 class FakeOpnsenseWireguardClient:
-    """Records add_client/reconfigure calls; can be configured to fail."""
+    """Records add_client/reconfigure/delete_client calls; can be configured to fail."""
 
-    def __init__(self, fail_add_client: bool = False, fail_reconfigure: bool = False) -> None:
+    def __init__(
+        self,
+        fail_add_client: bool = False,
+        fail_reconfigure: bool = False,
+        fail_delete_client: bool = False,
+    ) -> None:
         self.fail_add_client = fail_add_client
         self.fail_reconfigure = fail_reconfigure
+        self.fail_delete_client = fail_delete_client
         self.add_client_calls: list[dict] = []
         self.reconfigure_calls = 0
+        self.delete_client_calls: list[str] = []
         self._next_uuid = 0
 
     def add_client(self, name: str, public_key: str, tunnel_address: str, keepalive_seconds: int) -> str:
@@ -36,3 +43,8 @@ class FakeOpnsenseWireguardClient:
         if self.fail_reconfigure:
             raise OpnsenseApiError("simulated reconfigure failure")
         self.reconfigure_calls += 1
+
+    def delete_client(self, client_uuid: str) -> None:
+        if self.fail_delete_client:
+            raise OpnsenseApiError("simulated delClient failure")
+        self.delete_client_calls.append(client_uuid)

@@ -240,9 +240,9 @@ Progress: **0%** (0 of 1 items done)
 
 Progress: **0%** (0 of 3 items done)
 
-- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process. Slice 035 delivered S3b (Windows DLL cross-compile + client repackage), with the remote-Windows WAN runtime now user-confirmed (2026-09-14). Slice 048 delivers the invite-code enrollment service's logic (issue 04) — single-use invites, strict public-key validation, `/32` pool allocation, and an injectable, fail-closed OPNsense client — proven by 39/39 passing automated tests; live deployment remains open.
+- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process. Slice 035 delivered S3b (Windows DLL cross-compile + client repackage), with the remote-Windows WAN runtime now user-confirmed (2026-09-14). Slice 048 delivers the invite-code enrollment service's logic (issue 04) — single-use invites, strict public-key validation, `/32` pool allocation, and an injectable, fail-closed OPNsense client — proven by 39/39 passing automated tests. Slice 049 delivers the revocation/ban lifecycle's logic (issue 06) on top of it — OPNsense `delClient` + `reconfigure` before releasing the local `/32`, fail-closed on upstream failure, idempotent no-op on an unknown/already-revoked peer, CLI/operator-only — proven by 54/54 passing automated tests. Live deployment, the real tunnel-teardown timing, and idempotent re-enrollment remain open.
 - Tech debt: none yet.
-- **Current slice:** [048 — WireGuard invite-code enrollment service, logic + tests](slices/048-wireguard-enrollment-service.md)
+- **Current slice:** [049 — WireGuard peer revocation/ban lifecycle, logic + tests](slices/049-wireguard-revocation-lifecycle.md)
 
 **Phase 14 — Player accounts and characters**
 
@@ -514,6 +514,13 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 04 decision) with one non-architectural choice — stdlib `sqlite3` (not `godot-sqlite`, which is Godot-only) for this standalone Python service's local store
   - **Public seam:** `infra/enrollment/service.py`'s `EnrollmentService.redeem()`, exposed as `POST /redeem` (`infra/enrollment/app.py`) and an admin CLI (`infra/enrollment/cli.py`)
   - **Validation:** `python3 -m pytest infra/enrollment/tests -q` passed 39/39, exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings, exit 0; no `.gd` files changed, so the GUT suite was not run
+- **Slice:** [049 — WireGuard peer revocation/ban lifecycle (logic + tests)](slices/049-wireguard-revocation-lifecycle.md) — **100% complete for this slice's scope; `RevocationService` and its OPNsense `delete_client`/store `release_allocation_by_public_key` seams proven by automated tests against a fake OPNsense client and a temp sqlite DB; live deployment and real tunnel-teardown timing are follow-ups**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 06](../.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md)
+  - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 06 decision) with one non-architectural choice — revocation is keyed on the peer's `public_key`, not `ip_address` or `invite_code` (see the slice record's Identifier choice section); idempotent re-enrollment (issue 06 point 4) is deliberately deferred as a documented follow-up
+  - **Public seam:** `infra/enrollment/service.py`'s `RevocationService.revoke()`, exposed only via the operator CLI (`infra/enrollment/cli.py revoke-peer <public_key>`) — no HTTP admin route, deliberately
+  - **Validation:** `python3 -m pytest infra/enrollment/tests -q` passed 54/54 (39 pre-existing, 15 new), exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings, exit 0; no `.gd` files changed, so the GUT suite was not run
 
 #### Phase 14 — Player accounts and characters
 
@@ -689,8 +696,19 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   invite-code enrollment service's logic (issue 04): single-use CSPRNG
   invites, strict public-key validation, `/32` pool allocation, and an
   injectable, fail-closed OPNsense client, proven by 39/39 passing automated
-  tests. Live deployment behind `enroll.valentin.vip` and revocation/ban
-  automation (issue 06) remain queued, unscoped work for
+  tests.
+  [Slice 049](slices/049-wireguard-revocation-lifecycle.md) delivers the
+  revocation/ban lifecycle's logic (issue 06) on top of it:
+  `RevocationService.revoke()` keyed on the peer's public key calls OPNsense
+  `delClient` + `reconfigure` before releasing the local `/32` allocation
+  back to the free pool, fail-closed on any upstream failure (no local
+  release, so a banned peer never keeps access from a swallowed error), and
+  idempotent (`ALREADY_ABSENT`) on an unknown or already-revoked key.
+  Revocation is CLI/operator-only (`infra/enrollment/cli.py revoke-peer`); no
+  HTTP admin route was added. Proven by 54/54 passing automated tests (39
+  pre-existing plus 15 new). Live deployment behind `enroll.valentin.vip`,
+  the real ~25s tunnel-teardown timing, and idempotent re-enrollment (reusing
+  an existing peer UUID) remain queued, unscoped work for
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
 - [x] Ready — Player accounts and characters, data layer (Phase 14): design
   complete (`.scratch/player-accounts/spec.md`, all six tickets resolved,

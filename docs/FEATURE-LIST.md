@@ -508,9 +508,19 @@ for a developer to pick up. No implementation has started.
   allocation from `10.77.0.0/24`, and OPNsense `client/addClient` +
   `service/reconfigure` registration behind an injectable client interface so
   tests never make a live call — fail-closed, so an upstream OPNsense failure
-  rolls back with no local allocation and no invite marked redeemed. This
-  slice is service logic proven by automated tests; live deployment behind
-  `enroll.valentin.vip` and revocation/ban automation (issue 06) remain open.
+  rolls back with no local allocation and no invite marked redeemed.
+  [Slice 049](slices/049-wireguard-revocation-lifecycle.md) delivers the
+  revocation/ban lifecycle's logic (issue 06): `RevocationService.revoke()`
+  looks up a peer by its public key, calls OPNsense `client/delClient/<uuid>`
+  then `service/reconfigure` through the same injectable client interface,
+  and only then releases the local `/32` allocation so it re-enters the free
+  pool — fail-closed, so an upstream delete/reconfigure failure leaves the
+  peer's allocation and OPNsense registration untouched for an operator
+  retry, and revoking an unknown or already-revoked key is an idempotent
+  no-op. Both slices are service logic proven by automated tests; live
+  deployment behind `enroll.valentin.vip`, the real ~25s tunnel-teardown
+  timing, and idempotent re-enrollment (reusing an existing peer UUID) remain
+  open.
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
 - Phase: 13. Public game access
@@ -520,8 +530,12 @@ for a developer to pick up. No implementation has started.
   `wgnetstack_stop` (Slice 032); `infra/enrollment/service.py`'s
   `EnrollmentService.redeem()`, exposed over HTTP as `POST /redeem` by
   `infra/enrollment/app.py` and over a CLI by `infra/enrollment/cli.py`
-  (Slice 048). The Godot `.gdextension` binding is separately scoped; the
-  enrollment service's live nginx/TLS deployment remains a follow-up ops step.
+  (Slice 048); `infra/enrollment/service.py`'s `RevocationService.revoke()`,
+  exposed only over the operator CLI as
+  `infra/enrollment/cli.py revoke-peer <public_key>`, deliberately with no
+  HTTP admin route (Slice 049). The Godot `.gdextension` binding is
+  separately scoped; the enrollment service's live nginx/TLS deployment
+  remains a follow-up ops step.
 - Validation: Slice 028's acceptance evidence is an external WireGuard peer
   handshake, split-tunnel isolation proof (game host reachable, LAN
   default-denied) from inside the tunnel, the host firewall dropping
@@ -539,9 +553,16 @@ for a developer to pick up. No implementation has started.
   passed, exit 0, covering normal redemption, single-use re-redeem rejection,
   pool exhaustion, invalid/expired codes, malformed public keys, and an
   OPNsense-failure rollback that leaves no partial durable state — all against
-  a fake OPNsense client and a temp sqlite DB, never a live call. Future
-  slices still owe live OPNsense wiring behind `enroll.valentin.vip` and peer
-  revocation/ban teardown within one keepalive interval.
+  a fake OPNsense client and a temp sqlite DB, never a live call. Slice 049's
+  acceptance evidence is `python3 -m pytest infra/enrollment/tests -q`, 54
+  passed, exit 0 (39 pre-existing plus 15 new), covering revoking an active
+  peer (frees its `/32` for reuse), an idempotent no-op on an unknown/already-
+  revoked key, and fail-closed rejection on both `delClient` and
+  `reconfigure` upstream failures (no local release, retry succeeds once
+  healthy) — again all against a fake OPNsense client and a temp sqlite DB.
+  Future slices still owe live OPNsense wiring behind `enroll.valentin.vip`,
+  the real tunnel-teardown timing within one keepalive interval, and
+  idempotent re-enrollment.
 - Change history:
   - Date: 2026-09-14
     What changed: Delivered Slice 048, the invite-code enrollment service's
@@ -570,6 +591,26 @@ for a developer to pick up. No implementation has started.
     Related work: [Slice 035](slices/035-wgnetstack-windows-dll-client-repackage.md)
     Validation: User-confirmed remote-Windows WAN run (2026-09-14); no automated
     GUT seam covers a live WAN hop.
+  - Date: 2026-09-14
+    What changed: Delivered Slice 049, the peer revocation/ban lifecycle's
+    logic and full automated test coverage, against issue 06's resolved
+    design. `RevocationService.revoke()` deletes the peer on OPNsense
+    (`delClient` + `reconfigure`) before releasing its local `/32`
+    allocation, keyed on the peer's public key; every rejection path
+    (`UPSTREAM_DELETE_FAILED`) is fail-closed with no local mutation, and
+    revoking an unknown or already-revoked key is an idempotent
+    `ALREADY_ABSENT` no-op. Revocation is CLI/operator-only
+    (`infra/enrollment/cli.py revoke-peer`); no HTTP admin route was added.
+    Idempotent re-enrollment (reusing an existing peer UUID) was deliberately
+    deferred as a documented follow-up.
+    Why: A ban must actually revoke tunnel access — an enrollment path with
+    no matching revocation path lets a banned player keep working WireGuard
+    access and leaks `/32` addresses forever, per issue 06's resolved design.
+    Related work: [Slice 049](slices/049-wireguard-revocation-lifecycle.md)
+    Validation: `python3 -m pytest infra/enrollment/tests -q` passed 54/54
+    (39 pre-existing, 15 new), exit 0; `scripts/check_record_sync.sh` passed
+    with 0 errors and 6 pre-existing warnings, exit 0. No `.gd` files
+    changed, so the GUT suite was not run.
 - Related work: [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md),
   [ENet netstack bridging](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md),
   [GDExtension netstack prototype](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md),

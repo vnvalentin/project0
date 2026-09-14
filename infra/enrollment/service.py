@@ -1,4 +1,5 @@
-"""Core enrollment redemption logic: the public seam for Slice 048.
+"""Core enrollment redemption and revocation logic: the public seam for
+Slices 048 and 049.
 
 `EnrollmentService.redeem` is the single authoritative entry point. It never
 touches a client private key (the client never sends one), and it never
@@ -6,9 +7,16 @@ commits a local IP allocation or marks an invite redeemed unless the OPNsense
 registration call already succeeded — so a failed upstream call leaves no
 partial durable state.
 
+`RevocationService.revoke` is the single authoritative ban/revocation entry
+point. It never releases a local allocation unless the OPNsense delete call
+already succeeded — a fail-closed ban, so a swallowed upstream error can
+never leave a banned peer with working access.
+
 Delivered for Slice 048 (docs/slices/048-wireguard-enrollment-service.md)
 against the resolved design in
-.scratch/wan-wireguard/issues/04-enrollment-service-invite-system.md.
+.scratch/wan-wireguard/issues/04-enrollment-service-invite-system.md, and
+Slice 049 (docs/slices/049-wireguard-revocation-lifecycle.md) against
+.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md.
 """
 from __future__ import annotations
 
@@ -116,3 +124,54 @@ class EnrollmentService:
             allowed_ips=self._config.split_tunnel_allowed_ips,
             persistent_keepalive_seconds=self._config.persistent_keepalive_seconds,
         )
+
+
+class RevocationOutcome(str, Enum):
+    REVOKED = "REVOKED"
+    ALREADY_ABSENT = "ALREADY_ABSENT"
+
+
+class RevocationRejectionReason(str, Enum):
+    UPSTREAM_DELETE_FAILED = "UPSTREAM_DELETE_FAILED"
+
+
+class RevocationRejected(Exception):
+    """Raised for the fail-closed rejection path. `reason` is a bounded enum, never free text."""
+
+    def __init__(self, reason: RevocationRejectionReason, detail: str = "") -> None:
+        self.reason = reason
+        self.detail = detail
+        super().__init__(f"{reason.value}: {detail}" if detail else reason.value)
+
+
+@dataclass(frozen=True)
+class RevocationResult:
+    outcome: RevocationOutcome
+
+
+class RevocationService:
+    """Revokes a peer by public key: deletes it on OPNsense, then releases its /32.
+
+    Fail-closed: if the OPNsense delete/reconfigure calls do not both
+    succeed, no local state changes and the peer keeps its allocation and
+    OPNsense registration, so a swallowed error can never leave a banned
+    peer with working access.
+    """
+
+    def __init__(self, store: EnrollmentStore, opnsense_client: OpnsenseWireguardClient) -> None:
+        self._store = store
+        self._opnsense = opnsense_client
+
+    def revoke(self, public_key: str) -> RevocationResult:
+        client_uuid = self._store.get_allocation_by_public_key(public_key)
+        if client_uuid is None:
+            return RevocationResult(outcome=RevocationOutcome.ALREADY_ABSENT)
+
+        try:
+            self._opnsense.delete_client(client_uuid)
+            self._opnsense.reconfigure()
+        except OpnsenseApiError as exc:
+            raise RevocationRejected(RevocationRejectionReason.UPSTREAM_DELETE_FAILED, str(exc)) from exc
+
+        self._store.release_allocation_by_public_key(public_key)
+        return RevocationResult(outcome=RevocationOutcome.REVOKED)

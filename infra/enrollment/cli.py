@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Admin CLI to mint single-use WireGuard enrollment invite codes.
+"""Admin CLI to mint single-use WireGuard enrollment invite codes and to
+revoke/ban an enrolled peer.
 
 Codes are CSPRNG (secrets.token_urlsafe), never derived from guessable
 input. Run as: python -m infra.enrollment.cli mint-invite [--expires-in-seconds N]
+Revoke a peer as: python -m infra.enrollment.cli revoke-peer <public_key>
 
-Delivered for Slice 048 (docs/slices/048-wireguard-enrollment-service.md).
+This CLI is the only revocation surface (operator/shell access only); no
+HTTP admin endpoint is exposed, per Slice 049's documented scope decision.
+
+Delivered for Slice 048 (docs/slices/048-wireguard-enrollment-service.md)
+and Slice 049 (docs/slices/049-wireguard-revocation-lifecycle.md).
 """
 from __future__ import annotations
 
@@ -14,6 +20,8 @@ import sys
 import time
 
 from .config import load_config
+from .opnsense_client import OpnsenseWireguardClient, RealOpnsenseWireguardClient
+from .service import RevocationRejected, RevocationService
 from .store import EnrollmentStore
 
 INVITE_CODE_BYTES = 24
@@ -30,6 +38,12 @@ def cmd_mint_invite(store: EnrollmentStore, expires_in_seconds: int | None) -> s
     return code
 
 
+def cmd_revoke_peer(store: EnrollmentStore, opnsense_client: OpnsenseWireguardClient, public_key: str) -> str:
+    service = RevocationService(store, opnsense_client)
+    result = service.revoke(public_key)
+    return result.outcome.value
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Admin CLI for the enrollment service.")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -41,6 +55,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional expiry, in seconds from now. Omit for a non-expiring invite.",
     )
+
+    revoke = subparsers.add_parser("revoke-peer", help="Revoke/ban an enrolled peer by its public key.")
+    revoke.add_argument("public_key", help="The WireGuard public key of the peer to revoke.")
     return parser
 
 
@@ -54,6 +71,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.subcommand == "mint-invite":
             code = cmd_mint_invite(store, args.expires_in_seconds)
             print(code)
+            return 0
+        if args.subcommand == "revoke-peer":
+            opnsense_client = RealOpnsenseWireguardClient(config.opnsense_api_key, config.opnsense_api_secret)
+            try:
+                outcome = cmd_revoke_peer(store, opnsense_client, args.public_key)
+            except RevocationRejected as exc:
+                print(f"REJECTED: {exc.reason.value}", file=sys.stderr)
+                return 1
+            print(outcome)
             return 0
     finally:
         store.close()

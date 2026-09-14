@@ -34,6 +34,10 @@ class OpnsenseWireguardClient(Protocol):
         """Apply the WireGuard service reconfiguration. Raises OpnsenseApiError on failure."""
         ...
 
+    def delete_client(self, client_uuid: str) -> None:
+        """Remove a peer from OPNsense. Raises OpnsenseApiError on failure."""
+        ...
+
 
 class RealOpnsenseWireguardClient:
     """The only implementation that performs real network I/O against OPNsense."""
@@ -74,3 +78,10 @@ class RealOpnsenseWireguardClient:
 
     def reconfigure(self) -> None:
         opnsense.reconfigure_wireguard(self._api_key, self._api_secret)
+
+    def delete_client(self, client_uuid: str) -> None:
+        response = opnsense.run_api_call(
+            self._api_key, self._api_secret, f"wireguard/client/delClient/{client_uuid}", method="POST"
+        )
+        if not isinstance(response, dict) or response.get("result") not in ("deleted", "saved"):
+            raise OpnsenseApiError(f"delClient did not report success: {response}")

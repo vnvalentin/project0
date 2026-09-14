@@ -130,3 +130,56 @@ def test_mint_invite_with_expiry(store):
     store.mint_invite("code-exp", expires_at=expires_at)
     invite = store.get_invite("code-exp")
     assert invite.expires_at == expires_at
+
+
+def test_get_allocation_by_public_key_returns_uuid(store):
+    store.mint_invite("code-1")
+    store.redeem_invite(
+        code="code-1",
+        public_key="PUBKEY1",
+        ip_address=ipaddress.ip_address("10.77.0.5"),
+        opnsense_client_uuid="uuid-1",
+    )
+    assert store.get_allocation_by_public_key("PUBKEY1") == "uuid-1"
+
+
+def test_get_allocation_by_public_key_returns_none_when_absent(store):
+    assert store.get_allocation_by_public_key("no-such-key") is None
+
+
+def test_release_allocation_by_public_key_deletes_row_and_returns_uuid(store):
+    store.mint_invite("code-1")
+    store.redeem_invite(
+        code="code-1",
+        public_key="PUBKEY1",
+        ip_address=ipaddress.ip_address("10.77.0.5"),
+        opnsense_client_uuid="uuid-1",
+    )
+
+    released_uuid = store.release_allocation_by_public_key("PUBKEY1")
+
+    assert released_uuid == "uuid-1"
+    assert ipaddress.ip_address("10.77.0.5") not in store.allocated_addresses()
+    assert store.get_allocation_by_public_key("PUBKEY1") is None
+
+
+def test_release_allocation_by_public_key_is_noop_when_absent(store):
+    assert store.release_allocation_by_public_key("no-such-key") is None
+    assert store.allocated_addresses() == set()
+
+
+def test_released_address_is_handed_out_again(store):
+    store.mint_invite("code-1")
+    excluded = {POOL.network_address, SERVER_ADDR, POOL.broadcast_address}
+    address = store.next_free_address(POOL, excluded)
+    store.redeem_invite(
+        code="code-1",
+        public_key="PUBKEY1",
+        ip_address=address,
+        opnsense_client_uuid="uuid-1",
+    )
+
+    store.release_allocation_by_public_key("PUBKEY1")
+
+    reallocated = store.next_free_address(POOL, excluded)
+    assert reallocated == address

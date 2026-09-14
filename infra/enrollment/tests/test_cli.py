@@ -1,4 +1,4 @@
-"""Unit tests for infra/enrollment/cli.py's invite-minting admin CLI."""
+"""Unit tests for infra/enrollment/cli.py's invite-minting and revocation admin CLI."""
 from __future__ import annotations
 
 import os
@@ -6,8 +6,11 @@ import time
 
 import pytest
 
-from infra.enrollment.cli import cmd_mint_invite, generate_invite_code
+from infra.enrollment.cli import cmd_mint_invite, cmd_revoke_peer, generate_invite_code
+from infra.enrollment.service import EnrollmentService, RevocationRejected
 from infra.enrollment.store import EnrollmentStore
+from infra.enrollment.tests.fakes import FakeOpnsenseWireguardClient
+from infra.enrollment.tests.test_service import VALID_PUBLIC_KEY, make_config
 
 
 @pytest.fixture
@@ -42,3 +45,34 @@ def test_mint_invite_with_expiry_records_future_expiry(store):
     invite = store.get_invite(code)
     assert invite.expires_at is not None
     assert before + 3600 <= invite.expires_at <= after + 3600
+
+
+def test_revoke_peer_revokes_enrolled_peer(store):
+    fake_opnsense = FakeOpnsenseWireguardClient()
+    enrollment_service = EnrollmentService(make_config(), store, fake_opnsense)
+    store.mint_invite("code-1")
+    enrollment_service.redeem("code-1", VALID_PUBLIC_KEY)
+
+    outcome = cmd_revoke_peer(store, fake_opnsense, VALID_PUBLIC_KEY)
+
+    assert outcome == "REVOKED"
+    assert store.get_allocation_by_public_key(VALID_PUBLIC_KEY) is None
+
+
+def test_revoke_peer_on_unknown_key_is_idempotent_noop(store):
+    fake_opnsense = FakeOpnsenseWireguardClient()
+
+    outcome = cmd_revoke_peer(store, fake_opnsense, "never-enrolled-key")
+
+    assert outcome == "ALREADY_ABSENT"
+
+
+def test_revoke_peer_raises_on_upstream_failure(store):
+    fake_opnsense = FakeOpnsenseWireguardClient()
+    enrollment_service = EnrollmentService(make_config(), store, fake_opnsense)
+    store.mint_invite("code-1")
+    enrollment_service.redeem("code-1", VALID_PUBLIC_KEY)
+
+    failing_opnsense = FakeOpnsenseWireguardClient(fail_delete_client=True)
+    with pytest.raises(RevocationRejected):
+        cmd_revoke_peer(store, failing_opnsense, VALID_PUBLIC_KEY)

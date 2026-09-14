@@ -151,3 +151,31 @@ class EnrollmentStore:
                 )
         except sqlite3.IntegrityError as exc:
             raise PoolExhaustedError(f"address {ip_address} was already allocated") from exc
+
+    def get_allocation_by_public_key(self, public_key: str) -> str | None:
+        """Return the allocation's opnsense_client_uuid for public_key, or None if absent."""
+        row = self._conn.execute(
+            "SELECT opnsense_client_uuid FROM allocations WHERE public_key = ?",
+            (public_key,),
+        ).fetchone()
+        return row[0] if row is not None else None
+
+    def release_allocation_by_public_key(self, public_key: str) -> str | None:
+        """Atomically delete the allocation row for public_key, freeing its /32.
+
+        Returns the released opnsense_client_uuid, or None if no allocation
+        exists for public_key (an idempotent no-op). Callers MUST have
+        already confirmed the OPNsense delClient + reconfigure calls
+        succeeded before invoking this — this method is the single durable
+        release point and must not be called on a path that can still fail
+        upstream.
+        """
+        with self._conn:
+            row = self._conn.execute(
+                "SELECT opnsense_client_uuid FROM allocations WHERE public_key = ?",
+                (public_key,),
+            ).fetchone()
+            if row is None:
+                return None
+            self._conn.execute("DELETE FROM allocations WHERE public_key = ?", (public_key,))
+            return row[0]
