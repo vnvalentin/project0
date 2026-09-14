@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [060 — Assertion-backed session establishment in the login gateway](slices/060-assertion-session-binding.md) — **delivered; gateway mints account/selected-Character assertions and establishes a session from a validated one (Slice 059 seams wired in server_main); GUT 359/359 across 49/49 exit 0, e2e green**
+- **Current slice:** [061 — Operator control plane: read-only status service](slices/061-operator-status-service.md) — **delivered; private operator-token-authed FastAPI status service over an allowlisted systemd/docker inspector (read-only, no shell); 13 pytest tests, enrollment suite unregressed (68 total), GUT unaffected**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [061 — Operator control plane: read-only status service](slices/061-operator-status-service.md) — **delivered; private, operator-token-authed FastAPI status service (allowlisted systemd/docker inspector, loopback-only, no mutation); 13 pytest tests + enrollment unregressed (68 total); GUT unaffected**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (operator control-plane decision: read-only foundation)
+  - **Public seam:** `infra/operator/` (`config.py`, `services.py`, `app.py`, `asgi.py`, `project0-operator.service`)
+  - **Planning ticket:** [operator control-plane decision](../.scratch/container-platform/issues/04-operator-control-plane-and-telemetry.md)
+  - **Decision:** no new ADR; implements the accepted operator control-plane decision (private, allowlisted, token-authed); Python-only, pytest-validated
 
 - **Slice:** [060 — Assertion-backed session establishment in the login gateway](slices/060-assertion-session-binding.md) — **delivered; issue/establish session assertions wired into the gateway (Slice 059 seams); additive, e2e green; GUT 359/359 across 49/49**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: the assertion mechanism the game server uses to trust the login authority)

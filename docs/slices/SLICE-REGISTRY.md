@@ -76,8 +76,9 @@ contended range and everything after it is tracked explicitly:
 | 058 | In-process login gateway seam over AuthService/CharacterService (P-014) | interactive |
 | 059 | Signed session assertion contract, issuer, and validator (P-014) | interactive |
 | 060 | Assertion-backed session establishment in the login gateway (P-014) | interactive |
+| 061 | Operator control plane: read-only status service (P-014) | interactive |
 
-Next free slice: **061** (verify against `docs/slices/` before reserving).
+Next free slice: **062** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
