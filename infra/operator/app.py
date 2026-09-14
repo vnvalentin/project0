@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from .config import load_config
 from .control import RealServiceController
 from .invites import RealInviteAdmin
-from .jobs import AuditLog
+from .audit_store import SqliteAuditLog
 from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
 
@@ -101,7 +101,7 @@ def build_production_app() -> FastAPI:
     invite_admin = RealInviteAdmin(EnrollmentStore(enrollment_db))
     peer_admin = _build_peer_admin(enrollment_db)
     operations_service = OperationsService(
-        config.services, RealServiceController(), AuditLog(),
+        config.services, RealServiceController(), SqliteAuditLog(config.audit_db_path),
         invite_admin=invite_admin, peer_admin=peer_admin,
     )
     return create_app(status_service, operations_service, config.operator_token)

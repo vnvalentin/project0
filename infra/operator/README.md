@@ -31,9 +31,12 @@ Authentication is a bearer token compared with `hmac.compare_digest`: missing �
 
 Every mutating action is wrapped in an audited job (`requested → running →
 succeeded/failed`) with a correlation id, operator identity, target,
-timestamps, and a bounded outcome. Restarting a systemd unit as the non-root
-service user needs a polkit/sudoers grant for that unit; docker restarts work
-for a user in the docker group.
+timestamps, and a bounded outcome. The audit trail is durable: jobs are
+appended to an append-only SQLite DB (`OPERATOR_AUDIT_DB_PATH`, default under
+`infra/operator/.data/`) so `GET /jobs` survives a control-plane restart.
+Secrets are never persisted — the invite code is kept out of the job. Restarting
+a systemd unit as the non-root service user needs a polkit/sudoers grant for
+that unit; docker restarts work for a user in the docker group.
 
 ## Allowlist
 

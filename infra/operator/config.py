@@ -17,6 +17,12 @@ DEFAULT_SERVICES: dict[str, tuple[str, str]] = {
     "dashboard": ("docker", "project0-flow"),
 }
 
+# Durable operator audit DB. Default under the repo-ignored infra/operator/.data;
+# production overrides to /var/lib/project0/operator/audit.sqlite3.
+DEFAULT_AUDIT_DB_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), ".data", "audit.sqlite3"
+)
+
 
 @dataclass(frozen=True)
 class OperatorConfig:
@@ -24,6 +30,7 @@ class OperatorConfig:
     bind_port: int
     operator_token: str
     services: dict[str, tuple[str, str]]
+    audit_db_path: str
 
 
 def load_config() -> OperatorConfig:
@@ -43,4 +50,5 @@ def load_config() -> OperatorConfig:
         bind_port=port,
         operator_token=token,
         services=dict(DEFAULT_SERVICES),
+        audit_db_path=os.getenv("OPERATOR_AUDIT_DB_PATH", DEFAULT_AUDIT_DB_PATH).strip(),
     )

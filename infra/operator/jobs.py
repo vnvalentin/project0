@@ -3,7 +3,8 @@
 Every mutating operator action is wrapped in a Job with a bounded lifecycle
 (requested -> running -> succeeded/failed), a correlation id, operator identity,
 target, timestamps, and a bounded outcome. The AuditLog is append-only. A
-durable sink (sqlite/file) is a follow-up; this keeps the model testable.
+durable SQLite sink with the same interface lives in audit_store.py
+(SqliteAuditLog); this in-memory log keeps the model testable.
 """
 from __future__ import annotations
 
