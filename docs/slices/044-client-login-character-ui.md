@@ -123,6 +123,21 @@ For GUI verification on Windows: launch client, navigate login → character sel
 - Enrollment service: 55/55 pytest cases, exit 0.
 - Record synchronization: exit 0 with six existing warnings and no errors.
 
+### Native UI Validation Tooling
+
+The repository now includes a bounded native Godot UI smoke runner:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run_client_ui_smoke.ps1
+```
+
+It loads `account_gate.tscn`, `character_gate.tscn`, and `gameplay.tscn`,
+checks their required public control paths, and writes
+`build/validation/client-ui-summary.json`. A windowed Godot invocation can
+also capture scene PNGs under `build/validation/ui`; headless validation skips
+PNG capture because Godot's dummy renderer has no framebuffer image. The
+validator passed all three scene contracts on Windows with exit 0.
+
 ### GUI-Level Tests (manual, Windows verification)
 - Launch account_gate.tscn on Windows client
 - Enter username, password, server host → verify connection status updates
