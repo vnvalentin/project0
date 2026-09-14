@@ -1,6 +1,6 @@
 # Slice 044: Client Login and Character Selection UI
 
-**Status:** In Progress (scaffolding complete, GUI verification on Windows pending)
+**Status:** In Progress (server validation complete, GUI verification on Windows pending)
 **Linked Feature:** F-034 (new feature in FEATURE-LIST.md)
 **Related Server Slices:** Slices 040 (auth), 042 (character CRUD), 043 (world-entry)
 
@@ -50,7 +50,8 @@ A client that opens a connection during login, stores identity in PlayerIdentity
 
 ## Validation Command
 
-For unit-test integration: `scripts/run_gut_validation.sh` (268/268 tests)
+For unit-test integration: `scripts/run_gut_validation.sh` (315/315 tests,
+44/44 scripts, 1224 assertions on the authoritative Linux server)
 For GUI verification on Windows: launch client, navigate login → character select → gameplay, confirm smooth transitions and no errors in output console.
 
 ## Public Seam
@@ -113,7 +114,14 @@ For GUI verification on Windows: launch client, navigate login → character sel
 ### Unit-Level Tests (existing, Slices 040/042/043)
 - test_auth_basic.gd: registration, login, bad credentials
 - test_character_crud_rpc.gd: list, create, select, delete, world-entry, authorization scoping
-- e2e harnesses: melee, multi-peer, prediction (all 268/268 passing after refactor)
+- e2e harnesses: melee, multi-peer, prediction (included in 315/315 passing
+   authoritative Linux GUT validation)
+
+### Authoritative Linux Evidence (2026-09-14)
+
+- Full GUT: 315/315 tests, 44/44 scripts, 1224 assertions, exit 0.
+- Enrollment service: 55/55 pytest cases, exit 0.
+- Record synchronization: exit 0 with six existing warnings and no errors.
 
 ### GUI-Level Tests (manual, Windows verification)
 - Launch account_gate.tscn on Windows client

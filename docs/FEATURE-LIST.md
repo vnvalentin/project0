@@ -221,7 +221,7 @@ for a developer to pick up. No implementation has started.
 
 ### F-033: Character world entry (server binding)
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: An authenticated peer that has selected a Character can enter the
   world as that Character. The server resolves the selection from the session
   (the client names neither the account nor the character) and binds the
@@ -255,10 +255,11 @@ for a developer to pick up. No implementation has started.
   target_host); `account_gate.tscn`/`account_gate.gd` (login/register UI);
   `character_gate.tscn`/`character_gate.gd` (character select/create UI).
 - Validation: `tests/integration/test_character_crud_rpc.gd`'s world-entry
-  scenario (unauthenticated / unselected refused; selected resolves). Full suite
-  `scripts/run_gut_validation.sh` 268/268 across 36 scripts, exit 0
-  (`scripts_expected == scripts_ran == 36`); `scripts/check_record_sync.sh` exit 0.
-  GUI visual validation on Windows: login → character select → gameplay flow.
+  scenario (unauthenticated / unselected refused; selected resolves). Linux
+  validation on the authoritative server passed the full GUT suite at 315/315
+  tests across 44/44 scripts and 1224 assertions, exit 0; enrollment tests
+  passed 55/55; `scripts/check_record_sync.sh` exited 0. The client GUI flow
+  remains owned by F-034/Slice 044.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [player-accounts spec](../.scratch/player-accounts/spec.md),
   [F-032](#f-032-character-crud-over-the-wire-server) (the consumed CRUD/session seam),
@@ -335,7 +336,7 @@ for a developer to pick up. No implementation has started.
 
 ### F-032: Character CRUD over the wire (server)
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: An authenticated peer can list, create, select, and soft-delete its
   own Characters over the ENet link. The server scopes every operation to the
   peer's session account — the client never supplies an `account_id` — and
@@ -381,8 +382,9 @@ for a developer to pick up. No implementation has started.
   records the selection + refreshes `last_played_at`, soft-delete) and the
   extended `tests/unit/test_character_record.gd` wire round-trip. Full suite
   `scripts/run_gut_validation.sh` 267/267 across 36 scripts, exit 0
-  (`scripts_expected == scripts_ran == 36`); `scripts/check_record_sync.sh`
-  exit 0.
+  (`scripts_expected == scripts_ran == 44`); Linux authoritative-server GUT
+  validation passed 315/315 tests and 1224 assertions, enrollment tests passed
+  55/55, and `scripts/check_record_sync.sh` exited 0.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [player-accounts spec](../.scratch/player-accounts/spec.md),
   [F-031](#f-031-account-authentication-and-session-server) (the consumed
