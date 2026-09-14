@@ -510,11 +510,12 @@ DELIVERY_ROADMAP = {
             ],
         },
         {
-            "n": "3", "title": "World-scale migration",
-            "note": "Sequence after town/monster churn settles. Mostly a relabel + a versioned scale seam (low churn).",
+            "n": "3", "title": "World-scale migration", "done": True,
+            "note": "Delivered as ADR 0003's two handoff slices: the versioned WorldScale seam (Slice 036) and the meters\u2192yards relabel of the existing constants (Slice 037, magnitudes unchanged). Full GUT suite green (268/268).",
             "tracks": [
-                {"name": "Scale / tuning seam", "feat": "world-scale build", "steps": [
-                    "Versioned server-owned scale seam", "Reconcile existing constants"]},
+                {"name": "Scale / tuning seam", "feat": "F-028 \u00b7 ADR 0003", "steps": [
+                    "Versioned WorldScale seam (Slice 036) \u2014 done",
+                    "Reconcile existing constants meters\u2192yards (Slice 037) \u2014 done"]},
             ],
         },
         {

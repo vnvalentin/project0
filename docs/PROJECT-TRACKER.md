@@ -66,9 +66,11 @@ Waves are sequential; tracks inside a wave run in parallel.
    ADR (`.scratch/world-scale/`: 1 unit = 1 yard, Sector ~= 1/4 mile) and the
    player-accounts + shared-persistence design (`.scratch/player-accounts/`)
    can be charted in parallel; both are docs-only.
-3. **World-scale migration.** Introduce the versioned server-owned scale/tuning
-   seam and reconcile existing constants (mostly a relabel, low churn).
-   Sequence after the town/monster constant churn settles.
+3. **World-scale migration — done.** The versioned `WorldScale` seam
+   (`shared/world_scale.gd`, Slice 036) and the meters→yards relabel of the
+   existing constants (Slice 037, magnitudes unchanged) are delivered under
+   [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract);
+   the full GUT suite stays green (268/268).
 4. **Shared SQLite persistence foundation (linchpin, build once) — done.** One
    server-owned SQLite engine (`server/sqlite_store.gd`, Slice 038, F-029)
    consumed by both player-accounts and Phase 9 Canon; it unblocks the
