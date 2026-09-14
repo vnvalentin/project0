@@ -1,6 +1,6 @@
 # Slice 059 — Signed session assertion contract, issuer, and validator
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -88,6 +88,16 @@ expected issuer → `wrong_issuer`; wrong audience → `wrong_audience`; expired
   `tests/unit/test_assertion_issuer_validator.gd`.
 - Full GUT gate on the Linux host: `scripts/run_gut_validation.sh` (exit 0);
   `scripts/check_record_sync.sh` (exit 0). Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`scripts/run_gut_validation.sh` passed **352/352 tests across 48/48 scripts**
+(`scripts_expected == scripts_ran == 48`), exit 0 — up from 330/46 (the 22 new
+assertion tests). `test_session_assertion` and `test_assertion_issuer_validator`
+both passed, covering the issue→validate round trip (account-only and
+selected-Character) and every rejection path (tampered payload/signature,
+wrong key, wrong issuer/audience, expired, not-yet-valid, unsupported version,
+malformed). `scripts/check_record_sync.sh` reported 0 errors, exit 0.
 
 ## Root-cause learning
 
