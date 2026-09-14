@@ -243,6 +243,7 @@ Progress: **0%** (0 of 3 items done)
 - Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the OPNsense tunnel, Windows DLL packaging, remote-Windows WAN runtime, enrollment service, and live `/healthz`/`/redeem` path are delivered and validated. Slice 054 remains active only for Windows secure-launcher live enrollment/tunnel evidence, real tunnel-teardown timing, and idempotent re-enrollment.
 - Tech debt: none yet.
 - **Current slice:** [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — **in progress; secure launcher implemented and full-suite tested; enrollment service deployed live and validated; Windows-launcher live tunnel validation pending**
+  - **Deferred improvement:** automatic trusted device enrollment/approval to replace manual invite copying; manual single-use invite remains the secure fallback.
 
 **Phase 14 — Player accounts and characters**
 

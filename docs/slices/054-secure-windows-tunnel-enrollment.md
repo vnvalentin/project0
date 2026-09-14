@@ -32,6 +32,8 @@ separate WireGuard application is required.
 - Embedding private keys in Git, the Godot PCK, or a distributable executable.
 - Password recovery, account authentication, or a new game-server protocol.
 - Automatic revocation decisions; operators continue to use Slice 049.
+- Automatic invite delivery or device approval; this is a deferred F-035
+  improvement tracked below.
 
 ## Security boundary
 
@@ -171,3 +173,20 @@ failure noted earlier no longer applies. The remaining open item is the
 Windows-launcher live tunnel validation (Acceptance checks 1-7 and the
 Validation section's Windows-side `go test`/build/runtime evidence), which is
 separate from the enrollment service's own deployment and is not yet complete.
+
+## Deferred improvement: automatic enrollment
+
+The current secure first-run flow requires a one-time invite supplied through
+`--invite-code` or `PROJECT0_INVITE_CODE`. This is intentionally acceptable for
+the current security proof, but it is not the desired long-term user
+experience. A future follow-up should provide a trusted automatic device
+enrollment or approval flow so a user can launch the client, authenticate or
+approve the device, and receive enrollment without manually copying a code.
+
+The follow-up MUST preserve the current invariants: the client generates the
+private key locally, only the public key crosses the enrollment boundary, the
+private key remains DPAPI-protected, invites remain a manual fallback, and the
+server retains auditable single-use/revocation controls. Candidate seams are
+authenticated web enrollment, a short-lived signed launch token, or a device
+link approval flow. No implementation slice or new public protocol is claimed
+by this record yet.
