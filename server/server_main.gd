@@ -47,6 +47,14 @@ const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_gen
 const AuthServiceScript: Script = preload("res://server/auth_service.gd")
 const CharacterServiceScript: Script = preload("res://server/character_service.gd")
 const LoginGatewayScript: Script = preload("res://server/login_gateway.gd")
+const AssertionIssuerScript: Script = preload("res://server/assertion_issuer.gd")
+const AssertionValidatorScript: Script = preload("res://server/assertion_validator.gd")
+
+# Slice 060: session-assertion issuer/audience identifiers. The login authority
+# issues under ASSERTION_ISSUER_ID; the game server accepts only that issuer and
+# the ASSERTION_AUDIENCE it serves.
+const ASSERTION_ISSUER_ID: String = "project0-login"
+const ASSERTION_AUDIENCE: String = "project0-game"
 const TownLayoutProviderScript: Script = preload("res://server/town_layout_provider.gd")
 const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 
@@ -263,6 +271,18 @@ func _start_server() -> void:
 	_login_gateway = LoginGatewayScript.new(_auth_service, _character_service)
 	_login_gateway.name = "LoginGateway"
 	root.add_child(_login_gateway)
+	# Slice 060: wire the Slice 059 assertion issuer/validator into the gateway so
+	# it can mint session assertions and establish a session from a validated one.
+	# Secret from PROJECT0_ASSERTION_SECRET (hex); an ephemeral per-boot key with a
+	# warning when unset (dev). In-process, issuer and validator share one secret;
+	# a future login-service split keeps the same configured secret on both sides.
+	var assertion_secret: String = OS.get_environment("PROJECT0_ASSERTION_SECRET").strip_edges()
+	if assertion_secret.is_empty():
+		assertion_secret = Crypto.new().generate_random_bytes(32).hex_encode()
+		print("PROJECT0_ASSERTION_SECRET not set; using an ephemeral per-boot assertion key (dev only).")
+	var assertion_issuer: Object = AssertionIssuerScript.new(assertion_secret, ASSERTION_ISSUER_ID, ASSERTION_AUDIENCE)
+	var assertion_validator: Object = AssertionValidatorScript.new(assertion_secret, ASSERTION_ISSUER_ID, ASSERTION_AUDIENCE)
+	_login_gateway.set_assertion_seams(assertion_issuer, assertion_validator)
 	print("Accounts database ready at user://%s (schema ensured)." % accounts_db_path)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
