@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [056 — Game-server container image and run-beside-native](slices/056-game-server-container-image.md) — **delivered; OCI image boots the authoritative server headless (Server listening, SQLite+Canon ready), healthy, graceful SIGTERM stop ~0.39s, run beside native on isolated port with the native server untouched**
+- **Current slice:** [057 — Game-server persistent data boundary and SQLite backup/restore](slices/057-game-server-persistence-boundary.md) — **delivered; durable state bind-mounted to host /var/lib/project0/game (survives container replacement: Canon idempotent on 2nd boot), consistent SQLite .backup + integrity ok, restore recovers a wiped data dir, native server untouched**
   - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [057 — Game-server persistent data boundary and SQLite backup/restore](slices/057-game-server-persistence-boundary.md) — **delivered; host-persistent data under /var/lib/project0, durability across container replacement, consistent SQLite backup/restore, native untouched**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (persistence boundary; login/game DB split lands with the login-service extraction)
+  - **Public seam:** `deploy/game-server/docker-compose.yml` (host bind mounts), `deploy/game-server/Dockerfile` (sqlite3), `deploy/game-server/backup.sh`, `deploy/game-server/restore.sh`
+  - **Planning ticket:** [persistence decision](../.scratch/container-platform/issues/03-persistence-and-data-ownership.md)
+  - **Decision:** no new ADR; implements the accepted persistence decision (`/var/lib/project0`, `/var/backups/project0`, consistent backup)
 
 - **Slice:** [056 — Game-server container image and run-beside-native](slices/056-game-server-container-image.md) — **delivered; OCI image builds and boots the authoritative server headless beside the native server on an isolated port; healthy; graceful SIGTERM stop; native service untouched**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (container image; runtime cutover remains later work)

@@ -1,6 +1,6 @@
 # Slice 057 — Game-server persistent data boundary and SQLite backup/restore
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime).
@@ -83,6 +83,31 @@ beside the native server:
 - Runtime persistence evidence (host path, durability across replacement,
   backup integrity, restore) captured on `192.168.1.254`. Recorded on
   completion.
+
+### Runtime evidence (Linux host `192.168.1.254`, 2026-09-14)
+
+Run beside the live native server; host dirs `/var/lib/project0/game` and
+`/var/backups/project0` created owned by uid `10001`, mode 700:
+
+1. **Host boundary.** First boot wrote `accounts.db` (+WAL/SHM) under
+   `/var/lib/project0/game/.local/share/godot/app_userdata/Project0/`, owned by
+   uid `10001`; boot logged Canon `ok`.
+2. **Durability across replacement.** After `docker compose down` + fresh `up`
+   (container removed, host data kept), the second boot logged
+   `Starting town Canon ready: idempotent.` — the DB persisted independently of
+   the container.
+3. **Consistent backup.** `backup.sh` produced
+   `/var/backups/project0/project0-game-<ts>.sqlite3` with
+   `PRAGMA integrity_check` = `ok`.
+4. **Restore.** After wiping the data dir, `restore.sh <backup>` restored it
+   (`integrity_check` `ok`) and the server booted with Canon `idempotent`,
+   proving the backup recovered the persisted world.
+5. **Non-interference.** `systemctl is-active project0-server` stayed `active`
+   on UDP 9999 throughout; the candidate container, network, and image were
+   removed afterward.
+
+Full GUT gate `scripts/run_gut_validation.sh` and `scripts/check_record_sync.sh`
+run green on the Linux host (no `.gd` change).
 
 ## Root-cause learning
 
