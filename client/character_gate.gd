@@ -27,20 +27,19 @@ func _ready() -> void:
 	status_label.text = "Status: Loading characters..."
 	NetworkClient.submit_list_characters()
 
-func _on_character_result(action: String, outcome: String, data: Dictionary) -> void:
-	match action:
+func _on_character_result(operation: String, outcome: String, characters: Array) -> void:
+	match operation:
 		"list":
-			_handle_list_result(outcome, data)
+			_handle_list_result(outcome, characters)
 		"create":
-			_handle_create_result(outcome, data)
+			_handle_create_result(outcome)
 		"select":
-			_handle_select_result(outcome, data)
+			_handle_select_result(outcome)
 		"delete":
-			_handle_delete_result(outcome, data)
+			_handle_delete_result(outcome)
 
-func _handle_list_result(outcome: String, data: Dictionary) -> void:
-	if outcome == "OK":
-		var characters = data.get("characters", [])
+func _handle_list_result(outcome: String, characters: Array) -> void:
+	if outcome == "ok":
 		_characters = characters
 		_refresh_character_list()
 		status_label.text = "Status: Ready (%d characters)" % characters.size()
@@ -48,8 +47,8 @@ func _handle_list_result(outcome: String, data: Dictionary) -> void:
 		status_label.text = "Status: Failed to load characters (%s)" % outcome
 		create_button.disabled = true
 
-func _handle_create_result(outcome: String, data: Dictionary) -> void:
-	if outcome == "OK":
+func _handle_create_result(outcome: String) -> void:
+	if outcome == "ok":
 		status_label.text = "Status: Character created! Reloading..."
 		# Refresh the list to show the new character
 		await get_tree().create_timer(0.3).timeout
@@ -57,8 +56,8 @@ func _handle_create_result(outcome: String, data: Dictionary) -> void:
 	else:
 		status_label.text = "Status: Create failed (%s)" % outcome
 
-func _handle_select_result(outcome: String, data: Dictionary) -> void:
-	if outcome == "OK":
+func _handle_select_result(outcome: String) -> void:
+	if outcome == "ok":
 		status_label.text = "Status: Character selected! Entering world..."
 		# Now attempt to enter the world with this character
 		await get_tree().create_timer(0.3).timeout
@@ -66,8 +65,8 @@ func _handle_select_result(outcome: String, data: Dictionary) -> void:
 	else:
 		status_label.text = "Status: Select failed (%s)" % outcome
 
-func _handle_delete_result(outcome: String, data: Dictionary) -> void:
-	if outcome == "OK":
+func _handle_delete_result(outcome: String) -> void:
+	if outcome == "ok":
 		status_label.text = "Status: Character deleted! Reloading..."
 		# Refresh the list
 		await get_tree().create_timer(0.3).timeout
@@ -76,7 +75,7 @@ func _handle_delete_result(outcome: String, data: Dictionary) -> void:
 		status_label.text = "Status: Delete failed (%s)" % outcome
 
 func _on_world_entry_result(outcome: String, character_dict: Dictionary) -> void:
-	if outcome == "OK":
+	if outcome == "ok":
 		# Successfully entered the world — store character and transition to gameplay
 		PlayerIdentity.selected_character_id = character_dict.get("character_id", "")
 		PlayerIdentity.selected_character = character_dict

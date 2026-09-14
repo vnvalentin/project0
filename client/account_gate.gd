@@ -4,6 +4,8 @@
 ## on successful authentication.
 extends Control
 
+const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+
 @onready var username_input = $VBoxContainer/UsernameInput
 @onready var password_input = $VBoxContainer/PasswordInput
 @onready var host_input = $VBoxContainer/HostInput
@@ -11,13 +13,19 @@ extends Control
 @onready var login_button = $VBoxContainer/ButtonContainer/LoginButton
 @onready var register_button = $VBoxContainer/ButtonContainer/RegisterButton
 
+## The queued auth request ("login"/"register") to send once the ENet
+## connection is established; empty when no request is in flight. The cached
+## password is dropped the moment the request is sent.
+var _pending_action: String = ""
+var _pending_username: String = ""
+var _pending_password: String = ""
+
 func _ready() -> void:
 	# Connect to NetworkClient auth signals
 	NetworkClient.auth_result_received.connect(_on_auth_result)
 	NetworkClient.connection_status_changed.connect(_on_connection_status)
 	
-	# Enable/disable buttons based on connection status
-	_update_button_states()
+	# Login/Register stay enabled; a request disables them until it resolves.
 	
 	# Default host input to the resolved target (allows override)
 	var resolved_host = NetworkConfigScript.resolve_client_target_host()
@@ -38,12 +46,15 @@ func _on_login_pressed() -> void:
 	# Store target host in PlayerIdentity for gameplay to inherit
 	PlayerIdentity.target_host = host if not host.is_empty() else NetworkConfigScript.resolve_client_target_host()
 	
-	# Open connection if not already connected, then submit login
-	if not NetworkClient.status.begins_with("connected"):
+	# The login screen owns opening the connection; queue the request so it
+	# fires once connected (submit_login is a no-op until the handshake ends).
+	_pending_action = "login"
+	_pending_username = username
+	_pending_password = password
+	if NetworkClient.status.begins_with("connected"):
+		_fire_pending_auth()
+	else:
 		NetworkClient.connect_to_server(PlayerIdentity.target_host)
-	
-	# Submit login RPC (handled asynchronously)
-	NetworkClient.submit_login(username, password)
 
 func _on_register_pressed() -> void:
 	var username = username_input.text.strip_edges()
@@ -60,15 +71,29 @@ func _on_register_pressed() -> void:
 	# Store target host in PlayerIdentity for gameplay to inherit
 	PlayerIdentity.target_host = host if not host.is_empty() else NetworkConfigScript.resolve_client_target_host()
 	
-	# Open connection if not already connected, then submit register
-	if not NetworkClient.status.begins_with("connected"):
+	# The login screen owns opening the connection; queue the request so it
+	# fires once connected (submit_register is a no-op until the handshake ends).
+	_pending_action = "register"
+	_pending_username = username
+	_pending_password = password
+	if NetworkClient.status.begins_with("connected"):
+		_fire_pending_auth()
+	else:
 		NetworkClient.connect_to_server(PlayerIdentity.target_host)
-	
-	# Submit register RPC (handled asynchronously)
-	NetworkClient.submit_register(username, password)
+
+## Sends the queued register/login RPC, then drops the cached password.
+func _fire_pending_auth() -> void:
+	if _pending_action == "login":
+		status_label.text = "Status: Logging in..."
+		NetworkClient.submit_login(_pending_username, _pending_password)
+	elif _pending_action == "register":
+		status_label.text = "Status: Registering..."
+		NetworkClient.submit_register(_pending_username, _pending_password)
+	_pending_action = ""
+	_pending_password = ""
 
 func _on_auth_result(outcome: String, account_id: String, username: String) -> void:
-	if outcome == "OK":
+	if outcome == "ok":
 		# Successful auth — store account identity and transition to character selection
 		PlayerIdentity.account_id = account_id
 		PlayerIdentity.username = username
@@ -85,12 +110,15 @@ func _on_auth_result(outcome: String, account_id: String, username: String) -> v
 
 func _on_connection_status(status_str: String) -> void:
 	status_label.text = "Status: " + status_str
-	_update_button_states()
-
-func _update_button_states() -> void:
-	var is_connected = NetworkClient.status.begins_with("connected")
-	login_button.disabled = not is_connected
-	register_button.disabled = not is_connected
+	if status_str.begins_with("connected"):
+		if _pending_action != "":
+			_fire_pending_auth()
+	elif status_str.begins_with("failed") or status_str == "disconnected":
+		# The connection attempt ended without success; let the player retry.
+		_pending_action = ""
+		_pending_password = ""
+		login_button.disabled = false
+		register_button.disabled = false
 
 func _validate_input(username: String, password: String) -> bool:
 	if username.length() < 4 or username.length() > 20:

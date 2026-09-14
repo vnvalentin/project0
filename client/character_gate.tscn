@@ -4,27 +4,30 @@
 
 [node name="CharacterGate" type="Control"]
 layout_mode = 3
-anchors_left = 0.0
-anchors_top = 0.0
-anchors_right = 1.0
-anchors_bottom = 1.0
-script = SubResource("1_0kv2q")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_0kv2q")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
 layout_mode = 1
-anchors_left = 0.5
-anchors_top = 0.0
-anchors_right = 0.5
-anchors_bottom = 1.0
+anchor_left = 0.5
+anchor_top = 0.0
+anchor_right = 0.5
+anchor_bottom = 1.0
 offset_left = -200.0
 offset_right = 200.0
+grow_horizontal = 2
+grow_vertical = 2
 alignment = 1
 
 [node name="Title" type="Label" parent="VBoxContainer"]
 layout_mode = 2
 text = "Select Character"
 horizontal_alignment = 1
-theme_overrides_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 24
 
 [node name="StatusLabel" type="Label" parent="VBoxContainer"]
 layout_mode = 2
@@ -66,10 +69,9 @@ size = Vector2i(400, 200)
 
 [node name="VBoxContainer2" type="VBoxContainer" parent="CreateCharacterDialog"]
 layout_mode = 1
-anchors_left = 0.0
-anchors_top = 0.0
-anchors_right = 1.0
-anchors_bottom = 1.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 8.0
 offset_top = 8.0
 offset_right = -8.0
