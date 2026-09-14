@@ -226,8 +226,8 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [057 — Game-server persistent data boundary and SQLite backup/restore](slices/057-game-server-persistence-boundary.md) — **delivered; durable state bind-mounted to host /var/lib/project0/game (survives container replacement: Canon idempotent on 2nd boot), consistent SQLite .backup + integrity ok, restore recovers a wiped data dir, native server untouched**
-  - **Feature:** [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat)
+- **Current slice:** [058 — In-process login gateway seam over AuthService/CharacterService](slices/058-login-gateway-seam.md) — **delivered; single `/root/LoginGateway` facade composes AuthService+CharacterService, RPC dispatch rerouted through it (pure delegation); GUT 330/330 across 46/46 scripts exit 0, e2e harnesses green**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
 
@@ -443,6 +443,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Decision:** no new ADR; formalizes the existing Copilot → Claude Code CLI handoff mechanism
 
 #### Phase 10 — Authoritative runtime and action input
+
+- **Slice:** [058 — In-process login gateway seam over AuthService/CharacterService](slices/058-login-gateway-seam.md) — **delivered; single `/root/LoginGateway` facade (pure delegation), RPC dispatch rerouted through it; GUT 330/330 across 46/46, e2e harnesses green; no behavior change**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision step 1: extract the login interface)
+  - **Public seam:** `server/login_gateway.gd` (`LoginGateway`); `server/server_main.gd` (`/root/LoginGateway`); `client/network_client.gd` login/character/enter-world RPC receivers
+  - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+  - **Decision:** no new ADR; implements the accepted login-boundary decision without deviation
 
 - **Slice:** [057 — Game-server persistent data boundary and SQLite backup/restore](slices/057-game-server-persistence-boundary.md) — **delivered; host-persistent data under /var/lib/project0, durability across container replacement, consistent SQLite backup/restore, native untouched**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (persistence boundary; login/game DB split lands with the login-service extraction)

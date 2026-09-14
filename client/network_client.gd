@@ -665,10 +665,10 @@ func submit_login(username: String, password: String) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func receive_register_request_on_server(username: String, password: String) -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var auth_service: Node = get_tree().root.get_node_or_null("AuthService")
-	if auth_service == null:
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
 		return
-	var result: Dictionary = await auth_service.register(sender_id, username, password)
+	var result: Dictionary = await login_gateway.register(sender_id, username, password)
 	_reply_auth_result(sender_id, result)
 
 
@@ -677,10 +677,10 @@ func receive_register_request_on_server(username: String, password: String) -> v
 @rpc("any_peer", "call_remote", "reliable")
 func receive_login_request_on_server(username: String, password: String) -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var auth_service: Node = get_tree().root.get_node_or_null("AuthService")
-	if auth_service == null:
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
 		return
-	var result: Dictionary = await auth_service.login(sender_id, username, password)
+	var result: Dictionary = await login_gateway.login(sender_id, username, password)
 	_reply_auth_result(sender_id, result)
 
 
@@ -760,37 +760,37 @@ func submit_delete_character(character_id: String) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func receive_list_characters_request_on_server() -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
-	if character_service == null:
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
 		return
-	_reply_character_result(sender_id, "list", character_service.list_characters(sender_id))
+	_reply_character_result(sender_id, "list", login_gateway.list_characters(sender_id))
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func receive_create_character_request_on_server(character_name: String, cosmetic: Dictionary) -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
-	if character_service == null:
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
 		return
-	_reply_character_result(sender_id, "create", character_service.create_character(sender_id, character_name, cosmetic))
+	_reply_character_result(sender_id, "create", login_gateway.create_character(sender_id, character_name, cosmetic))
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func receive_select_character_request_on_server(character_id: String) -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
-	if character_service == null:
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
 		return
-	_reply_character_result(sender_id, "select", character_service.select_character(sender_id, character_id))
+	_reply_character_result(sender_id, "select", login_gateway.select_character(sender_id, character_id))
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func receive_delete_character_request_on_server(character_id: String) -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
-	if character_service == null:
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
 		return
-	_reply_character_result(sender_id, "delete", character_service.delete_character(sender_id, character_id))
+	_reply_character_result(sender_id, "delete", login_gateway.delete_character(sender_id, character_id))
 
 
 ## Sends the character_result RPC back to the requesting peer only, translating
@@ -844,11 +844,11 @@ func submit_enter_world() -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func receive_enter_world_request_on_server() -> void:
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var character_service: Node = get_tree().root.get_node_or_null("CharacterService")
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
 	var player_state: Node = get_tree().root.get_node_or_null("ServerPlayerState_%d" % sender_id)
-	if character_service == null or player_state == null:
+	if login_gateway == null or player_state == null:
 		return
-	var result: Dictionary = character_service.get_selected_character(sender_id)
+	var result: Dictionary = login_gateway.get_selected_character(sender_id)
 	if result["outcome"] == "ok":
 		var record: Object = result["character"]
 		player_state.bind_character(record.character_id, record.display_name, record.cosmetic)

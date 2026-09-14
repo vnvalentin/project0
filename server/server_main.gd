@@ -46,6 +46,7 @@ const SectorBoundaryDetectorScript: Script = preload("res://server/sector_bounda
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const AuthServiceScript: Script = preload("res://server/auth_service.gd")
 const CharacterServiceScript: Script = preload("res://server/character_service.gd")
+const LoginGatewayScript: Script = preload("res://server/login_gateway.gd")
 const TownLayoutProviderScript: Script = preload("res://server/town_layout_provider.gd")
 const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 
@@ -124,6 +125,7 @@ var _accounts_store: SqliteStore = null
 var _account_repository: Object = null
 var _auth_service: Object = null
 var _character_service: Object = null
+var _login_gateway: Object = null
 var _canon_repository: Object = null
 var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
@@ -255,6 +257,12 @@ func _start_server() -> void:
 	_character_service = CharacterServiceScript.new(_account_repository, _auth_service.get_session_registry())
 	_character_service.name = "CharacterService"
 	root.add_child(_character_service)
+	# Slice 058: the single in-process login interface (seam). The RPC dispatch
+	# talks to this one collaborator; it delegates to AuthService/CharacterService
+	# unchanged. A future out-of-process login service satisfies the same seam.
+	_login_gateway = LoginGatewayScript.new(_auth_service, _character_service)
+	_login_gateway.name = "LoginGateway"
+	root.add_child(_login_gateway)
 	print("Accounts database ready at user://%s (schema ensured)." % accounts_db_path)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()

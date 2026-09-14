@@ -186,10 +186,15 @@ feature so future drift is easier to detect.
 - Problem solved: Multiplayer behavior needs a reproducible Linux runtime boundary and predictable simulation cadence.
 - Phase: 10. Authoritative runtime and action input
 - Public seam: Server container entrypoint, tick loop, health output, and runtime telemetry.
-- Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam), [Slice 056](slices/056-game-server-container-image.md) (game-server container image, run beside native), [Slice 057](slices/057-game-server-persistence-boundary.md) (host-persistent data boundary + SQLite backup/restore).
+- Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam), [Slice 056](slices/056-game-server-container-image.md) (game-server container image, run beside native), [Slice 057](slices/057-game-server-persistence-boundary.md) (host-persistent data boundary + SQLite backup/restore), [Slice 058](slices/058-login-gateway-seam.md) (in-process login gateway seam).
 - Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Slice 056 delivered the OCI image (pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful SIGTERM) and proved build, boot (`Server listening`, SQLite+Canon ready), healthy port-bound healthcheck, ~0.39s graceful stop, and run-beside-native with the native service untouched. Slice 057 moved durable state to the host boundary `/var/lib/project0` (data survives container replacement — Canon `idempotent` on second boot) and proved consistent SQLite backup/restore. Remaining slices must prove the login/game DB split, tick-loop cadence bounds, health-signal wiring, and the production cutover.
 - Related work: [container-platform map](../.scratch/container-platform/map.md) and its resolved runtime, login, persistence, operator, migration, and worker decisions.
 - Change history:
+  - Date: 2026-09-14
+    What changed: Delivered Slice 058 — the in-process `LoginGateway` seam composing `AuthService`+`CharacterService` behind one narrow interface, with the login/character/enter-world RPC dispatch rerouted through `/root/LoginGateway`. Pure delegation, no behavior change.
+    Why: Login-boundary decision step 1 — establish the single login interface a future out-of-process login service (signed assertions over private HTTPS) will satisfy, before splitting the service out.
+    Related work: [Slice 058](slices/058-login-gateway-seam.md), [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+    Validation: Authoritative Linux gate 330/330 across 46/46 scripts, exit 0 (4 new `test_login_gateway` cases); real-server e2e harnesses green; `scripts/check_record_sync.sh` exit 0.
   - Date: 2026-09-14
     What changed: Delivered Slice 057 — host-persistent game data under `/var/lib/project0` (Compose bind mounts) plus `sqlite3` in the image and consistent `backup.sh`/`restore.sh`.
     Why: The persistence decision requires durable state outside the image on the host boundary, with consistent backup/restore, before the login/game DB split and cutover.

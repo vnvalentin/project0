@@ -73,8 +73,9 @@ contended range and everything after it is tracked explicitly:
 | 055 | Server fixed-tick and health snapshot contract (P-014) | interactive |
 | 056 | Game-server container image and run-beside-native (P-014) | interactive |
 | 057 | Game-server persistent data boundary and SQLite backup/restore (P-014) | interactive |
+| 058 | In-process login gateway seam over AuthService/CharacterService (P-014) | interactive |
 
-Next free slice: **058** (verify against `docs/slices/` before reserving).
+Next free slice: **059** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
