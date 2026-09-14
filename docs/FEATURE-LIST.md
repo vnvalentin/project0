@@ -514,6 +514,11 @@ for a developer to pick up. No implementation has started.
   revoked peer rejection, and a one-launch WAN gameplay run against the live
   service. The current embedded-key verifier remains a temporary validation
   artifact until then.
+- Deferred improvement: replace manual `--invite-code`/environment provisioning
+  with a trusted automatic device-enrollment or approval flow. The client must
+  still generate its key locally, transmit only the public key, retain DPAPI
+  protection, and keep manual single-use invites as a fallback. This is a
+  future F-035 follow-up, not a relaxation of the current security boundary.
 - Related work: [P-024](#p-024-public-game-access-via-opnsense-native-wireguard),
   [Slice 048](slices/048-wireguard-enrollment-service.md),
   [Slice 049](slices/049-wireguard-revocation-lifecycle.md),
