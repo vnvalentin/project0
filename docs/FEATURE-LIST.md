@@ -94,23 +94,53 @@ feature so future drift is easier to detect.
     exit 0; the full configured GUT suite (`scripts/run_gut_validation.sh`)
     passed 14/14 tests, 38 assertions, exit 0.
 
+### IP-008: Just-in-time sector generation
+
+- Status: `In Progress`
+- Feature: The authoritative server detects when a Player enters a new sector and requests an unseen sector blueprint without blocking the multiplayer loop.
+- Problem solved: Provisional generation existed, but nothing connected it to authoritative world movement or prevented repeated requests for the same peer/sector.
+- Phase: 8. JIT world generation and local inference
+- Public seam: `server/sector_boundary_detector.gd`, `server/provisional_sector_generator.gd`, and the Canon lookup boundary.
+- Implementation slices: [Slice 009](slices/009-provisional-sector-generation.md), [Slice 046](slices/046-sector-boundary-detection.md)
+- Validation: Slice 046 proves floor-based X/Z sector mapping, per-peer transition detection, Canon suppression, duplicate-request suppression, and live server wiring. Async blueprint canonicalization remains a follow-up integration slice.
+- Change history:
+  - Date: 2026-09-14
+    What changed: Added the authoritative sector-boundary detector that requests only unseen sectors.
+    Why: Close the remaining trigger gap between validated provisional generation and live authoritative movement.
+    Related work: [Slice 046](slices/046-sector-boundary-detection.md), [Slice 045](slices/045-canon-sector-persistence.md)
+    Validation: Unit GUT passed 184/184 tests across 22 scripts, exit 0; server parse check passed, exit 0; full GUT passed 278/278 tests across 38/38 scripts and 1063 assertions, exit 0.
+
 ### P-011: Canonical history archive
 
-- Status: `Planned`
+- Status: `Implemented`
 - Feature: The headless server persists validated sector history in a server-owned SQLite database.
 - Problem solved: Generated world content must survive process restarts and be shared consistently by multiplayer sessions.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: SQLite repository, schema migrations, transaction boundary, and persistence telemetry.
-- Validation: A future persistence slice must prove restart recovery, transaction failure handling, and server-only database ownership.
+- Validation: Slice 045 proves restart recovery, atomic first-write handling, duplicate-coordinate behavior, server-only database ownership, and boot-time canonicalization; mutation replay remains future work.
+- Implementation slices: [Slice 045](slices/045-canon-sector-persistence.md)
+- Change history:
+  - Date: 2026-09-14
+    What changed: Started the first Canon persistence slice on the delivered server-owned SQLite foundation.
+    Why: Establish durable sector history before wiring boundary-triggered JIT generation or mutable world events.
+    Related work: [Slice 045](slices/045-canon-sector-persistence.md), [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+    Validation: Focused integration validation passed 94/94 tests and 375 assertions, exit 0; full GUT passed 268/268 tests across 36/36 scripts, exit 0; server parse check passed, exit 0.
 
 ### P-012: One-time blueprint canonicalization
 
-- Status: `Planned`
+- Status: `Implemented`
 - Feature: The first validated blueprint for a world coordinate is stored once and becomes immutable Canon for that coordinate.
 - Problem solved: Regenerating the same coordinate could produce contradictory maps across sessions.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: Coordinate uniqueness constraint, canonicalization transaction, and duplicate-generation outcome telemetry.
-- Validation: A future slice must prove first-write success, duplicate rejection/idempotency, and no partial Canon record after failure.
+- Validation: Slice 045 proves first-write success, same-coordinate idempotency, conflicting regeneration rejection, and no partial Canon replacement.
+- Implementation slices: [Slice 045](slices/045-canon-sector-persistence.md)
+- Change history:
+  - Date: 2026-09-14
+    What changed: Started the coordinate-unique canonicalization seam.
+    Why: Prevent regenerated provisional blueprints from replacing historical Canon.
+    Related work: [Slice 045](slices/045-canon-sector-persistence.md)
+    Validation: Focused integration validation passed 94/94 tests and 375 assertions, exit 0; full GUT passed 268/268 tests across 36/36 scripts, exit 0; server parse check passed, exit 0.
 
 ### P-013: Dynamic world mutation tracking
 
@@ -763,14 +793,14 @@ for a developer to pick up. No implementation has started.
 
 ### IP-008: Just-in-time sector generation
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: When a player reaches an ungenerated sector boundary, the server requests sector content asynchronously without blocking the live multiplayer loop.
 - Problem solved: The game needs expandable world content without a synchronous generation pause.
-- How it solves the problem so far: Slice 009 adds `server/provisional_sector_generator.gd`, a public seam that accepts a sector-generation request keyed by sector id, drives the existing async `SectorBlueprintService`, and exposes in-memory pending/ready state and a completion signal — all without blocking the SceneTree/multiplayer loop. Sector-boundary detection (the trigger for *when* a player reaches an ungenerated sector) is not yet built, so the feature remains `In Progress` rather than `Implemented`.
+- How it solves the problem: Slice 009 adds `server/provisional_sector_generator.gd`, Slice 046 connects authoritative sector transitions to that non-blocking request seam, and Slice 047 canonicalizes successful results before reliable replication. World mutation is a separate P-013 capability.
 - Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 009](slices/009-provisional-sector-generation.md)
+- Implementation slices: [Slice 009](slices/009-provisional-sector-generation.md), [Slice 046](slices/046-sector-boundary-detection.md), [Slice 047](slices/047-jit-result-canonicalization-replication.md)
 - Public seam: `server/provisional_sector_generator.gd` (`request_provisional_sector`, `get_status`, `get_correlation_id`, `get_provisional_result`, `provisional_sector_ready`).
-- Validation: See [Slice 009](slices/009-provisional-sector-generation.md) for the exact commands and results (9/9 focused tests, 23/23 full suite, exit 0).
+- Validation: Slices 046-047 focused validation passed; the full configured GUT suite passed 282/282 tests across 39/39 scripts and 1073 assertions, exit 0.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [Provisional sector generation](../.scratch/game-vision/issues/16-provisional-sector-generation.md)
 - Change history:
   - Date: 2026-09-12
@@ -787,6 +817,13 @@ for a developer to pick up. No implementation has started.
     -gexit` passed 9/9 tests, 32 assertions, exit 0; the full configured GUT
     suite (`scripts/run_gut_validation.sh`) passed 23/23 tests, 70 assertions,
     exit 0.
+  - Date: 2026-09-14
+    What changed: Added the finalization boundary that canonicalizes successful
+    provisional results and replicates only stored Canon to connected clients.
+    Why: Prevent provisional or conflicting LLM output from becoming visible
+    world state.
+    Related work: [Slice 047](slices/047-jit-result-canonicalization-replication.md), [Slice 045](slices/045-canon-sector-persistence.md)
+    Validation: Coordinator test ran after forced import; unit suite passed 188/188 tests, exit 0; server check-only passed, exit 0; full GUT telemetry passed 282/282 tests across 39/39 scripts and 1073 assertions, exit 0.
 
 ### IP-015: Authoritative action input
 

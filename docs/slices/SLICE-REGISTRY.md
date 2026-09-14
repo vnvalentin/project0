@@ -60,8 +60,11 @@ contended range and everything after it is tracked explicitly:
 | 042 | Character CRUD over the wire, server (F-032) | interactive |
 | 043 | Character world entry, server binding (F-033) | interactive |
 | 044 | Client login and character selection UI (F-033, F-034) | interactive |
+| 045 | Canon sector persistence and one-time blueprint canonicalization (P-011, P-012) | interactive |
+| 046 | Authoritative sector-boundary detection for JIT generation (IP-008) | interactive |
+| 047 | JIT result canonicalization and sector replication (IP-008, P-011, P-012) | interactive |
 
-Next free slice: **045** (verify against `docs/slices/` before reserving).
+Next free slice: **048** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

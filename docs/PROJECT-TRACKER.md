@@ -203,7 +203,7 @@ Progress: **71%** (5 of 7 items done)
 
 Progress: **73%** (8 of 11 items done)
 
-- Features: `in-progress` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019), `done` [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (cross-cutting scale contract).
+- Features: `done` [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), `queued` [P-009](FEATURE-LIST.md#p-009-hardware-accelerated-local-inference), `done` [F-017](FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points), `done` [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation), `done` [F-018](FEATURE-LIST.md#f-018-client-side-sector-geometry-translation), `done` [F-019](FEATURE-LIST.md#f-019-starting-town-hub-fixture), `done` [F-020](FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication), `done` [F-021](FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels), `done` [F-022](FEATURE-LIST.md#f-022-player-house-allocation), `in-progress` [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) (Organic Village; supersedes F-019), `done` [F-028](FEATURE-LIST.md#f-028-imperial-world-scale-measurement-contract) (cross-cutting scale contract).
 - Tech debt: `done` [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) — resolved by the Slice 024 geometry pass (merged `ArrayMesh` ground + one merged `Walls` body), decoupling town size from the physics body count.
 
 - **Current slice:** [031 — Bigger rural village with NPC and leader housing](slices/031-bigger-village-npc-leader-housing.md) — **100% complete; focused and full-suite validation passed**
@@ -213,11 +213,11 @@ Progress: **73%** (8 of 11 items done)
 
 Progress: **25%** (1 of 4 items done)
 
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `queued` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `queued` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
-- **Current slice:** [038 — Shared server-owned SQLite persistence foundation](slices/038-shared-sqlite-persistence-foundation.md) — **100% complete; engine seam only, no domain tables; focused and full-suite validation passed**
-  - **Feature:** [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation)
+- **Current slice:** [047 — JIT result canonicalization and sector replication](slices/047-jit-result-canonicalization-replication.md) — **100% complete; Canon and JIT result path validated**
+  - **Features:** [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization)
 
 **Phase 10 — Authoritative runtime and action input**
 
@@ -319,6 +319,16 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Windows client package](../.scratch/game-vision/issues/12-windows-client-package.md)
 
 #### Phase 8 — JIT world generation and local inference
+
+- **Slice:** [046 — Authoritative sector-boundary detection for JIT generation](slices/046-sector-boundary-detection.md) — **100% complete; focused, runtime parse, and full GUT validation passed**
+  - **Feature:** [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation)
+  - **Planning ticket:** [Provisional sector generation](../.scratch/game-vision/issues/16-provisional-sector-generation.md)
+  - **Public seam:** `server/sector_boundary_detector.gd`; consumes authoritative position updates and Canon lookup, emits bounded generation requests
+  - **Validation:** unit GUT passed 184/184 tests across 22 scripts, exit 0; `server/server_main.gd` check-only passed, exit 0; full GUT passed 278/278 tests across 38/38 scripts and 1063 assertions, exit 0
+- **Slice:** [047 — JIT result canonicalization and sector replication](slices/047-jit-result-canonicalization-replication.md) — **100% complete; focused, runtime parse, full GUT, and record-sync validation passed**
+  - **Features:** [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation), [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization)
+  - **Public seam:** `server/canon_generation_coordinator.gd` plus the server's reliable blueprint broadcast
+  - **Validation:** coordinator test ran after forced import; unit suite passed 188/188 tests, exit 0; server check-only passed, exit 0; full GUT telemetry passed 282/282 tests across 39/39 scripts and 1073 assertions, exit 0
 
 - **Slice:** [008 — Async validated sector blueprint contract](slices/008-sector-blueprint-contract.md) — **100% complete; focused public-seam validation passed**
   - **Feature:** [IP-004](FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation)
@@ -469,6 +479,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [player-accounts issue 03](../.scratch/player-accounts/issues/03-research-godot-persistence-sqlite.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md) (the persistence-mechanism decision was made in the player-accounts design track; this slice is Wave 4, the shared build-once foundation both Phase 9 Canon and Phase 14 accounts consume)
   - **Decision:** no new ADR; implements the already-accepted ticket 03/06 decision (one shared `godot-sqlite` engine, WAL, fail-closed `user_version`, parameter-bound queries)
+- **Slice:** [045 — Canon sector persistence and one-time blueprint canonicalization](slices/045-canon-sector-persistence.md) — **100% complete; focused, runtime parse, full GUT, and record-sync validation passed**
+  - **Features:** [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization)
+  - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+  - **Public seam:** `server/canon_repository.gd` over `server/sqlite_store.gd`; no client, geometry, mutation, or boundary-triggering code
+  - **Validation:** focused Canon integration path passed 94/94 tests and 375 assertions, exit 0; `server/server_main.gd` check-only passed, exit 0; full GUT passed 268/268 tests across 36/36 scripts, exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
 #### Phase 13 — Public game access
 
@@ -544,12 +559,14 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   Resolved in practice by [ADR 0001](adr/0001-client-side-authority-for-first-slice.md),
   formalized as normative law in `CLAUDE.md`, and implemented/validated by
   Slices 002, 004, 005, 007, and 012.
-- [ ] Ready — Sector-boundary detection for IP-008 (Phase 8): trigger
+- [x] Done — Sector-boundary detection for IP-008 (Phase 8): Slice 046 triggers
   `server/provisional_sector_generator.gd` requests when an authoritative
-  player position crosses into an unexplored sector, closing the remaining gap
+  player position crosses into an unexplored sector, closing the trigger gap
   between Slice 009 and a fully `Implemented`
   [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation).
-- [ ] Ready — Canon persistence design (Phase 9): the shared engine this
+- [~] Active — Canon persistence design (Phase 9): Slice 045 establishes the
+  first durable sector and canonicalization seam; mutation events and JIT
+  boundary triggering remain separate follow-up slices. The shared engine this
   design will build on is now delivered
   ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029 —
   `server/sqlite_store.gd`, no domain tables yet). Still resolve the open

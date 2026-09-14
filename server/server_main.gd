@@ -40,6 +40,10 @@ const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const AccountCharacterRepositoryScript: Script = preload("res://server/account_character_repository.gd")
+const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
+const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
+const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
+const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const AuthServiceScript: Script = preload("res://server/auth_service.gd")
 const CharacterServiceScript: Script = preload("res://server/character_service.gd")
 
@@ -118,6 +122,10 @@ var _accounts_store: SqliteStore = null
 var _account_repository: Object = null
 var _auth_service: Object = null
 var _character_service: Object = null
+var _canon_repository: Object = null
+var _provisional_sector_generator: Node = null
+var _sector_boundary_detector: Object = null
+var _canon_generation_coordinator: Object = null
 
 ## Fixed simulation delta used to drive monster chase movement each physics
 ## frame (the SceneTree physics_frame signal carries no delta).
@@ -183,6 +191,35 @@ func _start_server() -> void:
 		push_error("Refusing to start: accounts schema failed to initialize: %s — %s" % [schema_result["outcome"], schema_result["detail"]])
 		quit(1)
 		return
+	# Slice 045: Canon shares the one server-owned SQLite handle with accounts.
+	# The validated hub is canonicalized before the socket opens, so every peer
+	# sees a world record that survives a server restart.
+	_canon_repository = CanonRepositoryScript.new(_accounts_store)
+	var canon_schema_result: Dictionary = _canon_repository.ensure_schema()
+	if canon_schema_result["outcome"] != "ok":
+		push_error("Refusing to start: Canon schema failed to initialize: %s — %s" % [canon_schema_result["outcome"], canon_schema_result["detail"]])
+		quit(1)
+		return
+	var canon_result: Dictionary = _canon_repository.canonicalize_blueprint(_starting_town_hub_blueprint)
+	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK and canon_result["outcome"] != CanonRepositoryScript.OUTCOME_IDEMPOTENT:
+		push_error("Refusing to start: starting town Canon failed: %s — %s" % [canon_result["outcome"], canon_result["detail"]])
+		quit(1)
+		return
+	print("Starting town Canon ready: %s." % canon_result["outcome"])
+	# Slice 046: authoritative movement now drives non-blocking JIT requests for
+	# unexplored sectors. The detector performs only cheap sector math and the
+	# generator accepts work synchronously before awaiting Ollama in a deferred
+	# coroutine.
+	_provisional_sector_generator = ProvisionalSectorGeneratorScript.new()
+	_provisional_sector_generator.name = "ProvisionalSectorGenerator"
+	root.add_child(_provisional_sector_generator)
+	_canon_generation_coordinator = CanonGenerationCoordinatorScript.new()
+	_canon_generation_coordinator.set_canonicalize_callback(Callable(_canon_repository, "canonicalize_blueprint"))
+	_canon_generation_coordinator.canonical_sector_ready.connect(_on_canonical_sector_ready)
+	_provisional_sector_generator.provisional_sector_ready.connect(_on_provisional_sector_ready)
+	_sector_boundary_detector = SectorBoundaryDetectorScript.new()
+	_sector_boundary_detector.set_canon_lookup(Callable(_canon_repository, "get_canonical_sector"))
+	_sector_boundary_detector.set_request_callback(Callable(self, "_request_sector_from_boundary"))
 	_auth_service = AuthServiceScript.new(_account_repository)
 	_auth_service.name = "AuthService"
 	root.add_child(_auth_service)
@@ -318,6 +355,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.melee_swing_started.disconnect(_on_player_state_melee_swing_started)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
+	if _sector_boundary_detector != null:
+		_sector_boundary_detector.forget_peer(peer_id)
 
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
@@ -332,6 +371,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 ## authoritative position (plus sequence acknowledgement) directly from
 ## ServerPlayerState._physics_process via receive_authoritative_position.
 func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
+	if _sector_boundary_detector != null:
+		_sector_boundary_detector.observe_position(peer_id, updated_position)
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
@@ -339,6 +380,33 @@ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) 
 		if other_peer_id == peer_id:
 			continue
 		network_client.rpc_id(other_peer_id, "receive_remote_player_position", peer_id, updated_position)
+
+
+func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
+	if _provisional_sector_generator == null:
+		return
+	var prompt: String = "Generate the validated sector blueprint for %s near world position (%0.2f, %0.2f)." % [sector_id, position.x, position.z]
+	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt)
+	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
+
+
+func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void:
+	if _canon_generation_coordinator == null:
+		return
+	var finalization: Dictionary = _canon_generation_coordinator.accept_generation_result(sector_id, result)
+	if finalization["outcome"] == CanonGenerationCoordinatorScript.OUTCOME_IGNORED:
+		print("Ignored provisional sector %s: %s" % [sector_id, finalization["detail"]])
+	elif finalization["outcome"] == CanonGenerationCoordinatorScript.OUTCOME_CONFLICT:
+		push_warning("Rejected conflicting provisional sector %s: %s" % [sector_id, finalization["detail"]])
+
+
+func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for peer_id: int in _player_states.keys():
+		network_client.rpc_id(peer_id, "receive_sector_blueprint", blueprint)
+	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
 
 
 ## Deterministic, visibly distinct starting positions for connected peers so
