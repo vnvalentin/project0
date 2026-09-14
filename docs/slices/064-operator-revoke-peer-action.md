@@ -1,6 +1,6 @@
 # Slice 064 — Operator control plane: audited revoke-peer action
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -74,6 +74,15 @@ real OPNsense call.
   `.venv-enrollment`).
 - `scripts/check_record_sync.sh` (exit 0); GUT unaffected (Python-only).
   Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`.venv-enrollment/bin/python -m pytest infra/operator/tests` passed **41 tests**
+(32 from Slices 061–063 + 9 new: 4 `test_peers` + 5 `test_peers_api`), 0
+failures — covering the audited revoke lifecycle, idempotent `ALREADY_ABSENT`
+success, the bounded `UPSTREAM_DELETE_FAILED` rejection, and the empty-key 422.
+`scripts/check_record_sync.sh` reported 0 errors, exit 0. GUT unaffected (no
+`.gd` change).
 
 ## Root-cause learning
 
