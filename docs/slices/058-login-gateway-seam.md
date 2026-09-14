@@ -1,6 +1,6 @@
 # Slice 058 — In-process login gateway seam over AuthService/CharacterService
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -82,6 +82,18 @@ and `test_character_crud_rpc.gd` stay green (services unchanged).
 - Full GUT gate on the Linux host: `scripts/run_gut_validation.sh` (expected
   green, including the real-server e2e harnesses that exercise the rerouted RPC
   dispatch); `scripts/check_record_sync.sh` exit 0. Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`scripts/run_gut_validation.sh` passed **330/330 tests across 46/46 scripts**
+(`scripts_expected == scripts_ran == 46`), exit 0 — up from 326/45 (the 4 new
+`test_login_gateway` cases). `test_login_gateway` passed, and the real-server
+e2e harnesses (`test_multi_peer_replication_e2e`,
+`test_prediction_reconciliation_e2e`,
+`test_authoritative_melee_strike_socket_e2e`) all passed, confirming the RPC
+reroute through `/root/LoginGateway` is behavior-preserving.
+`scripts/check_record_sync.sh` reported 0 errors (6 pre-existing warnings),
+exit 0.
 
 ## Root-cause learning
 
