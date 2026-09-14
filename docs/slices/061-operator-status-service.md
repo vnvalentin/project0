@@ -1,6 +1,6 @@
 # Slice 061 — Operator control plane: read-only status service
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 10 (Authoritative runtime and action input), advancing
 [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -81,6 +81,15 @@ a wrong token, 200 with the right token; `/status/{unknown}` 404;
   the existing `.venv-enrollment`, which already has FastAPI + pytest).
 - `scripts/check_record_sync.sh` (exit 0). The GUT suite is unaffected
   (Python-only slice). Recorded on completion.
+
+### Result (Linux host `192.168.1.254`, 2026-09-14)
+
+`.venv-enrollment/bin/python -m pytest infra/operator/tests infra/enrollment/tests`
+passed **68 tests** (13 new operator + 55 existing enrollment), 0 failures —
+confirming the `infra/__init__.py` addition fixes the operator import and does
+not regress the enrollment suite. The full GUT gate stayed green
+(`scripts/run_gut_validation.sh` exit 0, 359/359 — no `.gd` change), and
+`scripts/check_record_sync.sh` reported 0 errors, exit 0.
 
 ## Root-cause learning
 
