@@ -160,6 +160,35 @@ The repository CI gate in `.github/workflows/validation.yml` runs that same
 command on every push and pull request. It uploads the validation directory
 with `if: always()`, so failed runs retain their logs and telemetry for review.
 
+## Branching and pull requests
+
+`main` is always releasable and is never committed to directly. Every change —
+a slice, a fix, or a docs/chore edit — is made on its own short-lived branch cut
+from the latest `origin/main` and lands back on `main` only through a merged
+pull request.
+
+- **Branch per change.** Before starting work, fetch and branch from the latest
+  `origin/main`. Name the branch `type/short-topic`, where `type` is one of
+  `slice`, `fix`, `docs`, or `chore` — e.g. `slice/054-<topic>` (matching the
+  number reserved in the [Slice Registry](slices/SLICE-REGISTRY.md)),
+  `fix/<topic>`, `docs/<topic>`. Keep one logical change per branch, consistent
+  with small-lot delivery.
+- **No direct commits to `main`.** All history reaches `main` through a pull
+  request; never push commits straight to `main`.
+- **Green before merge.** A branch may merge only after its delivery gate is
+  green: the focused validation, the full `scripts/run_gut_validation.sh` suite
+  (exit 0 with its `build/validation/` artifacts), and
+  `scripts/check_record_sync.sh` (exit 0) all pass; the required slice/delivery
+  records are synchronized; and review is complete. CI runs the same suite on
+  the pull request. A red gate is an Andon stop — fix it, do not merge.
+- **Merge and clean up.** When the change is done and the gate is green, merge
+  the pull request into `main` with a merge commit (`--no-ff`; no squash, no
+  rebase) so each change lands as one reviewable merge, then delete the branch.
+- **Who merges.** The agent completing the change merges the pull request as
+  soon as the gate is green and does not wait for a separate manual approval.
+  This is the repository's chosen automation setting and may be tightened to
+  require human approval later.
+
 ## Required slice record
 
 Each implementation ticket links:

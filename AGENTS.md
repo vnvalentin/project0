@@ -67,6 +67,14 @@ Do not create implementation slices or product code while this gate is open.
 ## Agent requirements
 
 - Preserve unrelated user changes.
+- Branch per change and merge via pull request: `main` is always releasable and
+  is never committed to directly. Cut a `type/short-topic` branch (`slice/`,
+  `fix/`, `docs/`, `chore/`) from the latest `origin/main` for every change, and
+  land it on `main` only through a `--no-ff` merged pull request once the
+  validation gate is green (full GUT suite + `check_record_sync.sh` exit 0). The
+  agent completing the change merges when green and deletes the branch. See
+  [docs/DEVELOPMENT-WORKFLOW.md](docs/DEVELOPMENT-WORKFLOW.md) "Branching and
+  pull requests".
 - Implementation ownership: Copilot performs orchestration, bounded handoffs,
   validation coordination, and review. Claude CLI owns application-code,
   test-code, and implementation-facing delivery-record edits unless the user
