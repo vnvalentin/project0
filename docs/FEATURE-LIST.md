@@ -281,7 +281,7 @@ for a developer to pick up. No implementation has started.
 
 ### F-034: Client login and character selection screens
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Client-side UI for account login/registration and character
   selection/creation, wired to Phase 40-43 server-side authentication, character
   CRUD, and world-entry machinery.
@@ -315,11 +315,11 @@ for a developer to pick up. No implementation has started.
 - Public seam: `account_gate.tscn`/`account_gate.gd`;
   `character_gate.tscn`/`character_gate.gd`; `player_identity.gd` new fields;
   `project.godot` run/main_scene.
-- Validation: Server-side dependencies remain green in the authoritative Linux
-  run at 315/315 tests across 44/44 scripts and 1224 assertions, exit 0. The
-  remaining acceptance gate is Windows GUI validation: launch the client →
-  login/register → Character roster → create/select → enter world →
-  `gameplay.tscn` renders Player without errors.
+- Validation: Authoritative Linux validation passed 315/315 tests across 44/44
+  scripts and 1224 assertions, exit 0. Windows GUI acceptance was confirmed:
+  login/register, Character roster, create/select/delete, world entry, town
+  and monster rendering, WASD movement, monster interaction, Character Select
+  return, replacement Character world entry, and authoritative Player replay.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
   [F-033](#f-033-character-world-entry-server-binding) (consumed server seams),
   [Slice 044 SDD](slices/044-client-login-character-ui.md).
@@ -334,6 +334,12 @@ for a developer to pick up. No implementation has started.
     Known limitation: spawn-deferral abandoned after e2e harness brittleness;
     login scene persists until world-entry succeeds, then transitions to
     gameplay — intended pattern to avoid misrouted Player spawns.
+  - Date: 2026-09-14
+    What changed: Closed F-034 after user-confirmed Windows GUI acceptance of
+    the complete login → Character → world → gameplay lifecycle, including
+    repeated Character replacement and return to Character Select.
+    Validation: Native UI smoke passed all 3 scene contracts; authoritative
+    Linux GUT passed 315/315; Windows GUI flow confirmed by the user.
 
 
 ### F-032: Character CRUD over the wire (server)

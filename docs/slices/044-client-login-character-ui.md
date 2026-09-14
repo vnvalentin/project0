@@ -1,6 +1,6 @@
 # Slice 044: Client Login and Character Selection UI
 
-**Status:** In Progress (server validation complete, GUI verification on Windows pending)
+**Status:** Delivered (server and Windows GUI validation complete)
 **Linked Feature:** F-034 (new feature in FEATURE-LIST.md)
 **Related Server Slices:** Slices 040 (auth), 042 (character CRUD), 043 (world-entry)
 
