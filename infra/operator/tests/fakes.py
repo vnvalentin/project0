@@ -41,3 +41,18 @@ class FakeInviteAdmin:
         if self._fail:
             raise RuntimeError("mint boom")
         return self._code
+
+
+class FakePeerAdmin:
+    def __init__(self, outcome: str = "REVOKED", reject_reason: str | None = None) -> None:
+        self.calls: list[str] = []
+        self._outcome = outcome
+        self._reject_reason = reject_reason
+
+    def revoke_peer(self, public_key: str) -> str:
+        self.calls.append(public_key)
+        if self._reject_reason is not None:
+            from infra.operator.peers import PeerRevocationError
+
+            raise PeerRevocationError(self._reject_reason)
+        return self._outcome

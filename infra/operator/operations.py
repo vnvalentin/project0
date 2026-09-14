@@ -12,6 +12,7 @@ import uuid
 from .control import ServiceController
 from .invites import InviteAdmin
 from .jobs import AuditLog, Job, JobState
+from .peers import PeerAdmin, PeerRevocationError
 from .services import UnknownServiceError
 
 
@@ -24,6 +25,7 @@ class OperationsService:
         clock=time.time,
         id_factory=lambda: uuid.uuid4().hex,
         invite_admin: InviteAdmin | None = None,
+        peer_admin: PeerAdmin | None = None,
     ) -> None:
         self._services = dict(services)
         self._controller = controller
@@ -31,6 +33,7 @@ class OperationsService:
         self._clock = clock
         self._id = id_factory
         self._invites = invite_admin
+        self._peers = peer_admin
 
     def restart(self, name: str, operator: str) -> Job:
         if name not in self._services:
@@ -96,3 +99,39 @@ class OperationsService:
             job.outcome = "failed"
         self._audit.record(job)
         return job, code
+
+    def revoke_peer(self, operator: str, public_key: str) -> Job:
+        """Revokes an enrolled peer as an audited job. The public key is public
+        (not a secret) and is recorded as the job target. Fail-closed: an absent
+        admin, a bounded revocation rejection, or any error yields a `failed`
+        job with a bounded reason."""
+        job = Job(
+            job_id=self._id(),
+            action="revoke_peer",
+            target=public_key,
+            operator=operator,
+            requested_at=self._clock(),
+        )
+        job.state = JobState.RUNNING
+        job.started_at = self._clock()
+        if self._peers is None:
+            job.state = JobState.FAILED
+            job.outcome = "failed"
+            job.detail = "peer admin unavailable"
+        else:
+            try:
+                outcome = self._peers.revoke_peer(public_key)
+                job.state = JobState.SUCCEEDED
+                job.outcome = outcome
+                job.detail = outcome
+            except PeerRevocationError as exc:
+                job.state = JobState.FAILED
+                job.outcome = "failed"
+                job.detail = exc.reason
+            except Exception as exc:  # a job runner converts any failure into a bounded failed job
+                job.state = JobState.FAILED
+                job.outcome = "failed"
+                job.detail = "revoke failed: %s" % type(exc).__name__
+        job.finished_at = self._clock()
+        self._audit.record(job)
+        return job
