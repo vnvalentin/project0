@@ -37,3 +37,7 @@ native/**/*.a
 
 # Vendored godot-sqlite native GDExtension binaries (Slice 038) — intentionally committed
 !addons/godot-sqlite/bin/*.so
+
+# Enrollment service local sqlite data (Slice 048) — never commit real invite/allocation state
+infra/enrollment/.data/
+*.sqlite3

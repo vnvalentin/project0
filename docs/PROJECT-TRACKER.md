@@ -240,9 +240,9 @@ Progress: **0%** (0 of 1 items done)
 
 Progress: **0%** (0 of 3 items done)
 
-- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process.
+- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — Slice 028 opened the first implementation slice (isolated OPNsense `wg0` tunnel, server + host firewall isolation, one Windows tester peer) against the design-complete basis (all 6 `.scratch/wan-wireguard/` tickets resolved, SDD-GAME-WG-001); records-first, awaiting live-execution evidence. Slice 032 delivered S2, the in-client `wgnetstack` netstack bridge, proven only through a standalone probe process. Slice 034 delivers S3a, wrapping that bridge as a real in-process Godot 4.3 GDExtension so the client itself opens the tunnel with no separate process. Slice 035 delivered S3b (Windows DLL cross-compile + client repackage), with the remote-Windows WAN runtime now user-confirmed (2026-09-14). Slice 048 delivers the invite-code enrollment service's logic (issue 04) — single-use invites, strict public-key validation, `/32` pool allocation, and an injectable, fail-closed OPNsense client — proven by 39/39 passing automated tests; live deployment remains open.
 - Tech debt: none yet.
-- **Current slice:** [034 — wgnetstack in-client GDExtension + tunnel integration (Linux)](slices/034-wgnetstack-godot-gdextension-tunnel-integration-linux.md)
+- **Current slice:** [048 — WireGuard invite-code enrollment service, logic + tests](slices/048-wireguard-enrollment-service.md)
 
 **Phase 14 — Player accounts and characters**
 
@@ -502,11 +502,18 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
   - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 02 decision), packaging the Slice 032 bridge as a GDExtension
-- **Slice:** [035 — wgnetstack Windows DLL cross-compile + client repackage](slices/035-wgnetstack-windows-dll-client-repackage.md) — **delivered (build + package); the GDExtension cross-compiles via mingw to a valid PE32+ Windows DLL, and `dist/Project0-client-windows-x64-0.7.0-tunnel.zip` bundles it next to `Project0.exe`. The Windows runtime spawn-through-tunnel proof is owned by an external tester (open).**
+- **Slice:** [035 — wgnetstack Windows DLL cross-compile + client repackage](slices/035-wgnetstack-windows-dll-client-repackage.md) — **delivered (build + package); the GDExtension cross-compiles via mingw to a valid PE32+ Windows DLL, and `dist/Project0-client-windows-x64-0.7.0-tunnel.zip` bundles it next to `Project0.exe`. The Windows runtime spawn-through-tunnel proof is now user-confirmed (2026-09-14).**
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
   - **Tech debt:** none identified
   - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 02](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md)
   - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 02 decision), Windows packaging of the Slice 034 GDExtension
+- **Slice:** [048 — WireGuard invite-code enrollment service (logic + tests)](slices/048-wireguard-enrollment-service.md) — **100% complete for this slice's scope; FastAPI service logic under `infra/enrollment/` proven by automated tests against a fake OPNsense client and a temp sqlite DB; live deployment behind `enroll.valentin.vip` is a follow-up ops step**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md), [issue 04](../.scratch/wan-wireguard/issues/04-enrollment-service-invite-system.md)
+  - **Decision:** no new ADR; implements the existing SDD-GAME-WG-001 design basis (issue 04 decision) with one non-architectural choice — stdlib `sqlite3` (not `godot-sqlite`, which is Godot-only) for this standalone Python service's local store
+  - **Public seam:** `infra/enrollment/service.py`'s `EnrollmentService.redeem()`, exposed as `POST /redeem` (`infra/enrollment/app.py`) and an admin CLI (`infra/enrollment/cli.py`)
+  - **Validation:** `python3 -m pytest infra/enrollment/tests -q` passed 39/39, exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings, exit 0; no `.gd` files changed, so the GUT suite was not run
 
 #### Phase 14 — Player accounts and characters
 
@@ -674,8 +681,15 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   GDExtension (`native/wgnetstack/gdext/`, godot-cpp-based, linking a new
   `cmd/cgoarchive` static build of the same bridge logic) plus a
   `client/network_client.gd` tunnel-mode integration, so the client opens the
-  tunnel itself with no separate probe process. The Windows DLL build/
-  validation (S3b), enrollment service (issue 04), and revocation/ban
+  tunnel itself with no separate probe process.
+  [Slice 035](slices/035-wgnetstack-windows-dll-client-repackage.md) delivers
+  S3b, the Windows DLL cross-compile and client repackage, with the
+  remote-Windows WAN runtime now user-confirmed (2026-09-14).
+  [Slice 048](slices/048-wireguard-enrollment-service.md) delivers the
+  invite-code enrollment service's logic (issue 04): single-use CSPRNG
+  invites, strict public-key validation, `/32` pool allocation, and an
+  injectable, fail-closed OPNsense client, proven by 39/39 passing automated
+  tests. Live deployment behind `enroll.valentin.vip` and revocation/ban
   automation (issue 06) remain queued, unscoped work for
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
 - [x] Ready — Player accounts and characters, data layer (Phase 14): design

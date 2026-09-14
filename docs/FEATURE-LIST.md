@@ -500,16 +500,28 @@ for a developer to pick up. No implementation has started.
   Windows *runtime* spawn-through-tunnel proof is now user-confirmed
   (2026-09-14): a remote Windows tester ran the packaged in-process tunnel
   client and reached the in-world state against the home-hosted authoritative
-  server over the public WAN split-tunnel. Still open: the invite enrollment
-  service (issue 04) and revocation/ban automation (issue 06).
+  server over the public WAN split-tunnel.
+  [Slice 048](slices/048-wireguard-enrollment-service.md) delivers the
+  invite-code enrollment service's logic (issue 04): a FastAPI service under
+  `infra/enrollment/` with single-use CSPRNG invite codes, strict
+  client-public-key validation (the private key is never transmitted), `/32`
+  allocation from `10.77.0.0/24`, and OPNsense `client/addClient` +
+  `service/reconfigure` registration behind an injectable client interface so
+  tests never make a live call — fail-closed, so an upstream OPNsense failure
+  rolls back with no local allocation and no invite marked redeemed. This
+  slice is service logic proven by automated tests; live deployment behind
+  `enroll.valentin.vip` and revocation/ban automation (issue 06) remain open.
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
 - Phase: 13. Public game access
 - Public seam: `infra/opnsense/setup_wireguard_game_tunnel.py` and
   `ci/host-firewall-helper.sh` (Slice 028); `native/wgnetstack/` producing
   `libwgnetstack.so`/`wgnetstack.dll` with C-exported `wgnetstack_start`/
-  `wgnetstack_stop` (Slice 032). The Godot `.gdextension` binding and the
-  enrollment service API remain separately scoped.
+  `wgnetstack_stop` (Slice 032); `infra/enrollment/service.py`'s
+  `EnrollmentService.redeem()`, exposed over HTTP as `POST /redeem` by
+  `infra/enrollment/app.py` and over a CLI by `infra/enrollment/cli.py`
+  (Slice 048). The Godot `.gdextension` binding is separately scoped; the
+  enrollment service's live nginx/TLS deployment remains a follow-up ops step.
 - Validation: Slice 028's acceptance evidence is an external WireGuard peer
   handshake, split-tunnel isolation proof (game host reachable, LAN
   default-denied) from inside the tunnel, the host firewall dropping
@@ -522,10 +534,30 @@ for a developer to pick up. No implementation has started.
   same server confirming the earlier gap was a stale-server RPC method-table
   mismatch rather than a bridge or monster-replication defect. The Windows DLL
   cross-compile and `.gdextension` packaging (Slice 035) are delivered, and the
-  remote-Windows WAN runtime is now user-confirmed (2026-09-14). Future slices
-  still owe invite-code enrollment and peer revocation/ban teardown within one
-  keepalive interval.
+  remote-Windows WAN runtime is now user-confirmed (2026-09-14). Slice 048's
+  acceptance evidence is `python3 -m pytest infra/enrollment/tests -q`, 39
+  passed, exit 0, covering normal redemption, single-use re-redeem rejection,
+  pool exhaustion, invalid/expired codes, malformed public keys, and an
+  OPNsense-failure rollback that leaves no partial durable state — all against
+  a fake OPNsense client and a temp sqlite DB, never a live call. Future
+  slices still owe live OPNsense wiring behind `enroll.valentin.vip` and peer
+  revocation/ban teardown within one keepalive interval.
 - Change history:
+  - Date: 2026-09-14
+    What changed: Delivered Slice 048, the invite-code enrollment service's
+    logic and full automated test coverage (39/39 passing), against issue 04's
+    resolved design. Single-use invites, strict public-key validation, `/32`
+    pool allocation, and an injectable OPNsense client keep every rejection
+    path (bad/expired/redeemed code, malformed key, exhausted pool, upstream
+    failure) side-effect-free.
+    Why: Growing Phase 13 beyond the single hand-enrolled Slice 028 tester
+    peer requires a self-serve, single-use, auditable enrollment path with no
+    partial state on failure, per issue 04's resolved design.
+    Related work: [Slice 048](slices/048-wireguard-enrollment-service.md)
+    Validation: `python3 -m pytest infra/enrollment/tests -q` passed 39/39,
+    exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6
+    pre-existing warnings, exit 0. No `.gd` files changed, so the GUT suite
+    was not run.
   - Date: 2026-09-14
     What changed: Recorded the user-confirmed WAN runtime proof — a remote
     Windows tester ran the packaged in-process tunnel client and reached the
