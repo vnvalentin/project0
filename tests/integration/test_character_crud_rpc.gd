@@ -160,8 +160,12 @@ func test_select_records_selected_character_id_on_session_and_refreshes_last_pla
 	var character: CharacterRecord = create_result["character"]
 	var original_last_played_at: int = character.last_played_at
 
-	# Ensure a detectable time delta for last_played_at.
-	await get_tree().create_timer(1.1).timeout
+	# Deterministically wait until the whole-second clock advances past the
+	# creation time so the refreshed last_played_at is reliably newer. A fixed
+	# real-time timer intermittently under-waits in headless GUT, leaving both
+	# timestamps in the same integer second (a flaky assert_gt).
+	while (Time.get_unix_time_from_system() as int) <= original_last_played_at:
+		await get_tree().process_frame
 
 	var select_result: Dictionary = _service.select_character(1, character.character_id)
 	assert_eq(select_result["outcome"], "ok", "select succeeds: %s" % select_result.get("detail", ""))

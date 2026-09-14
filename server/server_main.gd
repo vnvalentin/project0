@@ -184,8 +184,13 @@ func _start_server() -> void:
 	print("Starting town house pool ready: %d houses." % _house_allocator.pool_size())
 
 	# Slice 022: spawn monsters from the hub's spawn points (authored outside the
-	# town wall) and drive their AI each physics frame.
-	_monster_manager = ServerMonsterManagerScript.new(_starting_town_hub_blueprint.get("spawn_points", []), int(Time.get_ticks_usec()))
+	# town wall) and drive their AI each physics frame. Slice 053: the exclusion
+	# half-extent is derived from the actual validated town's tile bounds
+	# (rather than a hard-coded constant) so any town size keeps monsters just
+	# outside its walls.
+	var exclusion_half_extent: float = ServerMonsterManagerScript.town_exclusion_half_extent(_starting_town_hub_blueprint)
+	print("Monster exclusion half-extent derived from town: %.1f yd." % exclusion_half_extent)
+	_monster_manager = ServerMonsterManagerScript.new(_starting_town_hub_blueprint.get("spawn_points", []), int(Time.get_ticks_usec()), ServerMonsterManagerScript.RESPAWN_COOLDOWN_TICKS, exclusion_half_extent)
 	_monster_manager.monster_died.connect(_on_monster_died)
 	_monster_manager.monster_respawned.connect(_on_monster_respawned)
 	physics_frame.connect(_on_physics_frame)

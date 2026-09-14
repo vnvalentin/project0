@@ -639,131 +639,6 @@ for a developer to pick up. No implementation has started.
   [revocation and ban lifecycle](../.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md),
   [Slice 028](slices/028-wireguard-remote-access-infrastructure-foundation.md)
 
-### F-026: Organic districted starting city
-
-- Status: `In Progress`
-- Feature: The starting town is a large, organic, districted, walled city (on
-  the scale/feel of EverQuest's Qeynos or FF7's Midgar) whose layout is
-  ultimately LLM-generated but always validated so the required structures
-  (10-house pool, Smithy, Armor Shop, Inn) exist — replacing the small Slice 016
-  square hub.
-- Problem solved: The Slice 016 hub is far too small and too square to feel like
-  a town; the world needs a believably large, non-grid starting city with
-  gates, districts, and roads, while still guaranteeing the fixed set of
-  buildings every run.
-- How it solves the problem so far: Slice 023 enlarges the hand-authored hub
-  fixture into an organic octagon town (a ±16 square with corners clipped along
-  `|x| + |y| <= 22`) enclosed by a wall with a southern gate, radial corridor
-  avenues, and a central plaza, with the 13 structures re-placed into a northern
-  residential district and a southern trade quarter. It renders through the
-  existing per-tile geometry pipeline (`MAX_TILE_COUNT` raised to 2048 to fit
-  the ~869-tile town), and the monster exclusion + ground plane grow with it so
-  monsters stay in the fields outside the bigger walls. Slice 024 then replaced
-  the per-tile geometry with a merged scalable pass (one merged `ArrayMesh` per
-  ground kind, one merged `Walls` body) so town size is no longer bounded by the
-  physics body count (resolving DT-008). Slice 025 added the schema-v3 organic
-  vocabulary (gate/plaza/path/grass/water tiles + church/tavern/item_shop/well)
-  and enriched the hub to use it, and Slice 026 added the `TownLayoutProvider`
-  guarantee — the LLM proposes a town, the server validates it and requires the
-  fixed structures, else falls back to the fixture (never an unusable town).
-  Slice 031 grew the village to ~3x area (radius 30) and added 10 villager
-  homes (`npc_house`) plus the village leader's hall (`village_hall`) for a
-  rural-village feel. Slice 052 wired LLM generation on at boot behind a
-  default-off `PROJECT0_LLM_TOWN_AT_BOOT` flag — when set, the server awaits
-  `TownLayoutProvider.request_town()` before opening its socket and falls back
-  to the fixture on any failure; unset boots exactly as before. Remaining:
-  deriving the monster exclusion from the town bounds, so the feature stays
-  `In Progress`.
-- Phase: 8. JIT world generation and local inference
-- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md), [Slice 031](slices/031-bigger-village-npc-leader-housing.md), [Slice 052](slices/052-f026-llm-town-at-boot.md)
-- Public seam: `server/starting_town_hub_fixture.gd`
-  (`blueprint()` generating the radius-30 organic octagon via `_in_town`/`_tile_kind`
-  with main + secondary streets, 28 `_STRUCTURES` incl. `npc_house`/`village_hall`,
-  ±38 `_SPAWN_POINTS`),
-  `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 4096, `MAX_COORDINATE_ABS` 48,
-  `npc_house`/`village_hall` in the v3 vocabulary),
-  `server/town_layout_provider.gd` (`resolve`, `meets_required_structures`,
-  `request_town`, `default_town_prompt`, `llm_at_boot_enabled`,
-  `resolve_boot_town`),
-  `server/server_monster_manager.gd` (`TOWN_EXCLUSION_HALF_EXTENT` 32.0),
-  `client/gameplay.tscn` (100×100 `FlatPlane`),
-  `server/server_main.gd` (`_start_server()` boot wiring behind
-  `PROJECT0_LLM_TOWN_AT_BOOT`).
-- Validation: See [Slice 023](slices/023-organic-districted-town.md) for exact
-  commands and results (8/8 fixture + 7/7 manager + 4/4 replication focused
-  tests, 140/140 full suite, exit 0).
-- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
-  [Organic LLM Village map](../.scratch/organic-village/map.md),
-  supersedes [F-019](#f-019-starting-town-hub-fixture),
-  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) (resolved by Slice 024)
-- Change history:
-  - Date: 2026-09-12
-    What changed: Implemented Slice 023 — enlarged the hub fixture into an
-    organic octagon districted town (gate, radial avenues, central plaza,
-    residential + trade districts), raised `MAX_TILE_COUNT` to 2048, grew the
-    monster exclusion to 18.0 and the ground plane to 60×60, and updated the
-    fixture spawn-outside test to the new town outline. Renders through the
-    existing per-tile pipeline.
-    Why: Deliver an immediately visible, substantially larger, non-square
-    starting town (the first Organic Village slice) and the reliable fallback
-    base for later LLM generation.
-    Related work: [Slice 023](slices/023-organic-districted-town.md)
-    Validation: See Slice 023 validation section.
-  - Date: 2026-09-12
-    What changed: Implemented Slice 024 — the scalable geometry pass. Ground
-    tiles now render as one merged `ArrayMesh` per kind (body-free), walls as
-    greedy row-merged colliders under one shared `Walls` body, so the town
-    renders with a single physics body regardless of tile count.
-    Why: Resolve DT-008 and decouple rendered city size from the physics body
-    count, unblocking the schema-v3 vocabulary/scale and LLM-generation slices.
-    Related work: [Slice 024](slices/024-scalable-geometry-pass.md)
-    Validation: See Slice 024 validation section.
-  - Date: 2026-09-13
-    What changed: Implemented Slice 025 — enriched the hub to the schema-v3
-    organic vocabulary: a gated wall, central plaza, path avenues, a grass ring,
-    an ornamental pond, and four flavor buildings (church, tavern, item shop,
-    well), 17 structures total.
-    Why: Make the starting town read like an organic town, the visible payoff of
-    the Organic Village effort.
-    Related work: [Slice 025](slices/025-organic-vocabulary.md)
-    Validation: See Slice 025 validation section.
-  - Date: 2026-09-13
-    What changed: Implemented Slice 026 — `server/town_layout_provider.gd`, the
-    LLM town-layout guarantee: the model proposes a town, the server validates
-    it via the schema and requires the fixed structures (10 houses + smithy +
-    armor shop + inn), else falls back to the hub fixture so the town is never
-    unusable. Pure `resolve`/`meets_required_structures` plus a non-blocking
-    `request_town` coroutine over an injected LLM client.
-    Why: Deliver the "LLM proposes, server guarantees, fixture fallback" hybrid
-    (map Q2) as a tested seam, the last piece before the town can be safely
-    LLM-generated.
-    Related work: [Slice 026](slices/026-llm-town-generation.md)
-    Validation: See Slice 026 validation section.
-  - Date: 2026-09-13
-    What changed: Implemented Slice 031 — grew the village to radius 30 (~3.5x
-    area, secondary streets, bigger plaza/pond), added 10 villager homes
-    (`npc_house`) and the village leader's hall (`village_hall`) for 28
-    structures, raised `MAX_TILE_COUNT` to 4096 and `MAX_COORDINATE_ABS` to 48,
-    grew the monster exclusion to 32 and the ground plane to 100×100, and added
-    the two new v3 structure kinds + prefabs.
-    Why: User request — a bigger rural village (Qeynos/Elliot feel) with NPC and
-    leader housing, not just player houses.
-    Related work: [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
-    Validation: See Slice 031 validation section.
-  - Date: 2026-09-14
-    What changed: Implemented Slice 052 — wired `TownLayoutProvider`'s LLM
-    generation on at server boot behind a default-off
-    `PROJECT0_LLM_TOWN_AT_BOOT` flag (`llm_at_boot_enabled()` /
-    `resolve_boot_town()`). When set, `server_main.gd`'s `_start_server()`
-    awaits `request_town()` against a `LocalLLMClient` configured from
-    environment (Slice 051) before opening its socket; on any failure it falls
-    back to the fixture. Unset boots exactly as before.
-    Why: Close the last "wire it on" item from the Slice 026 guarantee seam so
-    an operator can opt into LLM-generated starting towns without risking an
-    unusable boot.
-    Related work: [Slice 052](slices/052-f026-llm-town-at-boot.md)
-    Validation: See Slice 052 validation section.
-
 ### IP-023: Basic monster combat
 
 - Status: `Implemented`
@@ -1067,6 +942,153 @@ for a developer to pick up. No implementation has started.
     Validation: See Slice 002 validation section.
 
 ## Implemented Features
+
+### F-026: Organic districted starting city
+
+- Status: `Implemented`
+- Feature: The starting town is a large, organic, districted, walled city (on
+  the scale/feel of EverQuest's Qeynos or FF7's Midgar) whose layout is
+  ultimately LLM-generated but always validated so the required structures
+  (10-house pool, Smithy, Armor Shop, Inn) exist — replacing the small Slice 016
+  square hub.
+- Problem solved: The Slice 016 hub is far too small and too square to feel like
+  a town; the world needs a believably large, non-grid starting city with
+  gates, districts, and roads, while still guaranteeing the fixed set of
+  buildings every run.
+- How it solves the problem: Slice 023 enlarges the hand-authored hub
+  fixture into an organic octagon town (a ±16 square with corners clipped along
+  `|x| + |y| <= 22`) enclosed by a wall with a southern gate, radial corridor
+  avenues, and a central plaza, with the 13 structures re-placed into a northern
+  residential district and a southern trade quarter. It renders through the
+  existing per-tile geometry pipeline (`MAX_TILE_COUNT` raised to 2048 to fit
+  the ~869-tile town), and the monster exclusion + ground plane grow with it so
+  monsters stay in the fields outside the bigger walls. Slice 024 then replaced
+  the per-tile geometry with a merged scalable pass (one merged `ArrayMesh` per
+  ground kind, one merged `Walls` body) so town size is no longer bounded by the
+  physics body count (resolving DT-008). Slice 025 added the schema-v3 organic
+  vocabulary (gate/plaza/path/grass/water tiles + church/tavern/item_shop/well)
+  and enriched the hub to use it, and Slice 026 added the `TownLayoutProvider`
+  guarantee — the LLM proposes a town, the server validates it and requires the
+  fixed structures, else falls back to the fixture (never an unusable town).
+  Slice 031 grew the village to ~3x area (radius 30) and added 10 villager
+  homes (`npc_house`) plus the village leader's hall (`village_hall`) for a
+  rural-village feel. Slice 052 wired LLM generation on at boot behind a
+  default-off `PROJECT0_LLM_TOWN_AT_BOOT` flag — when set, the server awaits
+  `TownLayoutProvider.request_town()` before opening its socket and falls back
+  to the fixture on any failure; unset boots exactly as before. Slice 053
+  replaced the hard-coded monster exclusion constant with
+  `ServerMonsterManager.town_exclusion_half_extent()`, a pure derivation from
+  the validated blueprint's actual tile bounds (plus a fixed margin), wired at
+  boot in `server_main.gd` — so any town size keeps monsters just outside its
+  walls automatically. No items remain; the feature is fully `Implemented`.
+- Phase: 8. JIT world generation and local inference
+- Implementation slices: [Slice 023](slices/023-organic-districted-town.md), [Slice 024](slices/024-scalable-geometry-pass.md), [Slice 025](slices/025-organic-vocabulary.md), [Slice 026](slices/026-llm-town-generation.md), [Slice 031](slices/031-bigger-village-npc-leader-housing.md), [Slice 052](slices/052-f026-llm-town-at-boot.md), [Slice 053](slices/053-f026-monster-exclusion-from-town-bounds.md)
+- Public seam: `server/starting_town_hub_fixture.gd`
+  (`blueprint()` generating the radius-30 organic octagon via `_in_town`/`_tile_kind`
+  with main + secondary streets, 28 `_STRUCTURES` incl. `npc_house`/`village_hall`,
+  ±38 `_SPAWN_POINTS`),
+  `shared/sector_blueprint_schema.gd` (`MAX_TILE_COUNT` 4096, `MAX_COORDINATE_ABS` 48,
+  `npc_house`/`village_hall` in the v3 vocabulary),
+  `server/town_layout_provider.gd` (`resolve`, `meets_required_structures`,
+  `request_town`, `default_town_prompt`, `llm_at_boot_enabled`,
+  `resolve_boot_town`),
+  `server/server_monster_manager.gd` (`town_exclusion_half_extent()` derived
+  exclusion, `TOWN_EXCLUSION_MARGIN_YARDS` 2.0, `TOWN_EXCLUSION_HALF_EXTENT` 32.0
+  fallback/default),
+  `client/gameplay.tscn` (100×100 `FlatPlane`),
+  `server/server_main.gd` (`_start_server()` boot wiring behind
+  `PROJECT0_LLM_TOWN_AT_BOOT`, and deriving/logging the monster exclusion
+  half-extent from the validated town blueprint).
+- Validation: See [Slice 023](slices/023-organic-districted-town.md) for exact
+  commands and results (8/8 fixture + 7/7 manager + 4/4 replication focused
+  tests, 140/140 full suite, exit 0), and [Slice 053](slices/053-f026-monster-exclusion-from-town-bounds.md)
+  for the final item's validation (16/16 focused, 315/315 full suite, exit 0).
+- Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index),
+  [Organic LLM Village map](../.scratch/organic-village/map.md),
+  supersedes [F-019](#f-019-starting-town-hub-fixture),
+  [DT-008](TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-did-not-scale-to-city-size) (resolved by Slice 024)
+- Change history:
+  - Date: 2026-09-14
+    What changed: Implemented Slice 053 — replaced the hard-coded
+    `TOWN_EXCLUSION_HALF_EXTENT = 32.0` constant with
+    `ServerMonsterManager.town_exclusion_half_extent(blueprint)`, a pure
+    derivation (`max over tiles of max(|x|, |y|)` plus a
+    `TOWN_EXCLUSION_MARGIN_YARDS` margin) from the validated town blueprint's
+    actual tile bounds, wired at boot in `server_main.gd`. The constant remains
+    only as the documented fallback/default. F-026 moved `In Progress` ->
+    `Implemented`; no items remain.
+    Why: F-026's last remaining item — any town size (not just the current
+    fixture) should keep monsters just outside its walls automatically, rather
+    than relying on a hand-tuned constant that must be manually updated for
+    every future town size.
+    Related work: [Slice 053](slices/053-f026-monster-exclusion-from-town-bounds.md)
+    Validation: See Slice 053 validation section.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 023 — enlarged the hub fixture into an
+    organic octagon districted town (gate, radial avenues, central plaza,
+    residential + trade districts), raised `MAX_TILE_COUNT` to 2048, grew the
+    monster exclusion to 18.0 and the ground plane to 60×60, and updated the
+    fixture spawn-outside test to the new town outline. Renders through the
+    existing per-tile pipeline.
+    Why: Deliver an immediately visible, substantially larger, non-square
+    starting town (the first Organic Village slice) and the reliable fallback
+    base for later LLM generation.
+    Related work: [Slice 023](slices/023-organic-districted-town.md)
+    Validation: See Slice 023 validation section.
+  - Date: 2026-09-12
+    What changed: Implemented Slice 024 — the scalable geometry pass. Ground
+    tiles now render as one merged `ArrayMesh` per kind (body-free), walls as
+    greedy row-merged colliders under one shared `Walls` body, so the town
+    renders with a single physics body regardless of tile count.
+    Why: Resolve DT-008 and decouple rendered city size from the physics body
+    count, unblocking the schema-v3 vocabulary/scale and LLM-generation slices.
+    Related work: [Slice 024](slices/024-scalable-geometry-pass.md)
+    Validation: See Slice 024 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 025 — enriched the hub to the schema-v3
+    organic vocabulary: a gated wall, central plaza, path avenues, a grass ring,
+    an ornamental pond, and four flavor buildings (church, tavern, item shop,
+    well), 17 structures total.
+    Why: Make the starting town read like an organic town, the visible payoff of
+    the Organic Village effort.
+    Related work: [Slice 025](slices/025-organic-vocabulary.md)
+    Validation: See Slice 025 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 026 — `server/town_layout_provider.gd`, the
+    LLM town-layout guarantee: the model proposes a town, the server validates
+    it via the schema and requires the fixed structures (10 houses + smithy +
+    armor shop + inn), else falls back to the hub fixture so the town is never
+    unusable. Pure `resolve`/`meets_required_structures` plus a non-blocking
+    `request_town` coroutine over an injected LLM client.
+    Why: Deliver the "LLM proposes, server guarantees, fixture fallback" hybrid
+    (map Q2) as a tested seam, the last piece before the town can be safely
+    LLM-generated.
+    Related work: [Slice 026](slices/026-llm-town-generation.md)
+    Validation: See Slice 026 validation section.
+  - Date: 2026-09-13
+    What changed: Implemented Slice 031 — grew the village to radius 30 (~3.5x
+    area, secondary streets, bigger plaza/pond), added 10 villager homes
+    (`npc_house`) and the village leader's hall (`village_hall`) for 28
+    structures, raised `MAX_TILE_COUNT` to 4096 and `MAX_COORDINATE_ABS` to 48,
+    grew the monster exclusion to 32 and the ground plane to 100×100, and added
+    the two new v3 structure kinds + prefabs.
+    Why: User request — a bigger rural village (Qeynos/Elliot feel) with NPC and
+    leader housing, not just player houses.
+    Related work: [Slice 031](slices/031-bigger-village-npc-leader-housing.md)
+    Validation: See Slice 031 validation section.
+  - Date: 2026-09-14
+    What changed: Implemented Slice 052 — wired `TownLayoutProvider`'s LLM
+    generation on at server boot behind a default-off
+    `PROJECT0_LLM_TOWN_AT_BOOT` flag (`llm_at_boot_enabled()` /
+    `resolve_boot_town()`). When set, `server_main.gd`'s `_start_server()`
+    awaits `request_town()` against a `LocalLLMClient` configured from
+    environment (Slice 051) before opening its socket; on any failure it falls
+    back to the fixture. Unset boots exactly as before.
+    Why: Close the last "wire it on" item from the Slice 026 guarantee seam so
+    an operator can opt into LLM-generated starting towns without risking an
+    unusable boot.
+    Related work: [Slice 052](slices/052-f026-llm-town-at-boot.md)
+    Validation: See Slice 052 validation section.
 
 ### F-030: Accounts and characters persistence repository
 

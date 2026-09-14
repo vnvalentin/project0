@@ -20,10 +20,16 @@ const RESPAWN_COOLDOWN_TICKS: int = 180
 const RESPAWN_AREA_RADIUS_YARDS: float = 2.0
 ## Ground height monsters spawn at (players sit at y == 1).
 const MONSTER_SPAWN_Y: float = 1.0
-## Half-extent of the town's square exclusion zone. Just outside the fixture's
-## octagon town outline (StartingTownHubFixture._TOWN_RADIUS == 30), so no
-## monster is ever positioned inside the village, on spawn or respawn.
+## Fallback/default half-extent of the town's square exclusion zone, used only
+## when a caller does not derive one from an actual blueprint (or the
+## blueprint has no tiles). Just outside the fixture's octagon town outline
+## (StartingTownHubFixture._TOWN_RADIUS == 30), so no monster is ever
+## positioned inside the village, on spawn or respawn.
 const TOWN_EXCLUSION_HALF_EXTENT: float = 32.0
+
+## Margin (yards) added beyond a blueprint's furthest tile coordinate when
+## deriving an exclusion half-extent from actual town bounds (Slice 053).
+const TOWN_EXCLUSION_MARGIN_YARDS: float = 2.0
 
 ## Telemetry: emitted when a monster is defeated and when one respawns. The
 ## server runtime forwards these to logs. Initial spawns are not signalled
@@ -34,10 +40,17 @@ signal monster_respawned(spawn_id: String, position: Vector3, server_tick: int)
 var _slots: Array[Dictionary] = []
 var _respawn_cooldown_ticks: int
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var _exclusion_half_extent: float
 
 
-func _init(spawn_points: Array, rng_seed: int = 0, respawn_cooldown_ticks: int = RESPAWN_COOLDOWN_TICKS) -> void:
+## Slice 053: `exclusion_half_extent` defaults to the fixed fallback constant
+## so existing call sites/tests that pass only `spawn_points` (or up to
+## `respawn_cooldown_ticks`) keep today's exact 32.0 behavior; callers that
+## know the actual town bounds (server_main.gd, via
+## town_exclusion_half_extent()) pass a derived value instead.
+func _init(spawn_points: Array, rng_seed: int = 0, respawn_cooldown_ticks: int = RESPAWN_COOLDOWN_TICKS, exclusion_half_extent: float = TOWN_EXCLUSION_HALF_EXTENT) -> void:
 	_respawn_cooldown_ticks = respawn_cooldown_ticks
+	_exclusion_half_extent = exclusion_half_extent
 	_rng.seed = rng_seed
 	# Bounded by the same cap the schema enforces on spawn_points.
 	var count: int = mini(spawn_points.size(), SectorBlueprintSchemaScript.MAX_SPAWN_POINT_COUNT)
@@ -149,13 +162,34 @@ func _random_position_outside_town(base: Vector3) -> Vector3:
 	var radius: float = _rng.randf() * RESPAWN_AREA_RADIUS_YARDS
 	var candidate: Vector3 = base + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
 	candidate.y = MONSTER_SPAWN_Y
-	if absf(candidate.x) < TOWN_EXCLUSION_HALF_EXTENT and absf(candidate.z) < TOWN_EXCLUSION_HALF_EXTENT:
+	if absf(candidate.x) < _exclusion_half_extent and absf(candidate.z) < _exclusion_half_extent:
 		if absf(base.x) >= absf(base.z):
-			candidate.x = signf(base.x) * TOWN_EXCLUSION_HALF_EXTENT
+			candidate.x = signf(base.x) * _exclusion_half_extent
 		else:
-			candidate.z = signf(base.z) * TOWN_EXCLUSION_HALF_EXTENT
+			candidate.z = signf(base.z) * _exclusion_half_extent
 	return candidate
 
 
 func _horizontal_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
+## Slice 053: derives a town exclusion half-extent from a validated sector
+## blueprint's actual tiles — max over tiles of max(abs(x), abs(y)), plus
+## TOWN_EXCLUSION_MARGIN_YARDS — instead of the hard-coded
+## TOWN_EXCLUSION_HALF_EXTENT constant, so any town size (a fixture, a
+## differently-sized fixture, or a future validated LLM town) keeps monsters
+## just outside its actual walls. Falls back to TOWN_EXCLUSION_HALF_EXTENT when
+## the blueprint has no tiles (defensive; should not occur for a validated
+## blueprint). For the shipped fixture (StartingTownHubFixture._TOWN_RADIUS ==
+## 30) this yields exactly 32.0, matching prior behavior.
+static func town_exclusion_half_extent(blueprint: Dictionary) -> float:
+	var tiles: Array = blueprint.get("tiles", [])
+	if tiles.is_empty():
+		return TOWN_EXCLUSION_HALF_EXTENT
+	var furthest: float = 0.0
+	for tile: Dictionary in tiles:
+		var extent: float = maxf(absf(float(tile.get("x", 0))), absf(float(tile.get("y", 0))))
+		if extent > furthest:
+			furthest = extent
+	return furthest + TOWN_EXCLUSION_MARGIN_YARDS

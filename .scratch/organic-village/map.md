@@ -119,12 +119,19 @@ always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
   the LLM prompt. Shipped as
   [Slice 031](../../docs/slices/031-bigger-village-npc-leader-housing.md).
   Validation: 168/168 full GUT suite, exit 0.
-- A later slice: derive the monster exclusion/spawn fields from the actual
-  town bounds instead of a hard-coded constant.
 - DELIVERED by [Slice 052](../../docs/slices/052-f026-llm-town-at-boot.md):
   wiring LLM town generation on at server boot behind a default-off
   `PROJECT0_LLM_TOWN_AT_BOOT` flag — the fixture stays the default and
   always-safe fallback on any failure.
+- DELIVERED by [Slice 053](../../docs/slices/053-f026-monster-exclusion-from-town-bounds.md):
+  the deferred "later slice" above — derived the monster exclusion half-extent
+  from the actual validated town blueprint's tile bounds
+  (`ServerMonsterManager.town_exclusion_half_extent()`, `max over tiles of
+  max(|x|, |y|)` plus a fixed margin) instead of the hard-coded
+  `TOWN_EXCLUSION_HALF_EXTENT` constant, wired at boot in `server_main.gd`. The
+  constant remains only as the documented fallback/default. This was F-026's
+  last remaining item; the feature is now `Implemented` and this map is
+  closed. Validation: 16/16 focused, 315/315 full GUT suite, exit 0.
 - Deferred flavor: NPC behaviour/occupancy for the villager homes and village
   hall (they are visual buildings only), and an explicit player rescale pass if
   desired.

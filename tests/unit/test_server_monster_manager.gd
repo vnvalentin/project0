@@ -137,3 +137,56 @@ func test_every_respawn_stays_outside_town() -> void:
 	assert_gt(respawns.size(), 0, "respawns occurred")
 	for position: Vector3 in respawns:
 		assert_true(_outside_town(position), "respawn at %s is outside the town" % position)
+
+
+func test_town_exclusion_half_extent_matches_fixture_constant() -> void:
+	var extent: float = ServerMonsterManagerScript.town_exclusion_half_extent(StartingTownHubFixtureScript.blueprint())
+	assert_eq(extent, 32.0, "the shipped fixture (radius 30) derives to exactly 32.0, matching prior hard-coded behavior")
+
+
+func test_town_exclusion_half_extent_scales_with_small_blueprint() -> void:
+	var blueprint: Dictionary = {"tiles": [{"x": 5, "y": 0}, {"x": -3, "y": 4}, {"x": 2, "y": -5}]}
+	var extent: float = ServerMonsterManagerScript.town_exclusion_half_extent(blueprint)
+	assert_eq(extent, 5.0 + ServerMonsterManagerScript.TOWN_EXCLUSION_MARGIN_YARDS, "extent is max(|x|,|y|) over tiles plus the margin")
+
+
+func test_town_exclusion_half_extent_scales_with_larger_blueprint() -> void:
+	var blueprint: Dictionary = {"tiles": [{"x": 40, "y": 0}, {"x": 0, "y": -12}]}
+	var extent: float = ServerMonsterManagerScript.town_exclusion_half_extent(blueprint)
+	assert_eq(extent, 40.0 + ServerMonsterManagerScript.TOWN_EXCLUSION_MARGIN_YARDS, "a larger blueprint derives a proportionally larger extent")
+
+
+func test_town_exclusion_half_extent_falls_back_when_no_tiles() -> void:
+	var extent: float = ServerMonsterManagerScript.town_exclusion_half_extent({"tiles": []})
+	assert_eq(extent, ServerMonsterManagerScript.TOWN_EXCLUSION_HALF_EXTENT, "an empty-tiles blueprint falls back to the fixed constant")
+
+	var extent_missing_key: float = ServerMonsterManagerScript.town_exclusion_half_extent({})
+	assert_eq(extent_missing_key, ServerMonsterManagerScript.TOWN_EXCLUSION_HALF_EXTENT, "a blueprint missing the tiles key also falls back")
+
+
+func test_respawn_stays_outside_derived_extent_for_a_small_blueprint() -> void:
+	# A small hand-built blueprint whose derived extent (5 + 2 = 7) is much
+	# smaller than the real fixture's 32 — proves respawn exclusion actually
+	# uses the derived per-instance extent, not the fixed fallback constant.
+	var small_blueprint: Dictionary = {"tiles": [{"x": 5, "y": 0}, {"x": 0, "y": 5}]}
+	var derived_extent: float = ServerMonsterManagerScript.town_exclusion_half_extent(small_blueprint)
+	assert_eq(derived_extent, 7.0, "sanity: derived extent for this small blueprint is 7.0")
+
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 777, 1, derived_extent)
+	var respawns: Array = []
+	manager.monster_respawned.connect(func(_spawn_id: String, position: Vector3, _tick: int) -> void:
+		respawns.append(position))
+
+	var tick: int = 0
+	for cycle in 20:
+		var monster: Object = manager.monster_at(0)
+		if monster != null:
+			monster.receive_damage(MonsterContractsScript.MAX_HP, 1, tick)
+		manager.advance_all([], 1.0, tick)
+		tick += 1
+		manager.advance_all([], 1.0, tick)
+		tick += 1
+
+	assert_gt(respawns.size(), 0, "respawns occurred")
+	for position: Vector3 in respawns:
+		assert_true(absf(position.x) >= derived_extent - 0.001 or absf(position.z) >= derived_extent - 0.001, "respawn at %s stays outside the small derived exclusion box" % position)

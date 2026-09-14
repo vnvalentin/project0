@@ -68,8 +68,9 @@ contended range and everything after it is tracked explicitly:
 | 050 | Canon mutation persistence: dynamic world mutation tracking (P-013) | interactive |
 | 051 | Hardware-accelerated local inference: env config + bounded request telemetry (P-009) | interactive |
 | 052 | F-026 LLM town generation ON at server boot (opt-in flag) | interactive |
+| 053 | F-026 derive monster exclusion from town bounds | interactive |
 
-Next free slice: **053** (verify against `docs/slices/` before reserving).
+Next free slice: **054** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
