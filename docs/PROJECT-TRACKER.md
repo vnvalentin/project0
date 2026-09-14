@@ -213,11 +213,11 @@ Progress: **73%** (8 of 11 items done)
 
 Progress: **75%** (3 of 4 items done)
 
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `queued` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `in-progress` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
-- **Current slice:** [047 — JIT result canonicalization and sector replication](slices/047-jit-result-canonicalization-replication.md) — **100% complete; Canon and JIT result path validated**
-  - **Features:** [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization)
+- **Current slice:** [050 — Canon mutation persistence (dynamic world mutation tracking)](slices/050-canon-mutation-persistence.md) — **delivered; append-only mutation log with optimistic per-sector revision, focused + full-suite + record-sync validation passed**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (first slice)
 
 **Phase 10 — Authoritative runtime and action input**
 
@@ -484,6 +484,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `server/canon_repository.gd` over `server/sqlite_store.gd`; no client, geometry, mutation, or boundary-triggering code
   - **Validation:** focused Canon integration path passed 94/94 tests and 375 assertions, exit 0; `server/server_main.gd` check-only passed, exit 0; full GUT passed 268/268 tests across 36/36 scripts, exit 0; `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
+- **Slice:** [050 — Canon mutation persistence (dynamic world mutation tracking)](slices/050-canon-mutation-persistence.md) — **delivered; server-only append-only mutation log, idempotent by event_id, optimistic per-sector revision, fail-closed at the boundary**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (first slice)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+  - **Public seam:** `server/canon_mutation_repository.gd` over `server/sqlite_store.gd` + the Slice 045 `server/canon_repository.gd`; no client, geometry, GUID-assignment, RPC, or gameplay-authorization code
+  - **Validation:** focused integration suite passed with the 11 new `test_canon_mutation_repository` cases (94 → 105 integration tests, all passing), exit 0; `server/canon_mutation_repository.gd` check-only passed, exit 0; full GUT passed 293/293 tests across 40/40 scripts, exit 0 (`scripts_expected == scripts_ran`); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
 #### Phase 13 — Public game access
 
@@ -578,18 +584,20 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   player position crosses into an unexplored sector, closing the trigger gap
   between Slice 009 and a fully `Implemented`
   [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation).
-- [~] Active — Canon persistence design (Phase 9): Slice 045 establishes the
-  first durable sector and canonicalization seam; mutation events and JIT
-  boundary triggering remain separate follow-up slices. The shared engine this
-  design will build on is now delivered
+- [~] Active — Canon persistence (Phase 9): the durable sector and
+  canonicalization seam is delivered (Slices 045/047) on the shared engine
   ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029 —
-  `server/sqlite_store.gd`, no domain tables yet). Still resolve the open
-  Canon schema/transaction/event-model questions in
-  [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md)
-  before scoping the first slice for
-  [P-011](FEATURE-LIST.md#p-011-canonical-history-archive),
-  [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), and
-  [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+  `server/sqlite_store.gd`), and the first mutation slice landed (Slice 050 —
+  `server/canon_mutation_repository.gd`: append-only, idempotent, optimistic
+  per-sector revision), so
+  [P-011](FEATURE-LIST.md#p-011-canonical-history-archive) and
+  [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization) are
+  `Implemented` and [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking)
+  is `In Progress`. Remaining P-013 work (stable entity GUIDs, physical-event
+  verification, actor authorization, the mutation-intent RPC, and replay into
+  live scene state) and the JIT boundary path continue as follow-up slices,
+  resolving the open event-model questions in
+  [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md).
 - [ ] Queued — Containerized fixed-tick server runtime (Phase 10, blocked):
   [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
   needs the runtime-boundary questions in

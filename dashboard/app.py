@@ -536,7 +536,7 @@ DELIVERY_ROADMAP = {
                     "Character CRUD/select/create \u2192 world entry (Slices 042-044) \u2014 in validation"]},
                 {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
                     "IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045/046) \u2014 done",
-                    "P-013 mutation \u00b7 F-026 LLM-on \u00b7 P-009 P100 inference \u2014 remaining"]},
+                    "P-013 mutation persistence first slice (Slice 050) \u2014 done; GUIDs/RPC/replay, F-026 LLM-on, P-009 inference remaining"]},
             ],
         },
         {

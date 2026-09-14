@@ -153,12 +153,19 @@ feature so future drift is easier to detect.
 
 ### P-013: Dynamic world mutation tracking
 
-- Status: `Planned`
+- Status: `In Progress`
 - Feature: Generated assets and mutable entities receive stable GUIDs, and direct player-driven changes such as looting or defeating a leader persist across sessions.
 - Problem solved: Mutable world state must not reset or duplicate when a sector is revisited.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: GUID assignment, mutation event/state store, replay/load path, and mutation telemetry.
 - Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
+- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md)
+- Change history:
+  - Date: 2026-09-14
+    What changed: Started the first P-013 slice — a server-only append-only Canon mutation log (`server/canon_mutation_repository.gd`) on the Slice 045 immutable sectors, keyed by a server-owned `event_id`, with an optimistic per-sector revision derived from the log.
+    Why: Player-driven world changes must persist idempotently across restarts and be rejected when stale, forged, or aimed at a non-canon sector, without touching immutable sector Canon.
+    Related work: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 045](slices/045-canon-sector-persistence.md), [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+    Validation: Focused integration validation passed with the 11 new `test_canon_mutation_repository` cases (94 → 105 integration tests, all passing); full `scripts/run_gut_validation.sh` passed 293/293 tests across 40/40 scripts, exit 0 (`scripts_expected == scripts_ran`); server parse check passed, exit 0; record sync exit 0.
 
 ### P-014: Containerized fixed-tick authoritative server runtime
 
