@@ -80,8 +80,9 @@ contended range and everything after it is tracked explicitly:
 | 062 | Operator control plane: job/audit model + service restart action (P-014) | interactive |
 | 063 | Operator control plane: audited mint-invite action (P-014) | interactive |
 | 064 | Operator control plane: audited revoke-peer action (P-014) | interactive |
+| 065 | Operator control plane: durable SQLite audit sink (P-014) | interactive |
 
-Next free slice: **065** (verify against `docs/slices/` before reserving).
+Next free slice: **066** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
