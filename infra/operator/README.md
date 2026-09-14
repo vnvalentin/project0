@@ -15,6 +15,10 @@ audit/job model.
 - `POST /services/{name}/restart` — restart an allowlisted service; returns an
   audited job (bearer token required; optional `X-Operator` header for identity;
   404 if not allowlisted).
+- `POST /invites` — mint a single-use enrollment invite; returns an audited job
+  plus the secret `invite_code` (bearer token required; optional
+  `expires_in_seconds` body and `X-Operator` header). The code is returned only
+  in the response, never in the audit log.
 - `GET /jobs` — recent operator jobs (bearer token required).
 
 Authentication is a bearer token compared with `hmac.compare_digest`: missing →

@@ -28,3 +28,16 @@ class FakeServiceController:
     def restart_docker(self, container: str) -> tuple[bool, str]:
         self.calls.append(("docker", container))
         return (self._docker_ok, "ok" if self._docker_ok else "docker boom")
+
+
+class FakeInviteAdmin:
+    def __init__(self, code: str = "invite-abc123", fail: bool = False) -> None:
+        self.calls: list[int | None] = []
+        self._code = code
+        self._fail = fail
+
+    def mint_invite(self, expires_in_seconds: int | None) -> str:
+        self.calls.append(expires_in_seconds)
+        if self._fail:
+            raise RuntimeError("mint boom")
+        return self._code

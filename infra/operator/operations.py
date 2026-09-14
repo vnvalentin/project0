@@ -10,6 +10,7 @@ import time
 import uuid
 
 from .control import ServiceController
+from .invites import InviteAdmin
 from .jobs import AuditLog, Job, JobState
 from .services import UnknownServiceError
 
@@ -22,12 +23,14 @@ class OperationsService:
         audit: AuditLog,
         clock=time.time,
         id_factory=lambda: uuid.uuid4().hex,
+        invite_admin: InviteAdmin | None = None,
     ) -> None:
         self._services = dict(services)
         self._controller = controller
         self._audit = audit
         self._clock = clock
         self._id = id_factory
+        self._invites = invite_admin
 
     def restart(self, name: str, operator: str) -> Job:
         if name not in self._services:
@@ -60,3 +63,36 @@ class OperationsService:
 
     def recent_jobs(self, limit: int = 50) -> list[Job]:
         return self._audit.recent(limit)
+
+    def mint_invite(self, operator: str, expires_in_seconds: int | None) -> tuple[Job, str]:
+        """Mints a single-use invite as an audited job. Returns (job, code); the
+        code is a SECRET returned to the caller only — it is never placed in the
+        job detail or the audit log. Fail-closed: an absent or failing admin
+        yields a `failed` job and an empty code."""
+        job = Job(
+            job_id=self._id(),
+            action="mint_invite",
+            target="invite",
+            operator=operator,
+            requested_at=self._clock(),
+        )
+        job.state = JobState.RUNNING
+        job.started_at = self._clock()
+        code = ""
+        if self._invites is None:
+            job.detail = "invite admin unavailable"
+        else:
+            try:
+                code = self._invites.mint_invite(expires_in_seconds)
+            except Exception as exc:  # a job runner converts any failure into a bounded failed job
+                job.detail = "mint failed: %s" % type(exc).__name__
+        job.finished_at = self._clock()
+        if code:
+            job.state = JobState.SUCCEEDED
+            job.outcome = "ok"
+            job.detail = "minted invite"  # never the code
+        else:
+            job.state = JobState.FAILED
+            job.outcome = "failed"
+        self._audit.record(job)
+        return job, code
