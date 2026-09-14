@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -108,7 +109,28 @@ func inviteCode() string {
 			return strings.TrimSpace(strings.TrimPrefix(arg, "--invite-code="))
 		}
 	}
-	return strings.TrimSpace(os.Getenv("PROJECT0_INVITE_CODE"))
+	if invite := strings.TrimSpace(os.Getenv("PROJECT0_INVITE_CODE")); invite != "" {
+		return invite
+	}
+	return promptForInviteCode()
+}
+
+func promptForInviteCode() string {
+	command := "Add-Type -AssemblyName Microsoft.VisualBasic; " +
+		"[Microsoft.VisualBasic.Interaction]::InputBox('Enter the one-time Project0 invite code:', 'Project0 enrollment', '')"
+	output, err := exec.Command(
+		"powershell.exe",
+		"-NoProfile",
+		"-NonInteractive",
+		"-WindowStyle",
+		"Hidden",
+		"-Command",
+		command,
+	).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func redeem(invite, publicKey string) (peerConfig, error) {
