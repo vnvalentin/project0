@@ -17,17 +17,14 @@ class FakeServiceInspector:
 
 class FakeServiceController:
     def __init__(self, systemd_ok: bool = True, docker_ok: bool = True) -> None:
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, str]] = []
         self._systemd_ok = systemd_ok
         self._docker_ok = docker_ok
 
-    def restart_systemd(self, unit: str) -> tuple[bool, str]:
-        self.calls.append(("systemd", unit))
-        return (self._systemd_ok, "ok" if self._systemd_ok else "systemd boom")
-
-    def restart_docker(self, container: str) -> tuple[bool, str]:
-        self.calls.append(("docker", container))
-        return (self._docker_ok, "ok" if self._docker_ok else "docker boom")
+    def run(self, kind: str, action: str, identifier: str) -> tuple[bool, str]:
+        self.calls.append((kind, action, identifier))
+        ok = self._systemd_ok if kind == "systemd" else self._docker_ok
+        return (ok, "ok" if ok else f"{kind} boom")
 
 
 class FakeInviteAdmin:

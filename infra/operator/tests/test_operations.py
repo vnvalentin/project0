@@ -34,7 +34,7 @@ def test_restart_systemd_service_succeeds_and_audits():
     assert job.target == "game-server"
     assert job.operator == "alice"
     assert job.outcome == "ok"
-    assert controller.calls == [("systemd", "project0-server")]
+    assert controller.calls == [("systemd", "restart", "project0-server")]
     assert [j.job_id for j in audit.recent()] == [job.job_id]
 
 
@@ -43,7 +43,30 @@ def test_restart_docker_service_uses_docker_controller():
     ops, _ = _ops(controller)
     job = ops.restart("dashboard", "operator")
     assert job.state is JobState.SUCCEEDED
-    assert controller.calls == [("docker", "project0-flow")]
+    assert controller.calls == [("docker", "restart", "project0-flow")]
+
+
+def test_start_and_stop_use_their_action_verb_and_audit():
+    controller = FakeServiceController(systemd_ok=True)
+    ops, audit = _ops(controller)
+    started = ops.start("game-server", "alice")
+    stopped = ops.stop("game-server", "alice")
+    assert started.action == "start" and started.state is JobState.SUCCEEDED
+    assert stopped.action == "stop" and stopped.state is JobState.SUCCEEDED
+    assert controller.calls == [
+        ("systemd", "start", "project0-server"),
+        ("systemd", "stop", "project0-server"),
+    ]
+    assert [j.job_id for j in audit.recent()] == [started.job_id, stopped.job_id]
+
+
+def test_stop_unknown_service_is_fail_closed_and_unaudited():
+    controller = FakeServiceController()
+    ops, audit = _ops(controller)
+    with pytest.raises(UnknownServiceError):
+        ops.stop("not-allowlisted", "operator")
+    assert controller.calls == []
+    assert audit.recent() == []
 
 
 def test_controller_failure_yields_failed_job_with_detail():

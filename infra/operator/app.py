@@ -64,6 +64,22 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
             raise HTTPException(status_code=404, detail="unknown service") from exc
         return job.to_dict()
 
+    @app.post("/services/{name}/start", dependencies=[Depends(require_operator)])
+    def start(name: str, x_operator: str | None = Header(default=None)) -> dict:
+        try:
+            job = operations_service.start(name, (x_operator or "operator").strip() or "operator")
+        except UnknownServiceError as exc:
+            raise HTTPException(status_code=404, detail="unknown service") from exc
+        return job.to_dict()
+
+    @app.post("/services/{name}/stop", dependencies=[Depends(require_operator)])
+    def stop(name: str, x_operator: str | None = Header(default=None)) -> dict:
+        try:
+            job = operations_service.stop(name, (x_operator or "operator").strip() or "operator")
+        except UnknownServiceError as exc:
+            raise HTTPException(status_code=404, detail="unknown service") from exc
+        return job.to_dict()
+
     @app.get("/jobs", dependencies=[Depends(require_operator)])
     def jobs() -> dict:
         return {"jobs": [job.to_dict() for job in operations_service.recent_jobs()]}
