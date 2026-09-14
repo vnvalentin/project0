@@ -5,7 +5,10 @@ services:
     ports:
       - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_HOST_PORT:-8080}:8080"
     volumes:
-      - ..:/repo:ro
+      # Repo source the dashboard renders. Defaults to the local working tree;
+      # set DASHBOARD_REPO_SOURCE to a mirror checkout kept synced to origin/main
+      # (see project0-flow-mirror-sync.timer) so the dashboard reflects GitHub.
+      - ${DASHBOARD_REPO_SOURCE:-..}:/repo:ro
     read_only: true
     security_opt:
       - no-new-privileges:true

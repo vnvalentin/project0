@@ -1,0 +1,14 @@
+[Unit]
+Description=Sync Project0 Flow dashboard mirror to origin/main
+Documentation=https://github.com/vnvalentin/project0
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=vic
+# Host umask is 077; force 022 so git writes world-readable files and the
+# read-only dashboard container (USER nobody) can read the mirror.
+UMask=0022
+Environment=HOME=/home/vic
+ExecStart=/bin/sh -c 'git -C /data/code/project0-flow-mirror fetch --prune --quiet origin && git -C /data/code/project0-flow-mirror reset --hard --quiet origin/main && chmod -R a+rX /data/code/project0-flow-mirror'
