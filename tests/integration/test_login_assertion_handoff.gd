@@ -94,3 +94,24 @@ func test_game_rejects_assertion_signed_with_a_different_secret() -> void:
 	var established: Dictionary = _game_gateway.establish_session_from_assertion(8, forged, 1001)
 	assert_ne(established["outcome"], "ok", "a token signed with a different secret is rejected")
 	assert_false(_game_gateway.is_authenticated(8), "no session is bound for a rejected assertion")
+
+
+func test_game_binds_selected_character_from_the_signed_snapshot() -> void:
+	# Slice 075: the game side resolves the selected Character for world entry
+	# from the signed snapshot in the assertion, without its DB holding the record.
+	await _login_gateway.register(1, "carol", "passphrase")
+	var created: Dictionary = _login_gateway.create_character(1, "Carol the Bold", {"tint": "amber"})
+	var character_id: String = created["character"].character_id
+	_login_gateway.select_character(1, character_id)
+	var minted: Dictionary = _login_gateway.issue_character_assertion(1, 1000, 300)
+	assert_eq(minted["outcome"], "ok", "the login process mints a selected-Character assertion with the snapshot")
+
+	var established: Dictionary = _game_gateway.establish_session_from_assertion(9, minted["assertion"], 1001)
+	assert_eq(established["outcome"], "ok")
+
+	var selected: Dictionary = _game_gateway.get_selected_character(9)
+	assert_eq(selected["outcome"], "ok", "world-entry resolution succeeds from the snapshot (no shared DB)")
+	var record: Object = selected["character"]
+	assert_eq(record.character_id, character_id, "the bound Character id matches the asserted one")
+	assert_eq(record.display_name, "Carol the Bold", "the bound display_name came from the signed snapshot")
+	assert_eq(record.cosmetic, {"tint": "amber"}, "the bound cosmetic came from the signed snapshot")

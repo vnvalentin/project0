@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [074 — Signed Character snapshot in the session assertion](slices/074-assertion-character-snapshot.md) — **delivered; SessionAssertion carries additive, bounded, backward-compatible cnm/cos (display_name+cosmetic) signed with the identity claims; AssertionIssuer.issue takes optional snapshot params; GUT 55/55 exit 0; first sub-slice of the cross-DB Character-data handoff**
+- **Current slice:** [075 — Cross-DB world entry: bind Player from the assertion snapshot](slices/075-cross-db-world-entry.md) — **delivered; SessionRegistry snapshot + LoginGateway issue/establish + CharacterService.get_selected_character bind a Player at world entry from the signed snapshot (no shared DB); GUT 55/55 exit 0; e2e ALL PASS including world_entry==ok as the asserted Character**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,9 +444,9 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [074 — Signed Character snapshot in the session assertion](slices/074-assertion-character-snapshot.md) — **delivered; shared/session_assertion.gd gains additive, bounded, backward-compatible KEY_CHARACTER_NAME/KEY_CHARACTER_COSMETIC signed in the canonical payload (older tokens parse with empty defaults); server/assertion_issuer.gd issue() takes optional character_name/character_cosmetic; validator returns them unchanged; GUT 55/55 exit 0 (+test_session_assertion_snapshot); first sub-slice of the cross-DB Character-data handoff (world-entry wiring is 075)**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: signed presentation claims let the game bind a Player DB-free)
-  - **Public seam:** `shared/session_assertion.gd` (`KEY_CHARACTER_NAME`/`KEY_CHARACTER_COSMETIC`, `MAX_COSMETIC_JSON_LEN`), `server/assertion_issuer.gd` (`issue(..., character_name, character_cosmetic)`)
+- **Slice:** [075 — Cross-DB world entry: bind Player from the assertion snapshot](slices/075-cross-db-world-entry.md) — **delivered; server/session_registry.gd stores a selected-Character snapshot; server/login_gateway.gd issue_character_assertion includes the login DB's name/cosmetic and establish_session_from_assertion stores the snapshot from claims; server/character_service.gd get_selected_character returns a snapshot-backed record when present (DB fallback for the in-process path); world entry now succeeds cross-process; GUT 55/55 exit 0; e2e harness ALL PASS including world_entry==ok bound as Handoff Hero; completes the cross-DB Character-data handoff**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: bind a Player from the signed snapshot, DB-free)
+  - **Public seam:** `server/session_registry.gd` (`set/get_selected_character_snapshot`), `server/login_gateway.gd`, `server/character_service.gd` (`get_selected_character`)
   - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 

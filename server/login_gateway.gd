@@ -109,7 +109,17 @@ func issue_character_assertion(peer_id: int, now_unix: int, ttl_seconds: int) ->
 	if character_id.is_empty():
 		return {"outcome": REASON_NO_CHARACTER}
 	var session: Dictionary = sessions.get_session(peer_id)
-	var token: String = _issuer.issue(String(session["session_token"]), String(session["account_id"]), character_id, now_unix, ttl_seconds)
+	# Slice 075: carry the selected Character's presentation snapshot (from the
+	# login-side DB) inside the signed assertion so the game server can bind a
+	# Player without its own DB holding the record.
+	var character_name: String = ""
+	var character_cosmetic: Dictionary = {}
+	var selected: Dictionary = _characters.get_selected_character(peer_id)
+	if selected.get("outcome", "") == OUTCOME_OK:
+		var record: Object = selected["character"]
+		character_name = String(record.display_name)
+		character_cosmetic = record.cosmetic
+	var token: String = _issuer.issue(String(session["session_token"]), String(session["account_id"]), character_id, now_unix, ttl_seconds, character_name, character_cosmetic)
 	return {"outcome": OUTCOME_OK, "assertion": token}
 
 
@@ -128,5 +138,12 @@ func establish_session_from_assertion(peer_id: int, token: String, now_unix: int
 	sessions.bind(peer_id, String(claims[SessionAssertionScript.KEY_ACCOUNT_ID]), "")
 	var character_id: String = String(claims[SessionAssertionScript.KEY_CHARACTER_ID])
 	if not character_id.is_empty():
-		sessions.set_selected_character(peer_id, character_id)
+		# Slice 075: store the signed Character snapshot so world entry can bind a
+		# Player from it (the game server's DB holds no such record).
+		sessions.set_selected_character_snapshot(
+			peer_id,
+			character_id,
+			String(claims.get(SessionAssertionScript.KEY_CHARACTER_NAME, "")),
+			claims.get(SessionAssertionScript.KEY_CHARACTER_COSMETIC, {})
+		)
 	return {"outcome": OUTCOME_OK, "claims": claims}

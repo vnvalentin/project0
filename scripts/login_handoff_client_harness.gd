@@ -40,6 +40,8 @@ var _state: Dictionary = {
 	"assertion_received": false,
 	"game_connected": false,
 	"session_established": "",
+	"world_entry": "",
+	"world_character_name": "",
 	"error": "",
 }
 
@@ -51,6 +53,8 @@ var _char_id: String = ""
 var _assertion_outcome: String = ""
 var _assertion_token: String = ""
 var _session_outcome: String = ""
+var _world_outcome: String = ""
+var _world_character_name: String = ""
 
 
 func _initialize() -> void:
@@ -74,6 +78,7 @@ func _run() -> void:
 	_network_client.character_result_received.connect(_on_character_result)
 	_network_client.assertion_result_received.connect(_on_assertion_result)
 	_network_client.session_established_received.connect(_on_session_established)
+	_network_client.world_entry_received.connect(_on_world_entry)
 
 	await _handoff()
 
@@ -147,6 +152,17 @@ func _handoff() -> void:
 	if not await _until(func() -> bool: return _session_outcome != ""):
 		return _fail("present assertion timeout")
 	_state["session_established"] = _session_outcome
+	if _session_outcome != "ok":
+		return _fail("session not established: %s" % _session_outcome)
+
+	# --- Phase 3: enter the world as the asserted Character ---
+	_set_phase("enter_world")
+	_world_outcome = ""
+	_network_client.submit_enter_world()
+	if not await _until(func() -> bool: return _world_outcome != ""):
+		return _fail("enter world timeout")
+	_state["world_entry"] = _world_outcome
+	_state["world_character_name"] = _world_character_name
 	_set_phase("done")
 	_write_state()
 
@@ -182,6 +198,11 @@ func _on_assertion_result(outcome: String, assertion: String) -> void:
 
 func _on_session_established(outcome: String) -> void:
 	_session_outcome = outcome
+
+
+func _on_world_entry(outcome: String, character: Dictionary) -> void:
+	_world_outcome = outcome
+	_world_character_name = String(character.get("display_name", ""))
 
 
 func _set_phase(phase: String) -> void:
