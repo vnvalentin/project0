@@ -523,6 +523,28 @@ for a developer to pick up. No implementation has started.
     across 60 scripts, exit 0 (adds `tests/unit/test_gameplay_logout_target.gd`;
     one real-process multi-peer e2e flake cleared on re-run). Windows GUI:
     logout now returns to the login screen cleanly (no `account_authority_disabled`).
+  - Date: 2026-09-15
+    What changed: Delivered Slice 087 — the in-world "Character Select" button
+    now returns to the Character roster without re-typing the password under the
+    split. The login→game handoff also fetches a longer-lived account resume
+    token (server-owned TTL from `PROJECT0_RESUME_TTL_SECONDS`, default 1 hour,
+    clamped) while still on the login process; `NetworkClient.perform_return_to_character_select`
+    drops the game link, reconnects to the login process, and re-establishes a
+    session from that token so `list_characters` works. `client/gameplay_logout.gd`
+    routes to the Character list on success and falls back to the login screen
+    when the token is missing or expired; the button reads "Character Select"
+    again. Supersedes the interim Slice-084-fix "Logout → login screen" behavior.
+    Why: the split cutover left "return to Character Select" requiring a full
+    re-login (the account session lives on the login process the handoff left);
+    a bounded client-held resume token restores the original UX.
+    Security note: the resume token is a bearer credential for account/Character
+    management held in client memory for its TTL, at the home-hosted trust level;
+    it is minted with the server's clock and a clamped bound, never client-set.
+    Validation: `scripts/run_gut_validation.sh` on Linux passed 407/407 tests
+    across 60 scripts, exit 0 (adds resume-flow + TTL cases to
+    `tests/unit/test_gameplay_logout_target.gd`); `scripts/test_login_handoff_e2e.gd`
+    ALL PASS (the added resume step does not disturb the forward handoff);
+    Windows GUI confirmation of the return path.
 
 
 ### F-032: Character CRUD over the wire (server)

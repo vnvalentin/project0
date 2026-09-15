@@ -251,11 +251,11 @@ Progress: **0%** (0 of 3 items done)
 
 Progress: **100%** (6 of 6 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 14 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. Multi-peer Character replication is now delivered ([Slice 086](slices/086-multipeer-character-replication.md), under Phase 11/F-004); the mandatory-auth hard-flip remains a queued follow-up.
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 14 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. Multi-peer Character replication is now delivered ([Slice 086](slices/086-multipeer-character-replication.md), under Phase 11/F-004); in-world return to Character Select without re-login is delivered ([Slice 087](slices/087-login-session-resume.md)); the mandatory-auth hard-flip remains a queued follow-up.
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository), `done` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server), `done` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server), `done` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), `done` [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens).
 - Tech debt: none yet.
 
-- **Current slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **delivered; server validation 315/315 and Windows GUI lifecycle confirmed**
+- **Current slice:** [087 — Login-session resume (in-world Character Select without re-login)](slices/087-login-session-resume.md) — **delivered; the handoff fetches a bounded account resume token (server TTL, default 1h) and the in-world Character Select button re-establishes a login session from it to return to the roster, falling back to the login screen on expiry; GUT 407/407 + login-handoff e2e ALL PASS on Linux; Windows GUI confirmed**
   - **Features:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens)
 
 ### Implementation slice index
@@ -627,6 +627,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Non-goal:** no change to the verified temporary WAN path until replacement enrollment evidence exists
 
 #### Phase 14 — Player accounts and characters
+
+- **Slice:** [087 — Login-session resume (in-world Character Select without re-login)](slices/087-login-session-resume.md) — **delivered; the login→game handoff also fetches a bounded account resume token (server-owned `PROJECT0_RESUME_TTL_SECONDS`, default 1h, clamped), and `NetworkClient.perform_return_to_character_select` re-establishes a login session from it so the in-world Character Select button returns to the roster without re-login (falling back to the login screen on expiry); GUT 407/407 across 60 scripts + login-handoff e2e ALL PASS on Linux; Windows GUI confirmed**
+  - **Feature:** [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (extends the [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) assertion mechanism)
+  - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+  - **Decision:** no new ADR; reuses the accepted HMAC assertion seams (`issue_account_assertion`, `establish_session_from_assertion`) with a bounded resume TTL
 
 - **Slice:** [039 — Accounts and characters persistence repository](slices/039-accounts-characters-repository.md) — **100% complete; server-only data layer (no RPC/auth/client/world entry); focused and full-suite validation passed**
   - **Feature:** [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository)

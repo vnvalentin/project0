@@ -4,30 +4,29 @@ const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 
 func _ready() -> void:
 	pressed.connect(_on_logout_pressed)
-	text = _logout_label()
+	text = "Character Select"
 
 func _on_logout_pressed() -> void:
 	PlayerIdentity.clear_selected_character()
-	# Split topology: the account session lived on the login process, which the
-	# world handoff already disconnected from, so the Character list is not
-	# available on the game connection. Drop the game link and return to the
-	# login screen to re-authenticate. Combined mode keeps one authenticated
-	# connection, so it returns straight to Character selection.
-	if NetworkConfigScript.client_login_split_enabled():
-		NetworkClient.disconnect_from_server()
-	get_tree().change_scene_to_file(_logout_target_scene())
+	# Combined mode keeps one authenticated connection, so it returns straight to
+	# Character selection. Under the split the account session lived on the login
+	# process, which the world handoff disconnected from — re-establish it from
+	# the resume token (Slice 087) so the Character list loads, falling back to
+	# the login screen if the token is missing or expired.
+	if not NetworkConfigScript.client_login_split_enabled():
+		get_tree().change_scene_to_file("res://client/character_gate.tscn")
+		return
+	disabled = true
+	NetworkClient.return_to_character_select_finished.connect(_on_return_finished, CONNECT_ONE_SHOT)
+	NetworkClient.perform_return_to_character_select(PlayerIdentity.target_host, NetworkConfigScript.resolve_login_port())
 
-## Public seam: the scene logout returns to, split-aware. Login screen under the
-## split (re-auth required on the login process); Character screen in combined
-## mode (the single authenticated connection persists).
-func _logout_target_scene() -> String:
-	if NetworkConfigScript.client_login_split_enabled():
-		return "res://client/account_gate.tscn"
-	return "res://client/character_gate.tscn"
+func _on_return_finished(outcome: String) -> void:
+	get_tree().change_scene_to_file(_return_target_scene(outcome))
 
-## Public seam: the button label, matching where it returns to — "Logout" under
-## the split (drops to the login screen), "Character Select" in combined mode.
-func _logout_label() -> String:
-	if NetworkConfigScript.client_login_split_enabled():
-		return "Logout"
-	return "Character Select"
+## Public seam: where the split return lands — the Character list when the login
+## session was re-established from the resume token, else the login screen to
+## re-authenticate.
+func _return_target_scene(outcome: String) -> String:
+	if outcome == "ok":
+		return "res://client/character_gate.tscn"
+	return "res://client/account_gate.tscn"

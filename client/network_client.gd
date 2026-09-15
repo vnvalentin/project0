@@ -98,6 +98,17 @@ signal assertion_result_received(outcome: String, assertion: String)
 ## a bounded rejection that binds nothing).
 signal session_established_received(outcome: String)
 
+## Slice 087: emitted on the requesting client with the outcome of a resume-token
+## request (a longer-lived account assertion the client keeps to re-establish a
+## login session on return, without re-typing the password).
+signal resume_assertion_result_received(outcome: String, assertion: String)
+
+## Slice 087: emitted when perform_return_to_character_select finishes. "ok" when
+## the login session was re-established from the resume token (the Character list
+## is now available); any other value means the caller should fall back to the
+## login screen to re-authenticate.
+signal return_to_character_select_finished(outcome: String)
+
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
@@ -107,6 +118,15 @@ const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geom
 ## The login process supplies the clock and this bound; the client supplies
 ## neither.
 const ASSERTION_REQUEST_TTL_SECONDS: int = 300
+
+## Slice 087: server-owned validity window for the account resume token, which
+## outlives a play session so the in-world "Character Select" button can return
+## to the roster without re-login. Resolved on the login process from
+## PROJECT0_RESUME_TTL_SECONDS (default 1 hour), clamped to a safe range so a
+## malformed or extreme override cannot mint a zero-length or unbounded token.
+const RESUME_ASSERTION_DEFAULT_TTL_SECONDS: int = 3600
+const RESUME_ASSERTION_MIN_TTL_SECONDS: int = 60
+const RESUME_ASSERTION_MAX_TTL_SECONDS: int = 86400
 const NETWORKED_PLAYER_SCENE_PATH: String = "res://client/networked_player.tscn"
 const REMOTE_PLAYER_SCENE_PATH: String = "res://client/remote_player.tscn"
 const REMOTE_PLAYERS_CONTAINER_NAME: String = "RemotePlayers"
@@ -134,6 +154,9 @@ var _latest_monster_positions: Dictionary = {}
 ## RemotePlayer node spawned after (or slightly before) its identity RPC still
 ## gets labeled. Cleared per peer on despawn.
 var _remote_identities: Dictionary = {}
+## Slice 087: the account resume token obtained at handoff, kept in memory so the
+## in-world return can re-establish a login session without re-authenticating.
+var _resume_assertion: String = ""
 
 
 func _ready() -> void:
@@ -911,6 +934,57 @@ func receive_assertion_result(outcome: String, assertion: String) -> void:
 	assertion_result_received.emit(outcome, assertion)
 
 
+## Slice 087: resume-token request (client -> login process). Asks the login
+## process for a longer-lived account assertion the client keeps to re-establish
+## a login session on return. A no-op before connected.
+func submit_request_resume_assertion() -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_resume_assertion_request_on_server")
+
+
+## RPC target: runs only on the login process's NetworkClient instance. Mints an
+## account-only assertion with the resume TTL (server clock + server-resolved
+## bound; the client supplies neither) so it survives a play session. Forwards to
+## /root/LoginGateway (which holds the issuer).
+@rpc("any_peer", "call_remote", "reliable")
+func receive_resume_assertion_request_on_server() -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
+		return
+	var now_unix: int = int(Time.get_unix_time_from_system())
+	var result: Dictionary = login_gateway.issue_account_assertion(sender_id, now_unix, resolve_resume_ttl_seconds())
+	_reply_resume_assertion(sender_id, result)
+
+
+## Sends the resume_assertion_result RPC back to the requesting peer only: the
+## bounded outcome plus the signed token on success (empty otherwise).
+func _reply_resume_assertion(peer_id: int, result: Dictionary) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_resume_assertion_result", String(result["outcome"]), String(result.get("assertion", "")))
+
+
+## RPC target: called by the login process on the requesting client only, with
+## the outcome of its resume-token request. Relayed via a signal.
+@rpc("authority", "call_remote", "reliable")
+func receive_resume_assertion_result(outcome: String, assertion: String) -> void:
+	resume_assertion_result_received.emit(outcome, assertion)
+
+
+## Slice 087: resolves the resume-token TTL (seconds) on the login process from
+## PROJECT0_RESUME_TTL_SECONDS, defaulting to one hour and clamping to a safe
+## range so a malformed or extreme override cannot mint a zero-length or
+## unbounded credential.
+static func resolve_resume_ttl_seconds() -> int:
+	var raw: String = OS.get_environment("PROJECT0_RESUME_TTL_SECONDS").strip_edges()
+	if not raw.is_valid_int():
+		return RESUME_ASSERTION_DEFAULT_TTL_SECONDS
+	return clampi(raw.to_int(), RESUME_ASSERTION_MIN_TTL_SECONDS, RESUME_ASSERTION_MAX_TTL_SECONDS)
+
+
 ## Slice 069: assertion handoff — present half (client -> game process).
 ## Public seam (test/harness helper): presents a signed assertion (obtained from
 ## the login process) to the game server to establish this peer's session without
@@ -1030,6 +1104,12 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 		login_to_game_handoff_finished.emit("assertion_failed", {})
 		return
 
+	# Slice 087: while still authenticated on the login process, obtain a
+	# longer-lived account resume token so the in-world "Character Select" return
+	# can re-establish a login session without re-authenticating. Best-effort — a
+	# failure only means that later return falls back to the login screen.
+	_resume_assertion = await _handoff_request_resume_assertion()
+
 	disconnect_from_server()
 	if not await _handoff_await_connected(false):
 		login_to_game_handoff_finished.emit("login_disconnect_timeout", {})
@@ -1049,6 +1129,33 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 	login_to_game_handoff_finished.emit(String(world.get("outcome", "world_timeout")), world.get("character", {}))
 
 
+## Slice 087: in-world return to Character selection under the split. Drops the
+## game connection, reconnects to the login process, and re-establishes a login
+## session from the stored resume token (no re-auth) so the Character list loads.
+## Emits return_to_character_select_finished("ok") on success; any other outcome
+## means the caller should fall back to the login screen to re-authenticate.
+func perform_return_to_character_select(login_host: String, login_port: int) -> void:
+	if _resume_assertion.is_empty():
+		return_to_character_select_finished.emit("no_resume_token")
+		return
+
+	disconnect_from_server()
+	if not await _handoff_await_connected(false):
+		return_to_character_select_finished.emit("game_disconnect_timeout")
+		return
+
+	connect_to_server(login_host, login_port)
+	if not await _handoff_await_connected(true):
+		return_to_character_select_finished.emit("login_connect_timeout")
+		return
+
+	var session_outcome: String = await _handoff_present_assertion(_resume_assertion)
+	if session_outcome != "ok":
+		return_to_character_select_finished.emit(session_outcome if not session_outcome.is_empty() else "session_timeout")
+		return
+	return_to_character_select_finished.emit("ok")
+
+
 func _handoff_request_assertion() -> String:
 	var box: Dictionary = {"done": false, "outcome": "", "token": ""}
 	var cb: Callable = func(o: String, t: String) -> void:
@@ -1060,6 +1167,25 @@ func _handoff_request_assertion() -> String:
 	var reached: bool = await _handoff_poll(box)
 	if assertion_result_received.is_connected(cb):
 		assertion_result_received.disconnect(cb)
+	if not reached or String(box["outcome"]) != "ok":
+		return ""
+	return String(box["token"])
+
+
+## Slice 087: requests the account resume token from the login process. Mirrors
+## _handoff_request_assertion; returns "" on any failure so the caller treats
+## resume as unavailable (falling back to a re-login on return).
+func _handoff_request_resume_assertion() -> String:
+	var box: Dictionary = {"done": false, "outcome": "", "token": ""}
+	var cb: Callable = func(o: String, t: String) -> void:
+		box["done"] = true
+		box["outcome"] = o
+		box["token"] = t
+	resume_assertion_result_received.connect(cb, CONNECT_ONE_SHOT)
+	submit_request_resume_assertion()
+	var reached: bool = await _handoff_poll(box)
+	if resume_assertion_result_received.is_connected(cb):
+		resume_assertion_result_received.disconnect(cb)
 	if not reached or String(box["outcome"]) != "ok":
 		return ""
 	return String(box["token"])

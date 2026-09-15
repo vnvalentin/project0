@@ -1,25 +1,23 @@
 extends GutTest
-## Public-seam test for the split-aware logout return path
-## (client/gameplay_logout.gd::_logout_target_scene). Under the login split the
-## world handoff has already disconnected from the login process, so logout must
-## return to the login screen to re-authenticate — returning to the Character
-## screen would list characters against the assertion-only game server and fail
-## with account_authority_disabled. Combined mode keeps one authenticated
-## connection and returns straight to Character selection. Regression for the
-## Slice 084 cutover GUI confirmation.
+## Public-seam test for the split-flow in-world return to Character selection
+## (client/gameplay_logout.gd + Slice 087 login-session resume). Under the split
+## the button re-establishes a login session from the stored resume token and
+## returns to the Character list, falling back to the login screen when the token
+## is missing or expired; combined mode returns straight to Character selection.
+## Also covers the server-owned resume-token TTL resolution.
 
 const LogoutButtonScript: Script = preload("res://client/gameplay_logout.gd")
-const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const NetworkClientScript: Script = preload("res://client/network_client.gd")
 
-var _saved_env: String = ""
+var _saved_ttl: String = ""
 
 
 func before_each() -> void:
-	_saved_env = OS.get_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR)
+	_saved_ttl = OS.get_environment("PROJECT0_RESUME_TTL_SECONDS")
 
 
 func after_each() -> void:
-	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, _saved_env)
+	OS.set_environment("PROJECT0_RESUME_TTL_SECONDS", _saved_ttl)
 
 
 func _new_button() -> Button:
@@ -28,21 +26,34 @@ func _new_button() -> Button:
 	return button
 
 
-func test_split_logout_returns_to_login_screen() -> void:
-	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "1")
-	assert_eq(_new_button()._logout_target_scene(), "res://client/account_gate.tscn", "under the split, logout returns to the login screen to re-authenticate")
+func test_button_is_labeled_character_select() -> void:
+	assert_eq(_new_button().text, "Character Select", "the in-world return button reads Character Select")
 
 
-func test_combined_logout_returns_to_character_screen() -> void:
-	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "0")
-	assert_eq(_new_button()._logout_target_scene(), "res://client/character_gate.tscn", "in combined mode, logout returns straight to Character selection")
+func test_successful_resume_returns_to_character_list() -> void:
+	assert_eq(_new_button()._return_target_scene("ok"), "res://client/character_gate.tscn", "a re-established login session lands on the Character list")
 
 
-func test_split_button_is_labeled_logout() -> void:
-	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "1")
-	assert_eq(_new_button()._logout_label(), "Logout", "under the split the button logs out to the login screen, so it reads Logout")
+func test_failed_resume_falls_back_to_login_screen() -> void:
+	var button: Button = _new_button()
+	assert_eq(button._return_target_scene("no_resume_token"), "res://client/account_gate.tscn", "a missing resume token falls back to the login screen")
+	assert_eq(button._return_target_scene("expired"), "res://client/account_gate.tscn", "an expired/rejected token falls back to the login screen")
 
 
-func test_combined_button_is_labeled_character_select() -> void:
-	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "0")
-	assert_eq(_new_button()._logout_label(), "Character Select", "in combined mode it returns to the character list, so it reads Character Select")
+func test_resume_ttl_defaults_when_unset() -> void:
+	OS.set_environment("PROJECT0_RESUME_TTL_SECONDS", "")
+	assert_eq(NetworkClientScript.resolve_resume_ttl_seconds(), NetworkClientScript.RESUME_ASSERTION_DEFAULT_TTL_SECONDS, "unset defaults to one hour")
+
+
+func test_resume_ttl_reads_valid_override() -> void:
+	OS.set_environment("PROJECT0_RESUME_TTL_SECONDS", "1800")
+	assert_eq(NetworkClientScript.resolve_resume_ttl_seconds(), 1800, "a valid in-range override is used")
+
+
+func test_resume_ttl_clamps_and_defaults_out_of_range() -> void:
+	OS.set_environment("PROJECT0_RESUME_TTL_SECONDS", "5")
+	assert_eq(NetworkClientScript.resolve_resume_ttl_seconds(), NetworkClientScript.RESUME_ASSERTION_MIN_TTL_SECONDS, "a too-small override clamps up to the floor")
+	OS.set_environment("PROJECT0_RESUME_TTL_SECONDS", "999999999")
+	assert_eq(NetworkClientScript.resolve_resume_ttl_seconds(), NetworkClientScript.RESUME_ASSERTION_MAX_TTL_SECONDS, "a too-large override clamps down to the ceiling")
+	OS.set_environment("PROJECT0_RESUME_TTL_SECONDS", "abc")
+	assert_eq(NetworkClientScript.resolve_resume_ttl_seconds(), NetworkClientScript.RESUME_ASSERTION_DEFAULT_TTL_SECONDS, "a non-integer override falls back to the default")
