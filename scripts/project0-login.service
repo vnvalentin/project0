@@ -1,0 +1,33 @@
+# Standalone Project0 login server (Slice 068/070). Runs the login authority
+# (accounts, Characters, signed session assertions) as its own supervised
+# process, separate from the game server. See
+# docs/slices/070-deploy-supervise-login-server.md.
+[Unit]
+Description=Project0 Godot headless login server (accounts + session assertions)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=vic
+WorkingDirectory=/data/code/project0
+# Login-specific configuration (own accounts DB, dedicated port, health file,
+# and the shared PROJECT0_ASSERTION_SECRET once the client presents login
+# assertions to the game server — see Slice 071). Optional so the unit starts
+# with per-boot defaults during bring-up.
+EnvironmentFile=-/etc/project0/login.env
+# Binds the login ENet/UDP server to the LAN IP so remote LAN clients can reach
+# it; the dedicated port keeps it distinct from the game server's 9999. If the
+# interface is not up yet at boot, create_server() fails, the process exits
+# non-zero, and systemd restarts it until the LAN IP is ready.
+Environment=PROJECT0_SERVER_BIND_ADDRESS=192.168.1.254
+Environment=PROJECT0_LOGIN_PORT=9998
+Environment=PROJECT0_LOGIN_ACCOUNTS_DB_PATH=login_accounts.db
+Environment=PROJECT0_HEALTH_FILE=/var/lib/project0/login/health.json
+ExecStart=/usr/local/bin/godot --headless --path /data/code/project0 -s server/login_server_main.gd
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

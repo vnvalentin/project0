@@ -85,8 +85,9 @@ contended range and everything after it is tracked explicitly:
 | 067 | Server runtime health file + container HEALTHCHECK (P-014) | interactive |
 | 068 | Login runtime extraction + standalone login-server process (P-014) | interactive |
 | 069 | Assertion handoff seams: request from login, present to game (P-014) | interactive |
+| 070 | Deploy + supervise the standalone login server (systemd + operator allowlist) (P-014) | interactive |
 
-Next free slice: **070** (verify against `docs/slices/` before reserving).
+Next free slice: **071** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

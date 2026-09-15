@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [069 — Assertion handoff seams: request from login, present to game](slices/069-assertion-handoff-seams.md) — **delivered; client seams request a signed assertion from the login process and present it to the game process (server clock + bounded TTL, fail-closed); two-runtime handoff test proves cross-DB trust with a shared secret; GUT 52/52 exit 0**
+- **Current slice:** [070 — Deploy + supervise the standalone login server](slices/070-deploy-supervise-login-server.md) — **delivered; project0-login.service systemd unit runs login_server_main.gd (own accounts DB + dedicated port + health file); operator allowlist gains login-server -> (systemd, project0-login); 63 operator pytest tests**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,10 +444,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [069 — Assertion handoff seams: request from login, present to game](slices/069-assertion-handoff-seams.md) — **delivered; client/network_client.gd gains submit_request_assertion (login process mints a signed assertion via the server clock + bounded TTL) and submit_present_assertion (game process establishes a session purely from the validated token, fail-closed), with relay signals; two-runtime handoff test proves the game side trusts a login assertion across different DBs sharing one secret and rejects a wrong-secret token; GUT 52/52 exit 0; second out-of-process login sub-slice**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: signed assertions carried between login and game processes)
-  - **Public seam:** `client/network_client.gd` (`submit_request_assertion`/`receive_assertion_request_on_server`, `submit_present_assertion`/`receive_assertion_presentation_on_server`, relay signals)
-  - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+- **Slice:** [070 — Deploy + supervise the standalone login server](slices/070-deploy-supervise-login-server.md) — **delivered; scripts/project0-login.service (systemd unit running login_server_main.gd with its own accounts DB, dedicated port 9998, and health file); operator control-plane allowlist gains login-server -> (systemd, project0-login) so status/restart/start/stop reach it; 63 operator pytest tests; GUT unaffected**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (runtime-boundary + operator decisions: the login process is a supervised, operator-managed service)
+  - **Public seam:** `scripts/project0-login.service`, `infra/operator/config.py` (`DEFAULT_SERVICES` login-server entry)
+  - **Planning ticket:** [runtime-boundary decision](../.scratch/container-platform/issues/01-runtime-boundary-and-container-adapter.md), [operator control-plane decision](../.scratch/container-platform/issues/04-operator-control-plane-and-telemetry.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
 - **Slice:** [063 — Operator control plane: audited mint-invite action](slices/063-operator-mint-invite-action.md) — **delivered; POST /invites reuses the enrollment store to mint a single-use invite as an audited job; secret code in the response only, never audited; 32 operator pytest tests; GUT unaffected**
