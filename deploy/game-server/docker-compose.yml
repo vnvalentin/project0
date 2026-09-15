@@ -26,7 +26,10 @@ services:
     stop_grace_period: 20s
     restart: "no"
     healthcheck:
-      test: ["CMD-SHELL", "ss -uln | grep -q ':9999' || exit 1"]
+      # Slice 067: liveness follows the runtime health file (fresh + "healthy"),
+      # matching the image HEALTHCHECK, so a frozen tick loop is caught even
+      # while the UDP socket stays bound.
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
       interval: 15s
       timeout: 5s
       retries: 3

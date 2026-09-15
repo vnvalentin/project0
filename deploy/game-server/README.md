@@ -63,5 +63,9 @@ deploy/game-server/restore.sh /var/backups/project0/project0-game-<timestamp>.sq
 - Splitting accounts into a separate `login/accounts.sqlite3` lands with the
   login-service extraction (Slices 058–060); this slice keeps the current single
   DB but on the durable host boundary.
-- Health snapshot wiring (Slice 055 `ServerHealth`) to a machine-readable
-  endpoint is a later slice; this image uses a port-bound `HEALTHCHECK`.
+- Liveness (Slice 067): the server rewrites a JSON health file
+  (`PROJECT0_HEALTH_FILE`, default `/data/health.json`) every ~0.5 s from the
+  Slice 055 `ServerHealth` contract; the `HEALTHCHECK` (`healthcheck.sh`) fails
+  when that file is missing, stale, or not `healthy`, so a frozen tick loop is
+  caught even while the UDP socket stays bound. Exposing health over a socket
+  endpoint remains a later slice.

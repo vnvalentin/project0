@@ -49,6 +49,16 @@ const CharacterServiceScript: Script = preload("res://server/character_service.g
 const LoginGatewayScript: Script = preload("res://server/login_gateway.gd")
 const AssertionIssuerScript: Script = preload("res://server/assertion_issuer.gd")
 const AssertionValidatorScript: Script = preload("res://server/assertion_validator.gd")
+const ServerHealthScript: Script = preload("res://server/server_health.gd")
+const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+
+## Slice 067: the app schema version reported in the runtime health snapshot.
+const APP_SCHEMA_VERSION: int = 1
+
+## Slice 067: physics-frame stride between health-file refreshes (~0.5 s at the
+## default 60 Hz physics step). The container HEALTHCHECK interval is 15 s, so a
+## sub-second refresh keeps the file well within its staleness window.
+const HEALTH_REFRESH_FRAMES: int = 30
 
 # Slice 060: session-assertion issuer/audience identifiers. The login authority
 # issues under ASSERTION_ISSUER_ID; the game server accepts only that issuer and
@@ -144,6 +154,16 @@ var _canon_generation_coordinator: Object = null
 const MONSTER_TICK_DELTA: float = 1.0 / 60.0
 
 
+## Slice 067: runtime health-file state. The path and the resolved (reported)
+## tick rate are read from the environment once at boot; the status transitions
+## starting -> healthy -> stopping over the server's life. Snapshot inputs are
+## authoritative runtime values, never client-supplied.
+var _health_file_path: String = ""
+var _health_tick_rate: int = ServerHealthScript.DEFAULT_TICK_RATE
+var _health_status: String = ServerHealthScript.STATUS_STARTING
+var _boot_ticks_ms: int = 0
+
+
 func _initialize() -> void:
 	call_deferred("_start_server")
 
@@ -152,6 +172,14 @@ func _initialize() -> void:
 ## _initialize() because SceneTree.root's multiplayer API is not yet attached
 ## when _initialize() runs.
 func _start_server() -> void:
+	# Slice 067: begin publishing the runtime health file before any slow boot
+	# work (e.g. the opt-in LLM-at-boot town) so an orchestrator sees `starting`
+	# immediately. Path and reported tick rate come from the environment once.
+	_health_file_path = HealthReporterScript.resolve_health_file_path(OS.get_environment("PROJECT0_HEALTH_FILE"))
+	_health_tick_rate = ServerHealthScript.resolve_tick_rate(OS.get_environment("PROJECT0_TICK_RATE"))
+	_boot_ticks_ms = Time.get_ticks_msec()
+	_write_health(ServerHealthScript.STATUS_STARTING)
+
 	# Slice 016: materialize the starting town hub fixture before opening a
 	# socket. It is static data, so validation is synchronous and cheap; a
 	# fixture that fails its own schema is a programming error, so fail closed
@@ -305,6 +333,8 @@ func _start_server() -> void:
 	root.multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_spawn_target_dummies()
 	print("Server listening on %s:%d" % [bind_address, server_port])
+	# Slice 067: the tick loop is up and the socket is bound — report healthy.
+	_write_health(ServerHealthScript.STATUS_HEALTHY)
 	if bind_address != NetworkConfigScript.SERVER_ADDRESS:
 		print("WARNING: bound to a non-localhost address. This server accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, server_port])
 
@@ -506,6 +536,11 @@ func get_assigned_house(peer_id: int) -> String:
 ## frame, feeding it every connected peer's current position so monsters chase
 ## the nearest one. Monsters idle when no one is connected.
 func _on_physics_frame() -> void:
+	# Slice 067: refresh the runtime health file on a sub-second stride so a
+	# frozen tick loop turns the container unhealthy even while the socket stays
+	# bound. Runs regardless of monster state (health is independent of monsters).
+	if _health_status == ServerHealthScript.STATUS_HEALTHY and Engine.get_physics_frames() % HEALTH_REFRESH_FRAMES == 0:
+		_write_health(ServerHealthScript.STATUS_HEALTHY)
 	if _monster_manager == null:
 		return
 	var player_positions: Array[Vector3] = []
@@ -514,6 +549,40 @@ func _on_physics_frame() -> void:
 	_monster_manager.advance_all(player_positions, MONSTER_TICK_DELTA, _monster_tick)
 	_monster_tick += 1
 	_broadcast_monster_positions()
+
+
+## Slice 067: builds an authoritative ServerHealth snapshot from current runtime
+## state and writes it to the health file. Best-effort: an invalid snapshot or a
+## write failure logs a warning and is dropped — it never blocks or crashes the
+## tick loop. `status` drives the transition reported to the orchestrator.
+func _write_health(status: String) -> void:
+	if _health_file_path.is_empty():
+		return
+	_health_status = status
+	var uptime_seconds: float = float(maxi(0, Time.get_ticks_msec() - _boot_ticks_ms)) / 1000.0
+	var built: Dictionary = ServerHealthScript.build_snapshot({
+		"status": status,
+		"tick_rate": _health_tick_rate,
+		"uptime_seconds": uptime_seconds,
+		"server_tick": int(Engine.get_physics_frames()),
+		"connected_peers": _player_states.size(),
+		"max_peers": MAX_REPLICATED_PEERS,
+		"app_schema_version": APP_SCHEMA_VERSION,
+		"timestamp": int(Time.get_unix_time_from_system()),
+	})
+	if built["outcome"] != ServerHealthScript.OUTCOME_OK:
+		push_warning("Health snapshot rejected: %s" % built.get("detail", ""))
+		return
+	var written: Dictionary = HealthReporterScript.write_snapshot(_health_file_path, built["snapshot"])
+	if written["outcome"] != HealthReporterScript.OUTCOME_OK:
+		push_warning("Health file write failed: %s" % written.get("detail", ""))
+
+
+## Slice 067: on engine shutdown (e.g. SIGTERM -> graceful stop) publish a final
+## `stopping` snapshot best-effort, so a container caught mid-drain reads
+## `stopping` rather than a stale `healthy`.
+func _finalize() -> void:
+	_write_health(ServerHealthScript.STATUS_STOPPING)
 
 
 ## Slice 033: broadcasts every currently living monster's authoritative
