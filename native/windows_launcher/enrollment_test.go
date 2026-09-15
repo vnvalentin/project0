@@ -52,6 +52,11 @@ func TestKeyDerivationProducesWireGuardPublicKey(t *testing.T) {
 
 func TestMissingInviteFailsClosed(t *testing.T) {
 	t.Setenv("PROJECT0_INVITE_CODE", "")
+	// Stub the interactive fallback so the test never blocks on the GUI InputBox;
+	// with no arg and no env, inviteCode must fall through to it and return "".
+	original := invitePrompter
+	invitePrompter = func() string { return "" }
+	defer func() { invitePrompter = original }()
 	if got := inviteCode(); got != "" {
 		t.Fatalf("expected no invite, got %q", got)
 	}
@@ -85,5 +90,42 @@ func TestRedeemSendsOnlyInviteAndPublicKey(t *testing.T) {
 	}
 	if config.AssignedAddress != "10.77.0.2/32" {
 		t.Fatalf("unexpected assigned address: %q", config.AssignedAddress)
+	}
+}
+
+func TestCachedPeerMustMatchProtectedPrivateKey(t *testing.T) {
+	privateKey := make([]byte, 32)
+	for index := range privateKey {
+		privateKey[index] = byte(index + 1)
+	}
+	privateKey[0] &= 248
+	privateKey[31] &= 127
+	privateKey[31] |= 64
+	publicKey, err := curve25519.X25519(privateKey, curve25519.Basepoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := peerConfig{ClientPublicKey: base64.StdEncoding.EncodeToString(publicKey)}
+	if !config.matchesPrivateKey(privateKey) {
+		t.Fatal("matching private key was rejected")
+	}
+	// Flip a non-clamped byte: X25519 re-clamps bit 0 of byte[0], so mutating it
+	// would derive the same public key and not actually be a mismatch.
+	privateKey[16] ^= 1
+	if config.matchesPrivateKey(privateKey) {
+		t.Fatal("mismatched private key was accepted")
+	}
+}
+
+func TestInviteMaterialIsNotForwardedToGame(t *testing.T) {
+	args := forwardedArgs([]string{"--invite-code=one-time", "--fullscreen"})
+	if strings.Join(args, " ") != "--fullscreen" {
+		t.Fatalf("invite argument was forwarded: %v", args)
+	}
+	t.Setenv("PROJECT0_INVITE_CODE", "one-time")
+	for _, entry := range filteredEnvironment() {
+		if strings.HasPrefix(entry, "PROJECT0_INVITE_CODE=") {
+			t.Fatal("invite environment variable was forwarded")
+		}
 	}
 }
