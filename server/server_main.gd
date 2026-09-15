@@ -281,6 +281,24 @@ func _start_server() -> void:
 		push_error("Refusing to start: Canon schema failed to initialize: %s — %s" % [canon_schema_result["outcome"], canon_schema_result["detail"]])
 		quit(1)
 		return
+	# Slice 080: one-time Canon migration for the combined→split transition. On
+	# the first boot with a dedicated (empty) canon store, copy any existing
+	# Canon out of the shared accounts store so a previously-combined world is
+	# not lost. Source rows are never deleted; a re-boot finds the dest non-empty
+	# and skips. Unset (shared handle) never migrates.
+	if not canon_db_path.is_empty():
+		var dest_records: Dictionary = _canon_repository.list_all_records()
+		if dest_records["outcome"] == CanonRepositoryScript.OUTCOME_OK and (dest_records["records"] as Array).is_empty():
+			var source_canon: Object = CanonRepositoryScript.new(_accounts_store)
+			source_canon.ensure_schema()
+			var source_records: Dictionary = source_canon.list_all_records()
+			if source_records["outcome"] == CanonRepositoryScript.OUTCOME_OK:
+				var migrated: int = 0
+				for record: Dictionary in source_records["records"]:
+					if _canon_repository.restore_record(record)["outcome"] == CanonRepositoryScript.OUTCOME_OK:
+						migrated += 1
+				if migrated > 0:
+					print("Migrated %d Canon sector(s) from the accounts store into %s." % [migrated, canon_db_path])
 	var canon_result: Dictionary = _canon_repository.canonicalize_blueprint(_starting_town_hub_blueprint)
 	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK and canon_result["outcome"] != CanonRepositoryScript.OUTCOME_IDEMPOTENT:
 		push_error("Refusing to start: starting town Canon failed: %s — %s" % [canon_result["outcome"], canon_result["detail"]])
