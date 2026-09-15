@@ -141,9 +141,10 @@ static func resolve_login_port() -> int:
 
 ## Public seam: whether the client should authenticate on the separate login
 ## process (then hand off to the game process) instead of the single-connection
-## flow. Opt-in via PROJECT0_CLIENT_LOGIN_SPLIT=1; anything else is off.
+## flow. Default ON (the login split is canonical after the Slice 084 cutover);
+## set PROJECT0_CLIENT_LOGIN_SPLIT=0 to use the legacy single-connection flow.
 static func client_login_split_enabled() -> bool:
-	return OS.get_environment(CLIENT_LOGIN_SPLIT_ENV_VAR).strip_edges() == "1"
+	return OS.get_environment(CLIENT_LOGIN_SPLIT_ENV_VAR).strip_edges() != "0"
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,
