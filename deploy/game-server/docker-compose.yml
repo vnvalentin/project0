@@ -2,6 +2,12 @@
 # native systemd server on an isolated host UDP port (default 127.0.0.1:19999)
 # so it never contends with the live server on 9999. No cutover; stop/remove
 # leaves the host unchanged. Persistence split to /var/lib/project0 is Slice 057.
+#
+# Slice 081: the standalone login authority is defined as the profile-gated
+# `login-server` service below. The default `docker compose up` still starts
+# ONLY the game server; run `docker compose --profile login-split up` to also
+# start the login process. Both share PROJECT0_ASSERTION_SECRET (empty by
+# default => the game server keeps its ephemeral in-process key, unchanged).
 services:
   game-server:
     build:
@@ -13,6 +19,9 @@ services:
       PROJECT0_SERVER_BIND_ADDRESS: "0.0.0.0"
       PROJECT0_SERVER_PORT: "9999"
       PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
+      # Shared with the login-server when the split runs; empty keeps the game
+      # server's ephemeral per-boot key (current single-process behavior).
+      PROJECT0_ASSERTION_SECRET: "${PROJECT0_ASSERTION_SECRET:-}"
     ports:
       - "${GAME_HOST_BIND:-127.0.0.1}:${GAME_HOST_PORT:-19999}:9999/udp"
     volumes:
@@ -29,6 +38,41 @@ services:
       # Slice 067: liveness follows the runtime health file (fresh + "healthy"),
       # matching the image HEALTHCHECK, so a frozen tick loop is caught even
       # while the UDP socket stays bound.
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Slice 081: standalone login authority (server/login_server_main.gd), opt-in
+  # via the "login-split" profile so it never starts on a plain `docker compose
+  # up`. Reuses the game-server image and overrides the entrypoint to run the
+  # login process on its own UDP port, DB, and health file. Shares the assertion
+  # secret so the game server can validate login-minted assertions.
+  login-server:
+    profiles: ["login-split"]
+    build:
+      context: ../..
+      dockerfile: deploy/game-server/Dockerfile
+    image: project0-game-server:candidate
+    container_name: project0-login-server-candidate
+    entrypoint: ["/usr/bin/tini", "--", "godot", "--headless", "--path", "/app", "-s", "server/login_server_main.gd"]
+    environment:
+      PROJECT0_SERVER_BIND_ADDRESS: "0.0.0.0"
+      PROJECT0_LOGIN_PORT: "9998"
+      PROJECT0_LOGIN_ACCOUNTS_DB_PATH: "login_accounts.db"
+      PROJECT0_HEALTH_FILE: "/data/login_health.json"
+      PROJECT0_ASSERTION_SECRET: "${PROJECT0_ASSERTION_SECRET:-}"
+    ports:
+      - "${LOGIN_HOST_BIND:-127.0.0.1}:${LOGIN_HOST_PORT:-19998}:9998/udp"
+    volumes:
+      - "${LOGIN_DATA_DIR:-/var/lib/project0/login}:/data"
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 20s
+    restart: "no"
+    healthcheck:
+      # Reuses the image healthcheck against the login process's own health file.
       test: ["CMD", "/usr/local/bin/healthcheck.sh"]
       interval: 15s
       timeout: 5s
