@@ -13,6 +13,10 @@ class_name SessionAssertion
 
 const SCHEMA_VERSION: int = 1
 const MAX_FIELD_LEN: int = 256
+## Slice 074: bound on the JSON-serialized Character cosmetic carried in a
+## selected-Character assertion, so a signed token can never hold an unbounded
+## presentation payload.
+const MAX_COSMETIC_JSON_LEN: int = 1024
 
 const KEY_VERSION: String = "v"
 const KEY_SESSION_ID: String = "sid"
@@ -22,6 +26,10 @@ const KEY_ISSUED_AT: String = "iat"
 const KEY_EXPIRES_AT: String = "exp"
 const KEY_ISSUER: String = "iss"
 const KEY_AUDIENCE: String = "aud"
+## Slice 074: additive, backward-compatible selected-Character presentation
+## snapshot (empty for account-only assertions). Signed with the identity claims.
+const KEY_CHARACTER_NAME: String = "cnm"
+const KEY_CHARACTER_COSMETIC: String = "cos"
 
 const OUTCOME_OK: String = "ok"
 const REASON_MALFORMED: String = "malformed"
@@ -38,16 +46,34 @@ const _ORDERED_KEYS: Array[String] = [
 	KEY_ISSUED_AT, KEY_EXPIRES_AT, KEY_ISSUER, KEY_AUDIENCE,
 ]
 
+## Slice 074: the full ordered key set signed in the canonical payload. The
+## identity claims (_ORDERED_KEYS) stay required on parse; the snapshot keys
+## (cnm/cos) are additive \u2014 always emitted here, but tolerated and defaulted on
+## parse so older snapshot-less tokens still validate.
+const _SIGNED_KEYS: Array[String] = [
+	KEY_VERSION, KEY_SESSION_ID, KEY_ACCOUNT_ID, KEY_CHARACTER_ID,
+	KEY_ISSUED_AT, KEY_EXPIRES_AT, KEY_ISSUER, KEY_AUDIENCE,
+	KEY_CHARACTER_NAME, KEY_CHARACTER_COSMETIC,
+]
 
-## Builds the canonical JSON payload for `claims`, always emitting the eight
+
+## Builds the canonical JSON payload for `claims`, always emitting the signed
 ## keys in a fixed order so the issuer and validator sign/verify identical
-## bytes. Missing keys default to empty/zero — callers (the issuer) supply all
-## fields.
+## bytes. Missing keys default to empty/zero (cosmetic to {}) — callers (the
+## issuer) supply the fields they have.
 static func build_payload(claims: Dictionary) -> String:
 	var ordered: Dictionary = {}
-	for key: String in _ORDERED_KEYS:
-		ordered[key] = claims.get(key, "" if key != KEY_VERSION and key != KEY_ISSUED_AT and key != KEY_EXPIRES_AT else 0)
+	for key: String in _SIGNED_KEYS:
+		ordered[key] = claims.get(key, _default_for_key(key))
 	return JSON.stringify(ordered)
+
+
+static func _default_for_key(key: String) -> Variant:
+	if key == KEY_VERSION or key == KEY_ISSUED_AT or key == KEY_EXPIRES_AT:
+		return 0
+	if key == KEY_CHARACTER_COSMETIC:
+		return {}
+	return ""
 
 
 ## Parses and bounds-checks a canonical payload string. Returns
@@ -89,6 +115,15 @@ static func parse_payload(text: String) -> Dictionary:
 	if iat < 0 or exp <= iat:
 		return {"outcome": REASON_INVALID_CLAIMS}
 
+	# Slice 074: additive Character snapshot — tolerated-and-defaulted for older
+	# snapshot-less tokens, bounded when present. name may be empty (account-only).
+	var character_name: Variant = raw.get(KEY_CHARACTER_NAME, "")
+	if not (character_name is String) or (character_name as String).length() > MAX_FIELD_LEN:
+		return {"outcome": REASON_INVALID_CLAIMS}
+	var character_cosmetic: Variant = raw.get(KEY_CHARACTER_COSMETIC, {})
+	if not (character_cosmetic is Dictionary) or JSON.stringify(character_cosmetic).length() > MAX_COSMETIC_JSON_LEN:
+		return {"outcome": REASON_INVALID_CLAIMS}
+
 	return {
 		"outcome": OUTCOME_OK,
 		"claims": {
@@ -100,6 +135,8 @@ static func parse_payload(text: String) -> Dictionary:
 			KEY_EXPIRES_AT: exp,
 			KEY_ISSUER: String(issuer),
 			KEY_AUDIENCE: String(audience),
+			KEY_CHARACTER_NAME: String(character_name),
+			KEY_CHARACTER_COSMETIC: character_cosmetic,
 		},
 	}
 

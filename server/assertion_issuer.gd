@@ -25,8 +25,10 @@ func _init(secret_key_hex: String, issuer: String, audience: String) -> void:
 ## Mints a signed token. `character_id` is empty for an account-only assertion
 ## and set for a refreshed selected-Character assertion. `ttl_seconds` bounds
 ## the validity window from `issued_at_unix` (the caller supplies the clock so
-## this stays deterministic and testable).
-func issue(session_id: String, account_id: String, character_id: String, issued_at_unix: int, ttl_seconds: int) -> String:
+## this stays deterministic and testable). Slice 074: the optional
+## `character_name`/`character_cosmetic` snapshot is signed alongside the identity
+## claims so the game server can bind a Player without a DB lookup.
+func issue(session_id: String, account_id: String, character_id: String, issued_at_unix: int, ttl_seconds: int, character_name: String = "", character_cosmetic: Dictionary = {}) -> String:
 	var claims: Dictionary = {
 		SessionAssertionScript.KEY_VERSION: SessionAssertionScript.SCHEMA_VERSION,
 		SessionAssertionScript.KEY_SESSION_ID: session_id,
@@ -36,6 +38,8 @@ func issue(session_id: String, account_id: String, character_id: String, issued_
 		SessionAssertionScript.KEY_EXPIRES_AT: issued_at_unix + ttl_seconds,
 		SessionAssertionScript.KEY_ISSUER: _issuer,
 		SessionAssertionScript.KEY_AUDIENCE: _audience,
+		SessionAssertionScript.KEY_CHARACTER_NAME: character_name,
+		SessionAssertionScript.KEY_CHARACTER_COSMETIC: character_cosmetic,
 	}
 	var payload_b64: String = Marshalls.utf8_to_base64(SessionAssertionScript.build_payload(claims))
 	var crypto := Crypto.new()
