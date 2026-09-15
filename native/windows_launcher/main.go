@@ -37,9 +37,9 @@ func main() {
 		fail(err)
 	}
 	defer os.Remove(keyPath)
-	command := exec.Command(filepath.Join(runDirectory, "Project0.exe"), os.Args[1:]...)
+	command := exec.Command(filepath.Join(runDirectory, "Project0.exe"), forwardedArgs(os.Args[1:])...)
 	command.Dir = runDirectory
-	command.Env = append(os.Environ(),
+	command.Env = append(filteredEnvironment(),
 		"PROJECT0_TUNNEL=1",
 		"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
 		"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
@@ -58,6 +58,28 @@ func main() {
 		}
 		fail(err)
 	}
+}
+
+func forwardedArgs(args []string) []string {
+	forwarded := make([]string, 0, len(args))
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "--invite-code=") {
+			continue
+		}
+		forwarded = append(forwarded, arg)
+	}
+	return forwarded
+}
+
+func filteredEnvironment() []string {
+	filtered := make([]string, 0, len(os.Environ()))
+	for _, entry := range os.Environ() {
+		if strings.HasPrefix(entry, "PROJECT0_INVITE_CODE=") {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
 }
 
 func extractPayload(destination string) error {

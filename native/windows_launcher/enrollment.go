@@ -27,6 +27,7 @@ type peerConfig struct {
 	AssignedAddress string `json:"assigned_address"`
 	AllowedIPs      string `json:"allowed_ips"`
 	Keepalive       int    `json:"persistent_keepalive_seconds"`
+	ClientPublicKey string `json:"client_public_key,omitempty"`
 }
 
 type redeemRequest struct {
@@ -43,10 +44,10 @@ func ensurePeerConfig() (peerConfig, []byte, error) {
 	protectedPath := filepath.Join(root, "private-key.dpapi")
 	if configBytes, readErr := os.ReadFile(configPath); readErr == nil {
 		var config peerConfig
-		if json.Unmarshal(configBytes, &config) == nil {
+		if json.Unmarshal(configBytes, &config) == nil && config.validate() == nil {
 			if protected, keyErr := os.ReadFile(protectedPath); keyErr == nil {
 				privateKey, unprotectErr := unprotect(protected)
-				if unprotectErr == nil && len(privateKey) == 32 {
+				if unprotectErr == nil && len(privateKey) == 32 && config.matchesPrivateKey(privateKey) {
 					return config, privateKey, nil
 				}
 			}
@@ -75,6 +76,7 @@ func ensurePeerConfig() (peerConfig, []byte, error) {
 	if err := config.validate(); err != nil {
 		return peerConfig{}, nil, err
 	}
+	config.ClientPublicKey = base64.StdEncoding.EncodeToString(publicKey)
 	protected, err := protect(privateKey)
 	if err != nil {
 		return peerConfig{}, nil, fmt.Errorf("protect client key: %w", err)
@@ -103,6 +105,14 @@ func (config peerConfig) validate() error {
 	return nil
 }
 
+func (config peerConfig) matchesPrivateKey(privateKey []byte) bool {
+	if len(privateKey) != 32 || config.ClientPublicKey == "" {
+		return false
+	}
+	publicKey, err := curve25519.X25519(privateKey, curve25519.Basepoint)
+	return err == nil && config.ClientPublicKey == base64.StdEncoding.EncodeToString(publicKey)
+}
+
 func inviteCode() string {
 	for _, arg := range os.Args[1:] {
 		if strings.HasPrefix(arg, "--invite-code=") {
@@ -112,8 +122,13 @@ func inviteCode() string {
 	if invite := strings.TrimSpace(os.Getenv("PROJECT0_INVITE_CODE")); invite != "" {
 		return invite
 	}
-	return promptForInviteCode()
+	return invitePrompter()
 }
+
+// invitePrompter is the interactive invite-code fallback, a package variable so
+// tests substitute a non-interactive stub instead of blocking on the real GUI
+// InputBox (the same seam Slice 092's login prompt reuses).
+var invitePrompter = promptForInviteCode
 
 func promptForInviteCode() string {
 	command := "Add-Type -AssemblyName Microsoft.VisualBasic; " +
