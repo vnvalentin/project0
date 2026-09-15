@@ -80,10 +80,27 @@ signal assigned_house_received(house_id: String)
 ## relay-only pattern; test/harness code may also listen to this directly.
 signal auth_result_received(outcome: String, account_id: String, username: String)
 
+## Slice 069: emitted on the requesting client with the outcome of an assertion
+## request to the login process — the signed token on success (a bearer credential
+## for this peer only), empty on a bounded failure. Relayed via a signal so the
+## client carries the token to the game server, matching this file's relay-only
+## pattern.
+signal assertion_result_received(outcome: String, assertion: String)
+
+## Slice 069: emitted on the requesting client with the outcome of presenting an
+## assertion to the game server (session established from the validated token, or
+## a bounded rejection that binds nothing).
+signal session_established_received(outcome: String)
+
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
+
+## Slice 069: server-owned validity window for an assertion minted on request.
+## The login process supplies the clock and this bound; the client supplies
+## neither.
+const ASSERTION_REQUEST_TTL_SECONDS: int = 300
 const NETWORKED_PLAYER_SCENE_PATH: String = "res://client/networked_player.tscn"
 const REMOTE_PLAYER_SCENE_PATH: String = "res://client/remote_player.tscn"
 const REMOTE_PLAYERS_CONTAINER_NAME: String = "RemotePlayers"
@@ -818,6 +835,94 @@ func _reply_character_result(peer_id: int, operation: String, result: Dictionary
 @rpc("authority", "call_remote", "reliable")
 func receive_character_result(operation: String, outcome: String, characters: Array) -> void:
 	character_result_received.emit(operation, outcome, characters)
+
+
+## Slice 069: assertion handoff — request half (client -> login process).
+## Public seam (test/harness helper): asks the login process to mint a signed
+## session assertion for this client's authenticated session. A no-op before
+## connected.
+func submit_request_assertion() -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_assertion_request_on_server")
+
+
+## RPC target: runs only on the login process's NetworkClient instance. Mints a
+## selected-Character assertion, falling back to an account-only assertion when
+## no Character is selected, using the SERVER's authoritative clock and a bounded
+## TTL (the client supplies neither). Forwards to /root/LoginGateway (which holds
+## the issuer) exactly like the register/character receivers.
+@rpc("any_peer", "call_remote", "reliable")
+func receive_assertion_request_on_server() -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
+		return
+	var now_unix: int = int(Time.get_unix_time_from_system())
+	var result: Dictionary = login_gateway.issue_character_assertion(sender_id, now_unix, ASSERTION_REQUEST_TTL_SECONDS)
+	if result["outcome"] == "no_character":
+		result = login_gateway.issue_account_assertion(sender_id, now_unix, ASSERTION_REQUEST_TTL_SECONDS)
+	_reply_assertion(sender_id, result)
+
+
+## Sends the assertion_result RPC back to the requesting peer only: the bounded
+## outcome plus the signed token on success (empty otherwise). The token is a
+## bearer credential for this peer, sent over that peer's own connection.
+func _reply_assertion(peer_id: int, result: Dictionary) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_assertion_result", String(result["outcome"]), String(result.get("assertion", "")))
+
+
+## RPC target: called by the login process on the requesting client only, with
+## the outcome of its assertion request. Relayed via a signal, matching this
+## file's relay-only pattern.
+@rpc("authority", "call_remote", "reliable")
+func receive_assertion_result(outcome: String, assertion: String) -> void:
+	assertion_result_received.emit(outcome, assertion)
+
+
+## Slice 069: assertion handoff — present half (client -> game process).
+## Public seam (test/harness helper): presents a signed assertion (obtained from
+## the login process) to the game server to establish this peer's session without
+## the game server reading the accounts DB. A no-op before connected.
+func submit_present_assertion(assertion: String) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_assertion_presentation_on_server", assertion)
+
+
+## RPC target: runs only on the game process's NetworkClient instance. Establishes
+## the peer's session purely from the validated assertion, using the SERVER's
+## authoritative clock. Fail-closed: a token that is tampered, expired, or signed
+## with a different secret binds nothing. Forwards to /root/LoginGateway (which
+## holds the validator).
+@rpc("any_peer", "call_remote", "reliable")
+func receive_assertion_presentation_on_server(assertion: String) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var login_gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if login_gateway == null:
+		return
+	var now_unix: int = int(Time.get_unix_time_from_system())
+	var result: Dictionary = login_gateway.establish_session_from_assertion(sender_id, assertion, now_unix)
+	_reply_session_established(sender_id, result)
+
+
+## Sends the session_established RPC back to the requesting peer only: the bounded
+## outcome (never a "detail" string, which could echo input).
+func _reply_session_established(peer_id: int, result: Dictionary) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_session_established_result", String(result["outcome"]))
+
+
+## RPC target: called by the game process on the requesting client only, with the
+## outcome of presenting its assertion. Relayed via a signal.
+@rpc("authority", "call_remote", "reliable")
+func receive_session_established_result(outcome: String) -> void:
+	session_established_received.emit(outcome)
 
 
 ## Slice 043: emitted on the requesting client with the outcome of its own
