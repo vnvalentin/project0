@@ -16,6 +16,10 @@ const SessionAssertionScript: Script = preload("res://shared/session_assertion.g
 
 var _auth: Object = null
 var _characters: Object = null
+## Slice 085: the SessionRegistry for all session ops (bind/query/clear). Shared
+## with AuthService on the login process; provided directly on the game server,
+## which builds no AuthService (no register/login/PBKDF2 in the game process).
+var _sessions: Object = null
 # Slice 060: optional assertion seams (Slice 059 issuer/validator), injected by
 # server_main. When set, the gateway can mint session assertions and establish a
 # game-server session from a validated one — the mechanism a future
@@ -37,9 +41,15 @@ const REASON_ACCOUNT_AUTHORITY_DISABLED: String = "account_authority_disabled"
 var _account_authority_enabled: bool = true
 
 
-func _init(auth_service: Object, character_service: Object) -> void:
+func _init(auth_service: Object, character_service: Object, session_registry: Object = null) -> void:
 	_auth = auth_service
 	_characters = character_service
+	if session_registry != null:
+		_sessions = session_registry
+	elif auth_service != null:
+		_sessions = auth_service.get_session_registry()
+	# No AuthService => this gateway is not an accounts authority (assertion-only).
+	_account_authority_enabled = auth_service != null
 
 
 ## Slice 076: toggles whether this gateway acts as an accounts authority. The
@@ -66,11 +76,11 @@ func login(peer_id: int, username: String, password: String) -> Dictionary:
 ## Game-server-local session state (per the login-boundary decision, the game
 ## server keeps its own per-peer session binding).
 func is_authenticated(peer_id: int) -> bool:
-	return _auth.is_authenticated(peer_id)
+	return _sessions.is_authenticated(peer_id)
 
 
 func clear_session(peer_id: int) -> void:
-	_auth.clear_session(peer_id)
+	_sessions.clear(peer_id)
 
 
 ## Character operations (delegate to CharacterService, which derives the account
@@ -120,7 +130,7 @@ func set_assertion_seams(issuer: Object, validator: Object) -> void:
 func issue_account_assertion(peer_id: int, now_unix: int, ttl_seconds: int) -> Dictionary:
 	if _issuer == null:
 		return {"outcome": REASON_UNAVAILABLE}
-	var sessions: Object = _auth.get_session_registry()
+	var sessions: Object = _sessions
 	if not sessions.is_authenticated(peer_id):
 		return {"outcome": REASON_NO_SESSION}
 	var session: Dictionary = sessions.get_session(peer_id)
@@ -133,7 +143,7 @@ func issue_account_assertion(peer_id: int, now_unix: int, ttl_seconds: int) -> D
 func issue_character_assertion(peer_id: int, now_unix: int, ttl_seconds: int) -> Dictionary:
 	if _issuer == null:
 		return {"outcome": REASON_UNAVAILABLE}
-	var sessions: Object = _auth.get_session_registry()
+	var sessions: Object = _sessions
 	if not sessions.is_authenticated(peer_id):
 		return {"outcome": REASON_NO_SESSION}
 	var character_id: String = sessions.get_selected_character(peer_id)
@@ -165,7 +175,7 @@ func establish_session_from_assertion(peer_id: int, token: String, now_unix: int
 	if result["outcome"] != OUTCOME_OK:
 		return {"outcome": result["outcome"]}
 	var claims: Dictionary = result["claims"]
-	var sessions: Object = _auth.get_session_registry()
+	var sessions: Object = _sessions
 	sessions.bind(peer_id, String(claims[SessionAssertionScript.KEY_ACCOUNT_ID]), "")
 	var character_id: String = String(claims[SessionAssertionScript.KEY_CHARACTER_ID])
 	if not character_id.is_empty():

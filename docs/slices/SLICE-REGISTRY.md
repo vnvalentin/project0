@@ -100,8 +100,9 @@ contended range and everything after it is tracked explicitly:
 | 082 | Containerized login-split e2e: compose split overlay + two-container handoff proof (P-014) | interactive |
 | 083 | One-command split launcher with shared-secret management (run-split.sh) (P-014) | interactive |
 | 084 | Login-split cutover: split on by default (client split + game assertion-only) (P-014) | interactive |
+| 085 | Remove in-process login from the game server (assertion-only login graph, no AuthService) (P-014) | interactive |
 
-Next free slice: **085** (verify against `docs/slices/` before reserving).
+Next free slice: **086** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

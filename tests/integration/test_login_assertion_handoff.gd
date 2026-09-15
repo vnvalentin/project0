@@ -25,7 +25,7 @@ var _login_container: Node = null
 var _game_container: Node = null
 var _login_gateway: Node = null
 var _game_gateway: Node = null
-var _game_auth: Node = null
+var _game_sessions: Object = null
 
 
 func before_each() -> void:
@@ -47,10 +47,12 @@ func before_each() -> void:
 	game_repo.ensure_schema()
 
 	# Different DBs, same shared assertion secret — the login and game processes.
+	# The game side uses the assertion-only builder (no AuthService), matching the
+	# real game server after the Slice 085 cutover.
 	_login_gateway = LoginRuntimeScript.build_services(login_repo, _login_container, SECRET)["gateway"]
-	var game_services: Dictionary = LoginRuntimeScript.build_services(game_repo, _game_container, SECRET)
+	var game_services: Dictionary = LoginRuntimeScript.build_assertion_only_services(game_repo, _game_container, SECRET)
 	_game_gateway = game_services["gateway"]
-	_game_auth = game_services["auth"]
+	_game_sessions = game_services["sessions"]
 
 
 func after_each() -> void:
@@ -84,7 +86,7 @@ func test_game_establishes_session_from_login_assertion_without_shared_db() -> v
 	var established: Dictionary = _game_gateway.establish_session_from_assertion(7, minted["assertion"], 1001)
 	assert_eq(established["outcome"], "ok", "the game process trusts the login assertion without a shared DB")
 	assert_true(_game_gateway.is_authenticated(7), "the peer holds a game-server session")
-	assert_eq(_game_auth.get_session_registry().get_selected_character(7), character_id, "the established session carries the asserted Character")
+	assert_eq(_game_sessions.get_selected_character(7), character_id, "the established session carries the asserted Character")
 
 
 func test_game_rejects_assertion_signed_with_a_different_secret() -> void:

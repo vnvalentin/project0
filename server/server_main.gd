@@ -142,7 +142,6 @@ var _monster_tick: int = 0
 ## start the server (fail-closed, matching the existing hub-fixture check).
 var _accounts_store: SqliteStore = null
 var _account_repository: Object = null
-var _auth_service: Object = null
 var _character_service: Object = null
 var _login_gateway: Object = null
 var _canon_repository: Object = null
@@ -320,20 +319,15 @@ func _start_server() -> void:
 	_sector_boundary_detector = SectorBoundaryDetectorScript.new()
 	_sector_boundary_detector.set_canon_lookup(Callable(_canon_repository, "get_canonical_sector"))
 	_sector_boundary_detector.set_request_callback(Callable(self, "_request_sector_from_boundary"))
-	# Slice 068: build the login authority's service graph (AuthService +
-	# CharacterService + LoginGateway with the Slice 059/060 assertion seams) via
-	# the shared LoginRuntime, so the game server and the standalone login process
-	# wire it identically. The account repository/schema was ensured above; the
-	# game server keeps its in-process login (the preserved in-process adapter).
-	# Slice 084 cutover: the game server runs assertion-only by default (accounts
-	# live on the login server). Set PROJECT0_GAME_ASSERTION_ONLY=0 to re-enable
-	# the legacy in-process login (a single-process combined dev run).
-	var account_authority: bool = OS.get_environment("PROJECT0_GAME_ASSERTION_ONLY").strip_edges() == "0"
-	var login_services: Dictionary = LoginRuntimeScript.build_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret(), LoginRuntimeScript.ASSERTION_ISSUER_ID, LoginRuntimeScript.ASSERTION_AUDIENCE, account_authority)
-	_auth_service = login_services["auth"]
+	# Slice 085: the game server builds an assertion-only login graph (no
+	# AuthService, no register/login/PBKDF2 in this process). Accounts live only
+	# on the standalone login process; a client enters the world by presenting a
+	# signed assertion. The shared LoginRuntime wires the same assertion seams the
+	# login process issues under.
+	var login_services: Dictionary = LoginRuntimeScript.build_assertion_only_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret(), LoginRuntimeScript.ASSERTION_ISSUER_ID, LoginRuntimeScript.ASSERTION_AUDIENCE)
 	_character_service = login_services["characters"]
 	_login_gateway = login_services["gateway"]
-	print("Accounts database ready at user://%s (schema ensured); assertion-only mode: %s." % [accounts_db_path, not account_authority])
+	print("Accounts database ready at user://%s (schema ensured); assertion-only game server (accounts live on the login process)." % accounts_db_path)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
 	var server_port: int = NetworkConfigScript.resolve_server_port()
@@ -446,8 +440,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	# Slice 040: clear this peer's in-memory session, if any. Sessions are
 	# never persisted, so a reconnecting peer always finds no session and must
 	# fully re-authenticate — see server/session_registry.gd.
-	if _auth_service != null:
-		_auth_service.clear_session(peer_id)
+	if _login_gateway != null:
+		_login_gateway.clear_session(peer_id)
 	# Slice 019: free this peer's house back to the pool immediately (no
 	# reconnect reservation).
 	if _house_allocator != null:
