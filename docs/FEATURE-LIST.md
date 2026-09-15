@@ -498,6 +498,31 @@ for a developer to pick up. No implementation has started.
     repeated Character replacement and return to Character Select.
     Validation: Native UI smoke passed all 3 scene contracts; authoritative
     Linux GUT passed 315/315; Windows GUI flow confirmed by the user.
+  - Date: 2026-09-15
+    What changed: Fixed the in-world logout/return button for the login split
+    (default ON since the Slice 084 cutover). `client/gameplay_logout.gd` now
+    returns to `account_gate.tscn` and drops the game connection when the split
+    is enabled (it returned to `character_gate.tscn` on the game connection),
+    and the button label is set from `_logout_label()` at `_ready` — "Logout"
+    under the split, "Character Select" in combined mode.
+    Why: Root-cause learning — during the Windows GUI confirmation of the split
+    flow, logging out showed `Failed to load characters (account_authority_disabled)`.
+    Symptom: the Character screen's `list_characters` was refused. Public seam:
+    `client/gameplay_logout.gd` scene transition. Confirmed cause: the world
+    handoff (Slice 077) disconnects from the login process before connecting to
+    the assertion-only game process, so returning to `character_gate.tscn` listed
+    Characters against the game server, which has no account authority. The
+    Slice 044 GUI acceptance predated the split, so the combined-mode return path
+    was never exercised against an assertion-only server. Countermeasure: a
+    split-aware return path + label, covered by
+    `tests/unit/test_gameplay_logout_target.gd`. Remaining limitation: split
+    logout requires re-authenticating on the login screen (the client caches no
+    credentials); returning to the Character list without re-login would need a
+    login-session-resume seam (possible follow-up).
+    Validation: `scripts/run_gut_validation.sh` on Linux passed 405/405 tests
+    across 60 scripts, exit 0 (adds `tests/unit/test_gameplay_logout_target.gd`;
+    one real-process multi-peer e2e flake cleared on re-run). Windows GUI:
+    logout now returns to the login screen cleanly (no `account_authority_disabled`).
 
 
 ### F-032: Character CRUD over the wire (server)
