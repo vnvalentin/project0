@@ -61,6 +61,43 @@ func test_build_services_wires_a_working_login_authority() -> void:
 	assert_true(_gateway.is_authenticated(1), "the session is bound after register")
 
 
+func test_assertion_only_services_reject_accounts_but_accept_the_assertion_path() -> void:
+	# Slice 085: the game server's assertion-only graph builds no AuthService.
+	var game_store: SqliteStore = SqliteStoreScript.new()
+	var game_path: String = "test_login_runtime_gameonly_%d_%d.db" % [Time.get_ticks_usec(), randi()]
+	game_store.open(game_path)
+	var game_repo: AccountCharacterRepository = AccountCharacterRepositoryScript.new(game_store)
+	game_repo.ensure_schema()
+	var game_container: Node = Node.new()
+	add_child_autofree(game_container)
+	var game_services: Dictionary = LoginRuntimeScript.build_assertion_only_services(game_repo, game_container, SECRET)
+	var game_gateway: Node = game_services["gateway"]
+	var game_sessions: Object = game_services["sessions"]
+	assert_false(game_services.has("auth"), "the assertion-only graph builds no AuthService")
+
+	# Not an accounts authority: register/login/Character-CRUD are refused.
+	var reg: Dictionary = await game_gateway.register(1, "mallory", "pw")
+	assert_eq(reg["outcome"], "account_authority_disabled", "the assertion-only gateway refuses register")
+	assert_eq(game_gateway.list_characters(1)["outcome"], "account_authority_disabled", "and refuses Character CRUD")
+
+	# The assertion path still works: a token minted by the full login authority
+	# establishes a session on the game gateway with no shared DB.
+	await _gateway.register(5, "erin", "passphrase")
+	var created: Dictionary = _gateway.create_character(5, "Erin the Swift", {})
+	var character_id: String = created["character"].character_id
+	_gateway.select_character(5, character_id)
+	var minted: Dictionary = _gateway.issue_character_assertion(5, 2000, 60)
+	assert_eq(minted["outcome"], "ok", "the login authority mints a Character assertion")
+	var established: Dictionary = game_gateway.establish_session_from_assertion(9, minted["assertion"], 2001)
+	assert_eq(established["outcome"], "ok", "the assertion-only gateway establishes a session from the token")
+	assert_eq(game_sessions.get_selected_character(9), character_id, "the game session carries the asserted Character")
+
+	if game_store.is_open():
+		game_store.close()
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		_delete_user_file(game_path + suffix)
+
+
 func test_full_authority_and_assertion_trust_flow() -> void:
 	await _gateway.register(1, "carol", "passphrase")
 	var created: Dictionary = _gateway.create_character(1, "Carol the Bold", {})

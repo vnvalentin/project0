@@ -16,6 +16,7 @@ const CharacterServiceScript: Script = preload("res://server/character_service.g
 const LoginGatewayScript: Script = preload("res://server/login_gateway.gd")
 const AssertionIssuerScript: Script = preload("res://server/assertion_issuer.gd")
 const AssertionValidatorScript: Script = preload("res://server/assertion_validator.gd")
+const SessionRegistryScript: Script = preload("res://server/session_registry.gd")
 
 ## Slice 060: session-assertion issuer/audience identifiers. The login authority
 ## issues under ASSERTION_ISSUER_ID; the game server accepts only that issuer and
@@ -80,3 +81,28 @@ static func build_services(account_repository: Object, parent: Node, assertion_s
 	gateway.set_account_authority_enabled(account_authority)
 
 	return {"auth": auth, "characters": characters, "gateway": gateway}
+
+
+## Slice 085: builds the game server's assertion-only login graph. It constructs
+## NO AuthService — the game process holds no register/login/PBKDF2 code path and
+## can never act as an accounts authority. A standalone SessionRegistry backs the
+## CharacterService and the gateway; the gateway accepts only the assertion path
+## (establish a session from a validated token, resolve the selected Character
+## from the signed snapshot). Accounts live solely on the login process
+## (build_services above). Returns { "characters", "gateway", "sessions" }.
+static func build_assertion_only_services(account_repository: Object, parent: Node, assertion_secret: String, issuer_id: String = ASSERTION_ISSUER_ID, audience: String = ASSERTION_AUDIENCE) -> Dictionary:
+	var sessions: Object = SessionRegistryScript.new()
+
+	var characters: Node = CharacterServiceScript.new(account_repository, sessions)
+	characters.name = "CharacterService"
+	parent.add_child(characters)
+
+	var gateway: Node = LoginGatewayScript.new(null, characters, sessions)
+	gateway.name = "LoginGateway"
+	parent.add_child(gateway)
+
+	var issuer: Object = AssertionIssuerScript.new(assertion_secret, issuer_id, audience)
+	var validator: Object = AssertionValidatorScript.new(assertion_secret, issuer_id, audience)
+	gateway.set_assertion_seams(issuer, validator)
+
+	return {"characters": characters, "gateway": gateway, "sessions": sessions}
