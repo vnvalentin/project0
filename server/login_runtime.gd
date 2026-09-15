@@ -23,17 +23,34 @@ const AssertionValidatorScript: Script = preload("res://server/assertion_validat
 const ASSERTION_ISSUER_ID: String = "project0-login"
 const ASSERTION_AUDIENCE: String = "project0-game"
 
+## Slice 071: reported source of the resolved assertion secret (never the value).
+const SECRET_SOURCE_CONFIGURED: String = "configured"
+const SECRET_SOURCE_EPHEMERAL: String = "ephemeral"
+
 
 ## Resolves the shared HMAC secret (hex) for the assertion issuer/validator from
-## PROJECT0_ASSERTION_SECRET. When unset, returns an ephemeral per-boot key and
-## prints a dev-only warning. In-process, issuer and validator share one secret;
-## a login-service split keeps the same configured secret on both sides.
+## PROJECT0_ASSERTION_SECRET. When unset, returns an ephemeral per-boot key. Logs
+## only the source (never the secret) so a missing shared secret is observable.
+## In-process, issuer and validator share one secret; a login-service split keeps
+## the same configured secret on both sides (see Slice 071's assertion.env).
 static func resolve_assertion_secret() -> String:
-	var secret: String = OS.get_environment("PROJECT0_ASSERTION_SECRET").strip_edges()
-	if secret.is_empty():
-		secret = Crypto.new().generate_random_bytes(32).hex_encode()
-		print("PROJECT0_ASSERTION_SECRET not set; using an ephemeral per-boot assertion key (dev only).")
-	return secret
+	var details: Dictionary = resolve_assertion_secret_details(OS.get_environment("PROJECT0_ASSERTION_SECRET"))
+	if details["source"] == SECRET_SOURCE_EPHEMERAL:
+		print("PROJECT0_ASSERTION_SECRET not set; using an ephemeral per-boot assertion key (dev only). The game and login processes will NOT share a secret until both load /etc/project0/assertion.env.")
+	else:
+		print("PROJECT0_ASSERTION_SECRET configured; using the shared assertion key.")
+	return details["secret"]
+
+
+## Pure resolver (no environment/logging) so it is deterministically testable.
+## Returns { "secret": hex String, "source": SECRET_SOURCE_CONFIGURED | _EPHEMERAL }.
+## A configured value is trimmed and passed through; an empty/whitespace value
+## yields a fresh 32-byte key — it never returns a short or malformed secret.
+static func resolve_assertion_secret_details(raw: String) -> Dictionary:
+	var trimmed: String = raw.strip_edges()
+	if trimmed.is_empty():
+		return {"secret": Crypto.new().generate_random_bytes(32).hex_encode(), "source": SECRET_SOURCE_EPHEMERAL}
+	return {"secret": trimmed, "source": SECRET_SOURCE_CONFIGURED}
 
 
 ## Builds the login service graph from an already-open account repository, adds

@@ -8,6 +8,11 @@ Wants=network-online.target
 Type=simple
 User=vic
 WorkingDirectory=/data/code/project0
+# Slice 071: the shared HMAC assertion secret (PROJECT0_ASSERTION_SECRET) the
+# game server's validator must share with the login server's issuer. Optional
+# (-) so bring-up works with a per-boot ephemeral key; production sets the same
+# file on both units. See scripts/assertion.env.example.
+EnvironmentFile=-/etc/project0/assertion.env
 # Binds the ENet/UDP server to the LAN IP so remote LAN clients can reach it.
 # If create_server() fails because the interface is not up yet at boot, the
 # process exits non-zero and systemd restarts it until the LAN IP is ready.

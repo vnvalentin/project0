@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [070 — Deploy + supervise the standalone login server](slices/070-deploy-supervise-login-server.md) — **delivered; project0-login.service systemd unit runs login_server_main.gd (own accounts DB + dedicated port + health file); operator allowlist gains login-server -> (systemd, project0-login); 63 operator pytest tests**
+- **Current slice:** [071 — Shared assertion secret across the game + login units](slices/071-shared-assertion-secret.md) — **delivered; both systemd units load a shared /etc/project0/assertion.env; resolve_assertion_secret reports configured vs ephemeral source via a pure unit-tested helper (secret never logged); GUT 53/53 exit 0; prerequisite for the client cutover**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,10 +444,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [070 — Deploy + supervise the standalone login server](slices/070-deploy-supervise-login-server.md) — **delivered; scripts/project0-login.service (systemd unit running login_server_main.gd with its own accounts DB, dedicated port 9998, and health file); operator control-plane allowlist gains login-server -> (systemd, project0-login) so status/restart/start/stop reach it; 63 operator pytest tests; GUT unaffected**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (runtime-boundary + operator decisions: the login process is a supervised, operator-managed service)
-  - **Public seam:** `scripts/project0-login.service`, `infra/operator/config.py` (`DEFAULT_SERVICES` login-server entry)
-  - **Planning ticket:** [runtime-boundary decision](../.scratch/container-platform/issues/01-runtime-boundary-and-container-adapter.md), [operator control-plane decision](../.scratch/container-platform/issues/04-operator-control-plane-and-telemetry.md)
+- **Slice:** [071 — Shared assertion secret across the game + login units](slices/071-shared-assertion-secret.md) — **delivered; scripts/project0-server.service + scripts/project0-login.service both load a shared EnvironmentFile /etc/project0/assertion.env (template scripts/assertion.env.example); LoginRuntime.resolve_assertion_secret reports configured vs ephemeral source via the pure resolve_assertion_secret_details helper (value never logged); GUT 53/53 exit 0 (+test_assertion_secret_resolution); prerequisite for the client cutover (072)**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: issuer and validator share one HMAC secret)
+  - **Public seam:** `server/login_runtime.gd` (`resolve_assertion_secret`/`resolve_assertion_secret_details`), `scripts/project0-server.service`, `scripts/project0-login.service`, `scripts/assertion.env.example`
+  - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
 - **Slice:** [063 — Operator control plane: audited mint-invite action](slices/063-operator-mint-invite-action.md) — **delivered; POST /invites reuses the enrollment store to mint a single-use invite as an audited job; secret code in the response only, never audited; 32 operator pytest tests; GUT unaffected**
