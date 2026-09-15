@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [071 — Shared assertion secret across the game + login units](slices/071-shared-assertion-secret.md) — **delivered; both systemd units load a shared /etc/project0/assertion.env; resolve_assertion_secret reports configured vs ephemeral source via a pure unit-tested helper (secret never logged); GUT 53/53 exit 0; prerequisite for the client cutover**
+- **Current slice:** [072 — Login-endpoint config: NetworkConfig.resolve_login_port](slices/072-login-endpoint-config.md) — **delivered; one shared resolver for the login endpoint's UDP port (--login-port / PROJECT0_LOGIN_PORT / LOGIN_PORT default 9998, bounded); login_server_main unified on it; GUT 54/54 exit 0; config foundation for the client cutover**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,9 +444,9 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [071 — Shared assertion secret across the game + login units](slices/071-shared-assertion-secret.md) — **delivered; scripts/project0-server.service + scripts/project0-login.service both load a shared EnvironmentFile /etc/project0/assertion.env (template scripts/assertion.env.example); LoginRuntime.resolve_assertion_secret reports configured vs ephemeral source via the pure resolve_assertion_secret_details helper (value never logged); GUT 53/53 exit 0 (+test_assertion_secret_resolution); prerequisite for the client cutover (072)**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: issuer and validator share one HMAC secret)
-  - **Public seam:** `server/login_runtime.gd` (`resolve_assertion_secret`/`resolve_assertion_secret_details`), `scripts/project0-server.service`, `scripts/project0-login.service`, `scripts/assertion.env.example`
+- **Slice:** [072 — Login-endpoint config: NetworkConfig.resolve_login_port](slices/072-login-endpoint-config.md) — **delivered; NetworkConfig.LOGIN_PORT (9998) + resolve_login_port() with --login-port/PROJECT0_LOGIN_PORT/default precedence reusing the bounded _parse_port; login_server_main.gd unified on it (dropped its local duplicate); GUT 54/54 exit 0 (+test_network_config_login_port); config foundation for the client login->game cutover (e2e harness is 073)**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: the client and login server share one endpoint config)
+  - **Public seam:** `shared/network_config.gd` (`LOGIN_PORT`, `resolve_login_port`)
   - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 

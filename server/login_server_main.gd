@@ -30,7 +30,6 @@ const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
 
 const DEFAULT_LOGIN_ACCOUNTS_DB_PATH: String = "login_accounts.db"
-const DEFAULT_LOGIN_PORT: int = 9998
 const DEFAULT_LOGIN_HEALTH_FILE: String = "user://login_health.json"
 const MAX_LOGIN_PEERS: int = 64
 const APP_SCHEMA_VERSION: int = 1
@@ -81,7 +80,7 @@ func _start_login_server() -> void:
 	print("Login accounts database ready at user://%s (schema ensured)." % db_path)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
-	var login_port: int = _resolve_login_port()
+	var login_port: int = NetworkConfigScript.resolve_login_port()
 	_peer = ENetMultiplayerPeer.new()
 	_peer.set_bind_ip(bind_address)
 	var listen_error: Error = _peer.create_server(login_port, MAX_LOGIN_PEERS, 0, 0, 0)
@@ -97,13 +96,6 @@ func _start_login_server() -> void:
 	_write_health(ServerHealthScript.STATUS_HEALTHY)
 	if bind_address != NetworkConfigScript.SERVER_ADDRESS:
 		print("WARNING: login server bound to a non-localhost address. It accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, login_port])
-
-
-func _resolve_login_port() -> int:
-	var raw: String = OS.get_environment("PROJECT0_LOGIN_PORT").strip_edges()
-	if raw.is_valid_int():
-		return raw.to_int()
-	return DEFAULT_LOGIN_PORT
 
 
 func _resolve_health_file_path() -> String:
