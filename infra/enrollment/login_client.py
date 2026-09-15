@@ -92,3 +92,67 @@ class RealLoginAuthorityClient:
         if outcome == LoginAuthorityError.MALFORMED:
             return LoginAuthorityError.MALFORMED
         return LoginAuthorityError.UPSTREAM_ERROR
+
+
+class AssertionValidationError(Exception):
+    """Slice 089: raised for every assertion-validation rejection/timeout/
+    connection-failure path. `reason` is a bounded string (the login authority's
+    own SessionAssertion.REASON_* vocabulary, or one of this client's transport
+    reasons) \u2014 never a raw exception message that could embed the token.
+    """
+
+    REJECTED = "assertion_rejected"
+    UPSTREAM_UNAVAILABLE = "upstream_unavailable"
+    UPSTREAM_ERROR = "upstream_error"
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+class AssertionValidationClient(Protocol):
+    """Slice 089: the seam EnrollmentService.redeem_with_assertion depends on for
+    validating an assertion. Never call a real implementation in a test."""
+
+    def validate(self, assertion: str) -> tuple[str, int]:
+        """Validates the assertion via the login authority and returns
+        (account_id, expires_at). Raises AssertionValidationError on any
+        rejection, timeout, or connection failure."""
+        ...
+
+
+class RealAssertionValidationClient:
+    """The only implementation that performs real network I/O against the login
+    authority's loopback POST /internal/validate-assertion endpoint."""
+
+    def __init__(self, host: str, port: int, timeout_seconds: float) -> None:
+        self._host = host
+        self._port = port
+        self._timeout_seconds = timeout_seconds
+
+    def validate(self, assertion: str) -> tuple[str, int]:
+        body = json.dumps({"assertion": assertion}).encode("utf-8")
+        url = f"http://{self._host}:{self._port}/internal/validate-assertion"
+        req = urllib_request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
+        )
+        try:
+            with urllib_request.urlopen(req, timeout=self._timeout_seconds) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib_error.HTTPError as exc:
+            # Any bounded validation rejection (expired/tampered/wrong-issuer/...)
+            # collapses to a single opaque reason; the token itself is never logged.
+            raise AssertionValidationError(AssertionValidationError.REJECTED) from exc
+        except (urllib_error.URLError, TimeoutError, OSError) as exc:
+            raise AssertionValidationError(AssertionValidationError.UPSTREAM_UNAVAILABLE) from exc
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise AssertionValidationError(AssertionValidationError.UPSTREAM_ERROR) from exc
+
+        account_id = payload.get("account_id")
+        expires_at = payload.get("expires_at")
+        if payload.get("outcome") != "ok" or not isinstance(account_id, str) or not isinstance(expires_at, int):
+            raise AssertionValidationError(AssertionValidationError.UPSTREAM_ERROR)
+        return account_id, expires_at

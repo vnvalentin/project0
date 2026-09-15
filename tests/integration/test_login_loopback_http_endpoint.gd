@@ -20,6 +20,7 @@ const SECRET: String = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4
 const ISSUER: String = "project0-login"
 const AUDIENCE: String = "project0-game"
 const REQUEST_PATH: String = "/internal/verify-and-mint"
+const REQUEST_PATH_VALIDATE: String = "/internal/validate-assertion"
 const MAX_WAIT_FRAMES: int = 300
 
 var _relative_path: String = ""
@@ -215,6 +216,85 @@ func test_malformed_requests_are_bounded_rejections_and_the_listener_recovers() 
 	_gateway.clear_session(1)
 	var recovery_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"username": "carol", "password": "s3cret1234"})))
 	assert_eq(recovery_response["status_code"], 200, "the listener keeps accepting connections after a run of malformed requests")
+
+
+## Slice 089: mints a valid account assertion by registering a peer, issuing an
+## account assertion for its bound session, then clearing the session.
+func _mint_assertion_for(peer_id: int, username: String, password: String) -> String:
+	await _gateway.register(peer_id, username, password)
+	var minted: Dictionary = _gateway.issue_account_assertion(peer_id, int(Time.get_unix_time_from_system()), 300)
+	_gateway.clear_session(peer_id)
+	return String(minted.get("assertion", ""))
+
+
+func test_validate_valid_assertion_returns_account_and_expiry_and_binds_no_session() -> void:
+	var token: String = await _mint_assertion_for(2, "dave", "s3cret1234")
+	assert_true(token.length() > 0, "a token was minted for the test")
+
+	var request: String = _build_request(JSON.stringify({"assertion": token}), "application/json", "", "POST", REQUEST_PATH_VALIDATE)
+	var response: Dictionary = await _raw_request(_endpoint.port, request)
+
+	assert_eq(response["status_code"], 200, "a valid assertion validates with 200")
+	var body: Dictionary = JSON.parse_string(response["body"])
+	assert_eq(body.get("outcome", ""), "ok", "outcome ok")
+	assert_true(String(body.get("account_id", "")).length() > 0, "an account_id is returned")
+	assert_true(int(body.get("expires_at", 0)) > 0, "an expires_at is returned")
+
+	# The validate path binds NO session (unlike verify-and-mint): no synthetic id.
+	for synthetic_id in range(-1, -6, -1):
+		assert_false(_gateway.is_authenticated(synthetic_id), "validate binds no session (id %d)" % synthetic_id)
+
+
+func test_validate_tampered_and_garbage_assertions_are_bounded_rejections() -> void:
+	var token: String = await _mint_assertion_for(2, "erin", "s3cret1234")
+
+	# Tamper the first payload byte so the recomputed HMAC no longer matches.
+	var first: String = token.substr(0, 1)
+	var replacement: String = "A" if first != "A" else "B"
+	var tampered: String = replacement + token.substr(1)
+	var tampered_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": tampered}), "application/json", "", "POST", REQUEST_PATH_VALIDATE))
+	assert_eq(tampered_response["status_code"], 401, "a tampered assertion is rejected")
+
+	var garbage_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": "not-a-real-token"}), "application/json", "", "POST", REQUEST_PATH_VALIDATE))
+	assert_eq(garbage_response["status_code"], 401, "a malformed token is rejected")
+
+
+func test_validate_malformed_request_is_rejected_and_listener_recovers() -> void:
+	# Missing assertion key.
+	var missing_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"nope": "x"}), "application/json", "", "POST", REQUEST_PATH_VALIDATE))
+	assert_ne(missing_response["status_code"], 200, "a request missing the assertion key is rejected")
+	assert_ne(missing_response["status_code"], -1, "the connection did not hang")
+
+	# Non-string assertion.
+	var non_string_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": 123}), "application/json", "", "POST", REQUEST_PATH_VALIDATE))
+	assert_ne(non_string_response["status_code"], 200, "a non-string assertion is rejected")
+
+	# The listener still serves a valid validate request afterward.
+	var token: String = await _mint_assertion_for(2, "frank", "s3cret1234")
+	var recovery: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token}), "application/json", "", "POST", REQUEST_PATH_VALIDATE))
+	assert_eq(recovery["status_code"], 200, "the listener keeps serving validate after malformed requests")
+
+
+func test_both_loopback_paths_coexist_on_one_listener() -> void:
+	await _gateway.register(3, "grace", "s3cret1234")
+	_gateway.clear_session(3)
+
+	var mint_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"username": "grace", "password": "s3cret1234"})))
+	assert_eq(mint_response["status_code"], 200, "verify-and-mint still works")
+	var minted_token: String = String(JSON.parse_string(mint_response["body"]).get("assertion", ""))
+
+	var validate_response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": minted_token}), "application/json", "", "POST", REQUEST_PATH_VALIDATE))
+	assert_eq(validate_response["status_code"], 200, "validate-assertion works on the same listener")
+
+
+func test_gateway_validate_assertion_returns_claims_and_fails_closed() -> void:
+	var token: String = await _mint_assertion_for(4, "heidi", "s3cret1234")
+	var result: Dictionary = _gateway.validate_assertion(token, int(Time.get_unix_time_from_system()))
+	assert_eq(result.get("outcome", ""), "ok", "validate_assertion accepts a good token")
+	assert_true(result.has("claims"), "claims are returned")
+
+	var bad: Dictionary = _gateway.validate_assertion("garbage", int(Time.get_unix_time_from_system()))
+	assert_ne(bad.get("outcome", ""), "ok", "validate_assertion fails closed on a bad token")
 
 
 func test_loopback_bind_is_hardcoded_to_127_0_0_1() -> void:
