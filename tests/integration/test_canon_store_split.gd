@@ -79,3 +79,47 @@ func test_shared_store_default_colocates_canon_and_accounts() -> void:
 	# Both records are reachable through the single shared handle (the default).
 	assert_eq(canon.get_canonical_sector(blueprint["sector_id"])["outcome"], CanonRepositoryScript.OUTCOME_OK)
 	assert_eq(accounts.find_account_by_username("bob")["outcome"], AccountRepositoryScript.OUTCOME_OK)
+
+
+func test_migration_copies_canon_preserving_created_at_and_leaves_source_intact() -> void:
+	# server_main's Slice 080 first-split-boot migration: copy Canon out of the
+	# combined store into the empty dedicated store without losing the record or
+	# its original created_at, and without deleting the source.
+	var source: CanonRepository = CanonRepositoryScript.new(_accounts_store)
+	assert_eq(source.ensure_schema()["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var blueprint: Dictionary = _blueprint()
+	assert_eq(source.canonicalize_blueprint(blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var source_records: Dictionary = source.list_all_records()
+	assert_eq((source_records["records"] as Array).size(), 1)
+	var source_created_at: int = source_records["records"][0]["created_at"]
+
+	var dest: CanonRepository = CanonRepositoryScript.new(_canon_store)
+	assert_eq(dest.ensure_schema()["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_true((dest.list_all_records()["records"] as Array).is_empty(), "dedicated store starts empty")
+	for record: Dictionary in source_records["records"]:
+		assert_eq(dest.restore_record(record)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+
+	var loaded: Dictionary = dest.get_canonical_sector(blueprint["sector_id"])
+	assert_eq(loaded["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(loaded["sector"]["created_at"], source_created_at, "migration preserves the original created_at")
+	assert_eq((source.list_all_records()["records"] as Array).size(), 1, "source Canon is never deleted")
+
+
+func test_restore_record_is_idempotent() -> void:
+	var dest: CanonRepository = CanonRepositoryScript.new(_canon_store)
+	assert_eq(dest.ensure_schema()["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var record: Dictionary = {"sector_id": "sector-0-0", "blueprint": _blueprint(), "schema_version": 1, "created_at": 1700000000}
+	assert_eq(dest.restore_record(record)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(dest.restore_record(record)["outcome"], CanonRepositoryScript.OUTCOME_IDEMPOTENT)
+	assert_eq((dest.list_all_records()["records"] as Array).size(), 1, "an idempotent restore does not duplicate")
+
+
+func test_restore_record_refuses_conflicting_blueprint() -> void:
+	var dest: CanonRepository = CanonRepositoryScript.new(_canon_store)
+	assert_eq(dest.ensure_schema()["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(dest.restore_record({"sector_id": "sector-0-0", "blueprint": _blueprint(), "schema_version": 1, "created_at": 1700000000})["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var conflicting: Dictionary = _blueprint()
+	conflicting["tiles"] = [{"x": 7, "y": 7, "kind": "floor"}]
+	var result: Dictionary = dest.restore_record({"sector_id": "sector-0-0", "blueprint": conflicting, "schema_version": 1, "created_at": 1700000001})
+	assert_eq(result["outcome"], CanonRepositoryScript.OUTCOME_CONFLICT)
+	assert_eq(dest.get_canonical_sector("sector-0-0")["sector"]["blueprint"]["tiles"][0]["x"], 0, "existing Canon is unchanged")
