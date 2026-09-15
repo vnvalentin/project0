@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [077 — Client login→game handoff seam](slices/077-client-login-handoff-seam.md) — **delivered; NetworkClient.perform_login_to_game_handoff (poll-based, bounded) requests an assertion, reconnects to the game process, presents it, and enters the world, emitting login_to_game_handoff_finished; e2e harness drives Phase 2 through it, ALL PASS on Linux; GUT 56/56 unaffected**
+- **Current slice:** [078 — Wire login-screen gates to the login process (opt-in)](slices/078-wire-gates-to-login-process.md) — **delivered; account/character gates authenticate on the login endpoint and, on select, hand off to the game process via NetworkClient.perform_login_to_game_handoff, behind PROJECT0_CLIENT_LOGIN_SPLIT=1 (default off preserves the single-connection flow); NetworkConfig.client_login_split_enabled; GUT 57/57 and client UI smoke passed on Linux**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,6 +444,7 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
+- **Slice:** [078 — Wire login-screen gates to the login process (opt-in)](slices/078-wire-gates-to-login-process.md) — **delivered; shared/network_config.gd client_login_split_enabled() (PROJECT0_CLIENT_LOGIN_SPLIT=1, default off); client/account_gate.gd connects to the login port when the split is enabled; client/character_gate.gd calls perform_login_to_game_handoff on select and reports handoff failures while success flows through the existing world_entry transition; validated GUT 57/57 + client UI smoke passed on Linux, seam already proven e2e by 077**
 - **Slice:** [077 — Client login→game handoff seam](slices/077-client-login-handoff-seam.md) — **delivered; client/network_client.gd perform_login_to_game_handoff(game_host, game_port) — poll-based, bounded coroutine that requests a signed assertion, hands off to the game process (disconnect -> connect -> present -> enter world), emitting login_to_game_handoff_finished; the e2e harness drives Phase 2 through the production seam (ALL PASS on Linux, world_entry==ok as Handoff Hero); GUT 56/56 unaffected; reusable by the login-screen scenes (wired in 078)**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: reusable client cutover seam)
   - **Public seam:** `client/network_client.gd` (`perform_login_to_game_handoff`, `login_to_game_handoff_finished`)

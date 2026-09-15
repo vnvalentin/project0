@@ -3,6 +3,8 @@
 ## to gameplay.tscn on successful world-entry.
 extends Control
 
+const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+
 @onready var status_label = $VBoxContainer/StatusLabel
 @onready var character_list = $VBoxContainer/CharacterList
 @onready var select_button = $VBoxContainer/ButtonContainer/SelectButton
@@ -12,11 +14,15 @@ extends Control
 @onready var name_input = $CreateCharacterDialog/VBoxContainer2/NameInput
 
 var _characters: Array = []
+## Slice 078: true while the login->game handoff is reconnecting, so the transient
+## login disconnect does not surface as a "connection lost" alarm.
+var _handing_off: bool = false
 
 func _ready() -> void:
 	# Connect to NetworkClient signals
 	NetworkClient.character_result_received.connect(_on_character_result)
 	NetworkClient.world_entry_received.connect(_on_world_entry_result)
+	NetworkClient.login_to_game_handoff_finished.connect(_on_handoff_finished)
 	NetworkClient.connection_status_changed.connect(_on_connection_status)
 	
 	# Connect UI signals
@@ -60,7 +66,14 @@ func _handle_select_result(outcome: String) -> void:
 		status_label.text = "Status: Character selected! Entering world..."
 		# Now attempt to enter the world with this character
 		await get_tree().create_timer(0.3).timeout
-		NetworkClient.submit_enter_world()
+		if NetworkConfigScript.client_login_split_enabled():
+			# Hand off to the game process: request assertion, reconnect, present,
+			# enter world. Success flows through _on_world_entry_result below.
+			_handing_off = true
+			status_label.text = "Status: Entering world (login handoff)..."
+			NetworkClient.perform_login_to_game_handoff(PlayerIdentity.target_host, NetworkConfigScript.resolve_server_port())
+		else:
+			NetworkClient.submit_enter_world()
 	else:
 		status_label.text = "Status: Select failed (%s)" % outcome
 
@@ -88,8 +101,18 @@ func _on_world_entry_result(outcome: String, character_dict: Dictionary) -> void
 
 func _on_connection_status(status_str: String) -> void:
 	# Keep connection status visible
+	if _handing_off:
+		return
 	if not status_str.begins_with("connected"):
 		status_label.text = "Status: Connection lost (%s)" % status_str
+
+
+## Slice 078: terminal outcome of the login->game handoff. On success,
+## _on_world_entry_result already transitioned into gameplay; report failures.
+func _on_handoff_finished(outcome: String, _character: Dictionary) -> void:
+	_handing_off = false
+	if outcome != "ok":
+		status_label.text = "Status: World entry failed (%s)" % outcome
 
 func _on_character_selected(index: int) -> void:
 	select_button.disabled = false
