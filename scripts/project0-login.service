@@ -16,6 +16,10 @@ WorkingDirectory=/data/code/project0
 # assertions to the game server — see Slice 071). Optional so the unit starts
 # with per-boot defaults during bring-up.
 EnvironmentFile=-/etc/project0/login.env
+# Slice 071: the shared HMAC assertion secret (PROJECT0_ASSERTION_SECRET) the
+# login server's issuer must share with the game server's validator — the SAME
+# file project0-server.service loads. See scripts/assertion.env.example.
+EnvironmentFile=-/etc/project0/assertion.env
 # Binds the login ENet/UDP server to the LAN IP so remote LAN clients can reach
 # it; the dedicated port keeps it distinct from the game server's 9999. If the
 # interface is not up yet at boot, create_server() fails, the process exits
