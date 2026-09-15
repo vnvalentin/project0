@@ -37,12 +37,16 @@ class_name LoginLoopbackHttpEndpoint
 ## except from the same host (see docs/slices/088-auth-gated-onboarding-login-delegation.md).
 
 const CharacterRecordScript: Script = preload("res://shared/character_record.gd")
+const SessionAssertionScript: Script = preload("res://shared/session_assertion.gd")
 
 ## Hardcoded bind literal (see class doc) — deliberately not a NetworkConfig lookup.
 const BIND_ADDRESS: String = "127.0.0.1"
 
 const REQUEST_METHOD: String = "POST"
-const REQUEST_PATH: String = "/internal/verify-and-mint"
+# Slice 088 path (verify credentials + mint an assertion) and Slice 089 path
+# (validate an assertion, no session bound) served from the same listener.
+const REQUEST_PATH_VERIFY: String = "/internal/verify-and-mint"
+const REQUEST_PATH_VALIDATE: String = "/internal/validate-assertion"
 const MAX_HEADER_BYTES: int = 8192
 const MAX_BODY_BYTES: int = 1024
 ## Not a const: a PackedByteArray constructor isn't a compile-time constant
@@ -77,6 +81,8 @@ var _read_buffer: PackedByteArray = PackedByteArray()
 var _headers_parsed: bool = false
 var _body_start_index: int = 0
 var _content_length: int = -1
+## Which accepted path the current request targeted (Slice 089 dual-path).
+var _request_path: String = ""
 ## True once a complete request has been handed to _handle_complete_request()
 ## for the current _pending_connection, until that coroutine responds (or the
 ## connection is otherwise closed). Guards two hazards from the fact that
@@ -219,9 +225,10 @@ func _try_parse_headers() -> void:
 		_reject(405, OUTCOME_MALFORMED)
 		return
 
-	if path != REQUEST_PATH:
+	if path != REQUEST_PATH_VERIFY and path != REQUEST_PATH_VALIDATE:
 		_reject(404, OUTCOME_MALFORMED)
 		return
+	_request_path = path
 
 	if String(headers.get("content-type", "")) != "application/json":
 		_reject(400, OUTCOME_MALFORMED)
@@ -249,6 +256,14 @@ func _handle_complete_request() -> void:
 		return
 
 	var raw: Dictionary = parsed
+	if _request_path == REQUEST_PATH_VALIDATE:
+		_handle_validate(raw)
+		return
+	await _handle_verify_and_mint(raw)
+
+
+## Slice 088: {username, password} -> verify credentials, mint an assertion.
+func _handle_verify_and_mint(raw: Dictionary) -> void:
 	if raw.size() != 2 or not raw.has("username") or not raw.has("password"):
 		_reject(400, OUTCOME_MALFORMED)
 		return
@@ -263,6 +278,32 @@ func _handle_complete_request() -> void:
 		return
 
 	await _authenticate_and_respond(username_raw as String, password_raw as String)
+
+
+## Slice 089: {assertion} -> validate (no session bound) -> account_id + expiry.
+## Pure signature/claims check via LoginGateway.validate_assertion; unlike the
+## verify-and-mint path there is no synthetic peer id and no SessionRegistry
+## write, so nothing to clear.
+func _handle_validate(raw: Dictionary) -> void:
+	if raw.size() != 1 or not raw.has("assertion"):
+		_reject(400, OUTCOME_MALFORMED)
+		return
+	var assertion_raw: Variant = raw["assertion"]
+	if not (assertion_raw is String) or (assertion_raw as String).is_empty():
+		_reject(400, OUTCOME_MALFORMED)
+		return
+
+	var now_unix: int = int(Time.get_unix_time_from_system())
+	var result: Dictionary = _gateway.validate_assertion(assertion_raw as String, now_unix)
+	if String(result.get("outcome", "")) != OUTCOME_OK:
+		_reject(401, String(result.get("outcome", OUTCOME_MALFORMED)))
+		return
+	var claims: Dictionary = result["claims"]
+	_respond(200, "OK", {
+		"outcome": OUTCOME_OK,
+		"account_id": String(claims[SessionAssertionScript.KEY_ACCOUNT_ID]),
+		"expires_at": int(claims[SessionAssertionScript.KEY_EXPIRES_AT]),
+	})
 
 
 ## Synthesizes a fresh negative peer_id, delegates to the shared LoginGateway,
@@ -331,6 +372,7 @@ func _reset_parse_state() -> void:
 	_headers_parsed = false
 	_body_start_index = 0
 	_content_length = -1
+	_request_path = ""
 	_request_dispatched = false
 
 

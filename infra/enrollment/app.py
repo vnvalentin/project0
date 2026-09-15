@@ -10,10 +10,16 @@ Slice 088 (docs/slices/088-auth-gated-onboarding-login-delegation.md).
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .config import EnrollmentConfig, load_config
-from .login_client import LoginAuthorityClient, LoginAuthorityError, RealLoginAuthorityClient
+from .login_client import (
+    AssertionValidationClient,
+    LoginAuthorityClient,
+    LoginAuthorityError,
+    RealAssertionValidationClient,
+    RealLoginAuthorityClient,
+)
 from .opnsense_client import OpnsenseWireguardClient, RealOpnsenseWireguardClient
 from .service import EnrollmentService, RedeemRejected, RedeemRejectionReason
 from .store import EnrollmentStore
@@ -25,6 +31,9 @@ _REJECTION_STATUS = {
     RedeemRejectionReason.INVALID_PUBLIC_KEY: 422,
     RedeemRejectionReason.POOL_EXHAUSTED: 409,
     RedeemRejectionReason.UPSTREAM_REGISTRATION_FAILED: 502,
+    # Slice 089: assertion-path rejections.
+    RedeemRejectionReason.ASSERTION_REJECTED: 401,
+    RedeemRejectionReason.ACCOUNT_PEER_KEY_MISMATCH: 409,
 }
 
 # Slice 088: maps the loopback login authority's bounded outcome/transport
@@ -44,8 +53,17 @@ _LOGIN_REJECTION_STATUS = {
 
 
 class RedeemRequest(BaseModel):
-    invite_code: str
+    # Slice 089: /redeem accepts EITHER an invite_code (operator/fallback path)
+    # OR a signed assertion (self-service path) — exactly one, never both.
+    invite_code: str | None = None
+    assertion: str | None = None
     public_key: str
+
+    @model_validator(mode="after")
+    def _exactly_one_credential(self) -> "RedeemRequest":
+        if (self.invite_code is None) == (self.assertion is None):
+            raise ValueError("exactly one of invite_code or assertion must be provided")
+        return self
 
 
 class RedeemResponse(BaseModel):
@@ -81,7 +99,10 @@ def create_app(service: EnrollmentService, login_authority_client: LoginAuthorit
     @app.post("/redeem", response_model=RedeemResponse)
     def redeem(request: RedeemRequest) -> RedeemResponse:
         try:
-            bundle = service.redeem(request.invite_code, request.public_key)
+            if request.assertion is not None:
+                bundle = service.redeem_with_assertion(request.assertion, request.public_key)
+            else:
+                bundle = service.redeem(request.invite_code, request.public_key)
         except RedeemRejected as exc:
             status_code = _REJECTION_STATUS[exc.reason]
             raise HTTPException(status_code=status_code, detail=exc.reason.value) from exc
@@ -106,13 +127,17 @@ def create_app(service: EnrollmentService, login_authority_client: LoginAuthorit
 
 
 def build_production_service(config: EnrollmentConfig | None = None) -> EnrollmentService:
-    """Wire the real OPNsense client and sqlite store. Never used by tests."""
+    """Wire the real OPNsense client, sqlite store, and (Slice 089) the real
+    loopback assertion-validation client. Never used by tests."""
     config = config or load_config()
     store = EnrollmentStore(config.db_path)
     opnsense_client: OpnsenseWireguardClient = RealOpnsenseWireguardClient(
         config.opnsense_api_key, config.opnsense_api_secret
     )
-    return EnrollmentService(config, store, opnsense_client)
+    assertion_validation_client: AssertionValidationClient = RealAssertionValidationClient(
+        config.login_authority_host, config.login_authority_port, config.login_authority_timeout_seconds
+    )
+    return EnrollmentService(config, store, opnsense_client, assertion_validation_client)
 
 
 def build_production_login_authority_client(config: EnrollmentConfig | None = None) -> LoginAuthorityClient:

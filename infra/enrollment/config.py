@@ -34,6 +34,10 @@ class EnrollmentConfig:
     login_authority_host: str
     login_authority_port: int
     login_authority_timeout_seconds: float
+    # Slice 089: an assertion-path peer whose last redeem/touch is older than
+    # this is eligible for the operator-invoked deprovision sweep. Default 30
+    # days. Invite-path peers are never aged by this.
+    peer_idle_ttl_seconds: int
 
 
 DEFAULT_DB_PATH = os.path.join(
@@ -88,6 +92,14 @@ def load_config() -> EnrollmentConfig:
             f"LOGIN_AUTHORITY_TIMEOUT_SECONDS must be a number: {login_authority_timeout_raw}"
         ) from exc
 
+    peer_idle_ttl_raw = os.getenv("ENROLLMENT_PEER_IDLE_TTL_SECONDS", "2592000").strip()
+    try:
+        peer_idle_ttl_seconds = int(peer_idle_ttl_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"ENROLLMENT_PEER_IDLE_TTL_SECONDS must be an integer: {peer_idle_ttl_raw}"
+        ) from exc
+
     return EnrollmentConfig(
         opnsense_host=os.getenv("OPNSENSE_HOST", "192.168.1.1").strip(),
         opnsense_api_key=api_key,
@@ -106,4 +118,5 @@ def load_config() -> EnrollmentConfig:
         login_authority_host=os.getenv("LOGIN_AUTHORITY_HOST", "127.0.0.1").strip(),
         login_authority_port=login_authority_port,
         login_authority_timeout_seconds=login_authority_timeout_seconds,
+        peer_idle_ttl_seconds=peer_idle_ttl_seconds,
     )

@@ -39,6 +39,7 @@ def make_config(**overrides) -> EnrollmentConfig:
         login_authority_host="127.0.0.1",
         login_authority_port=9997,
         login_authority_timeout_seconds=5.0,
+        peer_idle_ttl_seconds=2592000,
     )
     defaults.update(overrides)
     return EnrollmentConfig(**defaults)

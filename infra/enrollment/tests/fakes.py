@@ -6,7 +6,7 @@ is the substitute for `OpnsenseWireguardClient` that every test wires in, and
 """
 from __future__ import annotations
 
-from infra.enrollment.login_client import LoginAuthorityError
+from infra.enrollment.login_client import AssertionValidationError, LoginAuthorityError
 from infra.enrollment.opnsense_client import OpnsenseApiError
 
 
@@ -67,3 +67,26 @@ class FakeLoginAuthorityClient:
         if self.fail_with_reason is not None:
             raise LoginAuthorityError(self.fail_with_reason)
         return self.assertion
+
+
+class FakeAssertionValidationClient:
+    """Slice 089: records validate() calls; returns a fixed
+    (account_id, expires_at) or raises a bounded AssertionValidationError
+    (matching what the real loopback client raises on a rejection/failure)."""
+
+    def __init__(
+        self,
+        account_id: str = "acct-1",
+        expires_at: int = 9999999999,
+        fail_with_reason: str | None = None,
+    ) -> None:
+        self.account_id = account_id
+        self.expires_at = expires_at
+        self.fail_with_reason = fail_with_reason
+        self.calls: list[str] = []
+
+    def validate(self, assertion: str) -> tuple[str, int]:
+        self.calls.append(assertion)
+        if self.fail_with_reason is not None:
+            raise AssertionValidationError(self.fail_with_reason)
+        return self.account_id, self.expires_at

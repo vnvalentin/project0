@@ -164,6 +164,18 @@ func issue_character_assertion(peer_id: int, now_unix: int, ttl_seconds: int) ->
 	return {"outcome": OUTCOME_OK, "assertion": token}
 
 
+## Slice 089: validates an assertion WITHOUT binding any session — a pure
+## signature/claims check for the enrollment service's loopback delegator
+## (server/login_loopback_http_endpoint.gd, POST /internal/validate-assertion),
+## which needs the account identity to key peer provisioning but has no gameplay
+## session. Unlike establish_session_from_assertion, this never touches the
+## SessionRegistry. Fail-closed: unavailable when no validator is wired.
+func validate_assertion(token: String, now_unix: int) -> Dictionary:
+	if _validator == null:
+		return {"outcome": REASON_UNAVAILABLE}
+	return _validator.validate(token, now_unix)
+
+
 ## Establishes (binds) a game-server session for `peer_id` purely from a
 ## validated assertion — how the game server trusts the login authority without
 ## sharing a database. Fail-closed: binds a session only after the validator
