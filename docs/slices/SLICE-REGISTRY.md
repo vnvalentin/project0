@@ -102,8 +102,9 @@ contended range and everything after it is tracked explicitly:
 | 084 | Login-split cutover: split on by default (client split + game assertion-only) (P-014) | interactive |
 | 085 | Remove in-process login from the game server (assertion-only login graph, no AuthService) (P-014) | interactive |
 | 086 | Multi-peer Character replication: label remote Players with their bound Character (F-004) | interactive |
+| 087 | Login-session resume: in-world Character Select without re-login (F-034) | interactive |
 
-Next free slice: **087** (verify against `docs/slices/` before reserving).
+Next free slice: **088** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
