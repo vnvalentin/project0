@@ -899,6 +899,34 @@ for a developer to pick up. No implementation has started.
   `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
   - Date: 2026-09-15
+    What changed: Implemented and delivered [Slice 093](slices/093-client-https-login-wiring.md)
+    — wired `client/account_gate.gd` and `client/character_gate.gd` to the
+    HTTPS enrollment flow (Slice 091 `EnrollmentHttpClient`) behind a new
+    `NetworkConfig.client_https_login_enabled()` gate
+    (`PROJECT0_CLIENT_HTTPS_LOGIN`, defaults on under `PROJECT0_TUNNEL`), and
+    added `NetworkClient.perform_https_world_entry()` which connects through the
+    tunnel, presents the signed character assertion via the existing
+    `establish_session_from_assertion` path, and enters the world. The ENet LAN
+    path is unchanged (opt-in gate). This fixes the diagnosed WAN-client
+    `Login failed (account_authority_disabled)` defect — the reused pre-split
+    client authenticated with ENet register/login RPCs against the
+    assertion-only game server (no `AuthService` since Slice 085); the WAN
+    client now authenticates over HTTPS before the tunnel. Registration has no
+    public HTTPS surface, so it is disabled in WAN mode and filed as
+    [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client).
+    Validated on the Linux host (commit `230cd06`): GUT 436/436 across 64/64
+    scripts, exit 0 (+4 `test_network_config_https_login.gd` cases). Live WAN
+    client runtime run is user-pending. Implemented directly by Copilot with
+    the user's explicit authorization (Claude CLI rate-limited).
+    Why: Make a remote (WAN/tunnel) player able to log in, select a character,
+    and enter the world from the packaged Windows client instead of hitting
+    `account_authority_disabled`.
+    Related work: [Slice 093](slices/093-client-https-login-wiring.md),
+    [Slice 091](slices/091-client-https-auth-character-seam.md),
+    [ADR 0005](adr/0005-character-selection-over-https.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client)
+  - Date: 2026-09-15
     What changed: Implemented and delivered [Slice 091](slices/091-client-https-auth-character-seam.md)
     — `client/enrollment_http_client.gd` (`EnrollmentHttpClient`), the Godot
     client's HTTPS seam consuming the Slice 088 `/login` and Slice 090
