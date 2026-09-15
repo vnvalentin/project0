@@ -11,12 +11,12 @@ ARG GODOT_BINARY=Godot_v4.3-stable_linux.x86_64
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Godot headless needs fontconfig for its text server; iproute2 provides `ss`
-# for the port-bound healthcheck; sqlite3 provides the online-backup API for
-# consistent DB backups; tini gives correct PID 1 signal forwarding.
+# Godot headless needs fontconfig for its text server; coreutils (stat/date) and
+# grep back the health-file healthcheck; sqlite3 provides the online-backup API
+# for consistent DB backups; tini gives correct PID 1 signal forwarding.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		ca-certificates wget unzip libfontconfig1 iproute2 sqlite3 tini \
+		ca-certificates wget unzip libfontconfig1 coreutils grep sqlite3 tini \
 	&& rm -rf /var/lib/apt/lists/*
 
 RUN wget -q "${GODOT_URL}" -O /tmp/godot.zip \
@@ -34,7 +34,8 @@ COPY . /app
 RUN godot --headless --path /app --import 2>&1 | tail -n 30 || true
 
 COPY deploy/game-server/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+COPY deploy/game-server/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh
 
 # Non-root runtime user; owns the source tree (for any runtime reimport) and the
 # writable data home where user:// (accounts.db, Canon) lives.
@@ -45,11 +46,15 @@ USER godot
 ENV HOME=/data \
 	PROJECT0_SERVER_BIND_ADDRESS=0.0.0.0 \
 	PROJECT0_SERVER_PORT=9999 \
-	PROJECT0_ACCOUNTS_DB_PATH=accounts.db
+	PROJECT0_ACCOUNTS_DB_PATH=accounts.db \
+	PROJECT0_HEALTH_FILE=/data/health.json
 
 EXPOSE 9999/udp
 
+# Slice 067: liveness follows the runtime health file the server rewrites each
+# tick (fresh + status "healthy"), so a frozen tick loop is caught even while the
+# UDP socket stays bound.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
-	CMD ss -uln | grep -q ":${PROJECT0_SERVER_PORT}" || exit 1
+	CMD /usr/local/bin/healthcheck.sh
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

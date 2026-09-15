@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [066 — Operator control plane: audited start/stop lifecycle actions](slices/066-operator-lifecycle-actions.md) — **delivered; single run(kind, action, identifier) controller seam + shared _lifecycle; POST /services/{name}/start and /stop as audited jobs; non-lifecycle actions rejected; 62 operator pytest tests**
+- **Current slice:** [067 — Server runtime health file + container HEALTHCHECK](slices/067-server-health-file-healthcheck.md) — **delivered; HealthReporter writes a ServerHealth snapshot to PROJECT0_HEALTH_FILE each ~0.5s tick stride; container HEALTHCHECK now checks freshness+status; GUT 50/50 exit 0, runtime-proven healthy + fail-closed on stale/missing**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,10 +444,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [066 — Operator control plane: audited start/stop lifecycle actions](slices/066-operator-lifecycle-actions.md) — **delivered; generalized ServiceController to a single run(kind, action, identifier) verb + shared OperationsService._lifecycle; added POST /services/{name}/start and /stop as audited jobs; RealServiceController rejects any non-lifecycle action; 62 operator pytest tests; GUT unaffected**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (operator control-plane decision: the admin interface controls the service lifecycle)
-  - **Public seam:** `infra/operator/control.py` (`ServiceController.run`), `infra/operator/operations.py` (`start`/`stop`/`_lifecycle`), `infra/operator/app.py` (`POST /services/{name}/start`, `/stop`)
-  - **Planning ticket:** [operator control-plane decision](../.scratch/container-platform/issues/04-operator-control-plane-and-telemetry.md)
+- **Slice:** [067 — Server runtime health file + container HEALTHCHECK](slices/067-server-health-file-healthcheck.md) — **delivered; server-only HealthReporter writes a ServerHealth snapshot to PROJECT0_HEALTH_FILE (starting -> healthy -> stopping), refreshed each ~0.5s physics stride; healthcheck.sh + Dockerfile/compose HEALTHCHECK consume freshness + status; GUT 50/50 exit 0 (+test_health_reporter), runtime-proven healthy while listening and fail-closed on stale/missing**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (runtime-boundary decision: a truthful container liveness signal)
+  - **Public seam:** `server/health_reporter.gd` (`HealthReporter`), `server/server_main.gd` (health wiring), `deploy/game-server/healthcheck.sh` + Dockerfile `HEALTHCHECK`
+  - **Planning ticket:** [runtime-boundary decision](../.scratch/container-platform/issues/01-runtime-boundary-and-container-adapter.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
 - **Slice:** [063 — Operator control plane: audited mint-invite action](slices/063-operator-mint-invite-action.md) — **delivered; POST /invites reuses the enrollment store to mint a single-use invite as an audited job; secret code in the response only, never audited; 32 operator pytest tests; GUT unaffected**
