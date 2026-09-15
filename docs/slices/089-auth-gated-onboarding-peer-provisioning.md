@@ -1,6 +1,6 @@
 # Slice 089 — Auth-gated onboarding B: `/redeem` accepts a signed assertion + idempotent per-account peer lifecycle and aging/deprovision
 
-Status: **planned** (records-first; no code/tests/build/git run to produce this record)
+Status: **delivered**
 
 Tracker context: Phase 13 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
@@ -593,6 +593,45 @@ extension for `deprovision-stale`):
   executed to produce this planning record. That is Copilot's/the
   implementation handoff's next step, per this repository's records-first
   delivery gate (`AGENTS.md`, `docs/DEVELOPMENT-WORKFLOW.md`).
+
+## Validation evidence
+
+Implemented directly by Copilot (Claude CLI was at its session limit; the user
+explicitly authorized direct Copilot implementation for this slice).
+
+- **GUT full suite** on the Linux host (192.168.1.254), isolated git worktree
+  of commit `65ccc54`, `GODOT_BIN=godot bash scripts/run_gut_validation.sh`
+  (Windows cannot run GUT — no `windows.x86_64` `gdsqlite`/`wgnetstack`
+  binaries): `validation-summary.json` status `passed`, exit 0,
+  scripts 62/62, **420 tests passing, 1553 asserts, 0 failing** (up from Slice
+  088's 415 — +5 new validate-assertion/dual-path/`validate_assertion` cases in
+  `tests/integration/test_login_loopback_http_endpoint.gd`).
+- **Enrollment pytest** on the host `.venv-enrollment`
+  (`python -m pytest infra/enrollment/tests -q`): **96 passed, exit 0** (up
+  from 70 — +26 new store-migration/lifecycle, `redeem_with_assertion`,
+  dual-`/redeem`, assertion-validation-client, and `deprovision-stale` cases).
+  Reproduced locally on Windows (fresh venv): 96 passed, exit 0.
+- **Parse checks** (Windows, cheapest discriminating check before the host
+  run, per Slice 088's learning): `godot --headless --check-only -s
+  server/login_loopback_http_endpoint.gd` and `-s server/login_gateway.gd`
+  both exit 0.
+
+## Root-cause learning
+
+- **Adding a required `EnrollmentConfig` field broke every test `make_config`
+  helper.** Symptom: after adding `peer_idle_ttl_seconds` (a non-default
+  dataclass field), 18 existing tests failed / 12 errored with
+  `TypeError: EnrollmentConfig.__init__() missing 1 required positional
+  argument`. Seam: `infra/enrollment/config.py::EnrollmentConfig`. Discriminating
+  check: `pytest infra/enrollment/tests -q`. Root cause: two duplicated
+  `make_config()` builders (in `test_service.py` and `test_app.py`, imported by
+  the rest) construct the frozen dataclass positionally-by-keyword and do not
+  tolerate a new required field. Countermeasure applied: added the field to both
+  builders in the same change; regression evidence is the green 96/96 run.
+  Remaining debt: the duplicated config builder is a small liability (a future
+  slice could centralize a single test config factory), not opened as a formal
+  DT item given its low cost. No unexpected *runtime* failure occurred — this
+  was a compile-time/test-fixture surface caught immediately by the suite.
 
 ## ADR link
 

@@ -899,6 +899,30 @@ for a developer to pick up. No implementation has started.
   `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
   - Date: 2026-09-15
+    What changed: Implemented and delivered [Slice 089](slices/089-auth-gated-onboarding-peer-provisioning.md)
+    — the assertion-gated `/redeem` path and idempotent per-account peer
+    lifecycle (ADR 0004 follow-up B, sub-decision 3). Added a loopback
+    `POST /internal/validate-assertion` to `server/login_loopback_http_endpoint.gd`
+    (dispatched alongside the Slice 088 verify-and-mint path) backed by a new
+    pure `LoginGateway.validate_assertion` (no session bind); the enrollment
+    service gained `RealAssertionValidationClient`, an assertion-gated
+    `EnrollmentService.redeem_with_assertion` keyed idempotently on `account_id`
+    (same key → touch + return the same peer, different key →
+    `ACCOUNT_PEER_KEY_MISMATCH`), a nullable-`invite_code` store migration with
+    a partial unique index, and an operator `deprovision-stale` CLI reusing
+    `RevocationService`. Validated on the Linux host in an isolated worktree of
+    commit `65ccc54`: GUT 420/420 across 62/62 scripts (1553 asserts), exit 0;
+    enrollment pytest 96/96, exit 0 (also reproduced on Windows). Implemented
+    directly by Copilot with the user's explicit authorization while Claude CLI
+    was at its session limit.
+    Why: Advance the ADR 0004 self-service onboarding chain so a player with a
+    signed login assertion can provision a WireGuard peer without an
+    operator-minted invite code.
+    Related work: [Slice 089](slices/089-auth-gated-onboarding-peer-provisioning.md),
+    [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+  - Date: 2026-09-15
     What changed: Validated and delivered [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
     on the canonical Linux host (`192.168.1.254`), in an isolated git worktree
     of commit `d732ff6`. `GODOT_BIN=godot bash scripts/run_gut_validation.sh`
