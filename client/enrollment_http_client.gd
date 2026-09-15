@@ -52,23 +52,13 @@ func login(base_url: String, username: String, password: String) -> Dictionary:
 ## List the account's Characters. Returns {"outcome": OUTCOME_OK, "characters": Array}.
 func list_characters(base_url: String, assertion: String) -> Dictionary:
 	var result: Dictionary = await _post_json(base_url, "/characters/list", {"assertion": assertion})
-	if result["outcome"] != OUTCOME_OK:
-		return {"outcome": result["outcome"], "status": result["status"]}
-	var data: Dictionary = result["data"]
-	if not (data.get("characters") is Array):
-		return {"outcome": OUTCOME_MALFORMED, "status": result["status"]}
-	return {"outcome": OUTCOME_OK, "characters": data["characters"]}
+	return _require_array_field(result, "characters")
 
 
 ## Create a Character. Returns {"outcome": OUTCOME_OK, "character": Dictionary}.
 func create_character(base_url: String, assertion: String, name: String, cosmetic: Dictionary) -> Dictionary:
 	var result: Dictionary = await _post_json(base_url, "/characters/create", {"assertion": assertion, "name": name, "cosmetic": cosmetic})
-	if result["outcome"] != OUTCOME_OK:
-		return {"outcome": result["outcome"], "status": result["status"]}
-	var data: Dictionary = result["data"]
-	if not (data.get("character") is Dictionary):
-		return {"outcome": OUTCOME_MALFORMED, "status": result["status"]}
-	return {"outcome": OUTCOME_OK, "character": data["character"]}
+	return _require_dict_field(result, "character")
 
 
 ## Select a Character and receive the signed CHARACTER assertion for world entry.
@@ -124,5 +114,25 @@ func _require_string_field(result: Dictionary, field: String) -> Dictionary:
 		return {"outcome": result["outcome"], "status": result["status"]}
 	var data: Dictionary = result["data"]
 	if not (data.get(field) is String):
+		return {"outcome": OUTCOME_MALFORMED, "status": result["status"]}
+	return {"outcome": OUTCOME_OK, field: data[field]}
+
+
+## Extractor for a success body carrying a single Array `field` (list).
+func _require_array_field(result: Dictionary, field: String) -> Dictionary:
+	if result["outcome"] != OUTCOME_OK:
+		return {"outcome": result["outcome"], "status": result["status"]}
+	var data: Dictionary = result["data"]
+	if not (data.get(field) is Array):
+		return {"outcome": OUTCOME_MALFORMED, "status": result["status"]}
+	return {"outcome": OUTCOME_OK, field: data[field]}
+
+
+## Extractor for a success body carrying a single Dictionary `field` (create).
+func _require_dict_field(result: Dictionary, field: String) -> Dictionary:
+	if result["outcome"] != OUTCOME_OK:
+		return {"outcome": result["outcome"], "status": result["status"]}
+	var data: Dictionary = result["data"]
+	if not (data.get(field) is Dictionary):
 		return {"outcome": OUTCOME_MALFORMED, "status": result["status"]}
 	return {"outcome": OUTCOME_OK, field: data[field]}
