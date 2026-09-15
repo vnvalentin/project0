@@ -96,8 +96,9 @@ contended range and everything after it is tracked explicitly:
 | 078 | Wire login-screen gates to the login process (opt-in client flag) (P-014) | interactive |
 | 079 | Optional dedicated Canon store: opt-in canon/accounts DB split on the game server (P-014) | interactive |
 | 080 | One-time Canon migration into a dedicated store on first split boot (P-014) | interactive |
+| 081 | Deploy the standalone login server via docker-compose (opt-in profile) (P-014) | interactive |
 
-Next free slice: **081** (verify against `docs/slices/` before reserving).
+Next free slice: **082** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
