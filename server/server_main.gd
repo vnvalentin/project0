@@ -388,6 +388,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	player_state.action_resolved.connect(_on_player_state_action_resolved)
 	player_state.combat_event_emitted.connect(_on_player_state_combat_event_emitted)
 	player_state.melee_swing_started.connect(_on_player_state_melee_swing_started)
+	player_state.character_bound.connect(_on_player_state_character_bound)
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
 	player_state.set_target_dummies(_target_dummies)
@@ -420,6 +421,11 @@ func _on_peer_connected(peer_id: int) -> void:
 		var existing_state: Node = _player_states[existing_peer_id]
 		network_client.rpc_id(peer_id, "spawn_remote_player_representation", existing_peer_id, existing_state.position)
 		network_client.rpc_id(existing_peer_id, "spawn_remote_player_representation", peer_id, start_position)
+		# Slice 086: if that peer already entered the world, replicate its bound
+		# Character identity to the newly-connected peer. Reliable and ordered
+		# after the spawn above, so the RemotePlayer node exists when it arrives.
+		if not String(existing_state.character_display_name).is_empty():
+			network_client.rpc_id(peer_id, "receive_remote_player_identity", existing_peer_id, existing_state.character_display_name, existing_state.character_cosmetic)
 
 	# Slice 033: replicate every currently living monster to the new peer only
 	# — existing peers already have a representation for each from their own
@@ -453,6 +459,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.action_resolved.disconnect(_on_player_state_action_resolved)
 		player_state.combat_event_emitted.disconnect(_on_player_state_combat_event_emitted)
 		player_state.melee_swing_started.disconnect(_on_player_state_melee_swing_started)
+		player_state.character_bound.disconnect(_on_player_state_character_bound)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
 	if _sector_boundary_detector != null:
@@ -480,6 +487,20 @@ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) 
 		if other_peer_id == peer_id:
 			continue
 		network_client.rpc_id(other_peer_id, "receive_remote_player_position", peer_id, updated_position)
+
+
+## Slice 086: replicates a peer's bound Character identity (display name +
+## cosmetic) to every other connected peer when it enters the world, so each
+## client can label that peer's remote representation as the selected Character.
+## Identity only — never a trusted position or outcome.
+func _on_player_state_character_bound(peer_id: int, display_name: String, cosmetic: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for other_peer_id: int in _player_states.keys():
+		if other_peer_id == peer_id:
+			continue
+		network_client.rpc_id(other_peer_id, "receive_remote_player_identity", peer_id, display_name, cosmetic)
 
 
 func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:

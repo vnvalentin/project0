@@ -65,6 +65,12 @@ signal combat_event_emitted(peer_id: int, combat_event: Object)
 ## presentation.
 signal melee_swing_started(peer_id: int, windup_ticks: int, active_ticks: int, facing: Vector3)
 
+## Slice 086: emitted once when this peer's selected Character is bound at world
+## entry, so server_main.gd can replicate the Character's identity (display name
+## + cosmetic) to every other connected peer without this node needing to know
+## about peer replication itself (matching position_updated's separation).
+signal character_bound(peer_id: int, display_name: String, cosmetic: Dictionary)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
 ## Forward-facing direction used for the melee arc check; defaults to -Z
@@ -87,6 +93,7 @@ func bind_character(p_character_id: String, p_display_name: String, p_cosmetic: 
 	character_id = p_character_id
 	character_display_name = p_display_name
 	character_cosmetic = p_cosmetic
+	character_bound.emit(owning_peer_id, character_display_name, character_cosmetic)
 
 
 ## Melee action state. archetype is fixed to the Generic Sword baseline for
