@@ -283,11 +283,16 @@ func _start_server() -> void:
 	# the shared LoginRuntime, so the game server and the standalone login process
 	# wire it identically. The account repository/schema was ensured above; the
 	# game server keeps its in-process login (the preserved in-process adapter).
-	var login_services: Dictionary = LoginRuntimeScript.build_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret())
+	# Slice 076: opt-in assertion-only mode. When PROJECT0_GAME_ASSERTION_ONLY=1
+	# the game server refuses account-authority RPCs (register/login/CRUD) and
+	# accepts only the assertion path; off by default so the pre-cutover client
+	# (whose login screen still authenticates here) keeps working.
+	var account_authority: bool = OS.get_environment("PROJECT0_GAME_ASSERTION_ONLY").strip_edges() != "1"
+	var login_services: Dictionary = LoginRuntimeScript.build_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret(), LoginRuntimeScript.ASSERTION_ISSUER_ID, LoginRuntimeScript.ASSERTION_AUDIENCE, account_authority)
 	_auth_service = login_services["auth"]
 	_character_service = login_services["characters"]
 	_login_gateway = login_services["gateway"]
-	print("Accounts database ready at user://%s (schema ensured)." % accounts_db_path)
+	print("Accounts database ready at user://%s (schema ensured); assertion-only mode: %s." % [accounts_db_path, not account_authority])
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
 	var server_port: int = NetworkConfigScript.resolve_server_port()

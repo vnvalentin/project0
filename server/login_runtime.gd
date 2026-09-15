@@ -58,8 +58,10 @@ static func resolve_assertion_secret_details(raw: String) -> Dictionary:
 ## handles: { "auth": AuthService, "characters": CharacterService,
 ## "gateway": LoginGateway }. AuthService/CharacterService are Nodes because
 ## register/login are coroutines that await get_tree().process_frame while PBKDF2
-## runs off-thread — so `parent` must be inside the SceneTree.
-static func build_services(account_repository: Object, parent: Node, assertion_secret: String, issuer_id: String = ASSERTION_ISSUER_ID, audience: String = ASSERTION_AUDIENCE) -> Dictionary:
+## runs off-thread — so `parent` must be inside the SceneTree. Slice 076:
+## `account_authority` false builds an assertion-only gateway (the game server in
+## a split deployment) that refuses register/login/Character-CRUD.
+static func build_services(account_repository: Object, parent: Node, assertion_secret: String, issuer_id: String = ASSERTION_ISSUER_ID, audience: String = ASSERTION_AUDIENCE, account_authority: bool = true) -> Dictionary:
 	var auth: Node = AuthServiceScript.new(account_repository)
 	auth.name = "AuthService"
 	parent.add_child(auth)
@@ -75,5 +77,6 @@ static func build_services(account_repository: Object, parent: Node, assertion_s
 	var issuer: Object = AssertionIssuerScript.new(assertion_secret, issuer_id, audience)
 	var validator: Object = AssertionValidatorScript.new(assertion_secret, issuer_id, audience)
 	gateway.set_assertion_seams(issuer, validator)
+	gateway.set_account_authority_enabled(account_authority)
 
 	return {"auth": auth, "characters": characters, "gateway": gateway}

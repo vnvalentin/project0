@@ -27,6 +27,14 @@ const OUTCOME_OK: String = "ok"
 const REASON_NO_SESSION: String = "no_session"
 const REASON_NO_CHARACTER: String = "no_character"
 const REASON_UNAVAILABLE: String = "unavailable"
+## Slice 076: returned by the account-authority operations when this gateway runs
+## in assertion-only mode (the game server in a split deployment). Accounts live
+## on the login process; the game server accepts only the assertion path.
+const REASON_ACCOUNT_AUTHORITY_DISABLED: String = "account_authority_disabled"
+
+# Slice 076: when false, register/login/Character-CRUD are refused (the game
+# server is not an accounts authority). The assertion path is always available.
+var _account_authority_enabled: bool = true
 
 
 func _init(auth_service: Object, character_service: Object) -> void:
@@ -34,13 +42,24 @@ func _init(auth_service: Object, character_service: Object) -> void:
 	_characters = character_service
 
 
+## Slice 076: toggles whether this gateway acts as an accounts authority. The
+## login process leaves it enabled; the game server disables it in assertion-only
+## mode so a client can only establish a session by presenting a signed assertion.
+func set_account_authority_enabled(enabled: bool) -> void:
+	_account_authority_enabled = enabled
+
+
 ## Account authentication (delegates to AuthService; coroutine — PBKDF2 runs
 ## off-thread inside AuthService, never on the main tick).
 func register(peer_id: int, username: String, password: String) -> Dictionary:
+	if not _account_authority_enabled:
+		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return await _auth.register(peer_id, username, password)
 
 
 func login(peer_id: int, username: String, password: String) -> Dictionary:
+	if not _account_authority_enabled:
+		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return await _auth.login(peer_id, username, password)
 
 
@@ -55,23 +74,35 @@ func clear_session(peer_id: int) -> void:
 
 
 ## Character operations (delegate to CharacterService, which derives the account
-## from the peer's session — the client never supplies an account_id).
+## from the peer's session — the client never supplies an account_id). Refused in
+## assertion-only mode; the client performs these on the login process.
 func list_characters(peer_id: int) -> Dictionary:
+	if not _account_authority_enabled:
+		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.list_characters(peer_id)
 
 
 func create_character(peer_id: int, character_name, cosmetic) -> Dictionary:
+	if not _account_authority_enabled:
+		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.create_character(peer_id, character_name, cosmetic)
 
 
 func select_character(peer_id: int, character_id) -> Dictionary:
+	if not _account_authority_enabled:
+		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.select_character(peer_id, character_id)
 
 
 func delete_character(peer_id: int, character_id) -> Dictionary:
+	if not _account_authority_enabled:
+		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.delete_character(peer_id, character_id)
 
 
+## Resolves the peer's selected Character for world entry. Always available (even
+## in assertion-only mode) — it reads the session (snapshot from a validated
+## assertion, or the DB in the in-process path), not the accounts authority.
 func get_selected_character(peer_id: int) -> Dictionary:
 	return _characters.get_selected_character(peer_id)
 
