@@ -61,6 +61,12 @@ const TARGET_HOST_ENV_VAR: String = "PROJECT0_SERVER_HOST"
 const SERVER_PORT_CLI_ARG: String = "--server-port="
 const SERVER_PORT_ENV_VAR: String = "PROJECT0_SERVER_PORT"
 
+# Slice 072: the standalone login server's UDP port, resolved with the same
+# precedence as the game port so the client and the login server never disagree.
+const LOGIN_PORT: int = 9998
+const LOGIN_PORT_CLI_ARG: String = "--login-port="
+const LOGIN_PORT_ENV_VAR: String = "PROJECT0_LOGIN_PORT"
+
 
 ## Public seam: resolves the address the headless server should bind to.
 ## Precedence: `--server-bind-address=<addr>` CLI argument, then the
@@ -110,6 +116,22 @@ static func resolve_server_port() -> int:
 		return from_env
 
 	return SERVER_PORT
+
+
+## Public seam: resolves the UDP port the standalone login server listens on and
+## the client dials for the login handoff. Precedence: `--login-port=<n>` CLI
+## argument, then `PROJECT0_LOGIN_PORT`, then LOGIN_PORT. A malformed value falls
+## back to the default (never binds port 0 or an out-of-range port).
+static func resolve_login_port() -> int:
+	var from_cli: int = _parse_port(_find_cli_arg_value(LOGIN_PORT_CLI_ARG))
+	if from_cli != 0:
+		return from_cli
+
+	var from_env: int = _parse_port(OS.get_environment(LOGIN_PORT_ENV_VAR))
+	if from_env != 0:
+		return from_env
+
+	return LOGIN_PORT
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,
