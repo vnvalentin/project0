@@ -92,8 +92,9 @@ contended range and everything after it is tracked explicitly:
 | 074 | Signed Character snapshot in the session assertion (contract + issuer) (P-014) | interactive |
 | 075 | Cross-DB world entry: bind Player from the assertion snapshot (P-014) | interactive |
 | 076 | Game server assertion-only mode: refuse account-authority RPCs (opt-in) (P-014) | interactive |
+| 077 | Client login->game handoff seam (NetworkClient.perform_login_to_game_handoff) (P-014) | interactive |
 
-Next free slice: **077** (verify against `docs/slices/` before reserving).
+Next free slice: **078** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
