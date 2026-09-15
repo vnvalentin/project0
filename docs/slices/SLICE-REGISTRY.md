@@ -82,8 +82,9 @@ contended range and everything after it is tracked explicitly:
 | 064 | Operator control plane: audited revoke-peer action (P-014) | interactive |
 | 065 | Operator control plane: durable SQLite audit sink (P-014) | interactive |
 | 066 | Operator control plane: audited start/stop lifecycle actions (P-014) | interactive |
+| 067 | Server runtime health file + container HEALTHCHECK (P-014) | interactive |
 
-Next free slice: **067** (verify against `docs/slices/` before reserving).
+Next free slice: **068** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
