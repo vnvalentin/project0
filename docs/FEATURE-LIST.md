@@ -899,6 +899,27 @@ for a developer to pick up. No implementation has started.
   `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
   - Date: 2026-09-15
+    What changed: Implemented and delivered [Slice 091](slices/091-client-https-auth-character-seam.md)
+    — `client/enrollment_http_client.gd` (`EnrollmentHttpClient`), the Godot
+    client's HTTPS seam consuming the Slice 088 `/login` and Slice 090
+    `/characters/*` routes (login + character list/create/select/delete),
+    with bounded fail-closed outcomes and a static `resolve_base_url()`.
+    Validated on the Linux host (commit `52c78ff`): GUT 432/432 across 63/63
+    scripts, exit 0, confirmed across two consecutive runs. Root-cause
+    learning recorded: the first draft's real-socket test crashed the suite
+    nondeterministically (SIGSEGV, "object freed while a signal is being
+    emitted" — an HTTPRequest/Node teardown race); rewritten to test the
+    bounded parse/outcome logic purely (synthetic response arrays, no socket),
+    which is deterministic. Implemented directly by Copilot with the user's
+    explicit authorization. The UI-scene rewiring + live tunnel handoff that
+    consumes this seam is the runtime-validated follow-up (Slice 093).
+    Why: Give the Godot client a bounded, tested consumer of the HTTPS
+    account-and-character surface so the tunnelled flow can obtain a character
+    assertion without ENet reach to the login server (9998).
+    Related work: [Slice 091](slices/091-client-https-auth-character-seam.md),
+    [Slice 090](slices/090-https-character-endpoints.md),
+    [ADR 0005](adr/0005-character-selection-over-https.md)
+  - Date: 2026-09-15
     What changed: Implemented and delivered [Slice 090](slices/090-https-character-endpoints.md)
     — the server half of ADR 0005 (Option A): character selection over HTTPS.
     `server/login_loopback_http_endpoint.gd` gained four account-scoped

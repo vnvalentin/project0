@@ -75,16 +75,41 @@ server→`transport_error`; `resolve_base_url` env/trim/default.
 ## Validation evidence
 
 - **GUT full suite** on the Linux host (192.168.1.254), isolated git worktree
-  of the slice commit, `GODOT_BIN=godot bash scripts/run_gut_validation.sh`:
-  status `passed`, exit 0, scripts 63/63, **432 tests passing** (up from Slice
-  090's 423 — +9 `test_enrollment_http_client.gd` cases). _(filled from the
-  host run.)_
+  of commit `52c78ff`, `GODOT_BIN=godot bash scripts/run_gut_validation.sh`:
+  status `passed`, exit 0, scripts 63/63, **432 tests passing, 0 failing** (up
+  from Slice 090's 423 — +9 `test_enrollment_http_client.gd` cases). Confirmed
+  deterministic across two consecutive host runs (both 432/432, exit 0) after
+  the root-cause fix below.
 
 ## Root-cause learning
 
-No unexpected failure. The seam has no native-lib dependency, so it parse-checks
-and (unlike the DB-backed suites) runs on Windows too; the authoritative gate
-remained the Linux host full-suite run.
+- **A real-socket GUT test crashed the whole suite (SIGSEGV), nondeterministically.**
+  Symptom: the first draft of `test_enrollment_http_client.gd` drove the real
+  `HTTPRequest` transport against the fake HTTP server fixture; on the host it
+  passed structurally on one run but on a re-run crashed with `signal 11` and
+  `"Object was freed or unreferenced while a signal is being emitted from it"`
+  during `test_login_non_2xx_is_http_error`, aborting GUT before it wrote the
+  JUnit XML (the gate then reported `scripts_ran: 0`). Seam:
+  `client/enrollment_http_client.gd` + the test's teardown. Discriminating check:
+  running the host suite twice — pass then crash — revealed the nondeterminism.
+  Root cause: awaiting `HTTPRequest.request_completed` and then letting GUT's
+  autofree tear down the client/`HTTPRequest`/fake-server nodes races the
+  in-flight signal/connection teardown (a known Godot `Node`/signal lifecycle
+  hazard). Why existing tests missed it: no prior client test drove a real HTTP
+  round trip in-suite. Countermeasure: the seam's value is its **bounded
+  outcome mapping**, so the test was rewritten to be **pure** — `_parse` and the
+  field extractors are fed synthetic `request_completed` arrays / result dicts,
+  with no real socket, `HTTPRequest` node, or awaited signal — which is
+  deterministic and cannot race teardown. The real end-to-end HTTP path stays
+  covered by the enrollment route tests and the loopback GUT suite. Regression
+  evidence: the host full suite is 432/432, exit 0. General lesson recorded for
+  future client HTTP work: unit-test the parse/outcome logic purely; do not
+  drive a real `HTTPRequest` round trip inside the shared GUT suite.
+- **An architecture guard bit as intended.** `client/` must not reference
+  `local_llm_client`/`LocalLLMClient`/`11434`
+  (`tests/integration/test_client_never_contacts_ollama.gd`). The seam's doc
+  comment named `shared/local_llm_client.gd` as its pattern source and tripped
+  the guard; rephrased to drop the token. Good signal that the guard works.
 
 ## ADR link
 
