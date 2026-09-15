@@ -1,0 +1,62 @@
+extends RefCounted
+class_name LoginRuntime
+## Slice 068: server-only builder for the login authority's service graph, so the
+## in-process game server (server/server_main.gd) and the standalone login
+## process (server/login_server_main.gd) wire AuthService + CharacterService +
+## LoginGateway (+ the Slice 059/060 assertion issuer/validator) identically from
+## one source of truth. Server-only per CLAUDE.md: shared/ and client/ never
+## construct it.
+##
+## It does NOT own the SQLite store or the account schema — the caller opens the
+## store and ensures the schema first (matching each entrypoint's fail-closed
+## boot order), then hands the repository here.
+
+const AuthServiceScript: Script = preload("res://server/auth_service.gd")
+const CharacterServiceScript: Script = preload("res://server/character_service.gd")
+const LoginGatewayScript: Script = preload("res://server/login_gateway.gd")
+const AssertionIssuerScript: Script = preload("res://server/assertion_issuer.gd")
+const AssertionValidatorScript: Script = preload("res://server/assertion_validator.gd")
+
+## Slice 060: session-assertion issuer/audience identifiers. The login authority
+## issues under ASSERTION_ISSUER_ID; the game server accepts only that issuer and
+## the ASSERTION_AUDIENCE it serves. Shared here so both entrypoints agree.
+const ASSERTION_ISSUER_ID: String = "project0-login"
+const ASSERTION_AUDIENCE: String = "project0-game"
+
+
+## Resolves the shared HMAC secret (hex) for the assertion issuer/validator from
+## PROJECT0_ASSERTION_SECRET. When unset, returns an ephemeral per-boot key and
+## prints a dev-only warning. In-process, issuer and validator share one secret;
+## a login-service split keeps the same configured secret on both sides.
+static func resolve_assertion_secret() -> String:
+	var secret: String = OS.get_environment("PROJECT0_ASSERTION_SECRET").strip_edges()
+	if secret.is_empty():
+		secret = Crypto.new().generate_random_bytes(32).hex_encode()
+		print("PROJECT0_ASSERTION_SECRET not set; using an ephemeral per-boot assertion key (dev only).")
+	return secret
+
+
+## Builds the login service graph from an already-open account repository, adds
+## the service nodes under `parent`, wires the assertion seams, and returns the
+## handles: { "auth": AuthService, "characters": CharacterService,
+## "gateway": LoginGateway }. AuthService/CharacterService are Nodes because
+## register/login are coroutines that await get_tree().process_frame while PBKDF2
+## runs off-thread — so `parent` must be inside the SceneTree.
+static func build_services(account_repository: Object, parent: Node, assertion_secret: String, issuer_id: String = ASSERTION_ISSUER_ID, audience: String = ASSERTION_AUDIENCE) -> Dictionary:
+	var auth: Node = AuthServiceScript.new(account_repository)
+	auth.name = "AuthService"
+	parent.add_child(auth)
+
+	var characters: Node = CharacterServiceScript.new(account_repository, auth.get_session_registry())
+	characters.name = "CharacterService"
+	parent.add_child(characters)
+
+	var gateway: Node = LoginGatewayScript.new(auth, characters)
+	gateway.name = "LoginGateway"
+	parent.add_child(gateway)
+
+	var issuer: Object = AssertionIssuerScript.new(assertion_secret, issuer_id, audience)
+	var validator: Object = AssertionValidatorScript.new(assertion_secret, issuer_id, audience)
+	gateway.set_assertion_seams(issuer, validator)
+
+	return {"auth": auth, "characters": characters, "gateway": gateway}
