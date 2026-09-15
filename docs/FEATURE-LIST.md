@@ -899,6 +899,28 @@ for a developer to pick up. No implementation has started.
   `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
   - Date: 2026-09-15
+    What changed: Implemented and delivered [Slice 092](slices/092-launcher-login-redeem-assertion.md)
+    
+—
+ the Windows launcher (native/windows_launcher/) now provisions its
+    WireGuard peer via self-service login instead of requiring a one-time
+    invite from a third device: it prompts for username/password, calls the
+    enrollment service POST /login for a signed account assertion, and redeems
+    the peer with {assertion, public_key} (the /redeem assertion path from
+    Slice 089) before bringing up the tunnel. An explicit --invite-code= /
+    PROJECT0_INVITE_CODE remains a fallback. The interactive credential prompt
+    is an injectable credentialPrompter seam so tests never block on the
+    Windows credential dialog. Validated on Windows via
+    go test ./native/windows_launcher/ (12/12, up from 6). Live WAN tunnel
+    bring-up is a user-pending real-Windows run. Implemented directly by
+    Copilot with explicit user authorization.
+    Why: Remove the "obtain an invite from another device" dead-end so a new
+    player can go from download to in-world with only their credentials.
+    Related work: [Slice 092](slices/092-launcher-login-redeem-assertion.md),
+    [Slice 089](slices/089-auth-gated-onboarding-peer-provisioning.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)
+  - Date: 2026-09-15
     What changed: Implemented and delivered [Slice 093](slices/093-client-https-login-wiring.md)
     — wired `client/account_gate.gd` and `client/character_gate.gd` to the
     HTTPS enrollment flow (Slice 091 `EnrollmentHttpClient`) behind a new
