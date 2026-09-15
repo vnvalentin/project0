@@ -88,8 +88,9 @@ contended range and everything after it is tracked explicitly:
 | 070 | Deploy + supervise the standalone login server (systemd + operator allowlist) (P-014) | interactive |
 | 071 | Shared assertion secret across the game + login units (P-014) | interactive |
 | 072 | Login-endpoint config: NetworkConfig.resolve_login_port + login server unifies on it (P-014) | interactive |
+| 073 | Login->game handoff e2e: client authenticates on login process, presents assertion to game process (P-014) | interactive |
 
-Next free slice: **073** (verify against `docs/slices/` before reserving).
+Next free slice: **074** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
