@@ -21,6 +21,10 @@ const ISSUER: String = "project0-login"
 const AUDIENCE: String = "project0-game"
 const REQUEST_PATH: String = "/internal/verify-and-mint"
 const REQUEST_PATH_VALIDATE: String = "/internal/validate-assertion"
+const REQUEST_PATH_CHAR_LIST: String = "/internal/characters/list"
+const REQUEST_PATH_CHAR_CREATE: String = "/internal/characters/create"
+const REQUEST_PATH_CHAR_DELETE: String = "/internal/characters/delete"
+const REQUEST_PATH_CHAR_SELECT: String = "/internal/characters/select"
 const MAX_WAIT_FRAMES: int = 300
 
 var _relative_path: String = ""
@@ -295,6 +299,57 @@ func test_gateway_validate_assertion_returns_claims_and_fails_closed() -> void:
 
 	var bad: Dictionary = _gateway.validate_assertion("garbage", int(Time.get_unix_time_from_system()))
 	assert_ne(bad.get("outcome", ""), "ok", "validate_assertion fails closed on a bad token")
+
+
+## Slice 090: end-to-end character flow over the loopback endpoint — list (empty),
+## create, select (mints a CHARACTER assertion), all account-scoped by the
+## presented account assertion, leaving no synthetic session bound.
+func test_characters_list_create_select_flow() -> void:
+	var token: String = await _mint_assertion_for(2, "ivan", "s3cret1234")
+
+	var list0: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token}), "application/json", "", "POST", REQUEST_PATH_CHAR_LIST))
+	assert_eq(list0["status_code"], 200, "list returns 200")
+	var list0_body: Dictionary = JSON.parse_string(list0["body"])
+	assert_eq((list0_body.get("characters", []) as Array).size(), 0, "a new account has no characters")
+
+	var create: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token, "name": "Ivan Hero", "cosmetic": {}}), "application/json", "", "POST", REQUEST_PATH_CHAR_CREATE))
+	assert_eq(create["status_code"], 200, "create returns 200")
+	var create_body: Dictionary = JSON.parse_string(create["body"])
+	assert_eq(create_body.get("outcome", ""), "ok", "create ok")
+	var character_id: String = String((create_body["character"] as Dictionary).get("character_id", ""))
+	assert_true(character_id.length() > 0, "created character has an id")
+
+	var select: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token, "character_id": character_id}), "application/json", "", "POST", REQUEST_PATH_CHAR_SELECT))
+	assert_eq(select["status_code"], 200, "select returns 200")
+	var select_body: Dictionary = JSON.parse_string(select["body"])
+	assert_eq(select_body.get("outcome", ""), "ok", "select ok")
+	var char_assertion: String = String(select_body.get("assertion", ""))
+	assert_true(char_assertion.length() > 0, "a character assertion is minted")
+
+	var validated: Dictionary = _external_validator.validate(char_assertion, int(Time.get_unix_time_from_system()))
+	assert_eq(validated["outcome"], "ok", "the character assertion validates")
+	assert_eq(String((validated["claims"] as Dictionary).get("cid", "")), character_id, "it carries the selected character id")
+
+	for synthetic_id in range(-1, -12, -1):
+		assert_false(_gateway.is_authenticated(synthetic_id), "no synthetic session outlives a character op (id %d)" % synthetic_id)
+
+
+func test_characters_reject_a_bad_account_assertion() -> void:
+	var response: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": "garbage"}), "application/json", "", "POST", REQUEST_PATH_CHAR_LIST))
+	assert_eq(response["status_code"], 401, "a bad account assertion is rejected 401")
+
+
+func test_characters_delete_removes_a_character() -> void:
+	var token: String = await _mint_assertion_for(2, "judy", "s3cret1234")
+	var create: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token, "name": "Judy Hero", "cosmetic": {}}), "application/json", "", "POST", REQUEST_PATH_CHAR_CREATE))
+	var character_id: String = String((JSON.parse_string(create["body"])["character"] as Dictionary).get("character_id", ""))
+
+	var deleted: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token, "character_id": character_id}), "application/json", "", "POST", REQUEST_PATH_CHAR_DELETE))
+	assert_eq(deleted["status_code"], 200, "delete returns 200")
+	assert_eq(JSON.parse_string(deleted["body"]).get("outcome", ""), "ok", "delete ok")
+
+	var list_after: Dictionary = await _raw_request(_endpoint.port, _build_request(JSON.stringify({"assertion": token}), "application/json", "", "POST", REQUEST_PATH_CHAR_LIST))
+	assert_eq((JSON.parse_string(list_after["body"]).get("characters", []) as Array).size(), 0, "the deleted character no longer lists")
 
 
 func test_loopback_bind_is_hardcoded_to_127_0_0_1() -> void:

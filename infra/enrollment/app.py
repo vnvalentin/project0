@@ -15,9 +15,12 @@ from pydantic import BaseModel, Field, model_validator
 from .config import EnrollmentConfig, load_config
 from .login_client import (
     AssertionValidationClient,
+    CharacterAuthorityError,
+    CharacterClient,
     LoginAuthorityClient,
     LoginAuthorityError,
     RealAssertionValidationClient,
+    RealCharacterClient,
     RealLoginAuthorityClient,
 )
 from .opnsense_client import OpnsenseWireguardClient, RealOpnsenseWireguardClient
@@ -49,6 +52,23 @@ _LOGIN_REJECTION_STATUS = {
     LoginAuthorityError.MALFORMED: 400,
     LoginAuthorityError.UPSTREAM_UNAVAILABLE: 502,
     LoginAuthorityError.UPSTREAM_ERROR: 502,
+}
+
+# Slice 090 (ADR 0005): maps a character op's bounded reason to a public HTTP
+# status. Transport/auth reasons and the login authority's domain outcomes
+# (CharacterRecord.REJECT_*) are enumerated; any unlisted reason falls back to
+# 400 rather than leaking detail.
+_CHARACTER_REJECTION_STATUS = {
+    CharacterAuthorityError.ASSERTION_REJECTED: 401,
+    CharacterAuthorityError.UPSTREAM_UNAVAILABLE: 502,
+    CharacterAuthorityError.UPSTREAM_ERROR: 502,
+    "NOT_AUTHENTICATED": 401,
+    "NAME_TAKEN": 409,
+    "NAME_INVALID": 422,
+    "CHARACTER_CAP_REACHED": 409,
+    "NOT_OWNER": 403,
+    "NO_SUCH_CHARACTER": 404,
+    "ALREADY_DELETED": 409,
 }
 
 
@@ -83,12 +103,44 @@ class LoginResponse(BaseModel):
     assertion: str
 
 
-def create_app(service: EnrollmentService, login_authority_client: LoginAuthorityClient) -> FastAPI:
-    """Build a FastAPI app bound to the given (already-configured) service and login client.
+class CharacterListRequest(BaseModel):
+    assertion: str = Field(min_length=1)
 
-    Production entrypoints call this with a service wired to the real
-    OPNsense client and store, and a login client wired to the real loopback
-    login authority; tests call it with fakes so no live call is ever made.
+
+class CharacterCreateRequest(BaseModel):
+    assertion: str = Field(min_length=1)
+    name: str
+    cosmetic: dict = Field(default_factory=dict)
+
+
+class CharacterMutateRequest(BaseModel):
+    assertion: str = Field(min_length=1)
+    character_id: str = Field(min_length=1)
+
+
+class CharacterListResponse(BaseModel):
+    characters: list
+
+
+class CharacterResponse(BaseModel):
+    character: dict
+
+
+class CharacterAssertionResponse(BaseModel):
+    assertion: str
+
+
+def create_app(
+    service: EnrollmentService,
+    login_authority_client: LoginAuthorityClient,
+    character_client: CharacterClient | None = None,
+) -> FastAPI:
+    """Build a FastAPI app bound to the given (already-configured) service and clients.
+
+    Production entrypoints call this with a service wired to the real OPNsense
+    client and store, a login client wired to the real loopback login
+    authority, and (Slice 090) a real character client; tests call it with
+    fakes so no live call is ever made.
     """
     app = FastAPI(title="Project0 WireGuard Enrollment Service")
 
@@ -123,6 +175,48 @@ def create_app(service: EnrollmentService, login_authority_client: LoginAuthorit
             raise HTTPException(status_code=status_code, detail=exc.reason) from exc
         return LoginResponse(assertion=assertion)
 
+    def _require_character_client() -> CharacterClient:
+        if character_client is None:
+            raise HTTPException(status_code=503, detail="character_authority_unavailable")
+        return character_client
+
+    def _character_http_error(exc: CharacterAuthorityError) -> HTTPException:
+        return HTTPException(status_code=_CHARACTER_REJECTION_STATUS.get(exc.reason, 400), detail=exc.reason)
+
+    @app.post("/characters/list", response_model=CharacterListResponse)
+    def characters_list(request: CharacterListRequest) -> CharacterListResponse:
+        try:
+            characters = _require_character_client().list_characters(request.assertion)
+        except CharacterAuthorityError as exc:
+            raise _character_http_error(exc) from exc
+        return CharacterListResponse(characters=characters)
+
+    @app.post("/characters/create", response_model=CharacterResponse)
+    def characters_create(request: CharacterCreateRequest) -> CharacterResponse:
+        try:
+            character = _require_character_client().create_character(
+                request.assertion, request.name, request.cosmetic
+            )
+        except CharacterAuthorityError as exc:
+            raise _character_http_error(exc) from exc
+        return CharacterResponse(character=character)
+
+    @app.post("/characters/delete")
+    def characters_delete(request: CharacterMutateRequest) -> dict:
+        try:
+            _require_character_client().delete_character(request.assertion, request.character_id)
+        except CharacterAuthorityError as exc:
+            raise _character_http_error(exc) from exc
+        return {"outcome": "ok"}
+
+    @app.post("/characters/select", response_model=CharacterAssertionResponse)
+    def characters_select(request: CharacterMutateRequest) -> CharacterAssertionResponse:
+        try:
+            assertion = _require_character_client().select_character(request.assertion, request.character_id)
+        except CharacterAuthorityError as exc:
+            raise _character_http_error(exc) from exc
+        return CharacterAssertionResponse(assertion=assertion)
+
     return app
 
 
@@ -144,6 +238,14 @@ def build_production_login_authority_client(config: EnrollmentConfig | None = No
     """Wire the real loopback login-authority client. Never used by tests."""
     config = config or load_config()
     return RealLoginAuthorityClient(
+        config.login_authority_host, config.login_authority_port, config.login_authority_timeout_seconds
+    )
+
+
+def build_production_character_client(config: EnrollmentConfig | None = None) -> CharacterClient:
+    """Wire the real loopback character client (Slice 090). Never used by tests."""
+    config = config or load_config()
+    return RealCharacterClient(
         config.login_authority_host, config.login_authority_port, config.login_authority_timeout_seconds
     )
 

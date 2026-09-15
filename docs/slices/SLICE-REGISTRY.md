@@ -105,9 +105,11 @@ contended range and everything after it is tracked explicitly:
 | 087 | Login-session resume: in-world Character Select without re-login (F-034) | interactive |
 | 088 | Auth-gated onboarding A: HTTPS /login on the enrollment service, delegating credential verification to the login authority and returning a signed session assertion (P-024, ADR 0004) | interactive |
 | 089 | Auth-gated onboarding B: /redeem accepts a signed assertion + idempotent per-account peer lifecycle and aging/deprovision (P-024, ADR 0004) | interactive |
-| 090 | Auth-gated onboarding C: launcher/client flow login -> redeem -> tunnel -> assertion handoff to the game server (P-024, ADR 0004) | interactive |
+| 090 | Auth-gated onboarding C-server: HTTPS character endpoints (list/create/delete/select + issue-character-assertion) on the enrollment service, loopback-delegated + account-scoped (P-024, ADR 0004, ADR 0005) | interactive |
+| 091 | Auth-gated onboarding C-client: Godot client HTTPS cutover — login + character select/create + character assertion + present to game (P-024, ADR 0005) | interactive |
+| 092 | Auth-gated onboarding C-launcher: Windows launcher login + redeem-with-assertion + tunnel bring-up (P-024, ADR 0004, F-035) | interactive |
 
-Next free slice: **091** (verify against `docs/slices/` before reserving).
+Next free slice: **093** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

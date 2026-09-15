@@ -899,6 +899,27 @@ for a developer to pick up. No implementation has started.
   `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
   - Date: 2026-09-15
+    What changed: Implemented and delivered [Slice 090](slices/090-https-character-endpoints.md)
+    — the server half of ADR 0005 (Option A): character selection over HTTPS.
+    `server/login_loopback_http_endpoint.gd` gained four account-scoped
+    loopback paths (`/internal/characters/{list,create,delete,select}`) that
+    validate a presented account assertion, bind a synthetic negative-peer-id
+    session via `establish_session_from_assertion`, run the existing
+    `LoginGateway` character ops, and — for select — `issue_character_assertion`,
+    then clear the session (no new login-authority character code). The
+    enrollment service gained `RealCharacterClient` and `POST /characters/*`
+    routes with bounded reason→status mapping. Validated on the Linux host
+    (worktree `362387f`): GUT 423/423 across 62/62 scripts (1595 asserts),
+    exit 0; enrollment pytest 112/112, exit 0 (also Windows). Implemented
+    directly by Copilot with the user's explicit authorization.
+    Why: Give the tunnelled auth-gated flow a way to select a character and
+    obtain the character assertion world entry needs, without ENet reach to
+    the login server (9998).
+    Related work: [Slice 090](slices/090-https-character-endpoints.md),
+    [ADR 0005](adr/0005-character-selection-over-https.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+  - Date: 2026-09-15
     What changed: Implemented and delivered [Slice 089](slices/089-auth-gated-onboarding-peer-provisioning.md)
     — the assertion-gated `/redeem` path and idempotent per-account peer
     lifecycle (ADR 0004 follow-up B, sub-decision 3). Added a loopback

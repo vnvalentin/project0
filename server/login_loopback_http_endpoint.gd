@@ -47,8 +47,19 @@ const REQUEST_METHOD: String = "POST"
 # (validate an assertion, no session bound) served from the same listener.
 const REQUEST_PATH_VERIFY: String = "/internal/verify-and-mint"
 const REQUEST_PATH_VALIDATE: String = "/internal/validate-assertion"
+# Slice 090 (ADR 0005): account-scoped character endpoints. Each takes an
+# account assertion, binds a synthetic negative-peer-id session via
+# establish_session_from_assertion, runs the existing gateway character op,
+# then clears the session — the same synthetic-session pattern as verify-and-mint.
+const REQUEST_PATH_CHAR_LIST: String = "/internal/characters/list"
+const REQUEST_PATH_CHAR_CREATE: String = "/internal/characters/create"
+const REQUEST_PATH_CHAR_DELETE: String = "/internal/characters/delete"
+const REQUEST_PATH_CHAR_SELECT: String = "/internal/characters/select"
 const MAX_HEADER_BYTES: int = 8192
 const MAX_BODY_BYTES: int = 1024
+# Character create carries a cosmetic (up to MAX_COSMETIC_JSON_LEN) plus the
+# account assertion, so its bound is larger than the 1 KiB credential bodies.
+const MAX_CHAR_BODY_BYTES: int = 4096
 ## Not a const: a PackedByteArray constructor isn't a compile-time constant
 ## expression in GDScript 2.0. Value/behavior is identical to the intended
 ## const — bytes 13,10,13,10 ("\r\n\r\n") — and never reassigned after init.
@@ -225,7 +236,7 @@ func _try_parse_headers() -> void:
 		_reject(405, OUTCOME_MALFORMED)
 		return
 
-	if path != REQUEST_PATH_VERIFY and path != REQUEST_PATH_VALIDATE:
+	if path != REQUEST_PATH_VERIFY and path != REQUEST_PATH_VALIDATE and not _is_character_path(path):
 		_reject(404, OUTCOME_MALFORMED)
 		return
 	_request_path = path
@@ -239,11 +250,21 @@ func _try_parse_headers() -> void:
 		_reject(400, OUTCOME_MALFORMED)
 		return
 	var content_length: int = content_length_raw.to_int()
-	if content_length < 0 or content_length > MAX_BODY_BYTES:
+	var max_body: int = MAX_CHAR_BODY_BYTES if _is_character_path(path) else MAX_BODY_BYTES
+	if content_length < 0 or content_length > max_body:
 		_reject(400, OUTCOME_MALFORMED)
 		return
 
 	_content_length = content_length
+
+
+func _is_character_path(path: String) -> bool:
+	return (
+		path == REQUEST_PATH_CHAR_LIST
+		or path == REQUEST_PATH_CHAR_CREATE
+		or path == REQUEST_PATH_CHAR_DELETE
+		or path == REQUEST_PATH_CHAR_SELECT
+	)
 
 
 func _handle_complete_request() -> void:
@@ -259,7 +280,135 @@ func _handle_complete_request() -> void:
 	if _request_path == REQUEST_PATH_VALIDATE:
 		_handle_validate(raw)
 		return
+	if _request_path == REQUEST_PATH_CHAR_LIST:
+		_handle_char_list(raw)
+		return
+	if _request_path == REQUEST_PATH_CHAR_CREATE:
+		_handle_char_create(raw)
+		return
+	if _request_path == REQUEST_PATH_CHAR_DELETE:
+		_handle_char_delete(raw)
+		return
+	if _request_path == REQUEST_PATH_CHAR_SELECT:
+		_handle_char_select(raw)
+		return
 	await _handle_verify_and_mint(raw)
+
+
+## Slice 090: validates the account assertion and binds a synthetic
+## negative-peer-id session. Returns the peer_id on success, or 0 after writing
+## a 401 rejection (0 is neither a real nor a synthetic peer id). Always paired
+## with a clear_session by the caller once its op completes.
+func _bind_synthetic_from_assertion(assertion: String) -> int:
+	var peer_id: int = _next_synthetic_peer_id
+	_next_synthetic_peer_id -= 1
+	var established: Dictionary = _gateway.establish_session_from_assertion(peer_id, assertion, int(Time.get_unix_time_from_system()))
+	if String(established.get("outcome", "")) != OUTCOME_OK:
+		_gateway.clear_session(peer_id)
+		_reject(401, String(established.get("outcome", OUTCOME_MALFORMED)))
+		return 0
+	return peer_id
+
+
+## Extracts a required non-empty "assertion" plus exactly `extra_keys`; on any
+## shape mismatch writes a 400 and returns "".
+func _extract_assertion(raw: Dictionary, extra_keys: Array) -> String:
+	if raw.size() != extra_keys.size() + 1 or not raw.has("assertion"):
+		_reject(400, OUTCOME_MALFORMED)
+		return ""
+	for key: Variant in extra_keys:
+		if not raw.has(key):
+			_reject(400, OUTCOME_MALFORMED)
+			return ""
+	var assertion: Variant = raw["assertion"]
+	if not (assertion is String) or (assertion as String).is_empty():
+		_reject(400, OUTCOME_MALFORMED)
+		return ""
+	return assertion as String
+
+
+## Slice 090: {assertion} -> the account's live Characters as wire dicts.
+func _handle_char_list(raw: Dictionary) -> void:
+	var assertion: String = _extract_assertion(raw, [])
+	if assertion.is_empty():
+		return
+	var peer_id: int = _bind_synthetic_from_assertion(assertion)
+	if peer_id == 0:
+		return
+	var result: Dictionary = _gateway.list_characters(peer_id)
+	_gateway.clear_session(peer_id)
+	var wire: Array = []
+	for record: Object in result.get("characters", []):
+		wire.append(record.to_wire_dict())
+	_respond(200, "OK", {"outcome": OUTCOME_OK, "characters": wire})
+
+
+## Slice 090: {assertion, name, cosmetic} -> create; 200 {outcome, character?}.
+## A domain rejection (name taken/invalid/cap) is relayed with a valid-assertion
+## 200 and its bounded outcome string; the public route maps it to a status.
+func _handle_char_create(raw: Dictionary) -> void:
+	var assertion: String = _extract_assertion(raw, ["name", "cosmetic"])
+	if assertion.is_empty():
+		return
+	var name_value: Variant = raw["name"]
+	var cosmetic_value: Variant = raw["cosmetic"]
+	if not (name_value is String) or not (cosmetic_value is Dictionary):
+		_reject(400, OUTCOME_MALFORMED)
+		return
+	var peer_id: int = _bind_synthetic_from_assertion(assertion)
+	if peer_id == 0:
+		return
+	var result: Dictionary = _gateway.create_character(peer_id, name_value, cosmetic_value)
+	_gateway.clear_session(peer_id)
+	var outcome: String = String(result.get("outcome", ""))
+	if outcome == OUTCOME_OK:
+		_respond(200, "OK", {"outcome": OUTCOME_OK, "character": (result["character"] as Object).to_wire_dict()})
+		return
+	_respond(200, "OK", {"outcome": outcome})
+
+
+## Slice 090: {assertion, character_id} -> soft-delete; 200 {outcome}.
+func _handle_char_delete(raw: Dictionary) -> void:
+	var assertion: String = _extract_assertion(raw, ["character_id"])
+	if assertion.is_empty():
+		return
+	var character_id: Variant = raw["character_id"]
+	if not (character_id is String):
+		_reject(400, OUTCOME_MALFORMED)
+		return
+	var peer_id: int = _bind_synthetic_from_assertion(assertion)
+	if peer_id == 0:
+		return
+	var result: Dictionary = _gateway.delete_character(peer_id, character_id)
+	_gateway.clear_session(peer_id)
+	_respond(200, "OK", {"outcome": String(result.get("outcome", ""))})
+
+
+## Slice 090: {assertion, character_id} -> select then mint a CHARACTER
+## assertion; 200 {outcome, assertion?}. This is the token the client presents
+## to the game server for world entry.
+func _handle_char_select(raw: Dictionary) -> void:
+	var assertion: String = _extract_assertion(raw, ["character_id"])
+	if assertion.is_empty():
+		return
+	var character_id: Variant = raw["character_id"]
+	if not (character_id is String):
+		_reject(400, OUTCOME_MALFORMED)
+		return
+	var peer_id: int = _bind_synthetic_from_assertion(assertion)
+	if peer_id == 0:
+		return
+	var select_result: Dictionary = _gateway.select_character(peer_id, character_id)
+	if String(select_result.get("outcome", "")) != OUTCOME_OK:
+		_gateway.clear_session(peer_id)
+		_respond(200, "OK", {"outcome": String(select_result.get("outcome", ""))})
+		return
+	var minted: Dictionary = _gateway.issue_character_assertion(peer_id, int(Time.get_unix_time_from_system()), ASSERTION_TTL_SECONDS)
+	_gateway.clear_session(peer_id)
+	if String(minted.get("outcome", "")) != OUTCOME_OK:
+		_respond(200, "OK", {"outcome": String(minted.get("outcome", OUTCOME_UNAVAILABLE))})
+		return
+	_respond(200, "OK", {"outcome": OUTCOME_OK, "assertion": minted["assertion"]})
 
 
 ## Slice 088: {username, password} -> verify credentials, mint an assertion.
