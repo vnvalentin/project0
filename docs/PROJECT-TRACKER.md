@@ -189,6 +189,9 @@ Progress: **100%** (1 of 1 items done)
 - Features: `done` [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication) — two-client authoritative Player replication; Slice 007 implements and validates two-peer replication and disconnect cleanup, verified by user in interactive GUI and physical LAN runs.
 - Tech debt: `done` [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003) — interactive GUI and physical LAN runs verified by user.
 
+- **Current slice:** [086 — Multi-peer Character replication](slices/086-multipeer-character-replication.md) — **delivered; remote Players are labeled with their bound Character's display name (server broadcasts identity at world entry; late-joiners are seeded); GUT 401/401 + login-handoff e2e ALL PASS on Linux. Closes the Phase 14 multi-peer Character replication follow-up. Live two-client GUI confirmation is a manual follow-up.**
+  - **Feature:** [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication)
+
 **Phase 7 — Delivery workflow capabilities**
 
 Progress: **71%** (5 of 7 items done)
@@ -248,7 +251,7 @@ Progress: **0%** (0 of 3 items done)
 
 Progress: **100%** (6 of 6 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 14 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. The mandatory-auth hard-flip and multi-peer Character replication remain queued follow-ups.
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 14 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. Multi-peer Character replication is now delivered ([Slice 086](slices/086-multipeer-character-replication.md), under Phase 11/F-004); the mandatory-auth hard-flip remains a queued follow-up.
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository), `done` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server), `done` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server), `done` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), `done` [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens).
 - Tech debt: none yet.
 
@@ -311,6 +314,10 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
 
 #### Phase 11 — Multi-peer Player replication
+
+- **Slice:** [086 — Multi-peer Character replication](slices/086-multipeer-character-replication.md) — **delivered; ServerPlayerState emits `character_bound` at world entry, server_main broadcasts `receive_remote_player_identity` to every other peer and seeds late-joiners, NetworkClient caches+relays it, and RemotePlayer renders a billboarded name label; GUT 401/401 across 59 scripts + login-handoff e2e ALL PASS on Linux; closes the Phase 14 multi-peer Character replication follow-up**
+  - **Feature:** [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication)
+  - **Planning ticket:** [Multi-peer Player replication](../.scratch/game-vision/issues/13-multi-peer-player-replication.md)
 
 - **Slice:** [007 — Two-client Player replication and disconnect cleanup](slices/007-multi-peer-player-replication.md) — **100% complete; interactive GUI confirmation and physical two-machine LAN run verified by user**
   - **Feature:** [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication)
