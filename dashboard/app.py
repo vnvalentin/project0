@@ -744,8 +744,8 @@ def render(view: str = "committed") -> str:
     slices_html = next_slice_html + f'<div class="planes">{plane_html}</div>'
     toggle_html = (
         '<div class="viewtoggle">'
-        f'<a class="vt{"" if working_view else " on"}" href="/">Committed</a>'
-        f'<a class="vt{" on" if working_view else ""}" href="/?view=working">Working tree</a>'
+        f'<a class="vt{"" if working_view else " on"}" href="/detail">Committed</a>'
+        f'<a class="vt{" on" if working_view else ""}" href="/detail?view=working">Working tree</a>'
         '</div>'
     )
     return f'''<!doctype html>
@@ -759,7 +759,7 @@ def render(view: str = "committed") -> str:
 .dr {{ margin-bottom:22px }} .waves {{ display:flex; flex-direction:column; gap:10px }} .wave {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .wave-h {{ display:flex; align-items:center; gap:10px }} .wave-h h3 {{ margin:0; font-size:14px; color:var(--text) }} .wn {{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:var(--cyan); color:#0b1118; font-weight:700; font-size:13px; flex:none }} .par {{ margin-left:auto; font-size:11px; color:var(--green); border:1px solid var(--green); border-radius:12px; padding:2px 8px }} .par.seq {{ color:var(--muted); border-color:var(--line) }} .wnote {{ font-size:12px; margin:6px 0 10px }} .rtracks {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px }} .rtrack {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--amber); border-radius:6px; padding:8px 10px }} .rtrack-h {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .rtrack-h strong {{ font-size:13px }} .rfeat {{ font-size:10px; color:var(--muted); white-space:nowrap }} .rtrack ul {{ padding-left:16px; margin:6px 0 0 }} .rtrack li {{ margin:3px 0; font-size:12px; color:var(--muted) }} .drband {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px }} .drcol {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .drcol h4 {{ margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted) }} .pcards {{ display:flex; flex-direction:column; gap:8px }} .pcard {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--green); border-radius:6px; padding:8px 10px }} .pcard p {{ font-size:12px; margin:6px 0 0 }} .seqrules {{ padding-left:18px }} .seqrules li {{ margin:5px 0; font-size:12px; color:var(--muted) }} @media(max-width:700px){{ .drband {{ grid-template-columns:1fr }} }}
 {PRIORITY_CSS}
 </style></head><body>
-<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="hdr-right">{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
+<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="hdr-right"><a class="calib-link" href="/">\u2190 Reality view</a>{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
 <main>{calib_html}{hero_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
 <section class="dr"><h2 class="sech">Delivery roadmap \u2014 {done_count}/{wave_total} waves complete</h2><div class="waves">{waves_html}</div><div class="drband"><div class="drcol"><h4>Runs in parallel throughout</h4><div class="pcards">{par_html}</div></div><div class="drcol"><h4>Must sequence \u2014 hard deps &amp; shared files</h4><ul class="seqrules">{seq_html}</ul></div></div></section>
@@ -768,6 +768,216 @@ def render(view: str = "committed") -> str:
 <h2 class="sech">Implementation pipeline \u2014 features correlated to their issues</h2>
 <section class="board">{column_html}</section>
 <div class="grid"><section class="panel"><h2>Andon / Stop Signals</h2>{andon_html}</section><section class="panel"><h2>Phase Status</h2>{phase_html or '<p>No phase data found</p>'}</section></div>
+</main></body></html>'''
+
+
+# --- Executive "Reality" view -------------------------------------------------
+# A deliberately small, chart-first read of the same authoritative records:
+# how far along overall, what is shipped, what is in progress (and how far),
+# and what is being worked on right now. Less prose, more scale.
+
+def _exec_short(text: str, limit: int = 44) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
+
+
+def _pcol(pct: int) -> str:
+    return "var(--green)" if pct >= 100 else ("var(--amber)" if pct > 0 else "var(--grey)")
+
+
+def _donut(pct: int, size: int = 190, stroke: int = 20) -> str:
+    import math
+    pct = max(0, min(100, int(pct)))
+    r = (size - stroke) / 2
+    circ = 2 * math.pi * r
+    off = circ * (1 - pct / 100)
+    ctr = size / 2
+    return (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" role="img" aria-label="{pct}% complete">'
+        '<defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="1">'
+        '<stop offset="0" stop-color="#5ad78f"/><stop offset="1" stop-color="#5ad0e6"/></linearGradient></defs>'
+        f'<circle cx="{ctr}" cy="{ctr}" r="{r:.1f}" fill="none" stroke="#22303d" stroke-width="{stroke}"/>'
+        f'<circle cx="{ctr}" cy="{ctr}" r="{r:.1f}" fill="none" stroke="url(#eg)" stroke-width="{stroke}" '
+        f'stroke-linecap="round" stroke-dasharray="{circ:.1f}" stroke-dashoffset="{off:.1f}" '
+        f'transform="rotate(-90 {ctr} {ctr})"/>'
+        f'<text x="50%" y="50%" text-anchor="middle" dy="-2" font-size="46" font-weight="800" fill="#e9eff6">{pct}%</text>'
+        '<text x="50%" y="50%" text-anchor="middle" dy="26" font-size="12" fill="#93a4b5">complete</text></svg>'
+    )
+
+
+def executive_model(reader) -> dict:
+    tracker = reader("docs/PROJECT-TRACKER.md")
+    features = feature_cards(reader)
+    rows = slice_index_rows(tracker)
+    prog = phase_progress_map(tracker)
+    currents = current_slice_numbers(tracker)
+
+    # Per-feature slice completion (the most concrete "based on what we know now").
+    fstats: dict[str, dict] = {}
+    fphase: dict[str, int] = {}
+    for r in rows:
+        fid = r["feature"]
+        if not fid:
+            continue
+        st = fstats.setdefault(fid, {"done": 0, "total": 0})
+        st["total"] += 1
+        st["done"] += 1 if r["done"] else 0
+        if fid not in fphase and r["phase_num"]:
+            fphase[fid] = r["phase_num"]
+
+    done_f, active_f, other_f = [], [], []
+    for f in features:
+        stage = feature_stage(f["status"])
+        if stage == "Done":
+            done_f.append(f)
+        elif stage == "Active":
+            st = fstats.get(f["id"])
+            if st and st["total"]:
+                pct = round(st["done"] / st["total"] * 100)
+            else:
+                pct = (prog.get(fphase.get(f["id"], -1), {}) or {}).get("progress", 40)
+            active_f.append({**f, "pct": max(15, min(90, pct))})  # in progress is never 0 or 100
+        else:
+            other_f.append(f)
+    active_f.sort(key=lambda x: -x["pct"])
+
+    status_by_num: dict[int, str] = {}
+    for p in phase_rows(tracker):
+        mnum = re.match(r"(\d+)", p["phase"])
+        if mnum:
+            status_by_num[int(mnum.group(1))] = p["status"].lower()
+    phases = [{"num": n, "title": meta["title"], "pct": meta["progress"],
+               "status": status_by_num.get(n, "")} for n, meta in sorted(prog.items())]
+    overall = round(sum(p["pct"] for p in phases) / len(phases)) if phases else 0
+
+    # Focus = the current slice of each still-unfinished phase.
+    focus, seen = [], set()
+    for r in rows:
+        pn = r["phase_num"]
+        meta = prog.get(pn) or {}
+        pct = meta.get("progress")
+        if r["num"] not in currents or pct is None or pct >= 100 or pn in seen:
+            continue
+        seen.add(pn)
+        focus.append({"phase_num": pn, "phase_title": meta.get("title") or r["phase_title"],
+                      "title": r["title"], "pct": pct})
+    focus.sort(key=lambda x: -x["pct"])
+
+    return {"overall": overall, "phases": phases, "done": done_f,
+            "active": active_f, "not_started": other_f, "focus": focus}
+
+
+EXEC_CSS = """
+:root{color-scheme:dark;--bg:#0f141a;--panel:#19212b;--card:#202b37;--line:#2c3a49;--text:#e9eff6;--muted:#93a4b5;--cyan:#5ad0e6;--green:#5ad78f;--amber:#f5c15a;--grey:#5b6b7b}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:22px 34px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+header h1{margin:0;font-size:22px;letter-spacing:.02em}
+header .sub{color:var(--muted);font-size:12px;margin-top:3px}
+.nav{display:flex;gap:8px;align-items:center}
+.nav a{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--panel)}
+.nav a.on{background:var(--cyan);color:#08121a;font-weight:700;border-color:var(--cyan)}
+main{padding:26px 34px;max-width:1180px;margin:auto}
+.sec{margin:0 0 32px}
+.sec>h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:700}
+.hero{display:grid;grid-template-columns:210px 1fr;gap:28px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px;margin-bottom:32px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;border-top:4px solid var(--line)}
+.tile .num{font-size:42px;font-weight:800;line-height:1}
+.tile .lbl{font-size:12px;color:var(--muted);margin-top:8px;text-transform:uppercase;letter-spacing:.08em}
+.tile.done{border-top-color:var(--green)}.tile.done .num{color:var(--green)}
+.tile.active{border-top-color:var(--amber)}.tile.active .num{color:var(--amber)}
+.tile.todo{border-top-color:var(--grey)}.tile.todo .num{color:var(--muted)}
+.focus{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.fcard{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--amber);border-radius:10px;padding:16px 18px}
+.fcard .ph{font-size:12px;color:var(--amber);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.fcard .ti{font-size:15px;margin:8px 0 12px}
+.mini{height:8px;background:#0e141b;border-radius:6px;overflow:hidden}
+.mini>i{display:block;height:100%;background:var(--amber)}
+.fcard .pc{font-size:12px;color:var(--muted);margin-top:8px}
+.bars{display:flex;flex-direction:column;gap:12px}
+.brow{display:grid;grid-template-columns:250px 1fr 54px;gap:14px;align-items:center}
+.brow .bl{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow .bl small{color:var(--muted);font-family:monospace;margin-right:7px}
+.track{height:15px;background:#0e141b;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.track>i{display:block;height:100%;border-radius:8px}
+.brow .bp{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:7px 13px}
+.pill .dot{color:var(--green);font-weight:800}
+.pill small{color:var(--muted);font-family:monospace}
+.legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-top:14px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.empty{color:var(--muted)}
+.stamp{color:var(--muted);font-size:11px}
+@media(max-width:760px){.hero{grid-template-columns:1fr}.tiles{grid-template-columns:1fr}.brow{grid-template-columns:1fr auto}.brow .track{grid-column:1/-1;order:3}}
+"""
+
+
+def render_exec(view: str = "committed") -> str:
+    reader = read_repo_file if view == "working" else read_committed_file
+    m = executive_model(reader)
+
+    focus_html = "".join(
+        f'<div class="fcard"><div class="ph">Phase {c["phase_num"]} \u00b7 {c["pct"]}%</div>'
+        f'<div class="ti">{esc(_exec_short(c["phase_title"], 40))}</div>'
+        f'<div class="mini"><i style="width:{c["pct"]}%"></i></div>'
+        f'<div class="pc">Now: {esc(_exec_short(c["title"], 48))}</div></div>'
+        for c in m["focus"]
+    ) or '<p class="empty">Nothing marked in progress.</p>'
+
+    active_html = "".join(
+        f'<div class="brow"><div class="bl"><small>{esc(f["id"])}</small>{esc(_exec_short(f["title"]))}</div>'
+        f'<div class="track"><i style="width:{f["pct"]}%;background:var(--amber)"></i></div>'
+        f'<div class="bp" style="color:var(--amber)">{f["pct"]}%</div></div>'
+        for f in m["active"]
+    ) or '<p class="empty">No features in progress.</p>'
+
+    phase_html = "".join(
+        f'<div class="brow"><div class="bl"><small>P{p["num"]:02d}</small>{esc(_exec_short(p["title"]))}</div>'
+        f'<div class="track"><i style="width:{p["pct"]}%;background:{_pcol(p["pct"])}"></i></div>'
+        f'<div class="bp" style="color:{_pcol(p["pct"])}">{p["pct"]}%</div></div>'
+        for p in m["phases"]
+    )
+
+    done_html = "".join(
+        f'<span class="pill"><span class="dot">\u2713</span><small>{esc(f["id"])}</small>{esc(_exec_short(f["title"]))}</span>'
+        for f in m["done"]
+    ) or '<p class="empty">Nothing shipped yet.</p>'
+
+    other = "?view=working" if view != "working" else "?view=committed"
+    other_lbl = "Working tree" if view != "working" else "Committed"
+    src = "live working tree" if view == "working" else "last committed state"
+
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Project0 \u2014 Reality</title>
+<style>{EXEC_CSS}</style></head><body>
+<header>
+  <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 auto-refreshes</div></div>
+  <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/{other}">{esc(other_lbl)}</a></div>
+</header>
+<main>
+  <section class="hero">
+    <div>{_donut(m["overall"])}</div>
+    <div class="tiles">
+      <div class="tile done"><div class="num">{len(m["done"])}</div><div class="lbl">Shipped</div></div>
+      <div class="tile active"><div class="num">{len(m["active"])}</div><div class="lbl">In progress</div></div>
+      <div class="tile todo"><div class="num">{len(m["not_started"])}</div><div class="lbl">Not started</div></div>
+    </div>
+  </section>
+
+  <section class="sec"><h2>\u25b6 Focused on now</h2><div class="focus">{focus_html}</div></section>
+
+  <section class="sec"><h2>In progress \u2014 how far</h2><div class="bars">{active_html}</div></section>
+
+  <section class="sec"><h2>Delivery by phase</h2><div class="bars">{phase_html}</div>
+    <div class="legend"><span><i style="background:var(--green)"></i>Complete</span>
+    <span><i style="background:var(--amber)"></i>In progress</span>
+    <span><i style="background:var(--grey)"></i>Not started</span></div>
+  </section>
+
+  <section class="sec"><h2>Shipped \u2014 working functionality ({len(m["done"])})</h2><div class="pills">{done_html}</div></section>
 </main></body></html>'''
 
 
@@ -781,6 +991,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
         elif path in ("/", "/index.html"):
+            view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
+            body = render_exec(view).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/detail":
             view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
             body = render(view).encode("utf-8")
             self.send_response(200)
