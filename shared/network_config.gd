@@ -67,6 +67,11 @@ const LOGIN_PORT: int = 9998
 const LOGIN_PORT_CLI_ARG: String = "--login-port="
 const LOGIN_PORT_ENV_VAR: String = "PROJECT0_LOGIN_PORT"
 
+# Slice 078: opt-in client login split. When set, the client authenticates on the
+# separate login process and hands off to the game process; default off keeps the
+# single-connection flow.
+const CLIENT_LOGIN_SPLIT_ENV_VAR: String = "PROJECT0_CLIENT_LOGIN_SPLIT"
+
 
 ## Public seam: resolves the address the headless server should bind to.
 ## Precedence: `--server-bind-address=<addr>` CLI argument, then the
@@ -132,6 +137,13 @@ static func resolve_login_port() -> int:
 		return from_env
 
 	return LOGIN_PORT
+
+
+## Public seam: whether the client should authenticate on the separate login
+## process (then hand off to the game process) instead of the single-connection
+## flow. Opt-in via PROJECT0_CLIENT_LOGIN_SPLIT=1; anything else is off.
+static func client_login_split_enabled() -> bool:
+	return OS.get_environment(CLIENT_LOGIN_SPLIT_ENV_VAR).strip_edges() == "1"
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,

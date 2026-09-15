@@ -54,7 +54,7 @@ func _on_login_pressed() -> void:
 	if NetworkClient.status.begins_with("connected"):
 		_fire_pending_auth()
 	else:
-		NetworkClient.connect_to_server(PlayerIdentity.target_host)
+		_connect_for_auth()
 
 func _on_register_pressed() -> void:
 	var username = username_input.text.strip_edges()
@@ -79,7 +79,13 @@ func _on_register_pressed() -> void:
 	if NetworkClient.status.begins_with("connected"):
 		_fire_pending_auth()
 	else:
-		NetworkClient.connect_to_server(PlayerIdentity.target_host)
+		_connect_for_auth()
+
+## Opens the auth connection to the login endpoint when the client login split is
+## enabled (PROJECT0_CLIENT_LOGIN_SPLIT=1), else to the game port as before.
+func _connect_for_auth() -> void:
+	var port: int = NetworkConfigScript.resolve_login_port() if NetworkConfigScript.client_login_split_enabled() else NetworkConfigScript.resolve_server_port()
+	NetworkClient.connect_to_server(PlayerIdentity.target_host, port)
 
 ## Sends the queued register/login RPC, then drops the cached password.
 func _fire_pending_auth() -> void:
