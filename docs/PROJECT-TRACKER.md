@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [068 — Login runtime extraction + standalone login-server process](slices/068-login-runtime-and-standalone-process.md) — **delivered; shared LoginRuntime builds the login authority (game server refactor behavior-preserving); standalone login_server_main.gd boots it on its own DB + dedicated port; GUT 51/51 exit 0, runtime-proven Login server listening + healthy**
+- **Current slice:** [069 — Assertion handoff seams: request from login, present to game](slices/069-assertion-handoff-seams.md) — **delivered; client seams request a signed assertion from the login process and present it to the game process (server clock + bounded TTL, fail-closed); two-runtime handoff test proves cross-DB trust with a shared secret; GUT 52/52 exit 0**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,9 +444,9 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [068 — Login runtime extraction + standalone login-server process](slices/068-login-runtime-and-standalone-process.md) — **delivered; server/login_runtime.gd (LoginRuntime) builds AuthService+CharacterService+LoginGateway+assertion seams from one source of truth; server_main refactored to use it (behavior-preserving); server/login_server_main.gd boots the login authority as its own headless process on its own accounts DB + dedicated port, hosting register/login/Character RPCs + a health file; GUT 51/51 exit 0 (+test_login_runtime), runtime-proven Login server listening + healthy; first out-of-process login sub-slice**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: durable Account/Character authority as its own process)
-  - **Public seam:** `server/login_runtime.gd` (`LoginRuntime`), `server/login_server_main.gd` (standalone process), `server/server_main.gd` (refactor)
+- **Slice:** [069 — Assertion handoff seams: request from login, present to game](slices/069-assertion-handoff-seams.md) — **delivered; client/network_client.gd gains submit_request_assertion (login process mints a signed assertion via the server clock + bounded TTL) and submit_present_assertion (game process establishes a session purely from the validated token, fail-closed), with relay signals; two-runtime handoff test proves the game side trusts a login assertion across different DBs sharing one secret and rejects a wrong-secret token; GUT 52/52 exit 0; second out-of-process login sub-slice**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: signed assertions carried between login and game processes)
+  - **Public seam:** `client/network_client.gd` (`submit_request_assertion`/`receive_assertion_request_on_server`, `submit_present_assertion`/`receive_assertion_presentation_on_server`, relay signals)
   - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
