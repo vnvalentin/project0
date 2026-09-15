@@ -1,10 +1,12 @@
 """Test-only fakes for the enrollment service's injectable seams.
 
 No test in this package ever performs real network I/O; `FakeOpnsenseWireguardClient`
-is the substitute for `OpnsenseWireguardClient` that every test wires in.
+is the substitute for `OpnsenseWireguardClient` that every test wires in, and
+`FakeLoginAuthorityClient` (Slice 088) is the substitute for `LoginAuthorityClient`.
 """
 from __future__ import annotations
 
+from infra.enrollment.login_client import LoginAuthorityError
 from infra.enrollment.opnsense_client import OpnsenseApiError
 
 
@@ -48,3 +50,20 @@ class FakeOpnsenseWireguardClient:
         if self.fail_delete_client:
             raise OpnsenseApiError("simulated delClient failure")
         self.delete_client_calls.append(client_uuid)
+
+
+class FakeLoginAuthorityClient:
+    """Records verify_and_mint calls; can be configured to return a fixed
+    assertion or raise a bounded LoginAuthorityError (matching what the real
+    loopback client would raise on a rejection/timeout/connection failure)."""
+
+    def __init__(self, assertion: str = "fake-assertion-token", fail_with_reason: str | None = None) -> None:
+        self.assertion = assertion
+        self.fail_with_reason = fail_with_reason
+        self.calls: list[dict] = []
+
+    def verify_and_mint(self, username: str, password: str) -> str:
+        self.calls.append({"username": username, "password": password})
+        if self.fail_with_reason is not None:
+            raise LoginAuthorityError(self.fail_with_reason)
+        return self.assertion

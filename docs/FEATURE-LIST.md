@@ -1,7 +1,7 @@
 # Project0 Feature List
 
 Status: active
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-15
 Owner: valentin.vn@gmail.com
 
 ## Rule
@@ -828,6 +828,23 @@ for a developer to pick up. No implementation has started.
   deployment behind `enroll.valentin.vip`, the real ~25s tunnel-teardown
   timing, and idempotent re-enrollment (reusing an existing peer UUID) remain
   open.
+  [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md) delivers
+  the first slice of [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md)'s
+  auth-gated onboarding follow-up: a loopback-only HTTP endpoint on the login
+  authority process (`server/login_loopback_http_endpoint.gd`, `POST
+  /internal/verify-and-mint`, bound hard-coded to `127.0.0.1` and never a
+  configurable override) that delegates to the existing `LoginGateway`
+  (`login()` + `issue_account_assertion()`, no new credential/signing logic),
+  synthesizing a per-request negative `peer_id` disjoint from any real ENet
+  peer and unconditionally clearing that synthetic session before responding;
+  and a new public `POST /login` on the enrollment service
+  (`infra/enrollment/app.py`) that calls it through an injectable
+  `LoginAuthorityClient` seam (`infra/enrollment/login_client.py`), gaining no
+  accounts-DB access or PBKDF2 code of its own. Public `/login`
+  rate-limiting/lockout/anti-enumeration is a named, tracked liability
+  ([DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)),
+  not silently deferred. Slice 088 is delivered and validated on the Linux
+  host (see the 2026-09-15 delivery change history entry below).
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
 - Phase: 13. Public game access
@@ -840,9 +857,12 @@ for a developer to pick up. No implementation has started.
   (Slice 048); `infra/enrollment/service.py`'s `RevocationService.revoke()`,
   exposed only over the operator CLI as
   `infra/enrollment/cli.py revoke-peer <public_key>`, deliberately with no
-  HTTP admin route (Slice 049). The Godot `.gdextension` binding is
-  separately scoped; the enrollment service's live nginx/TLS deployment
-  remains a follow-up ops step.
+  HTTP admin route (Slice 049); `server/login_loopback_http_endpoint.gd`'s
+  `LoginLoopbackHttpEndpoint` (loopback-only `POST /internal/verify-and-mint`)
+  and `infra/enrollment/app.py`'s `POST /login`, delegating through
+  `infra/enrollment/login_client.py`'s `LoginAuthorityClient` (Slice 088). The
+  Godot `.gdextension` binding is separately scoped; the enrollment service's
+  live nginx/TLS deployment remains a follow-up ops step.
 - Validation: Slice 028's acceptance evidence is an external WireGuard peer
   handshake, split-tunnel isolation proof (game host reachable, LAN
   default-denied) from inside the tunnel, the host firewall dropping
@@ -869,8 +889,42 @@ for a developer to pick up. No implementation has started.
   healthy) — again all against a fake OPNsense client and a temp sqlite DB.
   Future slices still owe live OPNsense wiring behind `enroll.valentin.vip`,
   the real tunnel-teardown timing within one keepalive interval, and
-  idempotent re-enrollment.
+  idempotent re-enrollment. Slice 088's acceptance evidence is
+  `GODOT_BIN=godot bash scripts/run_gut_validation.sh` on the Linux host
+  (`validation-summary.json` status `passed`, exit 0, 62/62 scripts, 415/415
+  tests, 1511 asserts) and `.venv-enrollment/bin/python -m pytest
+  infra/enrollment/tests -q` (70/70, exit 0 on Linux, also reproduced 70/70 on
+  Windows) — run in an isolated git worktree of commit d732ff6, since Windows
+  cannot run GUT for this repository (the `addons/godot-sqlite` and
+  `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
+  - Date: 2026-09-15
+    What changed: Validated and delivered [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+    on the canonical Linux host (`192.168.1.254`), in an isolated git worktree
+    of commit `d732ff6`. `GODOT_BIN=godot bash scripts/run_gut_validation.sh`
+    passed — `validation-summary.json` status `passed`, exit 0, 62/62 scripts,
+    Run Summary 415 tests, 415 passing, 1511 asserts, 0 failing (includes the
+    new `tests/integration/test_login_loopback_http_endpoint.gd`).
+    `.venv-enrollment/bin/python -m pytest infra/enrollment/tests -q` passed
+    70/70, exit 0 on the Linux host, and was also reproduced on Windows (fresh
+    venv, `requirements.txt` + `pytest`) at 70/70, exit 0. Two defects were
+    caught and fixed before merge, per `AGENTS.md`'s root-cause gate: (a) a
+    non-constant `PackedByteArray` `const` initializer in
+    `server/login_loopback_http_endpoint.gd` failed to parse under GDScript
+    2.0 (caught by `godot --headless --check-only`, masked on Windows by the
+    unrelated environmental native-lib failure) — fixed by changing it to an
+    instance `var`; (b) the same file `preload`ed `client/network_client.gd`
+    solely to read a TTL constant, a server→client dependency inversion
+    against `CLAUDE.md`'s boundary rule — caught in Copilot review and fixed
+    by adding a local server-owned constant.
+    Why: Close out Slice 088 with real validation evidence rather than the
+    pending placeholders the implementation handoff left, per this record's
+    mandatory implementation-sync rule.
+    Related work: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+    Validation: See above — GUT 415/415 (62/62 scripts, 1511 asserts), exit 0;
+    enrollment pytest 70/70, exit 0 (Linux and Windows).
   - Date: 2026-09-14
     What changed: Delivered Slice 048, the invite-code enrollment service's
     logic and full automated test coverage (39/39 passing), against issue 04's
@@ -918,6 +972,52 @@ for a developer to pick up. No implementation has started.
     (39 pre-existing, 15 new), exit 0; `scripts/check_record_sync.sh` passed
     with 0 errors and 6 pre-existing warnings, exit 0. No `.gd` files
     changed, so the GUT suite was not run.
+  - Date: 2026-09-15
+    What changed: Recorded [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md),
+    a records-first SDD/BDD/TDD plan for [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md)'s
+    first onboarding follow-up: a loopback-only (`127.0.0.1`) HTTP/JSON seam on
+    the login process (`POST /internal/verify-and-mint`, reusing
+    `LoginGateway.login`/`issue_account_assertion` verbatim, no new credential
+    or signing logic) plus a public `POST /login` on the enrollment service
+    that delegates to it via a new injectable `LoginAuthorityClient` seam
+    mirroring the existing `OpnsenseWireguardClient` pattern. No code was
+    written — this is planning only, pending Copilot design review.
+    Why: ADR 0004 moves authentication in front of the tunnel so self-service
+    login (no invite-code delivery) can provision a peer and hand the same
+    signed assertion to the assertion-only game server; the login authority
+    must stay the sole credential/signing owner while the enrollment service
+    gains a public auth surface it did not have before.
+    Related work: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md)
+    Validation: None yet — records-first handoff. No build/test command was
+    run. The slice record names the exact focused/full validation commands
+    (`scripts/run_gut_validation.sh`, `python3 -m pytest infra/enrollment/tests -q`)
+    the implementation handoff must run and report against.
+  - Date: 2026-09-15
+    What changed: Implemented [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+    per its records-first plan: `server/login_loopback_http_endpoint.gd`
+    (`LoginLoopbackHttpEndpoint`, a strict bounded HTTP/1.1 parser over
+    `TCPServer`/`StreamPeerTCP`, hard-coded to `127.0.0.1`, delegating to the
+    existing `LoginGateway.login()`/`issue_account_assertion()` with a
+    synthetic negative `peer_id` and an unconditional `clear_session`), wired
+    from `server/login_server_main.gd`; `shared/network_config.gd`'s
+    `resolve_login_http_port()` (default `9997`); and on the enrollment side,
+    `infra/enrollment/login_client.py`'s `LoginAuthorityClient`/
+    `RealLoginAuthorityClient`/`LoginAuthorityError`, new `EnrollmentConfig`
+    fields, and `infra/enrollment/app.py`'s `POST /login`. Filed
+    [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+    for the deferred public-`/login` rate-limiting/lockout/anti-enumeration
+    liability named in the plan. No git operations and no build/test/validation
+    command were run by this handoff; Copilot runs GUT + pytest next.
+    Why: Completes the code side of the plan's SDD/BDD/TDD scope so the next
+    handoff only has to run and report validation evidence, keeping the
+    records-first plan and its implementation as two separately reviewable
+    steps per the repository's delivery workflow.
+    Related work: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+    Validation: Not run by this handoff (see the slice record's Validation
+    evidence section for the exact pending commands and placeholders).
 - Related work: [Public Game Access via WireGuard map](../.scratch/wan-wireguard/map.md),
   [ENet netstack bridging](../.scratch/wan-wireguard/issues/01-enet-transport-netstack-bridging.md),
   [GDExtension netstack prototype](../.scratch/wan-wireguard/issues/02-godot-gdextension-wireguard-netstack.md),
