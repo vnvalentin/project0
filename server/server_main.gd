@@ -69,6 +69,13 @@ const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 ## colliding on one file.
 const DEFAULT_ACCOUNTS_DB_PATH: String = "accounts.db"
 
+## Slice 079: opt-in dedicated Canon database. Unset (default) keeps the Slice
+## 045 behavior where Canon shares the accounts SQLite handle. When set, Canon
+## opens its own store at this path so a split deployment's game server owns only
+## Canon and never touches the accounts file. Backward compatible: no migration,
+## no data movement, existing combined deployments are untouched.
+const CANON_DB_PATH_ENV_VAR: String = "PROJECT0_CANON_DB_PATH"
+
 ## Maximum concurrently connected peers supported on this server instance.
 ## Additional connection attempts beyond this limit are rejected (see
 ## _on_peer_connected below).
@@ -139,6 +146,9 @@ var _auth_service: Object = null
 var _character_service: Object = null
 var _login_gateway: Object = null
 var _canon_repository: Object = null
+## Slice 079: only opened when PROJECT0_CANON_DB_PATH is set; otherwise Canon
+## reuses _accounts_store and this stays null.
+var _canon_store: SqliteStore = null
 var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
@@ -252,7 +262,20 @@ func _start_server() -> void:
 	# Slice 045: Canon shares the one server-owned SQLite handle with accounts.
 	# The validated hub is canonicalized before the socket opens, so every peer
 	# sees a world record that survives a server restart.
-	_canon_repository = CanonRepositoryScript.new(_accounts_store)
+	# Slice 079: when PROJECT0_CANON_DB_PATH is set, Canon opens its own store so
+	# a split deployment isolates the world record from the accounts file. Unset
+	# preserves the Slice 045 shared-handle default (no migration).
+	var canon_store: SqliteStore = _accounts_store
+	var canon_db_path: String = OS.get_environment(CANON_DB_PATH_ENV_VAR).strip_edges()
+	if not canon_db_path.is_empty():
+		_canon_store = SqliteStoreScript.new()
+		var canon_open_result: Dictionary = _canon_store.open(canon_db_path)
+		if canon_open_result["outcome"] != SqliteStoreScript.OUTCOME_OK:
+			push_error("Refusing to start: Canon database failed to open: %s — %s" % [canon_open_result["outcome"], canon_open_result["detail"]])
+			quit(1)
+			return
+		canon_store = _canon_store
+	_canon_repository = CanonRepositoryScript.new(canon_store)
 	var canon_schema_result: Dictionary = _canon_repository.ensure_schema()
 	if canon_schema_result["outcome"] != "ok":
 		push_error("Refusing to start: Canon schema failed to initialize: %s — %s" % [canon_schema_result["outcome"], canon_schema_result["detail"]])
@@ -263,7 +286,8 @@ func _start_server() -> void:
 		push_error("Refusing to start: starting town Canon failed: %s — %s" % [canon_result["outcome"], canon_result["detail"]])
 		quit(1)
 		return
-	print("Starting town Canon ready: %s." % canon_result["outcome"])
+	var canon_db_label: String = canon_db_path if not canon_db_path.is_empty() else ("shared:%s" % accounts_db_path)
+	print("Starting town Canon ready: %s (canon db: %s)." % [canon_result["outcome"], canon_db_label])
 	# Slice 046: authoritative movement now drives non-blocking JIT requests for
 	# unexplored sectors. The detector performs only cheap sector math and the
 	# generator accepts work synchronously before awaiting Ollama in a deferred
