@@ -1,6 +1,6 @@
 # Slice 088 — Auth-gated onboarding A: HTTPS `/login` on the enrollment service, delegating credential verification to the login authority
 
-Status: **awaiting validation evidence (implementation complete; Copilot to run GUT + pytest)**
+Status: **delivered**
 
 Tracker context: Phase 13 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
@@ -362,23 +362,20 @@ structure, and route coverage added to `test_app.py` or a new
 
 ## Validation evidence
 
-Implementation (this handoff) wrote the code and the tests below but did
-**not** run any build/test/validation command — per the implementation
-handoff's constraints, that is Copilot's next step. The exact commands to run
-and report against are:
+Validated on the canonical Linux host (`192.168.1.254`), in an isolated git
+worktree of commit `d732ff6` (Windows cannot run GUT for this repository — the
+`addons/godot-sqlite` and `native/wgnetstack` extensions have no
+`windows.x86_64` binaries, so only the Linux host is authoritative for the GUT
+gate).
 
-- Focused GDScript/GUT (narrowest seam first):
-  `godot --headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests/integration -gselect=test_login_loopback_http_endpoint -gexit`
-  (or the project's equivalent focused-script invocation)
-  — result: `<PENDING — Copilot to fill in: pass/fail counts, exit code>`
-- Parse-only check: `godot --headless --check-only -s server/login_loopback_http_endpoint.gd`
-  — result: `<PENDING — Copilot to fill in>`
-- Full GUT gate: `scripts/run_gut_validation.sh`
-  — result: `<PENDING — Copilot to fill in: scripts/tests/asserts counts, exit code, comparison against the 407/407 Slice 087 baseline>`
-- Python/pytest: `python3 -m pytest infra/enrollment/tests -q`
-  — result: `<PENDING — Copilot to fill in: pass/fail counts, exit code, comparison against the 55/55 baseline>`
-- Record sync: `scripts/check_record_sync.sh`
-  — result: `<PENDING — Copilot to fill in: exit code, error/warning counts>`
+- Full GUT gate: `GODOT_BIN=godot bash scripts/run_gut_validation.sh`, run on
+  the Linux host. Result: `build/validation/validation-summary.json` status
+  `passed`, exit code `0`, `scripts_expected` 62, `scripts_ran` 62; Run Summary
+  415 tests, 415 passing, 1511 asserts, 0 failing. Includes the new
+  `tests/integration/test_login_loopback_http_endpoint.gd`.
+- Python/pytest: `.venv-enrollment/bin/python -m pytest infra/enrollment/tests -q`
+  on the Linux host — 70 passed, exit 0. Also reproduced locally on Windows
+  (fresh venv, `requirements.txt` + `pytest`) — 70 passed, exit 0.
 
 ## ADR link
 
@@ -406,15 +403,58 @@ here and belong to Slice 089.
 
 ## Root-cause learning
 
-Not applicable yet — implementation (code + tests) now exists per this
-handoff, but no test run or runtime failure has occurred against it: per this
-implementation handoff's constraints, Copilot runs the GUT and pytest suites
-next. This section remains a placeholder for `docs/DEVELOPMENT-WORKFLOW.md`'s
-root-cause learning gate, which requires a durable record of symptom,
-hypothesis, confirmed root cause, countermeasure, and regression evidence for
-any unexpected failure surfaced when those suites run (e.g., if the loopback
-parser's byte caps or the synthetic-peer-id disjointness assumption turn out
-to be wrong under real load).
+Two defects were caught before merge (per `AGENTS.md`'s root-cause gate),
+during Linux-host validation and Copilot review.
+
+**(a) Non-constant const initializer in `login_loopback_http_endpoint.gd`.**
+
+- Symptom: `const HEADER_BODY_SEPARATOR: PackedByteArray =
+  PackedByteArray([13,10,13,10])` failed to parse — `Assigned value for
+  constant "HEADER_BODY_SEPARATOR" isn't a constant expression`.
+- Public seam: `server/login_loopback_http_endpoint.gd` load (script parse).
+- Hypothesis: a `PackedByteArray` literal/constructor should be foldable at
+  parse time like other typed constants in this codebase.
+- Discriminating check: `godot --headless --check-only -s
+  server/login_loopback_http_endpoint.gd` — exit 1, reproducing the parse
+  error in isolation from the rest of the suite.
+- Confirmed root cause: in GDScript 2.0, a `PackedByteArray` constructor call
+  is not a compile-time constant expression, so it cannot initialize a
+  `const`, unlike literal `int`/`String`/`Array` constants.
+- Why existing tests missed it: the initial implementation was never
+  parse-checked in isolation before this handoff. On Windows the whole suite
+  fails environmentally (missing `addons/godot-sqlite`/`native/wgnetstack`
+  native libs), which masked this specific parse failure behind an unrelated
+  environmental failure.
+- Countermeasure: parse-check new/changed server scripts locally with
+  `--check-only` before Linux-host validation, rather than relying on the full
+  suite to surface a parse error.
+- Regression evidence: `--check-only` now exits 0 for this file, and the full
+  Linux-host GUT gate is green (415/415, exit 0). Fix: changed
+  `HEADER_BODY_SEPARATOR` from a `const` to an instance
+  `var _header_body_separator`.
+
+**(b) Server→client dependency inversion.**
+
+- Symptom: `server/login_loopback_http_endpoint.gd` (server-only) `preload`ed
+  `client/network_client.gd` solely to read
+  `ASSERTION_REQUEST_TTL_SECONDS`.
+- Public seam: `server/login_loopback_http_endpoint.gd`.
+- Hypothesis/confirmed root cause: reaching into `client/` from `server/`
+  violates this document's server/client boundary (`CLAUDE.md`'s
+  Implementation Placement and Shared Contracts rules) — server code must not
+  depend on client-owned files, even for a shared numeric constant.
+- Why existing tests missed it: the preload compiles and runs correctly, so no
+  test failure flags it; this is an architecture-review finding, not a
+  runtime or parse failure, and was caught in Copilot review rather than by
+  GUT/pytest.
+- Countermeasure: `server/` code must not `preload`/reference `client/`
+  scripts; a server-owned tuning constant must live server-side even when its
+  value happens to match an existing client-side constant.
+- Fix: replaced the `client/network_client.gd` preload with a local `const
+  ASSERTION_TTL_SECONDS: int = 300` in
+  `server/login_loopback_http_endpoint.gd`.
+- Regression evidence: full Linux-host GUT gate green (415/415, exit 0) with
+  no `server/` → `client/` reference remaining in this file.
 
 ## Non-goals (restated for scan-ability)
 

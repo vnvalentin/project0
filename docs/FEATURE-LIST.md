@@ -1,7 +1,7 @@
 # Project0 Feature List
 
 Status: active
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-15
 Owner: valentin.vn@gmail.com
 
 ## Rule
@@ -843,8 +843,8 @@ for a developer to pick up. No implementation has started.
   accounts-DB access or PBKDF2 code of its own. Public `/login`
   rate-limiting/lockout/anti-enumeration is a named, tracked liability
   ([DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)),
-  not silently deferred. Implementation is complete; GUT/pytest validation is
-  Copilot's next step (see the slice record's Validation evidence section).
+  not silently deferred. Slice 088 is delivered and validated on the Linux
+  host (see the 2026-09-15 delivery change history entry below).
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
 - Phase: 13. Public game access
@@ -889,8 +889,42 @@ for a developer to pick up. No implementation has started.
   healthy) — again all against a fake OPNsense client and a temp sqlite DB.
   Future slices still owe live OPNsense wiring behind `enroll.valentin.vip`,
   the real tunnel-teardown timing within one keepalive interval, and
-  idempotent re-enrollment.
+  idempotent re-enrollment. Slice 088's acceptance evidence is
+  `GODOT_BIN=godot bash scripts/run_gut_validation.sh` on the Linux host
+  (`validation-summary.json` status `passed`, exit 0, 62/62 scripts, 415/415
+  tests, 1511 asserts) and `.venv-enrollment/bin/python -m pytest
+  infra/enrollment/tests -q` (70/70, exit 0 on Linux, also reproduced 70/70 on
+  Windows) — run in an isolated git worktree of commit d732ff6, since Windows
+  cannot run GUT for this repository (the `addons/godot-sqlite` and
+  `native/wgnetstack` extensions have no `windows.x86_64` binaries).
 - Change history:
+  - Date: 2026-09-15
+    What changed: Validated and delivered [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+    on the canonical Linux host (`192.168.1.254`), in an isolated git worktree
+    of commit `d732ff6`. `GODOT_BIN=godot bash scripts/run_gut_validation.sh`
+    passed — `validation-summary.json` status `passed`, exit 0, 62/62 scripts,
+    Run Summary 415 tests, 415 passing, 1511 asserts, 0 failing (includes the
+    new `tests/integration/test_login_loopback_http_endpoint.gd`).
+    `.venv-enrollment/bin/python -m pytest infra/enrollment/tests -q` passed
+    70/70, exit 0 on the Linux host, and was also reproduced on Windows (fresh
+    venv, `requirements.txt` + `pytest`) at 70/70, exit 0. Two defects were
+    caught and fixed before merge, per `AGENTS.md`'s root-cause gate: (a) a
+    non-constant `PackedByteArray` `const` initializer in
+    `server/login_loopback_http_endpoint.gd` failed to parse under GDScript
+    2.0 (caught by `godot --headless --check-only`, masked on Windows by the
+    unrelated environmental native-lib failure) — fixed by changing it to an
+    instance `var`; (b) the same file `preload`ed `client/network_client.gd`
+    solely to read a TTL constant, a server→client dependency inversion
+    against `CLAUDE.md`'s boundary rule — caught in Copilot review and fixed
+    by adding a local server-owned constant.
+    Why: Close out Slice 088 with real validation evidence rather than the
+    pending placeholders the implementation handoff left, per this record's
+    mandatory implementation-sync rule.
+    Related work: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md),
+    [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+    [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+    Validation: See above — GUT 415/415 (62/62 scripts, 1511 asserts), exit 0;
+    enrollment pytest 70/70, exit 0 (Linux and Windows).
   - Date: 2026-09-14
     What changed: Delivered Slice 048, the invite-code enrollment service's
     logic and full automated test coverage (39/39 passing), against issue 04's
