@@ -67,6 +67,15 @@ const LOGIN_PORT: int = 9998
 const LOGIN_PORT_CLI_ARG: String = "--login-port="
 const LOGIN_PORT_ENV_VAR: String = "PROJECT0_LOGIN_PORT"
 
+# Slice 088: the login process's loopback-only HTTP endpoint port
+# (server/login_loopback_http_endpoint.gd), adjacent to the ENet LOGIN_PORT.
+# Unlike LOGIN_PORT, the endpoint's bind ADDRESS is never configurable (always
+# hardcoded to "127.0.0.1" in the endpoint itself) — only the port is resolved
+# here, with the same CLI/env/default precedence as the other network config.
+const LOGIN_HTTP_PORT: int = 9997
+const LOGIN_HTTP_PORT_CLI_ARG: String = "--login-http-port="
+const LOGIN_HTTP_PORT_ENV_VAR: String = "PROJECT0_LOGIN_HTTP_PORT"
+
 # Slice 078: opt-in client login split. When set, the client authenticates on the
 # separate login process and hands off to the game process; default off keeps the
 # single-connection flow.
@@ -137,6 +146,22 @@ static func resolve_login_port() -> int:
 		return from_env
 
 	return LOGIN_PORT
+
+
+## Public seam (Slice 088): resolves the TCP port the login process's loopback
+## HTTP endpoint listens on. Precedence: `--login-http-port=<n>` CLI argument,
+## then `PROJECT0_LOGIN_HTTP_PORT`, then LOGIN_HTTP_PORT. A malformed value
+## falls back to the default (never binds port 0 or an out-of-range port).
+static func resolve_login_http_port() -> int:
+	var from_cli: int = _parse_port(_find_cli_arg_value(LOGIN_HTTP_PORT_CLI_ARG))
+	if from_cli != 0:
+		return from_cli
+
+	var from_env: int = _parse_port(OS.get_environment(LOGIN_HTTP_PORT_ENV_VAR))
+	if from_env != 0:
+		return from_env
+
+	return LOGIN_HTTP_PORT
 
 
 ## Public seam: whether the client should authenticate on the separate login

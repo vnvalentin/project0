@@ -27,6 +27,13 @@ class EnrollmentConfig:
     pool_cidr: ipaddress.IPv4Network
     persistent_keepalive_seconds: int
     db_path: str
+    # Slice 088: locates the login authority's loopback-only HTTP delegation
+    # endpoint (server/login_loopback_http_endpoint.gd). Co-located by default
+    # (ADR 0004) — the enrollment service and the login process run on the
+    # same host, so this is a loopback call, never a second public hop.
+    login_authority_host: str
+    login_authority_port: int
+    login_authority_timeout_seconds: float
 
 
 DEFAULT_DB_PATH = os.path.join(
@@ -65,6 +72,22 @@ def load_config() -> EnrollmentConfig:
             f"ENROLLMENT_PERSISTENT_KEEPALIVE_SECONDS must be an integer: {keepalive_raw}"
         ) from exc
 
+    login_authority_port_raw = os.getenv("LOGIN_AUTHORITY_PORT", "9997").strip()
+    try:
+        login_authority_port = int(login_authority_port_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"LOGIN_AUTHORITY_PORT must be an integer: {login_authority_port_raw}"
+        ) from exc
+
+    login_authority_timeout_raw = os.getenv("LOGIN_AUTHORITY_TIMEOUT_SECONDS", "5").strip()
+    try:
+        login_authority_timeout_seconds = float(login_authority_timeout_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"LOGIN_AUTHORITY_TIMEOUT_SECONDS must be a number: {login_authority_timeout_raw}"
+        ) from exc
+
     return EnrollmentConfig(
         opnsense_host=os.getenv("OPNSENSE_HOST", "192.168.1.1").strip(),
         opnsense_api_key=api_key,
@@ -80,4 +103,7 @@ def load_config() -> EnrollmentConfig:
         pool_cidr=pool_cidr,
         persistent_keepalive_seconds=keepalive,
         db_path=os.getenv("ENROLLMENT_DB_PATH", DEFAULT_DB_PATH).strip(),
+        login_authority_host=os.getenv("LOGIN_AUTHORITY_HOST", "127.0.0.1").strip(),
+        login_authority_port=login_authority_port,
+        login_authority_timeout_seconds=login_authority_timeout_seconds,
     )

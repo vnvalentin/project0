@@ -53,7 +53,49 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
-None currently open.
+### DT-009: Public `/login` on the enrollment service has no rate-limiting, lockout, or anti-enumeration
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Security`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-15
+- Benefit or reason: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+  adds the first public, unauthenticated credential-verification HTTP surface
+  the enrollment service has ever exposed (`POST /login`, delegating to the
+  login authority's loopback endpoint). ADR 0004's Consequences section names
+  rate-limiting/lockout/anti-enumeration as *required* before this path is
+  advertised publicly, but implementing it is a distinct, boundable unit of
+  work (likely a token-bucket or fixed-window limiter plus a lockout policy on
+  the enrollment service, or a Cloudflare/WAF-level rule) that would have
+  enlarged Slice 088's scope beyond its stated login-delegation seam. The
+  shortcut is intentional and bounded: `AuthService.login` (server/auth_service.gd)
+  already pays a fixed PBKDF2 cost on an unknown username (no timing
+  enumeration) and returns the identical `BAD_CREDENTIALS` reason for both
+  "unknown user" and "wrong password" (no message enumeration) — so the
+  liability is specifically the absence of a cap on *repeated* attempts, not a
+  missing baseline.
+- Impact: Until remediated, an attacker with network access to the public
+  `/login` endpoint can attempt unlimited username/password combinations
+  (online brute-force / credential-stuffing), bounded only by whatever
+  Cloudflare's WAF in front of the enrollment service does by default (not a
+  substitute for application-level lockout, per the slice record). No other
+  path is affected: `POST /redeem` (invite-code based) and the ENet login port
+  (loopback/LAN-only per its own bind default) are unchanged.
+- Remediation plan: A follow-up slice adds request throttling (e.g. a
+  fixed-window or token-bucket limiter keyed by source IP and/or username) and
+  an account or IP lockout policy to `infra/enrollment/app.py`'s `POST /login`
+  route (and/or an OPNsense/Cloudflare WAF rule), with test coverage proving
+  the limiter rejects excess attempts with a bounded reason and does not
+  regress the no-enumeration property already provided by `AuthService.login`.
+  This item closes when that slice lands and its validation evidence is
+  linked here, or is explicitly accepted permanently with a recorded
+  compensating control (e.g. a documented WAF rule) if a follow-up slice is
+  judged unnecessary.
+- Status: `Open`
+- Phase: 13 (Public game access)
+- Links: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+  (Scope/Safety invariants sections), [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md)
+  (Consequences section), [PROJECT-TRACKER.md](PROJECT-TRACKER.md#phase-13--public-game-access)
 
 ## Resolved Items
 

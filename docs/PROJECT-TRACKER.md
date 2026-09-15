@@ -243,9 +243,11 @@ Progress: **0%** (0 of 1 items done)
 
 Progress: **0%** (0 of 3 items done)
 
-- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the OPNsense tunnel, Windows DLL packaging, remote-Windows WAN runtime, enrollment service, and live `/healthz`/`/redeem` path are delivered and validated. Slice 054 remains active only for Windows secure-launcher live enrollment/tunnel evidence, real tunnel-teardown timing, and idempotent re-enrollment.
-- Tech debt: none yet.
-- **Current slice:** [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — **in progress; secure launcher implemented and full-suite tested; enrollment service deployed live and validated; Windows-launcher live tunnel validation pending**
+- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the OPNsense tunnel, Windows DLL packaging, remote-Windows WAN runtime, enrollment service, and live `/healthz`/`/redeem` path are delivered and validated. Slice 054 remains active only for Windows secure-launcher live enrollment/tunnel evidence, real tunnel-teardown timing, and idempotent re-enrollment. Slice 088 implements the [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md) auth-gated onboarding follow-up sequence's first slice (loopback login delegation) — implementation complete, awaiting Copilot's GUT + pytest validation run.
+- Tech debt: `open` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration) — the new public `/login` surface has no rate-limiting/lockout/anti-enumeration yet (named liability, not silently deferred).
+- **Current slice:** [088 — Auth-gated onboarding A: HTTPS /login delegation](slices/088-auth-gated-onboarding-login-delegation.md) — **awaiting validation evidence; implementation complete (server/login_loopback_http_endpoint.gd, shared/network_config.gd's resolve_login_http_port(), infra/enrollment's POST /login + LoginAuthorityClient), Copilot to run GUT + pytest**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+- Also active: [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — **in progress; secure launcher implemented and full-suite tested; enrollment service deployed live and validated; Windows-launcher live tunnel validation pending**
 
 **Phase 14 — Player accounts and characters**
 
@@ -585,6 +587,13 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Public game access
 
+- **Slice:** [088 — Auth-gated onboarding A: HTTPS /login delegation](slices/088-auth-gated-onboarding-login-delegation.md) — **awaiting validation evidence; implementation complete, Copilot to run GUT + pytest**
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+  - **Tech debt:** `open` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration) — public-`/login` rate-limiting/anti-enumeration filed as a named, tracked liability (not silently deferred)
+  - **Planning ticket:** [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md), [SLICE-REGISTRY.md](slices/SLICE-REGISTRY.md) (088, first of the 088–090 ADR 0004 follow-up sequence)
+  - **Decision:** implements [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md) follow-up (A); no new ADR
+  - **Public seam:** `server/login_loopback_http_endpoint.gd` (`LoginLoopbackHttpEndpoint`, wired from `server/login_server_main.gd`), `shared/network_config.gd`'s `resolve_login_http_port()`, `infra/enrollment/login_client.py` (`LoginAuthorityClient`/`RealLoginAuthorityClient`), and `infra/enrollment/app.py`'s `POST /login`
+  - **Validation:** not yet run — see the slice record's Validation evidence section for the exact pending commands
 - **Slice:** [028 — WireGuard remote-access infrastructure foundation](slices/028-wireguard-remote-access-infrastructure-foundation.md) — **records-first handoff complete; awaiting live OPNsense/host execution evidence**
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
   - **Tech debt:** none identified
@@ -676,6 +685,16 @@ This section lists planned work with no implementation slice started yet. An
 item only becomes a tracked, in-progress slice (and moves out of this queue)
 once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
 
+- [~] Active — Auth-gated onboarding (Phase 13, [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)):
+  [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md) names a three-slice
+  follow-up sequence, reserved as 088–090 in
+  [SLICE-REGISTRY.md](slices/SLICE-REGISTRY.md). [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+  (HTTPS `/login` delegation) is implemented (awaiting Copilot's GUT + pytest
+  validation run) and has moved out of this queue into the Phase 13 slice
+  index above. Still queued, no slice record yet: 089 (`/redeem` accepts a signed assertion
+  + idempotent per-account peer lifecycle/aging) and 090 (launcher/client
+  login → redeem → tunnel → assertion handoff flow, under
+  [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)).
 - [x] Define the Godot 4 High-Level Multiplayer authority model for
   networked gameplay (client input/prediction vs. server
   simulation/replication), per [game-vision issue 03](../.scratch/game-vision/issues/03-define-authority-model.md).

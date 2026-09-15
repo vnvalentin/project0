@@ -36,6 +36,9 @@ def make_config(**overrides) -> EnrollmentConfig:
         pool_cidr=ipaddress.ip_network("10.77.0.0/24"),
         persistent_keepalive_seconds=25,
         db_path=":memory:",
+        login_authority_host="127.0.0.1",
+        login_authority_port=9997,
+        login_authority_timeout_seconds=5.0,
     )
     defaults.update(overrides)
     return EnrollmentConfig(**defaults)

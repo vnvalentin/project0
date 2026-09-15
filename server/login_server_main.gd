@@ -28,6 +28,7 @@ const AccountCharacterRepositoryScript: Script = preload("res://server/account_c
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+const LoginLoopbackHttpEndpointScript: Script = preload("res://server/login_loopback_http_endpoint.gd")
 
 const DEFAULT_LOGIN_ACCOUNTS_DB_PATH: String = "login_accounts.db"
 const DEFAULT_LOGIN_HEALTH_FILE: String = "user://login_health.json"
@@ -38,6 +39,10 @@ const HEALTH_REFRESH_FRAMES: int = 30
 var _store: SqliteStore = null
 var _repository: Object = null
 var _login_gateway: Object = null
+## Slice 088: loopback-only HTTP delegation endpoint for the enrollment
+## service's public POST /login (ADR 0004). Constructed with the SAME
+## LoginGateway handle built above — no second gateway, no second AssertionIssuer.
+var _loopback_http_endpoint: Object = null
 var _peer: ENetMultiplayerPeer
 var _connected_peers: Dictionary = {}
 
@@ -97,6 +102,27 @@ func _start_login_server() -> void:
 	if bind_address != NetworkConfigScript.SERVER_ADDRESS:
 		print("WARNING: login server bound to a non-localhost address. It accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, login_port])
 
+	_start_loopback_http_endpoint()
+
+
+## Slice 088: starts the loopback-only HTTP delegation endpoint the enrollment
+## service's public POST /login calls into. Bound hard-coded to 127.0.0.1
+## inside LoginLoopbackHttpEndpoint itself — never NetworkConfigScript's
+## configurable bind_address (that override exists only for the ENet login
+## port above and must never apply here; see the class doc and the slice's
+## Safety invariants). A bind failure is logged but does not stop the login
+## server: the existing ENet login path keeps serving in-process clients even
+## if this add-on delegation seam cannot start.
+func _start_loopback_http_endpoint() -> void:
+	_loopback_http_endpoint = LoginLoopbackHttpEndpointScript.new(_login_gateway)
+	_loopback_http_endpoint.bind_port = NetworkConfigScript.resolve_login_http_port()
+	root.add_child(_loopback_http_endpoint)
+	var bound_port: int = _loopback_http_endpoint.start()
+	if bound_port == -1:
+		push_error("Login loopback HTTP endpoint failed to bind 127.0.0.1:%d" % _loopback_http_endpoint.bind_port)
+		return
+	print("Login loopback HTTP endpoint listening on 127.0.0.1:%d" % bound_port)
+
 
 func _resolve_health_file_path() -> String:
 	var raw: String = OS.get_environment("PROJECT0_HEALTH_FILE").strip_edges()
@@ -150,4 +176,6 @@ func _write_health(status: String) -> void:
 
 
 func _finalize() -> void:
+	if _loopback_http_endpoint != null:
+		_loopback_http_endpoint.stop()
 	_write_health(ServerHealthScript.STATUS_STOPPING)
