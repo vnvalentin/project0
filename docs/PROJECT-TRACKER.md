@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [075 — Cross-DB world entry: bind Player from the assertion snapshot](slices/075-cross-db-world-entry.md) — **delivered; SessionRegistry snapshot + LoginGateway issue/establish + CharacterService.get_selected_character bind a Player at world entry from the signed snapshot (no shared DB); GUT 55/55 exit 0; e2e ALL PASS including world_entry==ok as the asserted Character**
+- **Current slice:** [076 — Game server assertion-only mode: refuse account-authority RPCs](slices/076-game-assertion-only-mode.md) — **delivered; LoginGateway account_authority flag refuses register/login/CRUD (REASON_ACCOUNT_AUTHORITY_DISABLED) while the assertion path stays; server_main disables it when PROJECT0_GAME_ASSERTION_ONLY=1 (off by default); GUT 56/56 exit 0**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,9 +444,9 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [075 — Cross-DB world entry: bind Player from the assertion snapshot](slices/075-cross-db-world-entry.md) — **delivered; server/session_registry.gd stores a selected-Character snapshot; server/login_gateway.gd issue_character_assertion includes the login DB's name/cosmetic and establish_session_from_assertion stores the snapshot from claims; server/character_service.gd get_selected_character returns a snapshot-backed record when present (DB fallback for the in-process path); world entry now succeeds cross-process; GUT 55/55 exit 0; e2e harness ALL PASS including world_entry==ok bound as Handoff Hero; completes the cross-DB Character-data handoff**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: bind a Player from the signed snapshot, DB-free)
-  - **Public seam:** `server/session_registry.gd` (`set/get_selected_character_snapshot`), `server/login_gateway.gd`, `server/character_service.gd` (`get_selected_character`)
+- **Slice:** [076 — Game server assertion-only mode: refuse account-authority RPCs](slices/076-game-assertion-only-mode.md) — **delivered; server/login_gateway.gd account_authority_enabled flag refuses register/login/list/create/select/delete with REASON_ACCOUNT_AUTHORITY_DISABLED while establish/get_selected_character (snapshot) stay available; LoginRuntime.build_services flows the flag; server_main disables account authority when PROJECT0_GAME_ASSERTION_ONLY=1 (off by default so the pre-cutover client keeps working); GUT 56/56 exit 0 (+test_login_gateway_assertion_only); enforceable login boundary for a split deployment**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: accounts live on the login process)
+  - **Public seam:** `server/login_gateway.gd` (`set_account_authority_enabled`, `REASON_ACCOUNT_AUTHORITY_DISABLED`), `server/login_runtime.gd` (`build_services(..., account_authority)`), `server/server_main.gd` (`PROJECT0_GAME_ASSERTION_ONLY`)
   - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
