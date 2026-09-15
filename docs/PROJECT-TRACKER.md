@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [073 — Login→game handoff e2e (over real ENet, two server processes)](slices/073-login-game-handoff-e2e.md) — **delivered; multi-process e2e harness proves a client authenticates on the login process, gets a signed assertion, reconnects to the game process, and the game server establishes the session from the assertion (no shared DB); ALL PASS on Linux; GUT 54/54 unaffected**
+- **Current slice:** [074 — Signed Character snapshot in the session assertion](slices/074-assertion-character-snapshot.md) — **delivered; SessionAssertion carries additive, bounded, backward-compatible cnm/cos (display_name+cosmetic) signed with the identity claims; AssertionIssuer.issue takes optional snapshot params; GUT 55/55 exit 0; first sub-slice of the cross-DB Character-data handoff**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,9 +444,9 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [073 — Login→game handoff e2e (over real ENet, two server processes)](slices/073-login-game-handoff-e2e.md) — **delivered; scripts/test_login_handoff_e2e.gd spawns the login server + game server (shared PROJECT0_ASSERTION_SECRET, separate accounts DBs) + scripts/login_handoff_client_harness.gd; the client logs in on the login process, gets an assertion, reconnects to the game process, and the game server establishes the session from the validated token (no shared DB); ALL PASS on Linux; GUT gate unaffected (harness is a separate -s script)**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: runtime proof of the login split over real processes)
-  - **Public seam:** `scripts/test_login_handoff_e2e.gd`, `scripts/login_handoff_client_harness.gd` (test-only orchestration over production seams)
+- **Slice:** [074 — Signed Character snapshot in the session assertion](slices/074-assertion-character-snapshot.md) — **delivered; shared/session_assertion.gd gains additive, bounded, backward-compatible KEY_CHARACTER_NAME/KEY_CHARACTER_COSMETIC signed in the canonical payload (older tokens parse with empty defaults); server/assertion_issuer.gd issue() takes optional character_name/character_cosmetic; validator returns them unchanged; GUT 55/55 exit 0 (+test_session_assertion_snapshot); first sub-slice of the cross-DB Character-data handoff (world-entry wiring is 075)**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: signed presentation claims let the game bind a Player DB-free)
+  - **Public seam:** `shared/session_assertion.gd` (`KEY_CHARACTER_NAME`/`KEY_CHARACTER_COSMETIC`, `MAX_COSMETIC_JSON_LEN`), `server/assertion_issuer.gd` (`issue(..., character_name, character_cosmetic)`)
   - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
