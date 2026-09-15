@@ -81,6 +81,16 @@ const LOGIN_HTTP_PORT_ENV_VAR: String = "PROJECT0_LOGIN_HTTP_PORT"
 # single-connection flow.
 const CLIENT_LOGIN_SPLIT_ENV_VAR: String = "PROJECT0_CLIENT_LOGIN_SPLIT"
 
+# Slice 093: opt-in client HTTPS login/character flow (ADR 0005 Option A, WAN).
+# When enabled the client authenticates and performs Character CRUD over the
+# public HTTPS enrollment surface (client/enrollment_http_client.gd), obtains a
+# signed Character assertion, then presents it to the assertion-only game server
+# through the tunnel — instead of the ENet login/character path (which stays for
+# LAN development). Defaults ON under tunnel mode so the WAN launcher, which
+# already sets PROJECT0_TUNNEL=1, needs no extra flag.
+const CLIENT_HTTPS_LOGIN_ENV_VAR: String = "PROJECT0_CLIENT_HTTPS_LOGIN"
+const TUNNEL_ENV_VAR: String = "PROJECT0_TUNNEL"
+
 
 ## Public seam: resolves the address the headless server should bind to.
 ## Precedence: `--server-bind-address=<addr>` CLI argument, then the
@@ -170,6 +180,22 @@ static func resolve_login_http_port() -> int:
 ## set PROJECT0_CLIENT_LOGIN_SPLIT=0 to use the legacy single-connection flow.
 static func client_login_split_enabled() -> bool:
 	return OS.get_environment(CLIENT_LOGIN_SPLIT_ENV_VAR).strip_edges() != "0"
+
+
+## Public seam (Slice 093): whether the client runs the HTTPS account/character
+## flow (log in + list/create/select over the enrollment service, obtain a
+## Character assertion, present it to the game server through the tunnel) instead
+## of the ENet login/character path. Precedence: PROJECT0_CLIENT_HTTPS_LOGIN="1"
+## forces it on and "0" forces it off; when unset it defaults to tunnel mode
+## (PROJECT0_TUNNEL="1"), so the WAN launcher enables it implicitly while LAN
+## development (no tunnel) keeps the ENet path.
+static func client_https_login_enabled() -> bool:
+	var explicit: String = OS.get_environment(CLIENT_HTTPS_LOGIN_ENV_VAR).strip_edges()
+	if explicit == "1":
+		return true
+	if explicit == "0":
+		return false
+	return OS.get_environment(TUNNEL_ENV_VAR).strip_edges() == "1"
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,

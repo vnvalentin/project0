@@ -5,6 +5,9 @@
 extends Control
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+## Slice 093: the client's HTTPS seam to the enrollment service, used for the
+## WAN login flow (client_https_login_enabled). Null in the LAN ENet path.
+const EnrollmentHttpClientScript: Script = preload("res://client/enrollment_http_client.gd")
 
 @onready var username_input = $VBoxContainer/UsernameInput
 @onready var password_input = $VBoxContainer/PasswordInput
@@ -20,6 +23,9 @@ var _pending_action: String = ""
 var _pending_username: String = ""
 var _pending_password: String = ""
 
+## Slice 093: the HTTPS enrollment client instance, created only in the WAN flow.
+var _http_client: Object = null
+
 func _ready() -> void:
 	# Connect to NetworkClient auth signals
 	NetworkClient.auth_result_received.connect(_on_auth_result)
@@ -30,6 +36,15 @@ func _ready() -> void:
 	# Default host input to the resolved target (allows override)
 	var resolved_host = NetworkConfigScript.resolve_client_target_host()
 	host_input.text = resolved_host
+	
+	# Slice 093: in the WAN flow authentication happens over HTTPS; registration
+	# is not exposed on the public enrollment surface yet (DT-010), so log into an
+	# existing account only.
+	if NetworkConfigScript.client_https_login_enabled():
+		_http_client = EnrollmentHttpClientScript.new()
+		add_child(_http_client)
+		register_button.disabled = true
+		register_button.tooltip_text = "Account registration is not available over the internet yet."
 
 func _on_login_pressed() -> void:
 	var username = username_input.text.strip_edges()
@@ -39,12 +54,17 @@ func _on_login_pressed() -> void:
 	if not _validate_input(username, password):
 		return
 	
+	# Store target host in PlayerIdentity for gameplay to inherit
+	PlayerIdentity.target_host = host if not host.is_empty() else NetworkConfigScript.resolve_client_target_host()
+	
+	# Slice 093: WAN flow authenticates over HTTPS, not the ENet login connection.
+	if NetworkConfigScript.client_https_login_enabled():
+		await _perform_https_login(username, password)
+		return
+	
 	status_label.text = "Status: Connecting..."
 	login_button.disabled = true
 	register_button.disabled = true
-	
-	# Store target host in PlayerIdentity for gameplay to inherit
-	PlayerIdentity.target_host = host if not host.is_empty() else NetworkConfigScript.resolve_client_target_host()
 	
 	# The login screen owns opening the connection; queue the request so it
 	# fires once connected (submit_login is a no-op until the handshake ends).
@@ -56,10 +76,42 @@ func _on_login_pressed() -> void:
 	else:
 		_connect_for_auth()
 
+## Slice 093: logs in over HTTPS via the enrollment service, stores the returned
+## account assertion, and transitions to Character selection. Fail-closed: any
+## bounded transport/HTTP failure re-enables login with a readable reason and
+## mints nothing.
+func _perform_https_login(username: String, password: String) -> void:
+	status_label.text = "Status: Logging in..."
+	login_button.disabled = true
+	var base_url: String = EnrollmentHttpClientScript.resolve_base_url()
+	var result: Dictionary = await _http_client.login(base_url, username, password)
+	if result["outcome"] == EnrollmentHttpClientScript.OUTCOME_OK:
+		PlayerIdentity.username = username
+		PlayerIdentity.account_assertion = String(result["assertion"])
+		status_label.text = "Status: Login successful! Loading characters..."
+		await get_tree().create_timer(0.3).timeout
+		get_tree().change_scene_to_file("res://client/character_gate.tscn")
+	else:
+		status_label.text = "Status: Login failed (%s)" % _https_failure_reason(result)
+		login_button.disabled = false
+
+## Slice 093: maps a bounded EnrollmentHttpClient failure result to a short,
+## input-free status string (never echoes the caller's credentials).
+func _https_failure_reason(result: Dictionary) -> String:
+	var outcome: String = String(result.get("outcome", "error"))
+	if outcome == EnrollmentHttpClientScript.OUTCOME_HTTP_ERROR and int(result.get("status", 0)) == 401:
+		return "invalid username or password"
+	return outcome
+
 func _on_register_pressed() -> void:
 	var username = username_input.text.strip_edges()
 	var password = password_input.text
 	var host = host_input.text.strip_edges()
+	
+	# Slice 093: no public HTTPS registration surface exists yet (DT-010).
+	if NetworkConfigScript.client_https_login_enabled():
+		status_label.text = "Status: Registration is not available over the internet yet"
+		return
 	
 	if not _validate_input(username, password):
 		return
