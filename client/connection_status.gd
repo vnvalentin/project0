@@ -15,6 +15,7 @@ func _ready() -> void:
 
 func _replay_pending_sector_blueprint() -> void:
 	NetworkClient.render_pending_player_representations()
+	NetworkClient.render_pending_remote_players()
 	NetworkClient.render_pending_sector_blueprint()
 	NetworkClient.render_pending_monsters()
 
