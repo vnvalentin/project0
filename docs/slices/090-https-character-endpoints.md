@@ -1,6 +1,6 @@
 # Slice 090 — Auth-gated onboarding C-server: HTTPS character endpoints (loopback-delegated)
 
-Status: **awaiting validation evidence** (implementation complete; GUT to run on the Linux host)
+Status: **delivered**
 
 Tracker context: Phase 13 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
@@ -95,9 +95,30 @@ LAN dev).
 - GUT: `scripts/run_gut_validation.sh` on the Linux host (Windows lacks the native
   libs). Enrollment: `python -m pytest infra/enrollment/tests -q`.
 
+## Validation evidence
+
+- **GUT full suite** on the Linux host (192.168.1.254), isolated git worktree of
+  commit `362387f`, `GODOT_BIN=godot bash scripts/run_gut_validation.sh`:
+  `validation-summary.json` status `passed`, exit 0, scripts 62/62, **423 tests
+  passing, 1595 asserts, 0 failing** (up from Slice 089's 420 — +3 character-flow
+  cases in `tests/integration/test_login_loopback_http_endpoint.gd`).
+- **Enrollment pytest** on the host `.venv-enrollment`: **112 passed, exit 0** (up
+  from 96 — +16 character-client/route cases). Reproduced on Windows: 112 passed,
+  exit 0.
+- **Parse check** (Windows): `godot --headless --check-only -s
+  server/login_loopback_http_endpoint.gd` exit 0.
+
 ## Root-cause learning
 
-_(to be completed with validation evidence)_
+No unexpected runtime failure occurred. The slice reused the Slice 088/089
+synthetic-negative-peer-id + loopback-dispatch pattern wholesale, so the only
+new server-side risk (a non-constant `const` or a boundary violation, the two
+defects Slice 088 caught) was pre-empted by a `godot --headless --check-only`
+parse check before the host run (exit 0). The `LoginGateway` already exposed
+every character op and `issue_character_assertion`, so no new account/character
+authority code was written on the login authority — the slice is purely new
+loopback *paths* + HTTPS routes, which is why the diff is small relative to its
+scope.
 
 ## ADR link
 
