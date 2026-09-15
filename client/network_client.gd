@@ -154,6 +154,11 @@ var _latest_monster_positions: Dictionary = {}
 ## RemotePlayer node spawned after (or slightly before) its identity RPC still
 ## gets labeled. Cleared per peer on despawn.
 var _remote_identities: Dictionary = {}
+## Latest replicated start position per remote peer id, kept so a spawn RPC that
+## arrives before this client's gameplay scene is ready (e.g. the late-joiner is
+## still on the login/character screen mid-handoff) is replayed once gameplay
+## loads, instead of being lost. Cleared per peer on despawn.
+var _latest_remote_players: Dictionary = {}
 ## Slice 087: the account resume token obtained at handoff, kept in memory so the
 ## in-world return can re-establish a login session without re-authenticating.
 var _resume_assertion: String = ""
@@ -314,11 +319,20 @@ func render_pending_player_representations() -> void:
 ## the scene's origin until the first position broadcast arrives.
 @rpc("authority", "call_remote", "reliable")
 func spawn_remote_player_representation(peer_id: int, start_position: Vector3) -> void:
+	_latest_remote_players[peer_id] = start_position
 	var gameplay_root: Node = get_tree().current_scene
-	if gameplay_root == null:
-		push_error("NetworkClient: cannot spawn remote Player for peer %d, no current_scene" % peer_id)
+	if not gameplay_root is Node3D:
+		# Deferred: the gameplay scene is not ready yet (a late-joiner is still on
+		# the login/character screen mid-handoff). render_pending_remote_players()
+		# replays it when gameplay loads, so the existing peer is not lost.
 		return
+	_spawn_remote_player_into(peer_id, start_position, gameplay_root)
 
+
+## Instantiates one RemotePlayer node per peer id under the RemotePlayers
+## container, seeded at start_position and labeled from any cached identity.
+## Idempotent: a second call for an already-represented peer is a no-op.
+func _spawn_remote_player_into(peer_id: int, start_position: Vector3, gameplay_root: Node) -> void:
 	var container: Node = _get_or_create_remote_players_container(gameplay_root)
 	var node_name: String = _remote_player_node_name(peer_id)
 	if container.get_node_or_null(node_name) != null:
@@ -337,6 +351,17 @@ func spawn_remote_player_representation(peer_id: int, start_position: Vector3) -
 		remote_player.call("set_character_identity", String(identity.get("display_name", "")), identity.get("cosmetic", {}))
 
 
+## Replays deferred remote-Player spawns once the gameplay scene is ready
+## (called from connection_status.gd, mirroring render_pending_monsters), so a
+## late-joiner sees peers whose spawn RPCs arrived before its scene existed.
+func render_pending_remote_players() -> void:
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		return
+	for peer_id: int in _latest_remote_players:
+		_spawn_remote_player_into(peer_id, _latest_remote_players[peer_id], gameplay_root)
+
+
 ## RPC target called by the server on every remaining peer when a peer
 ## disconnects (Slice 007). Removes that peer's remote representation only —
 ## other peers' remote nodes and this client's own Player/NetworkedPlayer are
@@ -344,6 +369,11 @@ func spawn_remote_player_representation(peer_id: int, start_position: Vector3) -
 ## stays safe to call even if cleanup already happened.
 @rpc("authority", "call_remote", "reliable")
 func despawn_remote_player_representation(peer_id: int) -> void:
+	# Clear the deferred/identity caches first, before any early return, so a
+	# peer that departs while this client's gameplay scene is not ready can never
+	# be resurrected by render_pending_remote_players().
+	_remote_identities.erase(peer_id)
+	_latest_remote_players.erase(peer_id)
 	var gameplay_root: Node = get_tree().current_scene
 	if gameplay_root == null:
 		return
@@ -353,7 +383,6 @@ func despawn_remote_player_representation(peer_id: int) -> void:
 	var remote_player: Node = container.get_node_or_null(_remote_player_node_name(peer_id))
 	if remote_player != null:
 		remote_player.queue_free()
-	_remote_identities.erase(peer_id)
 
 
 func _get_or_create_remote_players_container(gameplay_root: Node) -> Node:
