@@ -1158,9 +1158,32 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 	login_to_game_handoff_finished.emit(String(world.get("outcome", "world_timeout")), world.get("character", {}))
 
 
-## Slice 087: in-world return to Character selection under the split. Drops the
-## game connection, reconnects to the login process, and re-establishes a login
-## session from the stored resume token (no re-auth) so the Character list loads.
+## Slice 093: WAN world entry after the HTTPS account/character flow. Unlike
+## perform_login_to_game_handoff, the client authenticated and selected its
+## Character entirely over HTTPS (client/enrollment_http_client.gd) with NO ENet
+## login connection, so it already holds a signed CHARACTER assertion and starts
+## disconnected. This connects to the game server (bringing up the in-process
+## tunnel when PROJECT0_TUNNEL=1), presents that assertion via the existing
+## establish_session_from_assertion path, and enters the world — reusing the same
+## bounded per-step waits and the login_to_game_handoff_finished signal. The
+## server owns every outcome; a tampered/expired assertion binds nothing.
+func perform_https_world_entry(game_host: String, game_port: int, character_assertion: String) -> void:
+	if character_assertion.is_empty():
+		login_to_game_handoff_finished.emit("assertion_failed", {})
+		return
+
+	connect_to_server(game_host, game_port)
+	if not await _handoff_await_connected(true):
+		login_to_game_handoff_finished.emit("game_connect_timeout", {})
+		return
+
+	var session_outcome: String = await _handoff_present_assertion(character_assertion)
+	if session_outcome != "ok":
+		login_to_game_handoff_finished.emit(session_outcome if not session_outcome.is_empty() else "session_timeout", {})
+		return
+
+	var world: Dictionary = await _handoff_enter_world()
+	login_to_game_handoff_finished.emit(String(world.get("outcome", "world_timeout")), world.get("character", {}))
 ## Emits return_to_character_select_finished("ok") on success; any other outcome
 ## means the caller should fall back to the login screen to re-authenticate.
 func perform_return_to_character_select(login_host: String, login_port: int) -> void:

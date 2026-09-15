@@ -53,6 +53,38 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
+### DT-010: No public HTTPS account-registration surface for the WAN client
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Security`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-15
+- Benefit or reason: [Slice 093](slices/093-client-https-login-wiring.md) wires
+  the WAN client to the public HTTPS enrollment surface, which exposes `/login`
+  and `/characters/*` (Slices 088/090) but **no** `/register` route. Adding a
+  public, unauthenticated account-creation endpoint is a distinct, security-
+  sensitive unit of work (it inherits and widens the same rate-limiting/lockout/
+  anti-enumeration concern as [DT-009](#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration),
+  plus abuse/bot-signup and CAPTCHA considerations) that would have enlarged
+  Slice 093's client-wiring scope. The shortcut is intentional and bounded: the
+  WAN login/character/world-entry path is fully wired, and the register button is
+  explicitly disabled in WAN mode with a clear message rather than silently
+  failing; accounts can still be created over the ENet LAN path (development) or
+  by an operator.
+- Impact: a remote player with no account cannot self-register over the internet
+  — WAN onboarding is login-only until a public registration surface exists.
+  Does not affect the diagnosed `account_authority_disabled` fix, which was about
+  login, not registration.
+- Remediation plan: add a `POST /register` route to the enrollment service,
+  loopback-delegated to the login authority (mirroring `/login`, Slice 088), with
+  the DT-009 abuse protections applied; then add an `EnrollmentHttpClient.register`
+  method and re-enable the register button in WAN mode. Own ADR/slice.
+- Status: `open`
+- Related work: [Slice 093](slices/093-client-https-login-wiring.md),
+  [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+  [ADR 0005](adr/0005-character-selection-over-https.md),
+  [DT-009](#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration).
+
 ### DT-009: Public `/login` on the enrollment service has no rate-limiting, lockout, or anti-enumeration
 
 - Classification: `Strategic Technical Debt`
