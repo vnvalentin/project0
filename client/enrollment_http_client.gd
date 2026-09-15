@@ -4,10 +4,10 @@ class_name EnrollmentHttpClient
 ## enrollment service — pre-tunnel login and account-scoped character
 ## list/create/select/delete. Consumes the Slice 088 `/login` and Slice 090
 ## `/characters/*` routes. Bounded and fail-closed: every method is a coroutine
-## returning a typed result Dictionary and never raises. Mirrors
-## shared/local_llm_client.gd's HTTPRequest + `await request_completed` pattern
-## (Godot's one child HTTPRequest runs one request at a time, so callers await
-## a method before starting the next).
+## returning a typed result Dictionary and never raises. Uses the same
+## `HTTPRequest` + `await request_completed` pattern as the codebase's other
+## bounded HTTP clients (one child HTTPRequest runs one request at a time, so
+## callers await a method before starting the next).
 ##
 ## Client-only per CLAUDE.md: this talks to the public HTTPS surface, never to
 ## the login authority's loopback endpoint or the ENet login server directly.
