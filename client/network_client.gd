@@ -42,6 +42,12 @@ signal connection_status_changed(status: String)
 signal authoritative_position_received(position: Vector3, last_processed_sequence: int)
 signal remote_player_position_received(peer_id: int, position: Vector3)
 
+## Slice 086: emitted on this client when the server replicates another peer's
+## bound Character identity (display name + cosmetic) at that peer's world entry,
+## so client/remote_player.gd can label its remote representation. Presentation
+## only — this autoload never derives identity itself.
+signal remote_player_identity_received(peer_id: int, display_name: String, cosmetic: Dictionary)
+
 ## Slice 012: emitted on this client only, with the authoritative
 ## ActionResolution for one of this client's own submitted melee ActionIntent
 ## sequences, so client/player.gd can reconcile its local prediction.
@@ -124,6 +130,10 @@ var _pending_monster_spawns: Dictionary = {}
 var _pending_monster_positions: Dictionary = {}
 var _latest_monster_spawns: Dictionary = {}
 var _latest_monster_positions: Dictionary = {}
+## Slice 086: latest replicated Character identity per remote peer id, kept so a
+## RemotePlayer node spawned after (or slightly before) its identity RPC still
+## gets labeled. Cleared per peer on despawn.
+var _remote_identities: Dictionary = {}
 
 
 func _ready() -> void:
@@ -297,6 +307,11 @@ func spawn_remote_player_representation(peer_id: int, start_position: Vector3) -
 	remote_player.position = start_position
 	container.add_child(remote_player)
 	remote_player.call("set_peer_id", peer_id)
+	# Slice 086: if this peer's Character identity already arrived (or was cached
+	# from a prior spawn), apply it now so a late spawn is still labeled.
+	if _remote_identities.has(peer_id):
+		var identity: Dictionary = _remote_identities[peer_id]
+		remote_player.call("set_character_identity", String(identity.get("display_name", "")), identity.get("cosmetic", {}))
 
 
 ## RPC target called by the server on every remaining peer when a peer
@@ -315,6 +330,7 @@ func despawn_remote_player_representation(peer_id: int) -> void:
 	var remote_player: Node = container.get_node_or_null(_remote_player_node_name(peer_id))
 	if remote_player != null:
 		remote_player.queue_free()
+	_remote_identities.erase(peer_id)
 
 
 func _get_or_create_remote_players_container(gameplay_root: Node) -> Node:
@@ -510,6 +526,18 @@ func receive_authoritative_position(position: Vector3, last_processed_sequence: 
 @rpc("authority", "call_remote", "unreliable")
 func receive_remote_player_position(peer_id: int, position: Vector3) -> void:
 	remote_player_position_received.emit(peer_id, position)
+
+
+## RPC target: called by the server on every other peer when a peer binds its
+## selected Character at world entry (Slice 086), with that peer's id, Character
+## display name, and cosmetic. Cached (so a not-yet-spawned RemotePlayer still
+## gets labeled) and relayed via a signal for the remote representation's own
+## node script (client/remote_player.gd) to render — this autoload never
+## derives or trusts identity itself.
+@rpc("authority", "call_remote", "reliable")
+func receive_remote_player_identity(peer_id: int, display_name: String, cosmetic: Dictionary) -> void:
+	_remote_identities[peer_id] = {"display_name": display_name, "cosmetic": cosmetic}
+	remote_player_identity_received.emit(peer_id, display_name, cosmetic)
 
 
 ## Public seam: called by the client to submit a melee-strike ActionIntent,

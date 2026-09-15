@@ -1894,10 +1894,16 @@ for a developer to pick up. No implementation has started.
 - Problem solved: The network proof through Slice 005 models only one connected Player and does not replicate peer state to other clients.
 - How it solves the problem: The server owns one `ServerPlayerState` per connected peer (keyed by peer id) and replicates each peer's authoritative position to every other connected peer; each client renders every other peer as a distinct `RemotePlayer_<peer_id>` node, spawned/despawned by explicit server RPCs. Slice 007 implements this for two concurrent peers.
 - Phase: 11. Multi-peer Player replication
-- Implementation slices: [Slice 007](slices/007-multi-peer-player-replication.md)
+- Implementation slices: [Slice 007](slices/007-multi-peer-player-replication.md), [Slice 086](slices/086-multipeer-character-replication.md)
 - Public seam: `server/server_main.gd`, `server/server_player_state.gd`, `client/network_client.gd`, and `client/remote_player.gd`.
 - Validation: Headlessly validated via `scripts/test_multi_peer_replication.gd` and verified interactively in a physical two-machine LAN run with multiple peers.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [Multi-peer Player replication](../.scratch/game-vision/issues/13-multi-peer-player-replication.md)
+- Change history:
+  - Date: 2026-09-15
+    What changed: Delivered Slice 086 — remote Players are now labeled with their bound Character's display name. `ServerPlayerState` emits `character_bound` at world entry; `server_main.gd` broadcasts `receive_remote_player_identity` to every other peer and seeds a late-joiner with already-bound identities; `NetworkClient` caches + relays the identity; `RemotePlayer` renders a billboarded `NameLabel`. Closes the Phase 14 "multi-peer Character replication" follow-up on top of the split login/assertion architecture.
+    Why: After the login split, a peer binds its selected Character at world entry, but that identity was never replicated, so other players saw anonymous remotes.
+    Related work: [Slice 086](slices/086-multipeer-character-replication.md), [Slice 007](slices/007-multi-peer-player-replication.md), [Slice 043](slices/043-character-world-entry.md)
+    Validation: `scripts/run_gut_validation.sh` on Linux passed 401/401 tests across 59 scripts (1430 asserts), exit 0 (adds `tests/unit/test_character_identity_replication.gd`); `scripts/test_login_handoff_e2e.gd` ALL PASS (world entry ok, bound `Handoff Hero`); `scripts/check_record_sync.sh` exit 0.
 
 ### F-002: Portable Windows client package
 
