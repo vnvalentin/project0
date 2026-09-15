@@ -102,9 +102,9 @@ func _test_login_game_handoff() -> void:
 	])
 	_assert(_client_pid != -1, "client harness process starts")
 
-	# Poll until the game server establishes the session (or the client fails).
+	# Poll until the client finishes world entry (or fails).
 	var state: Dictionary = await _wait_for_state(func(s: Dictionary) -> bool:
-		return String(s.get("session_established", "")) != "" or String(s.get("phase", "")) == "failed"
+		return String(s.get("world_entry", "")) != "" or String(s.get("phase", "")) == "failed"
 	, HANDOFF_TIMEOUT_MS)
 
 	_assert(bool(state.get("login_connected", false)), "client connects to the login process")
@@ -113,6 +113,8 @@ func _test_login_game_handoff() -> void:
 	_assert(bool(state.get("assertion_received", false)), "client receives a signed assertion from the login process")
 	_assert(bool(state.get("game_connected", false)), "client connects to the game process after the login handoff")
 	_assert(String(state.get("session_established", "")) == "ok", "the game process establishes the session from the login assertion (no shared DB); outcome=%s error=%s" % [state.get("session_established", ""), state.get("error", "")])
+	_assert(String(state.get("world_entry", "")) == "ok", "the client enters the world as its asserted Character (no shared DB); outcome=%s error=%s" % [state.get("world_entry", ""), state.get("error", "")])
+	_assert(String(state.get("world_character_name", "")) == "Handoff Hero", "the bound Player is the Character named on the login process; got=%s" % [state.get("world_character_name", "")])
 
 
 func _wait_for_health(user_file: String, timeout_ms: int) -> bool:

@@ -107,6 +107,12 @@ func get_selected_character(peer_id: int) -> Dictionary:
 	var account_id: String = _require_session_account(peer_id)
 	if account_id.is_empty():
 		return _reject_unauthenticated(peer_id)
+	# Slice 075: an assertion-established session carries a signed Character
+	# snapshot; bind from it directly, since the game server's DB has no such
+	# record. The in-process login path has no snapshot and resolves via the DB.
+	var snapshot: Dictionary = _sessions.get_selected_character_snapshot(peer_id)
+	if not snapshot.is_empty():
+		return {"outcome": OUTCOME_OK, "character": _record_from_snapshot(account_id, snapshot)}
 	var selected_id: String = _sessions.get_selected_character(peer_id)
 	if selected_id.is_empty():
 		return {"outcome": REJECT_NO_CHARACTER_SELECTED, "detail": "Peer %d has not selected a Character." % peer_id}
@@ -115,6 +121,20 @@ func get_selected_character(peer_id: int) -> Dictionary:
 		if (record as CharacterRecord).character_id == selected_id:
 			return {"outcome": OUTCOME_OK, "character": record}
 	return {"outcome": CharacterRecordScript.REJECT_NO_SUCH_CHARACTER, "detail": "Selected Character %s is no longer available." % selected_id}
+
+
+## Slice 075: builds a CharacterRecord from the session's signed snapshot
+## (identity + presentation only; created/last-played are unknown to the game
+## server and are not needed to bind a Player).
+func _record_from_snapshot(account_id: String, snapshot: Dictionary) -> CharacterRecord:
+	return CharacterRecordScript.new(
+		String(snapshot.get("character_id", "")),
+		account_id,
+		String(snapshot.get("display_name", "")),
+		snapshot.get("cosmetic", {}),
+		0,
+		0
+	)
 
 
 ## Returns the session's account_id, or an empty String if `peer_id` holds no
