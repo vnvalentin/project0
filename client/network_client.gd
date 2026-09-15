@@ -979,3 +979,108 @@ func _reply_enter_world_result(peer_id: int, result: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func receive_enter_world_result(outcome: String, character: Dictionary) -> void:
 	world_entry_received.emit(outcome, character)
+
+
+## Slice 077: emitted when perform_login_to_game_handoff finishes, with the final
+## outcome ("ok" on world entry) and the bound Character wire dict (empty on any
+## earlier failure). The login screen (or a harness) transitions on this.
+signal login_to_game_handoff_finished(outcome: String, world_character: Dictionary)
+
+## Slice 077: bounded per-step wait (ms) for the login->game handoff, so a dropped
+## reply ends the step with a terminal outcome instead of hanging.
+const HANDOFF_STEP_TIMEOUT_MS: int = 20000
+
+
+## Slice 077: Phase 2 of the login split. Call while connected to the login
+## process with a selected Character: requests a signed assertion, hands off to
+## the game process (disconnect -> connect -> present assertion), and enters the
+## world, emitting login_to_game_handoff_finished(outcome, character). Poll-based
+## and bounded; drives only public seams, and the server owns every outcome.
+func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
+	var token: String = await _handoff_request_assertion()
+	if token.is_empty():
+		login_to_game_handoff_finished.emit("assertion_failed", {})
+		return
+
+	disconnect_from_server()
+	if not await _handoff_await_connected(false):
+		login_to_game_handoff_finished.emit("login_disconnect_timeout", {})
+		return
+
+	connect_to_server(game_host, game_port)
+	if not await _handoff_await_connected(true):
+		login_to_game_handoff_finished.emit("game_connect_timeout", {})
+		return
+
+	var session_outcome: String = await _handoff_present_assertion(token)
+	if session_outcome != "ok":
+		login_to_game_handoff_finished.emit(session_outcome if not session_outcome.is_empty() else "session_timeout", {})
+		return
+
+	var world: Dictionary = await _handoff_enter_world()
+	login_to_game_handoff_finished.emit(String(world.get("outcome", "world_timeout")), world.get("character", {}))
+
+
+func _handoff_request_assertion() -> String:
+	var box: Dictionary = {"done": false, "outcome": "", "token": ""}
+	var cb: Callable = func(o: String, t: String) -> void:
+		box["done"] = true
+		box["outcome"] = o
+		box["token"] = t
+	assertion_result_received.connect(cb, CONNECT_ONE_SHOT)
+	submit_request_assertion()
+	var reached: bool = await _handoff_poll(box)
+	if assertion_result_received.is_connected(cb):
+		assertion_result_received.disconnect(cb)
+	if not reached or String(box["outcome"]) != "ok":
+		return ""
+	return String(box["token"])
+
+
+func _handoff_present_assertion(token: String) -> String:
+	var box: Dictionary = {"done": false, "outcome": ""}
+	var cb: Callable = func(o: String) -> void:
+		box["done"] = true
+		box["outcome"] = o
+	session_established_received.connect(cb, CONNECT_ONE_SHOT)
+	submit_present_assertion(token)
+	var reached: bool = await _handoff_poll(box)
+	if session_established_received.is_connected(cb):
+		session_established_received.disconnect(cb)
+	return String(box["outcome"]) if reached else ""
+
+
+func _handoff_enter_world() -> Dictionary:
+	var box: Dictionary = {"done": false, "outcome": "", "character": {}}
+	var cb: Callable = func(o: String, c: Dictionary) -> void:
+		box["done"] = true
+		box["outcome"] = o
+		box["character"] = c
+	world_entry_received.connect(cb, CONNECT_ONE_SHOT)
+	submit_enter_world()
+	var reached: bool = await _handoff_poll(box)
+	if world_entry_received.is_connected(cb):
+		world_entry_received.disconnect(cb)
+	if not reached:
+		return {"outcome": "", "character": {}}
+	return {"outcome": box["outcome"], "character": box["character"]}
+
+
+## Polls a capture box's "done" flag each frame until set or the step times out.
+func _handoff_poll(box: Dictionary) -> bool:
+	var deadline: int = Time.get_ticks_msec() + HANDOFF_STEP_TIMEOUT_MS
+	while Time.get_ticks_msec() < deadline:
+		if box["done"]:
+			return true
+		await get_tree().process_frame
+	return false
+
+
+## Polls the connection status until it matches `want_connected` or times out.
+func _handoff_await_connected(want_connected: bool) -> bool:
+	var deadline: int = Time.get_ticks_msec() + HANDOFF_STEP_TIMEOUT_MS
+	while Time.get_ticks_msec() < deadline:
+		if String(status).begins_with("connected") == want_connected:
+			return true
+		await get_tree().process_frame
+	return false

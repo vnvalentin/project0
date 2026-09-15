@@ -55,6 +55,8 @@ var _assertion_token: String = ""
 var _session_outcome: String = ""
 var _world_outcome: String = ""
 var _world_character_name: String = ""
+var _handoff_done: bool = false
+var _handoff_outcome: String = ""
 
 
 func _initialize() -> void:
@@ -125,44 +127,14 @@ func _handoff() -> void:
 		return _fail("select character rejected: %s" % _char_outcome)
 	_state["character_selected"] = true
 
-	_set_phase("request_assertion")
-	_assertion_outcome = ""
-	_network_client.submit_request_assertion()
-	if not await _until(func() -> bool: return _assertion_outcome != ""):
-		return _fail("assertion request timeout")
-	if _assertion_outcome != "ok" or _assertion_token.is_empty():
-		return _fail("assertion request rejected: %s" % _assertion_outcome)
-	_state["assertion_received"] = true
-
-	# --- Phase 2: hand off to the game process ---
-	_set_phase("disconnect_login")
-	_network_client.disconnect_from_server()
-	if not await _until(func() -> bool: return not String(_network_client.status).begins_with("connected")):
-		return _fail("login disconnect timeout")
-
-	_set_phase("connect_game")
-	_network_client.connect_to_server(HOST, _game_port)
-	if not await _until(func() -> bool: return String(_network_client.status).begins_with("connected")):
-		return _fail("game connect timeout")
-	_state["game_connected"] = true
-
-	_set_phase("present_assertion")
-	_session_outcome = ""
-	_network_client.submit_present_assertion(_assertion_token)
-	if not await _until(func() -> bool: return _session_outcome != ""):
-		return _fail("present assertion timeout")
-	_state["session_established"] = _session_outcome
-	if _session_outcome != "ok":
-		return _fail("session not established: %s" % _session_outcome)
-
-	# --- Phase 3: enter the world as the asserted Character ---
-	_set_phase("enter_world")
-	_world_outcome = ""
-	_network_client.submit_enter_world()
-	if not await _until(func() -> bool: return _world_outcome != ""):
-		return _fail("enter world timeout")
-	_state["world_entry"] = _world_outcome
-	_state["world_character_name"] = _world_character_name
+	# --- Phase 2: production login->game handoff seam ---
+	_set_phase("handoff")
+	_network_client.login_to_game_handoff_finished.connect(_on_handoff_finished)
+	_network_client.perform_login_to_game_handoff(HOST, _game_port)
+	if not await _until(func() -> bool: return _handoff_done):
+		return _fail("handoff timeout")
+	if _handoff_outcome != "ok":
+		return _fail("handoff outcome: %s" % _handoff_outcome)
 	_set_phase("done")
 	_write_state()
 
@@ -194,15 +166,27 @@ func _on_character_result(operation: String, outcome: String, characters: Array)
 func _on_assertion_result(outcome: String, assertion: String) -> void:
 	_assertion_outcome = outcome
 	_assertion_token = assertion
+	if outcome == "ok" and not assertion.is_empty():
+		_state["assertion_received"] = true
 
 
 func _on_session_established(outcome: String) -> void:
 	_session_outcome = outcome
+	# Reaching this means the game connection is up (present runs on it).
+	_state["game_connected"] = true
+	_state["session_established"] = outcome
 
 
 func _on_world_entry(outcome: String, character: Dictionary) -> void:
 	_world_outcome = outcome
 	_world_character_name = String(character.get("display_name", ""))
+	_state["world_entry"] = outcome
+	_state["world_character_name"] = _world_character_name
+
+
+func _on_handoff_finished(outcome: String, _character: Dictionary) -> void:
+	_handoff_outcome = outcome
+	_handoff_done = true
 
 
 func _set_phase(phase: String) -> void:
