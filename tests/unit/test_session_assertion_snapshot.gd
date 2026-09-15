@@ -25,7 +25,9 @@ func _validator() -> RefCounted:
 
 
 func test_character_snapshot_round_trips_through_validation() -> void:
-	var cosmetic: Dictionary = {"body": "tall", "tint": 3}
+	# Cosmetic travels as JSON in the signed payload, so numeric values return as
+	# floats; string values round-trip exactly, which is what this asserts.
+	var cosmetic: Dictionary = {"body": "tall", "tint": "amber"}
 	var token: String = _issuer().issue("sess-1", "acc-1", "char-1", 1000, 300, "Alice the Bold", cosmetic)
 	var result: Dictionary = _validator().validate(token, 1001)
 	assert_eq(result["outcome"], SessionAssertionScript.OUTCOME_OK, "a snapshot-bearing token validates")
