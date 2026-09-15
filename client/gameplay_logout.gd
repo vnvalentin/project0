@@ -4,6 +4,7 @@ const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 
 func _ready() -> void:
 	pressed.connect(_on_logout_pressed)
+	text = _logout_label()
 
 func _on_logout_pressed() -> void:
 	PlayerIdentity.clear_selected_character()
@@ -23,3 +24,10 @@ func _logout_target_scene() -> String:
 	if NetworkConfigScript.client_login_split_enabled():
 		return "res://client/account_gate.tscn"
 	return "res://client/character_gate.tscn"
+
+## Public seam: the button label, matching where it returns to — "Logout" under
+## the split (drops to the login screen), "Character Select" in combined mode.
+func _logout_label() -> String:
+	if NetworkConfigScript.client_login_split_enabled():
+		return "Logout"
+	return "Character Select"

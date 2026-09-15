@@ -36,3 +36,13 @@ func test_split_logout_returns_to_login_screen() -> void:
 func test_combined_logout_returns_to_character_screen() -> void:
 	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "0")
 	assert_eq(_new_button()._logout_target_scene(), "res://client/character_gate.tscn", "in combined mode, logout returns straight to Character selection")
+
+
+func test_split_button_is_labeled_logout() -> void:
+	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "1")
+	assert_eq(_new_button()._logout_label(), "Logout", "under the split the button logs out to the login screen, so it reads Logout")
+
+
+func test_combined_button_is_labeled_character_select() -> void:
+	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "0")
+	assert_eq(_new_button()._logout_label(), "Character Select", "in combined mode it returns to the character list, so it reads Character Select")
