@@ -49,6 +49,7 @@ Only these names are inspectable (`config.py::DEFAULT_SERVICES`):
 | name | kind | identifier |
 | --- | --- | --- |
 | `game-server` | systemd | `project0-server` |
+| `login-server` | systemd | `project0-login` |
 | `enrollment` | systemd | `project0-enrollment` |
 | `dashboard` | docker | `project0-flow` |
 

@@ -31,6 +31,11 @@ def test_load_config_honors_audit_db_path_override(monkeypatch):
     assert config.audit_db_path == "/var/lib/project0/operator/audit.sqlite3"
 
 
+def test_login_server_is_in_the_allowlist():
+    # Slice 070: the standalone login server is an operator-managed service.
+    assert DEFAULT_SERVICES["login-server"] == ("systemd", "project0-login")
+
+
 def test_load_config_rejects_bad_port(monkeypatch):
     monkeypatch.setenv("OPERATOR_TOKEN", "secret-token")
     monkeypatch.setenv("OPERATOR_BIND_PORT", "not-a-number")
