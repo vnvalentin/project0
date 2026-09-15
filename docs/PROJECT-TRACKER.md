@@ -226,7 +226,7 @@ Progress: **50%** (2 of 4 items done)
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
-- **Current slice:** [076 — Game server assertion-only mode: refuse account-authority RPCs](slices/076-game-assertion-only-mode.md) — **delivered; LoginGateway account_authority flag refuses register/login/CRUD (REASON_ACCOUNT_AUTHORITY_DISABLED) while the assertion path stays; server_main disables it when PROJECT0_GAME_ASSERTION_ONLY=1 (off by default); GUT 56/56 exit 0**
+- **Current slice:** [077 — Client login→game handoff seam](slices/077-client-login-handoff-seam.md) — **delivered; NetworkClient.perform_login_to_game_handoff (poll-based, bounded) requests an assertion, reconnects to the game process, presents it, and enters the world, emitting login_to_game_handoff_finished; e2e harness drives Phase 2 through it, ALL PASS on Linux; GUT 56/56 unaffected**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -444,9 +444,9 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 10 — Authoritative runtime and action input
 
-- **Slice:** [076 — Game server assertion-only mode: refuse account-authority RPCs](slices/076-game-assertion-only-mode.md) — **delivered; server/login_gateway.gd account_authority_enabled flag refuses register/login/list/create/select/delete with REASON_ACCOUNT_AUTHORITY_DISABLED while establish/get_selected_character (snapshot) stay available; LoginRuntime.build_services flows the flag; server_main disables account authority when PROJECT0_GAME_ASSERTION_ONLY=1 (off by default so the pre-cutover client keeps working); GUT 56/56 exit 0 (+test_login_gateway_assertion_only); enforceable login boundary for a split deployment**
-  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: accounts live on the login process)
-  - **Public seam:** `server/login_gateway.gd` (`set_account_authority_enabled`, `REASON_ACCOUNT_AUTHORITY_DISABLED`), `server/login_runtime.gd` (`build_services(..., account_authority)`), `server/server_main.gd` (`PROJECT0_GAME_ASSERTION_ONLY`)
+- **Slice:** [077 — Client login→game handoff seam](slices/077-client-login-handoff-seam.md) — **delivered; client/network_client.gd perform_login_to_game_handoff(game_host, game_port) — poll-based, bounded coroutine that requests a signed assertion, hands off to the game process (disconnect -> connect -> present -> enter world), emitting login_to_game_handoff_finished; the e2e harness drives Phase 2 through the production seam (ALL PASS on Linux, world_entry==ok as Handoff Hero); GUT 56/56 unaffected; reusable by the login-screen scenes (wired in 078)**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) (login-boundary decision: reusable client cutover seam)
+  - **Public seam:** `client/network_client.gd` (`perform_login_to_game_handoff`, `login_to_game_handoff_finished`)
   - **Planning ticket:** [login-boundary decision](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
   - **Decision:** no new ADR; reuses the enrollment revocation seam behind the audited job model; body-based key (base64 not path-safe)
 
