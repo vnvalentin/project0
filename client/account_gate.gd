@@ -132,6 +132,9 @@ func _on_register_pressed() -> void:
 		_fire_pending_auth()
 	else:
 		_connect_for_auth()
+
+
+func _perform_https_register(username: String, password: String) -> void:
 	status_label.text = "Status: Registering..."
 	login_button.disabled = true
 	register_button.disabled = true
