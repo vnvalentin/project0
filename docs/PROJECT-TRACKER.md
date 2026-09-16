@@ -607,7 +607,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `shared/canon_mutation_intent.gd` (pure client→server intent contract) + `server/canon_mutation_service.gd` (`resolve_intent` stamps server-owned actor/event_id/tick, applies via `server/canon_mutation_repository.gd`); the `@rpc` transport + headless e2e are Slice 097
-  - **Validation:** _pending Linux-host GUT + record-sync run_
+  - **Validation:** full GUT on the Linux host passed 482/482 tests across 70/70 scripts, exit 0 (up from 462/68); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
 #### Phase 13 — Public game access
 
