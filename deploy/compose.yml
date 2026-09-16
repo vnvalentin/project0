@@ -78,6 +78,11 @@ services:
     env_file:
       - path: /etc/project0/enrollment.env
         required: true
+    environment:
+      # enrollment.env carries the host's in-tree DB path, which does not exist
+      # in the container. `environment` overrides `env_file`, so pin it to the
+      # mounted volume; the in-tree location is a host-deploy artifact.
+      ENROLLMENT_DB_PATH: "/var/lib/project0/enrollment/enrollment.sqlite3"
     ports:
       - "${ENROLLMENT_BIND:-192.168.1.254}:8095:8095"
     volumes:
