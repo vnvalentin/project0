@@ -173,7 +173,16 @@ feature so future drift is easier to detect.
 - Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
 - Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md)
 - Change history:
-  - Date: 2026-09-14
+  - Date: 2026-09-15
+    What changed: Third P-013 slice (Slice 096) - added `shared/canon_mutation_intent.gd` (the pure, bounded client->server mutation intent contract, refusing any server-owned field) and `server/canon_mutation_service.gd` (`resolve_intent` stamps the server-authenticated `actor_player_id`, a deterministic `(actor, client_seq)` `event_id`, and the authoritative `server_tick`, then applies via the Slice 050 repository and maps the outcome to an accepted/rejected resolution).
+    Why: World-mutation follows the CLAUDE.md intent/resolution split - the client expresses intent, the server owns identity, actor, clock, and outcome - so a client can neither forge who acted nor replay one action into two mutations.
+    Related work: [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 050](slices/050-canon-mutation-persistence.md)
+    Validation: full `scripts/run_gut_validation.sh` on the Linux host passed 482/482 tests across 70/70 scripts, exit 0 (up from 462/68); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings. The @rpc transport and headless round-trip e2e are Slice 097.
+  - Date: 2026-09-15
+    What changed: Second P-013 slice (Slice 095) - added `shared/canon_entity_guid.gd`, a pure deterministic SHA-256 identity for a canonical sector's addressable entities (structures + spawn points), and enforced the CanonMutationEvent "server MUST verify the target exists" rule: `CanonMutationRepository.apply_mutation` now rejects a mutation whose `target_guid` is not a canonical entity GUID (target_not_found) before any write.
+    Why: A mutation must address stable, restart-safe identity and cannot be recorded against a forged or non-existent target; Slice 050 deferred both the identity and the existence check.
+    Related work: [Slice 095](slices/095-canon-entity-guids.md), [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 045](slices/045-canon-sector-persistence.md)
+    Validation: full `scripts/run_gut_validation.sh` on the Linux host passed 462/462 tests across 68/68 scripts, exit 0 (up from 453/67); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings.  - Date: 2026-09-14
     What changed: Started the first P-013 slice — a server-only append-only Canon mutation log (`server/canon_mutation_repository.gd`) on the Slice 045 immutable sectors, keyed by a server-owned `event_id`, with an optimistic per-sector revision derived from the log.
     Why: Player-driven world changes must persist idempotently across restarts and be rejected when stale, forged, or aimed at a non-canon sector, without touching immutable sector Canon.
     Related work: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 045](slices/045-canon-sector-persistence.md), [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md)
