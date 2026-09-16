@@ -245,6 +245,7 @@ preserve_runtime_state() {
 		echo "  preserved runtime state: ${relative}"
 	fi
 }
+preserve_runtime_state "infra/enrollment/.data"
 
 log "Restarting services"
 for name in "${SERVICES[@]}"; do
