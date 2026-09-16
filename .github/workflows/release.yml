@@ -94,7 +94,7 @@ jobs:
           fetch-depth: 0
 
       - name: Show deploy plan
-        run: scripts/deploy_all.sh --dry-run
+        run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}" --dry-run
 
-      - name: Deploy every registered service
-        run: scripts/deploy_all.sh --commit "${GITHUB_SHA}"
+      - name: Deploy the container stack
+        run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}"

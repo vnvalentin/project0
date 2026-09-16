@@ -1,0 +1,132 @@
+# Full Project0 runtime as containers (Slice 106).
+#
+# Every service runs from an image published by .github/workflows/images.yml,
+# pinned by tag, so the deployed artifact is the one CI built. This replaces the
+# `git archive` + preserve-host-artifacts model, whose inputs (.godot import
+# cache, wgnetstack .so, host venv) existed only on the deployment host.
+#
+# Usage on the host:
+#   PROJECT0_IMAGE_TAG=v1.2.3 docker compose -f deploy/compose.yml up -d
+#
+# Secrets are never in this file or in the images. They come from
+# /etc/project0/*.env, which lives outside the repository and outside the
+# container filesystem.
+name: project0
+
+x-godot-image: &godot-image
+  image: ghcr.io/vnvalentin/project0-godot:${PROJECT0_IMAGE_TAG:-main}
+
+x-infra-image: &infra-image
+  image: ghcr.io/vnvalentin/project0-infra:${PROJECT0_IMAGE_TAG:-main}
+
+services:
+  # Authoritative fixed-tick game simulation. user:// resolves under HOME=/data,
+  # so the mounted volume is what carries accounts and Canon across deploys.
+  game-server:
+    <<: *godot-image
+    container_name: project0-game-server
+    env_file:
+      # Shared HMAC assertion secret; the login server's issuer and this
+      # validator must agree. Optional so the stack starts during bring-up.
+      - path: /etc/project0/assertion.env
+        required: false
+    environment:
+      PROJECT0_SERVER_BIND_ADDRESS: "0.0.0.0"
+      PROJECT0_SERVER_PORT: "9999"
+      PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
+      PROJECT0_HEALTH_FILE: "/data/health.json"
+    ports:
+      - "${GAME_BIND:-192.168.1.254}:9999:9999/udp"
+    volumes:
+      - "${GAME_DATA_DIR:-/var/lib/project0/game}:/data"
+      - "${BACKUP_DIR:-/var/backups/project0}:/backup"
+    mem_limit: 2g
+    cpus: 4.0
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+  # Standalone login authority: accounts, characters, signed session assertions.
+  # Same image as the game server, different entrypoint — see DT-012.
+  login-server:
+    <<: *godot-image
+    container_name: project0-login-server
+    entrypoint: ["/usr/bin/tini", "--", "godot", "--headless", "--path", "/app", "-s", "server/login_server_main.gd"]
+    env_file:
+      - path: /etc/project0/assertion.env
+        required: false
+      - path: /etc/project0/login.env
+        required: false
+    environment:
+      PROJECT0_SERVER_BIND_ADDRESS: "0.0.0.0"
+      PROJECT0_LOGIN_PORT: "9998"
+      PROJECT0_LOGIN_ACCOUNTS_DB_PATH: "login_accounts.db"
+      PROJECT0_HEALTH_FILE: "/data/health.json"
+    ports:
+      - "${LOGIN_BIND:-192.168.1.254}:9998:9998/udp"
+    volumes:
+      - "${LOGIN_DATA_DIR:-/var/lib/project0/login}:/data"
+    mem_limit: 1g
+    cpus: 2.0
+    stop_grace_period: 20s
+    restart: unless-stopped
+
+  # Public HTTPS surface: enrollment, registration, character endpoints.
+  enrollment:
+    <<: *infra-image
+    container_name: project0-enrollment
+    command: ["uvicorn", "infra.enrollment.asgi:app", "--host", "0.0.0.0", "--port", "8095", "--workers", "1"]
+    env_file:
+      - path: /etc/project0/enrollment.env
+        required: true
+    environment:
+      # enrollment.env carries the host's in-tree DB path, which does not exist
+      # in the container. `environment` overrides `env_file`, so pin it to the
+      # mounted volume; the in-tree location is a host-deploy artifact.
+      ENROLLMENT_DB_PATH: "/var/lib/project0/enrollment/enrollment.sqlite3"
+    ports:
+      - "${ENROLLMENT_BIND:-192.168.1.254}:8095:8095"
+    volumes:
+      - "${ENROLLMENT_DATA_DIR:-/var/lib/project0/enrollment}:/var/lib/project0/enrollment"
+    mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8095/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Internal control plane. Bound to loopback only: it is not a public surface.
+  operator:
+    <<: *infra-image
+    container_name: project0-operator
+    command: ["uvicorn", "infra.operator.asgi:app", "--host", "0.0.0.0", "--port", "8099", "--workers", "1"]
+    env_file:
+      - path: /etc/project0/operator.env
+        required: false
+    ports:
+      - "127.0.0.1:8099:8099"
+    mem_limit: 512m
+    cpus: 1.0
+    restart: unless-stopped
+    profiles: ["operator"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8099/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  dashboard:
+    image: ghcr.io/vnvalentin/project0-dashboard:${PROJECT0_IMAGE_TAG:-main}
+    container_name: project0-dashboard
+    ports:
+      - "${DASHBOARD_BIND:-127.0.0.1}:8080:8080"
+    volumes:
+      # Read-only view of the repository the dashboard reports on.
+      - "${REPO_DIR:-/data/code/project0}:/repo:ro"
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
+    profiles: ["dashboard"]
