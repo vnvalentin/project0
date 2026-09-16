@@ -35,6 +35,13 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 scons zip git make
+          # godot-cpp uses std::mutex, which the win32-threads mingw variant
+          # only provides from GCC 13. This image ships an older GCC, so select
+          # the posix-threads variant explicitly rather than relying on the
+          # Debian default.
+          update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+          x86_64-w64-mingw32-g++ -v 2>&1 | grep -i 'thread model'
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Set up Go
