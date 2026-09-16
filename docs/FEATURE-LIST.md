@@ -165,12 +165,12 @@ feature so future drift is easier to detect.
 
 ### P-013: Dynamic world mutation tracking
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Generated assets and mutable entities receive stable GUIDs, and direct player-driven changes such as looting or defeating a leader persist across sessions.
 - Problem solved: Mutable world state must not reset or duplicate when a sector is revisited.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: GUID assignment, mutation event/state store, replay/load path, and mutation telemetry.
-- Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
+- Validation: Proven across Slices 050/095/096/097/098 - stable SHA-256 entity identity, idempotent optimistic-revision mutation application, fail-closed rejection of forged, stale, unauthorized, and non-existent-target changes, and server-authoritative replay of the effective sector. Full GUT 493/493 across 72/72 scripts and the RPC round-trip e2e passed on the Linux host.
 - Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 097](slices/097-canon-mutation-rpc-transport.md), [Slice 098](slices/098-canon-sector-mutation-replay.md)
 - Change history:
   - Date: 2026-09-15

@@ -117,7 +117,7 @@ migration is now resolved — Slice 041).
 | 11. Multi-peer Player replication | done | Two clients connect to one server, see distinct Players, observe each other's authoritative movement, and clean up a disconnected Player. |
 | 7. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are documented, exercised, and synchronized with feature records. |
 | 8. JIT world generation and local inference | done | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
-| 9. Canon persistence and world mutation | in-progress | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
+| 9. Canon persistence and world mutation | done | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
 | 13. Public game access | in-progress | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
@@ -220,12 +220,12 @@ Progress: **100%** (11 of 11 items done)
 
 **Phase 9 — Canon persistence and world mutation**
 
-Progress: **75%** (3 of 4 items done)
+Progress: **100%** (4 of 4 items done)
 
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `in-progress` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `done` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
-- **Current slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **in-progress; the server replays a sector's mutation log (`shared/canon_sector_resolver.gd`) and replicates the effective blueprint (destroyed structures removed) so a loaded sector reflects durable changes**
+- **Current slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **delivered; the server replays a sector's mutation log (`shared/canon_sector_resolver.gd`) and replicates the effective blueprint (destroyed structures removed) so a loaded sector reflects durable changes**
   - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fifth slice, completes the code path)
   - Prior: [097 — Canon mutation intent RPC transport](slices/097-canon-mutation-rpc-transport.md); [096 — intent DTO + resolution service](slices/096-canon-mutation-intent-service.md)
 
@@ -596,25 +596,25 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `server/canon_mutation_repository.gd` over `server/sqlite_store.gd` + the Slice 045 `server/canon_repository.gd`; no client, geometry, GUID-assignment, RPC, or gameplay-authorization code
   - **Validation:** focused integration suite passed with the 11 new `test_canon_mutation_repository` cases (94 → 105 integration tests, all passing), exit 0; `server/canon_mutation_repository.gd` check-only passed, exit 0; full GUT passed 293/293 tests across 40/40 scripts, exit 0 (`scripts_expected == scripts_ran`); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
-- **Slice:** [095 — Canon entity GUIDs + mutation target-existence enforcement](slices/095-canon-entity-guids.md) — **in-progress; stable, restart-safe entity identity + fail-closed target existence check**
+- **Slice:** [095 — Canon entity GUIDs + mutation target-existence enforcement](slices/095-canon-entity-guids.md) — **delivered; stable, restart-safe entity identity + fail-closed target existence check**
   - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (second slice)
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `shared/canon_entity_guid.gd` (pure, deterministic SHA-256 identity for structures + spawn points) consumed by `server/canon_mutation_repository.gd` (`apply_mutation` rejects a `target_not_found` mutation before any write); no RPC, replay, or gameplay-authorization code
   - **Validation:** full GUT on the Linux host passed 462/462 tests across 68/68 scripts, exit 0 (up from 453/67); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
-- **Slice:** [096 — Canon mutation intent DTO + server-authoritative resolution service](slices/096-canon-mutation-intent-service.md) — **in-progress; server-authoritative intent→event resolution seam**
+- **Slice:** [096 — Canon mutation intent DTO + server-authoritative resolution service](slices/096-canon-mutation-intent-service.md) — **delivered; server-authoritative intent→event resolution seam**
   - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (third slice)
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `shared/canon_mutation_intent.gd` (pure client→server intent contract) + `server/canon_mutation_service.gd` (`resolve_intent` stamps server-owned actor/event_id/tick, applies via `server/canon_mutation_repository.gd`); the `@rpc` transport + headless e2e are Slice 097
   - **Validation:** full GUT on the Linux host passed 482/482 tests across 70/70 scripts, exit 0 (up from 462/68); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
-- **Slice:** [097 — Canon mutation intent RPC transport + headless round-trip e2e](slices/097-canon-mutation-rpc-transport.md) — **in-progress; mutation intent on the wire + live repository/service in `server_main`**
+- **Slice:** [097 — Canon mutation intent RPC transport + headless round-trip e2e](slices/097-canon-mutation-rpc-transport.md) — **delivered; mutation intent on the wire + live repository/service in `server_main`**
   - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fourth slice)
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `client/network_client.gd` (`submit_canon_mutation_intent` + the two `@rpc` relays) + `server/server_main.gd` (live `CanonMutationRepository`/`CanonMutationService`, resolves per authenticated peer); runtime-proven by `scripts/test_canon_mutation_rpc_e2e.gd`
   - **Validation:** full GUT on the Linux host passed 482/482 tests across 70/70 scripts, exit 0; `scripts/test_canon_mutation_rpc_e2e.gd` printed ALL PASS (real ENet round-trip); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
-- **Slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **in-progress; server-authoritative replay of the mutation log into the replicated sector**
+- **Slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **delivered; server-authoritative replay of the mutation log into the replicated sector**
   - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fifth slice)
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
@@ -762,7 +762,7 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   player position crosses into an unexplored sector, closing the trigger gap
   between Slice 009 and a fully `Implemented`
   [IP-008](FEATURE-LIST.md#ip-008-just-in-time-sector-generation).
-- [~] Active — Canon persistence (Phase 9): the durable sector and
+- [x] Done — Canon persistence (Phase 9): the durable sector and
   canonicalization seam is delivered (Slices 045/047) on the shared engine
   ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029 —
   `server/sqlite_store.gd`), and the first mutation slice landed (Slice 050 —
@@ -771,10 +771,10 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   [P-011](FEATURE-LIST.md#p-011-canonical-history-archive) and
   [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization) are
   `Implemented` and [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking)
-  is `In Progress`. Slice 095 added stable server-owned entity GUIDs
+  is `Implemented`. Slices 095-098 delivered stable server-owned entity GUIDs
   (`shared/canon_entity_guid.gd`) and target-existence enforcement in
   `apply_mutation`. Remaining P-013 work (physical-event verification, actor
-  authorization, the mutation-intent RPC, and replay into live scene state) and
+  authorization, and non-geometry mutation kinds like loot/defeat_leader) and
   the JIT boundary path continue as follow-up slices, resolving the open
   event-model questions in
   [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md).
