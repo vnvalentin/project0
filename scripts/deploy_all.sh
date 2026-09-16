@@ -246,6 +246,15 @@ preserve_runtime_state() {
 	fi
 }
 preserve_runtime_state "infra/enrollment/.data"
+preserve_runtime_state ".godot"
+preserve_runtime_state "addons/godot-sqlite/bin"
+preserve_runtime_state "native/wgnetstack/gdext/build"
+
+log "Validating server scripts before restart"
+godot --headless --path "${DEPLOY_ROOT}" --check-only -s server/server_main.gd >/tmp/project0-server-parse.log 2>&1 \
+	|| { cat /tmp/project0-server-parse.log >&2; fail "game server parse validation failed"; }
+godot --headless --path "${DEPLOY_ROOT}" --check-only -s server/login_server_main.gd >/tmp/project0-login-parse.log 2>&1 \
+	|| { cat /tmp/project0-login-parse.log >&2; fail "login server parse validation failed"; }
 
 log "Restarting services"
 for name in "${SERVICES[@]}"; do
