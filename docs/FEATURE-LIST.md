@@ -735,7 +735,7 @@ for a developer to pick up. No implementation has started.
   persisted restart, malformed/expired invite rejection, DPAPI access scoping,
   revoked peer rejection, and a one-launch WAN gameplay run against the live
   service. The current embedded-key verifier remains a temporary validation
-  artifact until then.
+  artifact until then. See [docs/f035-secure-launcher-validation-runbook.md](f035-secure-launcher-validation-runbook.md) for the step-by-step live-validation procedure.
 - Related work: [P-024](#p-024-public-game-access-via-opnsense-native-wireguard),
   [Slice 048](slices/048-wireguard-enrollment-service.md),
   [Slice 049](slices/049-wireguard-revocation-lifecycle.md),
