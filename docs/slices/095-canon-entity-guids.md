@@ -105,4 +105,24 @@ occurs.
 
 ## Root-cause learning
 
-None yet.
+- Symptom: first full host GUT run was 461/462 — `test_canon_mutation_repository`
+  failed at "parameter binding stored the injection string as inert data"
+  (expected 1 stored mutation, got 0).
+- Public seam: `CanonMutationRepository.apply_mutation`.
+- Hypothesis (confirmed): the pre-existing SQL-injection regression carried its
+  hostile string in `target_guid`; the new target-existence check correctly
+  rejected that non-entity guid with `target_not_found` before the INSERT, so
+  nothing was stored — the new invariant, working as designed, invalidated the
+  test's assumption rather than a code defect.
+- Why existing tests missed it: the injection test predated the existence check
+  and used `target_guid` (an un-validated free string at the time) as its
+  carrier field.
+- Countermeasure: moved the hostile string to `actor_player_id` (still reaches
+  the INSERT) and kept a valid derived `target_guid`, preserving injection-safety
+  coverage on an inserted column while honouring target existence.
+- Regression evidence: full host `scripts/run_gut_validation.sh` green after the
+  fix (see P-013 change history for counts) + `scripts/check_record_sync.sh`
+  exit 0.
+- Also noted (repo memory): GUT silently *skips* a test script whose `preload`
+  target is missing (a warning, not a failure), so a new test file's presence
+  must be confirmed by the script/test count increasing, not by "all passed".

@@ -156,9 +156,11 @@ func test_restart_recovery_replays_mutation_history() -> void:
 	assert_eq(rows[1]["applied_revision"], 2)
 
 
-func test_hostile_target_guid_is_stored_as_data() -> void:
-	var hostile: Dictionary = _event({"target_guid": "x'); DROP TABLE canon_mutations; --"})
+func test_hostile_actor_id_is_stored_as_data() -> void:
+	# target_guid stays valid so the mutation is admitted; the injection string
+	# rides in actor_player_id, which reaches the INSERT, proving binding safety.
+	var hostile: Dictionary = _event({"actor_player_id": "x'); DROP TABLE canon_mutations; --"})
 	assert_eq(_mutations.apply_mutation(hostile)["outcome"], CanonMutationRepositoryScript.OUTCOME_OK)
 	var history: Dictionary = _mutations.list_mutations("sector-0-0")
 	assert_eq(history["mutations"].size(), 1, "parameter binding stored the injection string as inert data")
-	assert_eq(history["mutations"][0]["target_guid"], "x'); DROP TABLE canon_mutations; --")
+	assert_eq(history["mutations"][0]["actor_player_id"], "x'); DROP TABLE canon_mutations; --")
