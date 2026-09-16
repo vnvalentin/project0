@@ -225,9 +225,9 @@ Progress: **75%** (3 of 4 items done)
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `in-progress` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
-- **Current slice:** [097 — Canon mutation intent RPC transport + headless round-trip e2e](slices/097-canon-mutation-rpc-transport.md) — **in-progress; mutation intent on the wire (client `submit_canon_mutation_intent` → server-authoritative resolution → resolution back to the submitting peer), live repository/service wired into `server_main`**
-  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fourth slice)
-  - Prior: [096 — Canon mutation intent DTO + resolution service](slices/096-canon-mutation-intent-service.md); [095 — Canon entity GUIDs](slices/095-canon-entity-guids.md); [050 — Canon mutation persistence](slices/050-canon-mutation-persistence.md)
+- **Current slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **in-progress; the server replays a sector's mutation log (`shared/canon_sector_resolver.gd`) and replicates the effective blueprint (destroyed structures removed) so a loaded sector reflects durable changes**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fifth slice, completes the code path)
+  - Prior: [097 — Canon mutation intent RPC transport](slices/097-canon-mutation-rpc-transport.md); [096 — intent DTO + resolution service](slices/096-canon-mutation-intent-service.md)
 
 **Phase 10 — Authoritative runtime and action input**
 
@@ -614,6 +614,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `client/network_client.gd` (`submit_canon_mutation_intent` + the two `@rpc` relays) + `server/server_main.gd` (live `CanonMutationRepository`/`CanonMutationService`, resolves per authenticated peer); runtime-proven by `scripts/test_canon_mutation_rpc_e2e.gd`
   - **Validation:** full GUT on the Linux host passed 482/482 tests across 70/70 scripts, exit 0; `scripts/test_canon_mutation_rpc_e2e.gd` printed ALL PASS (real ENet round-trip); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
+- **Slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **in-progress; server-authoritative replay of the mutation log into the replicated sector**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fifth slice)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+  - **Public seam:** `shared/canon_sector_resolver.gd` (`resolve_effective_blueprint`) consumed by `server/server_main.gd` (`_effective_blueprint_for`, applied at both sector-replication points); no client change, no RPC signature change
+  - **Validation:** _pending Linux-host GUT + record-sync run_
 
 #### Phase 13 — Public game access
 

@@ -113,8 +113,9 @@ contended range and everything after it is tracked explicitly:
 | 095 | Canon entity GUIDs + mutation target-existence enforcement (P-013) | interactive |
 | 096 | Canon mutation intent DTO + server-authoritative resolution service (P-013) | interactive |
 | 097 | Canon mutation intent RPC transport + headless round-trip e2e (P-013) | interactive |
+| 098 | Canon sector mutation replay: server replicates the effective blueprint (P-013) | interactive |
 
-Next free slice: **098** (verify against `docs/slices/` before reserving).
+Next free slice: **099** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

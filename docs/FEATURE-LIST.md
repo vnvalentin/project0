@@ -171,7 +171,7 @@ feature so future drift is easier to detect.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: GUID assignment, mutation event/state store, replay/load path, and mutation telemetry.
 - Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
-- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 097](slices/097-canon-mutation-rpc-transport.md)
+- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 097](slices/097-canon-mutation-rpc-transport.md), [Slice 098](slices/098-canon-sector-mutation-replay.md)
 - Change history:
   - Date: 2026-09-15
     What changed: Fourth P-013 slice (Slice 097) - put the mutation intent on the wire: `client/network_client.gd` gains `submit_canon_mutation_intent` plus the C->S and S->C `@rpc` relays, and `server/server_main.gd` wires a live `CanonMutationRepository`/`CanonMutationService` resolving each intent against the sender peer's authenticated Character id and returning the resolution to that peer only. Also fixed the service to echo `client_seq` on early rejections so a client can correlate responses.
