@@ -74,9 +74,25 @@ fi
 
 # Pulling before stopping anything keeps the current stack serving while the new
 # images download, and fails the deploy before any downtime if a tag is missing.
+# A tag push starts the image build and this deploy at the same time, so retry
+# to absorb registry propagation rather than failing a legitimate release.
 log "Pulling images for tag ${TAG}"
-PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" pull \
-	|| fail "image pull failed for tag '${TAG}'; nothing was changed"
+pull_attempts="${PULL_ATTEMPTS:-20}"
+pulled=false
+for ((attempt = 1; attempt <= pull_attempts; attempt++)); do
+	if PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" pull >/dev/null 2>&1; then
+		echo "  pulled tag ${TAG} (attempt ${attempt})"
+		pulled=true
+		break
+	fi
+	echo "  tag ${TAG} not available yet (attempt ${attempt}/${pull_attempts})"
+	sleep 15
+done
+if [[ "${pulled}" != true ]]; then
+	# Surface the real error now that retries are exhausted.
+	PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" pull || true
+	fail "image pull failed for tag '${TAG}'; nothing was changed"
+fi
 
 log "Starting stack"
 PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" up -d --remove-orphans \
@@ -122,9 +138,10 @@ if ! await_health; then
 fi
 
 # Recorded only after health passes, so the rollback target is always a tag that
-# was observed healthy on this host.
-mkdir -p "$(dirname "${state_file}")" 2>/dev/null || sudo -n mkdir -p "$(dirname "${state_file}")"
-echo "${TAG}" >"${state_file}" 2>/dev/null || echo "${TAG}" | sudo -n tee "${state_file}" >/dev/null
+# was observed healthy on this host. /var/lib/project0 is root-owned, so write
+# via sudo directly rather than relying on a failed redirect as control flow.
+sudo -n mkdir -p "$(dirname "${state_file}")"
+printf '%s\n' "${TAG}" | sudo -n tee "${state_file}" >/dev/null
 
 log "Deployed tag ${TAG}"
 docker compose "${compose_args[@]}" ps
