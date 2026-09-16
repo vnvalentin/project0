@@ -225,8 +225,9 @@ Progress: **75%** (3 of 4 items done)
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `in-progress` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
-- **Current slice:** [050 — Canon mutation persistence (dynamic world mutation tracking)](slices/050-canon-mutation-persistence.md) — **delivered; append-only mutation log with optimistic per-sector revision, focused + full-suite + record-sync validation passed**
-  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (first slice)
+- **Current slice:** [095 — Canon entity GUIDs + mutation target-existence enforcement](slices/095-canon-entity-guids.md) — **in-progress; stable server-owned entity GUIDs (`shared/canon_entity_guid.gd`) + `apply_mutation` now rejects a mutation against a non-existent target**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (second slice)
+  - Prior: [050 — Canon mutation persistence (dynamic world mutation tracking)](slices/050-canon-mutation-persistence.md) — **delivered; append-only mutation log with optimistic per-sector revision**
 
 **Phase 10 — Authoritative runtime and action input**
 
@@ -595,6 +596,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `server/canon_mutation_repository.gd` over `server/sqlite_store.gd` + the Slice 045 `server/canon_repository.gd`; no client, geometry, GUID-assignment, RPC, or gameplay-authorization code
   - **Validation:** focused integration suite passed with the 11 new `test_canon_mutation_repository` cases (94 → 105 integration tests, all passing), exit 0; `server/canon_mutation_repository.gd` check-only passed, exit 0; full GUT passed 293/293 tests across 40/40 scripts, exit 0 (`scripts_expected == scripts_ran`); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
+- **Slice:** [095 — Canon entity GUIDs + mutation target-existence enforcement](slices/095-canon-entity-guids.md) — **in-progress; stable, restart-safe entity identity + fail-closed target existence check**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (second slice)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+  - **Public seam:** `shared/canon_entity_guid.gd` (pure, deterministic SHA-256 identity for structures + spawn points) consumed by `server/canon_mutation_repository.gd` (`apply_mutation` rejects a `target_not_found` mutation before any write); no RPC, replay, or gameplay-authorization code
+  - **Validation:** full GUT on the Linux host passed 462/462 tests across 68/68 scripts, exit 0 (up from 453/67); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
 #### Phase 13 — Public game access
 
@@ -746,10 +753,12 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   [P-011](FEATURE-LIST.md#p-011-canonical-history-archive) and
   [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization) are
   `Implemented` and [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking)
-  is `In Progress`. Remaining P-013 work (stable entity GUIDs, physical-event
-  verification, actor authorization, the mutation-intent RPC, and replay into
-  live scene state) and the JIT boundary path continue as follow-up slices,
-  resolving the open event-model questions in
+  is `In Progress`. Slice 095 added stable server-owned entity GUIDs
+  (`shared/canon_entity_guid.gd`) and target-existence enforcement in
+  `apply_mutation`. Remaining P-013 work (physical-event verification, actor
+  authorization, the mutation-intent RPC, and replay into live scene state) and
+  the JIT boundary path continue as follow-up slices, resolving the open
+  event-model questions in
   [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md).
 - [ ] Queued — Containerized fixed-tick server runtime (Phase 10, in progress):
   [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)

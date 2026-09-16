@@ -25,6 +25,22 @@ const MALFORMED_JSON: String = """
 { this is not valid JSON at all ]
 """
 
+## Slice 095: a canonical sector-0-0 carrying one addressable structure, so
+## Canon mutation tests can target a real entity by its derived GUID.
+const VALID_WITH_STRUCTURE: String = """
+{
+  "schema_version": 3,
+  "sector_id": "sector-0-0",
+  "origin": {"x": 0, "y": 0},
+  "tiles": [
+    {"x": 0, "y": 0, "kind": "floor"}
+  ],
+  "structures": [
+    {"structure_id": "village_hall", "kind": "village_hall", "x": 0, "y": 0, "facing_degrees": 0}
+  ]
+}
+"""
+
 const INCOMPLETE_MISSING_TILES: String = """
 {
   "schema_version": 1,

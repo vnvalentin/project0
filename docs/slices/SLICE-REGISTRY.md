@@ -110,8 +110,9 @@ contended range and everything after it is tracked explicitly:
 | 092 | Auth-gated onboarding C-launcher: Windows launcher login + redeem-with-assertion + tunnel bring-up (P-024, ADR 0004, F-035) | interactive |
 | 093 | Auth-gated onboarding C-client-wiring: wire account/character gates to EnrollmentHttpClient + tunnel + present character assertion (runtime-validated) (P-024, ADR 0005) | interactive |
 | 094 | Reality dashboard truthfulness and delivery-record reconciliation (F-025) | interactive |
+| 095 | Canon entity GUIDs + mutation target-existence enforcement (P-013) | interactive |
 
-Next free slice: **095** (verify against `docs/slices/` before reserving).
+Next free slice: **096** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
