@@ -82,4 +82,18 @@ new GUT tests; the transport is proven by the e2e), the e2e harness prints
 
 ## Root-cause learning
 
-None yet.
+- Symptom: the e2e round-trip passed both RPC directions but failed "the
+  resolution echoes the client's sequence" — the `invalid_actor` resolution
+  returned `client_seq = -1`.
+- Public seam: `CanonMutationService.resolve_intent`.
+- Hypothesis (confirmed): the actor check ran before the intent was read, so the
+  early rejection had no `client_seq` to echo and hard-coded `-1`; a client could
+  not correlate that rejection to its request.
+- Why existing tests missed it: Slice 096's `test_empty_actor_is_rejected`
+  asserted only status/reason, not the echoed `client_seq`; the gap surfaced only
+  once a real client needed to match the response to its submission.
+- Countermeasure: extract `client_seq` up front and echo it on every resolution,
+  including early rejections; added a regression assertion to
+  `test_canon_mutation_service` and the e2e now checks the echo.
+- Regression evidence: full host GUT green + `scripts/test_canon_mutation_rpc_e2e.gd`
+  prints ALL PASS (see P-013 change history for counts).

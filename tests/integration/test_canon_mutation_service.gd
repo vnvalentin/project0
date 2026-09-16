@@ -128,6 +128,7 @@ func test_empty_actor_is_rejected() -> void:
 	var result: Dictionary = _service.resolve_intent("", _intent())
 	assert_eq(result["status"], CanonMutationServiceScript.STATUS_REJECTED)
 	assert_eq(result["reason"], CanonMutationServiceScript.REASON_INVALID_ACTOR)
+	assert_eq(result["client_seq"], 1, "even an early rejection echoes the client's sequence for correlation")
 
 
 func test_two_actors_same_sequence_get_distinct_events() -> void:

@@ -40,12 +40,15 @@ func _init(mutations: CanonMutationRepository, clock: Callable) -> void:
 ## Resolves one intent from an authenticated actor into an accepted/rejected
 ## resolution. No partial side effect on any rejection.
 func resolve_intent(actor_player_id: String, raw_intent: Variant) -> Dictionary:
+	# Extract the client sequence up front so every resolution — including an
+	# early rejection — echoes it, letting the client correlate the response.
+	var client_seq_hint: int = _seq_of(raw_intent)
 	if actor_player_id.is_empty() or actor_player_id.length() > MAX_ACTOR_LENGTH:
-		return _rejected(REASON_INVALID_ACTOR, -1, "")
+		return _rejected(REASON_INVALID_ACTOR, client_seq_hint, "")
 
 	var parsed: Dictionary = CanonMutationIntentScript.parse(raw_intent)
 	if parsed["outcome"] != CanonMutationIntentScript.OUTCOME_OK:
-		return _rejected(REASON_INVALID_INTENT, _seq_of(raw_intent), "")
+		return _rejected(REASON_INVALID_INTENT, client_seq_hint, "")
 	var intent: Dictionary = parsed["intent"]
 	var client_seq: int = intent["client_seq"]
 
