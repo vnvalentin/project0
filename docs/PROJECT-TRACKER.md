@@ -246,6 +246,8 @@ Progress: **40%** (2 of 5 items done)
 
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
+- **Current tooling slice:** [101 — Server deployment path in the current deployment pipeline](slices/101-server-deployment-pipeline.md) — **in progress; opt-in native and Docker deployment modes with remote backup and commit validation**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
 
@@ -806,6 +808,10 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   bounded fixed-tick + fail-closed health contract foundation. Remaining P-014
   work: the container image under `/apps/project0`, tick-loop wiring, and
   run-beside-native equivalence per the migration decision.
+- [~] In progress — Server deployment path (Phase 10, [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)):
+  [Slice 101](slices/101-server-deployment-pipeline.md) adds an opt-in
+  commit-archive deployment path with native, Docker candidate, and Docker
+  split modes. Ordinary client builds remain client-only.
 - [ ] Queued — Remaining delivery workflow capabilities (Phase 7): Remote-SSH
   server workspace
   ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)) and
