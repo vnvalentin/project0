@@ -81,10 +81,10 @@ print(eval(sys.argv[3], {'s': s}))
 # `systemctl list-unit-files` exits nonzero for an absent unit, which under
 # `set -o pipefail` would abort the whole run instead of reporting a skip.
 unit_state() {
-	systemctl list-unit-files "$1" --no-legend 2>/dev/null | awk '{print $2}' || true
+	systemctl show -p LoadState --value "$1" 2>/dev/null || true
 }
 
-unit_installed() { [[ -n "$(unit_state "$1")" ]]; }
+unit_installed() { [[ "$(unit_state "$1")" == loaded ]]; }
 
 log "Deploy plan"
 echo "  commit      : ${COMMIT}"
