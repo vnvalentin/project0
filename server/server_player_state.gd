@@ -38,6 +38,7 @@ extends Node
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 
 ## Emitted every physics tick after this peer's authoritative position is
 ## computed, so server_main.gd can broadcast it to every other connected
@@ -71,8 +72,27 @@ signal melee_swing_started(peer_id: int, windup_ticks: int, active_ticks: int, f
 ## about peer replication itself (matching position_updated's separation).
 signal character_bound(peer_id: int, display_name: String, cosmetic: Dictionary)
 
+## Slice 094: emitted whenever this Player's authoritative HP changes (took
+## monster damage, or was restored to full on the provisional defeat->respawn),
+## so server_main.gd can replicate the current HP to the owning client for
+## display without this node needing to know about networking itself.
+signal health_changed(peer_id: int, current_hp: int, max_hp: int, server_tick: int)
+
+## Slice 094: emitted exactly once on the tick a landed monster attack reduces
+## this Player to 0 HP, before the provisional full-HP respawn is applied. The
+## reposition itself replicates through the existing position_updated channel.
+signal player_defeated(peer_id: int, server_tick: int)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
+## Slice 094: the spawn anchor this Player is returned to on the provisional
+## defeat->respawn (ticket 05). Captured in start_for_peer from the peer's
+## assigned start position; no separate respawn-point system exists yet.
+var _spawn_position: Vector3 = Vector3.ZERO
+## Slice 094: the Player's flat, server-owned HP pool (a Phase-12 vessel
+## placeholder). Server-authoritative — the client only ever displays the
+## replicated value, never sets it.
+var _vitals: Object = PlayerCombatContractsScript.PlayerVitals.new()
 ## Forward-facing direction used for the melee arc check; defaults to -Z
 ## (Godot's forward) and is updated from non-zero movement input, since this
 ## slice has no independent look/aim input.
@@ -137,6 +157,8 @@ var _monster_manager: Object = null
 func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	owning_peer_id = peer_id
 	position = start_position
+	_spawn_position = start_position
+	_vitals.reset()
 	_input_intent = Vector2.ZERO
 	_last_processed_sequence = -1
 	_phase = CombatContractsScript.PHASE_IDLE
@@ -163,6 +185,39 @@ func set_collision_map(collision_map: Object) -> void:
 ## against, alongside the target dummies above.
 func set_monster_manager(monster_manager: Object) -> void:
 	_monster_manager = monster_manager
+
+
+## Slice 094: the Player's current authoritative HP (read-only view of _vitals).
+func current_hp() -> int:
+	return _vitals.current_hp
+
+
+## Slice 094: the Player's maximum authoritative HP.
+func max_hp() -> int:
+	return _vitals.max_hp
+
+
+## Public seam (Slice 094): applies a monster's authoritative, telegraph-fair
+## landed attack to this Player. Only server_main.gd calls this, routing from
+## the ServerMonsterManager.player_hit signal (the monster's own reach/arc test
+## against its locked telegraph facing already guarantees a Player who stepped
+## out during WINDUP is missed, so reaching here means the hit was fair). On the
+## tick this reduces the Player to 0 HP it emits player_defeated once, then
+## applies the provisional respawn placeholder (ticket 05): restore full HP and
+## return to the spawn anchor, cancelling any in-progress swing. Always emits
+## health_changed with the resulting HP so the owning client's HUD updates.
+func receive_monster_damage(amount: int, server_tick: int) -> void:
+	if owning_peer_id == -1:
+		return
+	var defeated: bool = _vitals.apply_damage(amount)
+	if defeated:
+		player_defeated.emit(owning_peer_id, server_tick)
+		_vitals.reset()
+		position = _spawn_position
+		_phase = CombatContractsScript.PHASE_IDLE
+		_phase_ticks_remaining = 0
+		_hit_target_ids_this_swing.clear()
+	health_changed.emit(owning_peer_id, _vitals.current_hp, _vitals.max_hp, server_tick)
 
 
 ## Public seam: called (as a plain in-process call, not an RPC — this node

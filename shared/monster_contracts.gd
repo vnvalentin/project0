@@ -29,6 +29,15 @@ const MAX_HP: int = 30
 ## 012's explicit non-goal) so this provisional concept stays contained.
 const DAMAGE_PER_HIT: int = 10
 
+## Slice 094: fixed damage the monster's own landed (telegraph-fair) attack
+## deals to a Player. Mirrors DAMAGE_PER_HIT (a provisional flat constant), so
+## 30 / 10 = a deterministic 3 landed monster hits to defeat a full-HP Player
+## (PlayerCombatContracts.PLAYER_MAX_HP). The monster owns how much its attack
+## hurts, next to how much a player hit hurts it. See
+## docs/slices/094-player-hp-monster-damage.md and
+## .scratch/npcs/issues/05-hostile-npc-damages-player.md.
+const DAMAGE_TO_PLAYER: int = 10
+
 ## Authoritative attack lifecycle timing for the baseline monster, in server
 ## ticks (physics frames). WINDUP_TICKS is intentionally >= the player sword's
 ## windup (CombatContracts.generic_sword_archetype().windup_ticks == 6) so the

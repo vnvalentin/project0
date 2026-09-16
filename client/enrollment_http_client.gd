@@ -33,12 +33,18 @@ func _ready() -> void:
 	add_child(_http_request)
 
 
-## Resolves the public enrollment base URL: PROJECT0_ENROLLMENT_URL (trailing
-## slashes trimmed) or the compiled-in default. Never returns an empty string.
+## Resolves the public enrollment base URL: PROJECT0_ENROLLMENT_URL or the
+## compiled-in default. Trailing slashes and a trailing "/redeem" are trimmed so
+## a value provisioned for the launcher's redeem flow still yields correct
+## /login and /characters/* paths (mirrors the Go launcher's enrollmentBaseURL).
+## Never returns an empty string.
 static func resolve_base_url() -> String:
 	var value: String = OS.get_environment(ENV_BASE_URL).strip_edges()
 	if value.is_empty():
 		return DEFAULT_BASE_URL
+	value = value.rstrip("/")
+	if value.ends_with("/redeem"):
+		value = value.substr(0, value.length() - "/redeem".length())
 	return value.rstrip("/")
 
 

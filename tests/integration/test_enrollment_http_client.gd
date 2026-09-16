@@ -89,4 +89,8 @@ func test_resolve_base_url_reads_env_trims_slash_and_defaults() -> void:
 	assert_eq(EnrollmentHttpClientScript.resolve_base_url(), "https://enroll.example.test", "a trailing slash is trimmed")
 	OS.set_environment(EnrollmentHttpClientScript.ENV_BASE_URL, "")
 	assert_eq(EnrollmentHttpClientScript.resolve_base_url(), EnrollmentHttpClientScript.DEFAULT_BASE_URL, "unset falls back to the default")
+	OS.set_environment(EnrollmentHttpClientScript.ENV_BASE_URL, "https://enroll.example.test/redeem")
+	assert_eq(EnrollmentHttpClientScript.resolve_base_url(), "https://enroll.example.test", "a trailing /redeem suffix is trimmed so /login resolves")
+	OS.set_environment(EnrollmentHttpClientScript.ENV_BASE_URL, "https://enroll.example.test/redeem/")
+	assert_eq(EnrollmentHttpClientScript.resolve_base_url(), "https://enroll.example.test", "a trailing /redeem/ suffix is trimmed")
 	OS.set_environment(EnrollmentHttpClientScript.ENV_BASE_URL, saved)
