@@ -207,7 +207,10 @@ Progress: **71%** (5 of 7 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [103 — Linux-hosted Windows client package build](slices/103-linux-client-package-build.md) — **delivered; full cross-build executed on okami, artifacts and manifest verified**
+- **Current slice:** [104 — Registry-driven all-server deployment](slices/104-registry-driven-deploy.md) — **delivered; dry-run resolved all five services and live health on okami, mutating path not yet exercised**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
+
+- Prior slice: [103 — Linux-hosted Windows client package build](slices/103-linux-client-package-build.md) — **delivered; full cross-build executed on okami, artifacts and manifest verified**
   - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
 
 - Prior slice: [102 — Full-stack CI validation gate](slices/102-ci-validation-pipeline.md) — **delivered; all five CI jobs green on PR #80**
@@ -252,7 +255,9 @@ Progress: **40%** (2 of 5 items done)
 
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
-- **Current tooling slice:** [101 — Server deployment path in the current deployment pipeline](slices/101-server-deployment-pipeline.md) — **in progress; opt-in native and Docker deployment modes with remote backup and commit validation**
+- **Current tooling slice:** [104 — Registry-driven all-server deployment](slices/104-registry-driven-deploy.md) — **delivered; dry-run resolved all five registered services and evaluated live health on okami, exit 0. The mutating path (backup, replace, restart, health gate, rollback) is NOT yet exercised against production and needs a tag deploy in a maintenance window**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
+- Prior tooling slice: [101 — Server deployment path in the current deployment pipeline](slices/101-server-deployment-pipeline.md) — **delivered; PowerShell parser checks passed and the dirty-worktree guard stopped deployment before SSH**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 **Phase 12 — Biological progression and kinetic systems**
@@ -830,14 +835,15 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   [Slice 101](slices/101-server-deployment-pipeline.md) adds an opt-in
   commit-archive deployment path with native, Docker candidate, and Docker
   split modes. Ordinary client builds remain client-only.
-- [~] In progress — Full CI/CD pipeline (Phase 7 + Phase 10): [Slice 102](slices/102-ci-validation-pipeline.md)
+- [x] Done — Full CI/CD pipeline (Phase 7 + Phase 10): [Slice 102](slices/102-ci-validation-pipeline.md)
   expands the [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry)
   gate to record-sync, the Python enrollment/operator suites, the wgnetstack
   build, and the Windows launcher tests. [Slice 103](slices/103-linux-client-package-build.md)
-  makes the Windows client package reproducible from a Linux runner. Remaining:
-  Slice 104 (registry-driven all-server deployment on tag,
-  [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)),
-  which requires a self-hosted runner on the deployment host.
+  makes the Windows client package reproducible from a Linux runner.
+  [Slice 104](slices/104-registry-driven-deploy.md) adds registry-driven
+  all-server deployment on tag. Remaining operator actions: register the
+  self-hosted runner on the deployment host and run one tag deploy to prove the
+  mutating path, which has no runtime evidence yet.
 - [ ] Queued — Remaining delivery workflow capabilities (Phase 7): Remote-SSH
   server workspace
   ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)) and

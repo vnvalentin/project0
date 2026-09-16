@@ -67,3 +67,26 @@ jobs:
             dist/current/deployment-manifest.json
           if-no-files-found: error
           retention-days: 30
+
+  deploy-servers:
+    name: Deploy all servers
+    needs: client-package
+    # Tags only: a manual dispatch builds the client but never touches the host.
+    if: github.ref_type == 'tag'
+    # The runner lives on the deployment host, so deployment is a local
+    # operation: no inbound SSH, no deploy key, and no secret in GitHub.
+    runs-on: [self-hosted, linux, okami]
+    concurrency:
+      group: deploy-servers
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show deploy plan
+        run: scripts/deploy_all.sh --dry-run
+
+      - name: Deploy every registered service
+        run: scripts/deploy_all.sh --commit "${GITHUB_SHA}"
