@@ -184,9 +184,12 @@ def feature_stage(status: str) -> str:
 
 def feature_cards(reader=read_committed_file) -> list[dict]:
     text = reader("docs/FEATURE-LIST.md")
-    cards = []
+    cards, seen_ids = [], set()
     for match in re.finditer(r"^### ((?:IP|P|F)-\d+):\s*(.+?)[ \t]*$\n([\s\S]*?)(?=^### |\Z)", text, re.M):
         fid, title, body = match.group(1), match.group(2).strip(), match.group(3)
+        if fid in seen_ids:  # Count repeated feature headings once.
+            continue
+        seen_ids.add(fid)
         status_match = re.search(r"^- Status:\s*`?([^`\n]+?)`?\s*$", body, re.M)
         status = status_match.group(1).strip() if status_match else "Planned"
         tags, seen = [], set()
@@ -280,9 +283,25 @@ def action_items(phases: list[dict[str, str]], debts: list[dict[str, str]], slic
 
 def phase_progress_map(tracker: str) -> dict:
     out = {}
-    for m in re.finditer(r"\*\*Phase (\d+)\s*[—-]\s*([^*]+?)\*\*\s+Progress:\s*\*\*(\d+)%\*\*", tracker):
-        out[int(m.group(1))] = {"title": m.group(2).strip(), "progress": int(m.group(3))}
+    for m in re.finditer(
+        r"\*\*Phase (\d+)\s*[—-]\s*([^*]+?)\*\*\s+Progress:\s*\*\*(\d+)%\*\*"
+        r"(?:\s*\((\d+) of (\d+) items done\))?",
+        tracker,
+    ):
+        out[int(m.group(1))] = {
+            "title": m.group(2).strip(), "progress": int(m.group(3)),
+            "done_items": int(m.group(4)) if m.group(4) else None,
+            "total_items": int(m.group(5)) if m.group(5) else None,
+        }
     return out
+
+
+def _slice_done(status: str) -> bool:
+    # Accept both completion labels used by the tracker.
+    s = status.lower()
+    if any(k in s for k in ("in progress", "in-progress", "awaiting", "outstanding", "blocked")):
+        return False
+    return "100% complete" in s or "delivered" in s
 
 
 def current_slice_numbers(tracker: str) -> set:
@@ -307,9 +326,9 @@ def slice_index_rows(tracker: str) -> list[dict]:
             if row is None:
                 rows[num] = {"num": num, "title": s.group(2).strip(), "status_text": status,
                              "phase_num": phase_num, "phase_title": phase_title,
-                             "feature": "", "done": "100% complete" in status}
+                             "feature": "", "done": _slice_done(status)}
             elif status and not row["status_text"]:
-                row["status_text"], row["done"] = status, "100% complete" in status
+                row["status_text"], row["done"] = status, _slice_done(status)
             last = num
             continue
         f = re.match(r"^\s*- \*\*Features?:\*\* \[([A-Za-z]+-\d+)\]", line)
@@ -848,7 +867,13 @@ def executive_model(reader) -> dict:
             status_by_num[int(mnum.group(1))] = p["status"].lower()
     phases = [{"num": n, "title": meta["title"], "pct": meta["progress"],
                "status": status_by_num.get(n, "")} for n, meta in sorted(prog.items())]
-    overall = round(sum(p["pct"] for p in phases) / len(phases)) if phases else 0
+    # Weight overall completion by tracked phase items.
+    done_items = sum(m["done_items"] for m in prog.values() if m.get("done_items") is not None)
+    total_items = sum(m["total_items"] for m in prog.values() if m.get("total_items") is not None)
+    if total_items:
+        overall = round(done_items / total_items * 100)
+    else:
+        overall = round(sum(p["pct"] for p in phases) / len(phases)) if phases else 0
 
     # Focus = the current slice of each still-unfinished phase.
     focus, seen = [], set()
@@ -950,11 +975,17 @@ def render_exec(view: str = "committed") -> str:
     other_lbl = "Working tree" if view != "working" else "Committed"
     src = "live working tree" if view == "working" else "last committed state"
 
+    cal = calibration()
+    prov = f'@{esc(cal["sha"])}' if cal.get("sha") else "no git"
+    if view != "working" and cal.get("in_flight"):
+        prov += (f' \u00b7 <b style="color:var(--amber)">{cal["in_flight"]} uncommitted '
+                 f'change(s) not shown</b>')
+
     return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Project0 \u2014 Reality</title>
 <style>{EXEC_CSS}</style></head><body>
 <header>
-  <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 auto-refreshes</div></div>
+  <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 {prov} \u00b7 auto-refreshes</div></div>
   <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>

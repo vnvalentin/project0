@@ -1772,6 +1772,7 @@ for a developer to pick up. No implementation has started.
 - Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
   `feature_stage`, `phase_rows`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -1786,6 +1787,15 @@ for a developer to pick up. No implementation has started.
     Why: Close a traceability gap — a delivered `task` issue with no feature —
     and make the delivery flow itself a first-class tracked capability.
     Validation: Dashboard serves HTTP 200 with the live board.
+  - Date: 2026-09-15
+    What changed: Slice 094 makes the Reality view recognize delivered slices,
+    deduplicate repeated feature headings, weight overall completion by tracked
+    items, show commit provenance and hidden uncommitted work, and reconciles
+    stale Phase 1 and Phase 8 status badges.
+    Why: The page understated shipped work and presented contradictory phase
+    status without identifying the source revision.
+    Validation: Focused parser model check and `scripts/check_record_sync.sh`
+    passed; see [Slice 094](slices/094-reality-dashboard-truthfulness.md).
 
 ### F-022: Player house allocation
 

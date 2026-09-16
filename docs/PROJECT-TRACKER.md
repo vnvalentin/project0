@@ -108,7 +108,7 @@ migration is now resolved — Slice 041).
 | Phase | Status | Exit gate |
 | --- | --- | --- |
 | 0. Foundation and contracts | done | Foundation records completed, cross-linked, and validated; gate marker removed. |
-| 1. First playable vertical slice | in-progress | A player can pass a local identity gate, enter a scene with a flat plane, and move a Player around it, validated by headless Godot checks. |
+| 1. First playable vertical slice | done | A player can pass a local identity gate, enter a scene with a flat plane, and move a Player around it, validated by headless Godot checks. |
 | 2. Network connection proof | done | A headless Godot server accepts one ENet client and the client visibly represents the connected Player on the existing flat plane, with no movement synchronization or persistence required yet. |
 | 3. LAN client connection | done | A Windows Godot client can target the Linux server's configured LAN address while localhost remains the default for automated checks; no gameplay synchronization or internet exposure is included. |
 | 4. Authoritative movement proof | done | One connected client sends WASD intent, the server owns and updates that Player position, and the client displays the returned authoritative position without prediction or interpolation. |
@@ -116,7 +116,7 @@ migration is now resolved — Slice 041).
 | 6. Windows client package | done | A reproducible portable Windows 64-bit package launches the current client without the Godot editor, source share, or server-only files and can be configured to connect to the Linux server. |
 | 11. Multi-peer Player replication | done | Two clients connect to one server, see distinct Players, observe each other's authoritative movement, and clean up a disconnected Player. |
 | 7. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are documented, exercised, and synchronized with feature records. |
-| 8. JIT world generation and local inference | in-progress | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
+| 8. JIT world generation and local inference | done | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
 | 9. Canon persistence and world mutation | in-progress | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
@@ -199,8 +199,14 @@ Progress: **71%** (5 of 7 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [027 — Agent-assisted delivery orchestration](slices/027-agent-assisted-delivery-orchestration.md) — **100% complete; documentation checks and full-suite validation passed**
+- **Current slice:** [094 — Reality dashboard truthfulness and delivery-record reconciliation](slices/094-reality-dashboard-truthfulness.md) — **delivered; focused parser validation and record-sync validation passed**
   - **Feature:** [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)
+
+- Prior slice: [027 — Agent-assisted delivery orchestration](slices/027-agent-assisted-delivery-orchestration.md) — **100% complete; documentation checks and full-suite validation passed**
+  - **Feature:** [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)
+
+- **Also delivered:** [094 — Reality dashboard truthfulness and delivery-record reconciliation](slices/094-reality-dashboard-truthfulness.md) — **feature count deduplication, delivered-slice recognition, item-weighted overall completion, commit provenance, and stale Phase 1/8 status reconciliation**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
 
 **Phase 8 — JIT world generation and local inference**
 
