@@ -31,6 +31,7 @@ DLL_NAME="libwgnetstack_gdext.windows.template_release.x86_64.dll"
 GDEXT_DIR="native/wgnetstack/gdext"
 STAGE="build/client-package/stage"
 PAYLOAD="native/windows_launcher/payload"
+SCONS_JOBS="${SCONS_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 
 log() { printf '\n== %s\n' "$*"; }
 
@@ -62,9 +63,22 @@ log "Building wgnetstack Windows c-archive"
 make -C native/wgnetstack cgoarchive-windows
 
 log "Building wgnetstack GDExtension Windows DLL"
-(cd "${GDEXT_DIR}" && scons platform=windows target=template_release use_mingw=yes)
+(cd "${GDEXT_DIR}" && scons -j"${SCONS_JOBS}" platform=windows target=template_release use_mingw=yes)
 dll_built="${GDEXT_DIR}/build/${DLL_NAME}"
 [[ -f "${dll_built}" ]] || { echo "ERROR: GDExtension DLL not produced at ${dll_built}" >&2; exit 1; }
+
+# Godot runs this export ON Linux, and addons/wgnetstack/wgnetstack.gdextension
+# maps linux.editor.x86_64 to the template_debug .so. Godot loads the HOST
+# platform's library before it will export any preset, so without this the
+# Windows export aborts with "configuration errors". Building it here is what
+# makes the package reproducible on a clean runner.
+log "Building wgnetstack Linux c-archive (export host)"
+make -C native/wgnetstack cgoarchive
+
+log "Building wgnetstack GDExtension Linux .so (export host)"
+(cd "${GDEXT_DIR}" && scons -j"${SCONS_JOBS}" platform=linux target=template_debug)
+host_so="${GDEXT_DIR}/build/libwgnetstack_gdext.linux.template_debug.x86_64.so"
+[[ -f "${host_so}" ]] || { echo "ERROR: host GDExtension not produced at ${host_so}" >&2; exit 1; }
 
 log "Exporting Godot Windows client"
 rm -rf "${STAGE}"
