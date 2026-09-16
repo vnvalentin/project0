@@ -208,6 +208,21 @@ feature so future drift is easier to detect.
 - Related work: [container-platform map](../.scratch/container-platform/map.md) and its resolved runtime, login, persistence, operator, migration, and worker decisions.
 - Change history:
   - Date: 2026-09-16
+    What changed: Added Slice 104's registry-driven all-server deployment.
+    `deploy/services.json` declares every deployable service and its health
+    contract; `scripts/deploy_all.sh` stages `git archive <commit>`, backs up
+    the deploy root, rebuilds the Python venv, restarts units or compose, and
+    verifies each declared health check, rolling back on failure. The
+    `deploy-servers` job runs it on a self-hosted runner on the host, so no
+    deploy credential is stored in GitHub. Registering a new service is one
+    registry entry.
+    Why: Deployment covered only the two Godot servers and required an operator
+    to run PowerShell from one Windows workstation; the enrollment, operator,
+    and dashboard services had no deployment path at all.
+    Validation evidence: Slice 104 — `--dry-run` on okami resolved all five
+    services and evaluated live health, exit 0. The mutating path is NOT yet
+    exercised against production and is recorded as a known limitation.
+  - Date: 2026-09-16
     What changed: Added Slice 101's opt-in server deployment path to the current
     deployment pipeline. `scripts/deploy_server.ps1` archives the committed
     source, backs up the remote checkout, validates extraction, and supports
