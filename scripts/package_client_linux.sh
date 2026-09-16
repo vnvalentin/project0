@@ -46,6 +46,10 @@ log "Checking cross-build toolchain"
 require_tool godot "Install Godot 4.3 plus the 4.3.stable export templates."
 require_tool go "Install Go >= 1.23."
 require_tool scons "Install with 'pip install scons' or 'apt-get install scons'."
+# The host-side GDExtension and its cgo archive need a NATIVE toolchain, not
+# just the mingw cross-compilers.
+require_tool gcc "Install build-essential (native gcc is needed for the Linux host build)."
+require_tool g++ "Install build-essential (native g++ is needed for the Linux host build)."
 require_tool x86_64-w64-mingw32-gcc "Install mingw-w64."
 require_tool x86_64-w64-mingw32-g++ "Install g++-mingw-w64-x86-64."
 require_tool zip "Install zip."

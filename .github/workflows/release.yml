@@ -34,6 +34,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
+            build-essential \
             gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 scons zip git make
           # godot-cpp uses std::mutex, which the win32-threads mingw variant
           # only provides from GCC 13. This image ships an older GCC, so select
