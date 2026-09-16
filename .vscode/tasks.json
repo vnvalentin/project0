@@ -38,6 +38,34 @@
 				"reveal": "always",
 				"panel": "dedicated"
 			}
+		},
+		{
+			"label": "Validation: GUT (Git Bash)",
+			"type": "shell",
+			"command": "C:\\Program Files\\Git\\bin\\bash.exe",
+			"args": [
+				"-lc",
+				"cd \"${workspaceFolder}\" && bash scripts/run_gut_validation.sh"
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Validation: Record Sync (Git Bash)",
+			"type": "shell",
+			"command": "C:\\Program Files\\Git\\bin\\bash.exe",
+			"args": [
+				"-lc",
+				"cd \"${workspaceFolder}\" && bash scripts/check_record_sync.sh"
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
 		}
 	],
 	"inputs": [
