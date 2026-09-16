@@ -137,6 +137,58 @@ if ! await_health; then
 	fail "deploy of '${TAG}' failed health and no previous tag was recorded to roll back to"
 fi
 
+# Health only proves each process answers for itself. Every defect in the
+# container cutover lived in a call that crossed a process boundary, and each
+# one kept /healthz green while it was broken. Smoke checks exercise those
+# paths, so a broken delegation fails the deploy instead of reaching a player.
+rollback_and_fail() {
+	local reason="$1"
+	docker compose "${compose_args[@]}" ps
+	if [[ "${ROLLBACK}" == true && -n "${previous_tag}" ]]; then
+		log "ROLLBACK: redeploying previous tag ${previous_tag}"
+		PROJECT0_IMAGE_TAG="${previous_tag}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
+		fail "${reason}; rolled back to '${previous_tag}'"
+	fi
+	fail "${reason} and no previous tag was recorded to roll back to"
+}
+
+smoke_file="$(pwd)/deploy/smoke-checks.json"
+if [[ -f "${smoke_file}" ]]; then
+	log "Smoke checks"
+	smoke_count="$(python3 -c "
+import json,sys
+print(len(json.load(open(sys.argv[1]))['checks']))" "${smoke_file}")"
+	for ((s = 0; s < smoke_count; s++)); do
+		read -r sname smethod surl sexpect <<<"$(python3 -c "
+import json,sys
+c=json.load(open(sys.argv[1]))['checks'][int(sys.argv[2])]
+print(c['name'], c.get('method','GET'), c['url'], c['expect_status'])" "${smoke_file}" "${s}")"
+		sbody="$(python3 -c "
+import json,sys
+c=json.load(open(sys.argv[1]))['checks'][int(sys.argv[2])]
+sys.stdout.write(c.get('body',''))" "${smoke_file}" "${s}")"
+
+		# Run inside the enrollment container: these targets are loopback-bound
+		# by design and are not reachable from the host network.
+		if [[ -n "${sbody}" ]]; then
+			actual="$(docker compose "${compose_args[@]}" exec -T enrollment \
+				curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+				-X "${smethod}" "${surl}" -H 'Content-Type: application/json' -d "${sbody}" 2>/dev/null || echo "000")"
+		else
+			actual="$(docker compose "${compose_args[@]}" exec -T enrollment \
+				curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+				-X "${smethod}" "${surl}" 2>/dev/null || echo "000")"
+		fi
+
+		if [[ "${actual}" == "${sexpect}" ]]; then
+			echo "  OK   ${sname}: HTTP ${actual}"
+		else
+			echo "  FAIL ${sname}: expected HTTP ${sexpect}, got ${actual}" >&2
+			rollback_and_fail "deploy of '${TAG}' failed smoke check '${sname}' (expected ${sexpect}, got ${actual})"
+		fi
+	done
+fi
+
 # Recorded only after health passes, so the rollback target is always a tag that
 # was observed healthy on this host. /var/lib/project0 is root-owned, so write
 # via sudo directly rather than relying on a failed redirect as control flow.
