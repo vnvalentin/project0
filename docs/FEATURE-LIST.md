@@ -2264,6 +2264,18 @@ for a developer to pick up. No implementation has started.
 - Validation: See [Slice 006](slices/006-windows-client-package.md)
   for the exact export and LAN-test results.
 - Change history:
+  - Date: 2026-09-16
+    What changed: Added `scripts/package_client_linux.sh` and the
+    `client-package` release job, cross-building the whole deliverable (Go
+    Windows c-archive, GDExtension DLL, Godot export, WAN launcher, ZIP, and
+    SHA256 manifest) on a Linux runner, plus a `cgoarchive-windows` Makefile
+    target. `export_presets.cfg` is now tracked; it had been gitignored, so no
+    clean checkout could build the client.
+    Why: The package could previously only be produced on one Windows
+    workstation using a hand-built, uncommitted DLL, so releases were not
+    reproducible from a commit.
+    Related work: [Slice 103](slices/103-linux-client-package-build.md),
+    [DT-011](TECHNICAL-DEBT-TRACKER.md#dt-011-client-export-filter-ships-the-test-framework-and-build-artifacts)
   - Date: 2026-09-12
     What changed: Implemented Slice 006 — the Windows Desktop export preset
     was created with client-only files, the build script was added, and the
