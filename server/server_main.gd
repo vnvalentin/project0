@@ -159,8 +159,10 @@ var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
 
 ## Fixed simulation delta used to drive monster chase movement each physics
-## frame (the SceneTree physics_frame signal carries no delta).
-const MONSTER_TICK_DELTA: float = 1.0 / 60.0
+## frame (the SceneTree physics_frame signal carries no delta). DT-013: derived
+## from the authoritative tick rate, not a hardcoded 1/60 — a constant delta
+## would scale monster speed with any rate change.
+var _monster_tick_delta: float = 1.0 / float(ServerHealthScript.DEFAULT_TICK_RATE)
 
 
 ## Slice 067: runtime health-file state. The path and the resolved (reported)
@@ -186,6 +188,12 @@ func _start_server() -> void:
 	# immediately. Path and reported tick rate come from the environment once.
 	_health_file_path = HealthReporterScript.resolve_health_file_path(OS.get_environment("PROJECT0_HEALTH_FILE"))
 	_health_tick_rate = ServerHealthScript.resolve_tick_rate(OS.get_environment("PROJECT0_TICK_RATE"))
+	# DT-013: ServerHealth resolves the contracted rate but Slice 055 deferred
+	# applying it, so the server ran at Godot's 60 Hz default while advertising
+	# 30. Drive the engine from the same resolved value the health snapshot
+	# reports so the advertised and actual authoritative tick cannot diverge.
+	Engine.physics_ticks_per_second = _health_tick_rate
+	_monster_tick_delta = 1.0 / float(_health_tick_rate)
 	_boot_ticks_ms = Time.get_ticks_msec()
 	_write_health(ServerHealthScript.STATUS_STARTING)
 
@@ -644,7 +652,7 @@ func _on_physics_frame() -> void:
 	for peer_id: int in _player_states.keys():
 		player_positions.append(_player_states[peer_id].position)
 		player_peer_ids.append(peer_id)
-	_monster_manager.advance_all(player_positions, MONSTER_TICK_DELTA, _monster_tick, player_peer_ids)
+	_monster_manager.advance_all(player_positions, _monster_tick_delta, _monster_tick, player_peer_ids)
 	_monster_tick += 1
 	_broadcast_monster_positions()
 
