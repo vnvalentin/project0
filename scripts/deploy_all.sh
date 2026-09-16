@@ -177,7 +177,7 @@ done
 stamp="$(date -u +%Y%m%d%H%M%S)"
 backup="${BACKUP_ROOT}/$(basename "${DEPLOY_ROOT}").backup.${stamp}-$(git rev-parse --short "${COMMIT}")"
 staging="$(mktemp -d)"
-trap 'rm -rf "${staging}"' EXIT
+rollback_done=false
 
 log "Staging commit $(git rev-parse --short "${COMMIT}")"
 git archive --format=tar "${COMMIT}" | tar -x -C "${staging}"
@@ -193,6 +193,8 @@ mkdir -p "${DEPLOY_ROOT}"
 cp -a "${staging}/." "${DEPLOY_ROOT}/"
 
 restore_backup() {
+	[[ "${rollback_done}" == true ]] && return 0
+	rollback_done=true
 	echo "ROLLBACK: restoring ${backup} to ${DEPLOY_ROOT}" >&2
 	rm -rf "${DEPLOY_ROOT}"
 	mv "${backup}" "${DEPLOY_ROOT}"
@@ -219,6 +221,30 @@ for name in "${SERVICES[@]}"; do
 		|| { [[ "${ROLLBACK}" == true ]] && restore_backup; fail "dependency install failed for ${name}"; }
 	echo "  ${name}: ${requirements} installed into ${venv}"
 done
+
+
+on_exit() {
+	local status=$?
+	if [[ "${status}" -ne 0 && "${ROLLBACK}" == true && -d "${backup}" ]]; then
+		restore_backup || true
+	fi
+	rm -rf "${staging}"
+	exit "${status}"
+}
+trap on_exit EXIT
+
+# Runtime state is intentionally outside the source archive, but the current
+# enrollment unit's ReadWritePaths points at this historical in-tree location.
+# Carry it forward during the transition so replacing the source cannot strand
+# the allocation database or cause the service to fail before its health check.
+preserve_runtime_state() {
+	local relative="$1"
+	if [[ -d "${backup}/${relative}" ]]; then
+		mkdir -p "${DEPLOY_ROOT}/${relative}"
+		cp -a "${backup}/${relative}/." "${DEPLOY_ROOT}/${relative}/"
+		echo "  preserved runtime state: ${relative}"
+	fi
+}
 
 log "Restarting services"
 for name in "${SERVICES[@]}"; do
