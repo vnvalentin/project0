@@ -184,7 +184,9 @@ three services, plus dry-run resolution and shell/YAML parse checks.
   returned **401 Unauthorized** both directly (`192.168.1.254:8095`) and through
   the public endpoint (`https://enroll.valentin.vip/login`), where it had
   returned 502 before — proving the request now reaches the login authority and
-  receives a real verdict.
+  receives a real verdict. The user then confirmed the **Windows WAN client
+  connects and behaves as expected** end to end, which covers tunnel
+  provisioning, character selection, and world entry beyond the HTTP seam.
 - Remaining limitation: this was the **third** defect of the same class in this
   cutover (Ollama host, enrollment DB path, login delegation). Each was
   configuration that silently assumed a single host. Remaining host-assumed
