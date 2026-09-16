@@ -12,18 +12,21 @@ class_name CanonMutationRepository
 ## non-canon mutation is rejected before any write, never guessed into shape.
 ##
 ## This slice owns the mutation store, idempotency, optimistic revision, and
-## boundary validation only. Assigning stable GUIDs to blueprint entities,
-## proving the physical event occurred, gameplay authorization of the actor, the
+## boundary validation. Slice 095 added target-existence enforcement: a mutation
+## must address a real entity in the sector's Canon (via CanonEntityGuid).
+## Proving the physical event occurred, gameplay authorization of the actor, the
 ## network DTO that carries a mutation intent, and replay into live scene state
-## are explicit non-goals here (see docs/slices/050-canon-mutation-persistence.md).
+## remain explicit non-goals here (see docs/slices/050 and docs/slices/095).
 
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
+const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 
 const OUTCOME_OK: String = "ok"
 const OUTCOME_IDEMPOTENT: String = "idempotent"
 const OUTCOME_CONFLICT: String = "conflict"
 const OUTCOME_REVISION_MISMATCH: String = "revision_mismatch"
 const OUTCOME_SECTOR_NOT_CANON: String = "sector_not_canon"
+const OUTCOME_TARGET_NOT_FOUND: String = "target_not_found"
 const OUTCOME_INVALID_EVENT: String = "invalid_event"
 
 ## Mutation event schema versions this build accepts. A different version is
@@ -97,8 +100,14 @@ func apply_mutation(event: Variant) -> Dictionary:
 	var payload_json: String = validated["payload_json"]
 
 	# The target sector must already be immutable Canon (Slice 045).
-	if _canon.get_canonical_sector(sector_id)["outcome"] != CanonRepositoryScript.OUTCOME_OK:
+	var canon_lookup: Dictionary = _canon.get_canonical_sector(sector_id)
+	if canon_lookup["outcome"] != CanonRepositoryScript.OUTCOME_OK:
 		return _result(OUTCOME_SECTOR_NOT_CANON, "Sector '%s' is not Canon; cannot mutate it." % sector_id)
+
+	# Slice 095: the mutation must address a real entity in that sector's Canon
+	# (CLAUDE.md CanonMutationEvent: "the server MUST verify the target exists").
+	if not CanonEntityGuidScript.contains_guid(canon_lookup["sector"]["blueprint"], validated["target_guid"]):
+		return _result(OUTCOME_TARGET_NOT_FOUND, "target_guid '%s' is not an addressable entity in sector '%s'." % [validated["target_guid"], sector_id])
 
 	# Idempotency / forgery guard on the server-owned event_id.
 	var existing: Dictionary = _store.query_with_bindings(
