@@ -1,12 +1,10 @@
 param(
-    [string]$Version = $(if ($env:PROJECT0_DEPLOYMENT_VERSION) { $env:PROJECT0_DEPLOYMENT_VERSION } else { "0.12.0" }),
-    [switch]$DeployServer,
-    [ValidateSet("native", "docker-candidate", "docker-split")]
-    [string]$ServerMode = $(if ($env:PROJECT0_SERVER_MODE) { $env:PROJECT0_SERVER_MODE } else { "native" }),
-    [string]$ServerHost = $(if ($env:PROJECT0_SERVER_HOST) { $env:PROJECT0_SERVER_HOST } else { "okami" }),
-    [string]$ServerPath = $(if ($env:PROJECT0_SERVER_PATH) { $env:PROJECT0_SERVER_PATH } else { "/data/code/project0" }),
-    [switch]$SkipServerCleanCheck
+    [string]$Version = $(if ($env:PROJECT0_DEPLOYMENT_VERSION) { $env:PROJECT0_DEPLOYMENT_VERSION } else { "0.12.0" })
 )
+
+# Slice 108: the server-deployment stage was removed. Servers are deployed from
+# published container images by scripts/deploy_containers.sh on the host; this
+# script now only builds the local Windows client package.
 
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -88,18 +86,6 @@ $manifest = [ordered]@{
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
 Remove-Item $work -Recurse -Force
-
-if ($DeployServer) {
-    Write-Output "Deploying server commit to $ServerHost ($ServerMode)..."
-    $deployArgs = @(
-        "-ServerHost", $ServerHost,
-        "-RemotePath", $ServerPath,
-        "-Mode", $ServerMode
-    )
-    if ($SkipServerCleanCheck) { $deployArgs += "-SkipCleanCheck" }
-    & (Join-Path $PSScriptRoot "deploy_server.ps1") @deployArgs
-    if ($LASTEXITCODE -ne 0) { throw "Server deployment failed with exit code $LASTEXITCODE" }
-}
 
 Write-Output "Deployment ready: $current"
 Get-ChildItem $current -File | Select-Object Name, Length

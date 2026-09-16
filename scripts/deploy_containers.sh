@@ -2,8 +2,8 @@
 # Deploys the Project0 stack from published container images (Slice 106).
 #
 # Runs ON the deployment host; the self-hosted CI runner executes it locally,
-# so there is no SSH hop and no deploy credential. This replaces the
-# `git archive` model in scripts/deploy_all.sh, which depended on artifacts
+# so there is no SSH hop and no deploy credential. This replaced the retired
+# `git archive` deploy (Slice 104), which depended on artifacts
 # (.godot import cache, wgnetstack .so, host venv) that only ever existed on
 # this one machine.
 #
