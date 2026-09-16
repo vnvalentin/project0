@@ -77,6 +77,14 @@ s=[x for x in r['services'] if x['name']==sys.argv[1]][0]
 print(eval(sys.argv[2], {'s': s}))
 " "$1" "$2"; }
 
+# `systemctl list-unit-files` exits nonzero for an absent unit, which under
+# `set -o pipefail` would abort the whole run instead of reporting a skip.
+unit_state() {
+	systemctl list-unit-files "$1" --no-legend 2>/dev/null | awk '{print $2}' || true
+}
+
+unit_installed() { [[ -n "$(unit_state "$1")" ]]; }
+
 log "Deploy plan"
 echo "  commit      : ${COMMIT}"
 echo "  deploy root : ${DEPLOY_ROOT}"
@@ -140,7 +148,7 @@ if [[ "${DRY_RUN}" == true ]]; then
 		[[ "$(svc "${name}" "s['kind']")" == "systemd" ]] && unit="$(svc "${name}" "s['unit']")"
 		installed="n/a"
 		if [[ -n "${unit}" ]]; then
-			installed="$(systemctl list-unit-files "${unit}" --no-legend 2>/dev/null | awk '{print $2}')"
+			installed="$(unit_state "${unit}")"
 			[[ -n "${installed}" ]] || installed="NOT-INSTALLED"
 		fi
 		if check_health "${name}" 2>/dev/null; then health="healthy"; else health="unhealthy/absent"; fi
@@ -156,8 +164,7 @@ log "Preflight"
 for name in "${SERVICES[@]}"; do
 	if [[ "$(svc "${name}" "s['kind']")" == "systemd" ]]; then
 		unit="$(svc "${name}" "s['unit']")"
-		if ! systemctl list-unit-files "${unit}" --no-legend >/dev/null 2>&1 \
-			|| [[ -z "$(systemctl list-unit-files "${unit}" --no-legend 2>/dev/null)" ]]; then
+		if ! unit_installed "${unit}"; then
 			if [[ "$(svc "${name}" "s['required']")" == "True" ]]; then
 				fail "required unit ${unit} is not installed on this host"
 			fi
@@ -217,7 +224,7 @@ for name in "${SERVICES[@]}"; do
 	kind="$(svc "${name}" "s['kind']")"
 	if [[ "${kind}" == "systemd" ]]; then
 		unit="$(svc "${name}" "s['unit']")"
-		[[ -n "$(systemctl list-unit-files "${unit}" --no-legend 2>/dev/null)" ]] || { echo "  skipped ${name}"; continue; }
+		unit_installed "${unit}" || { echo "  skipped ${name}"; continue; }
 		sudo -n systemctl restart "${unit}"
 		echo "  restarted ${unit}"
 	else
@@ -233,7 +240,7 @@ failed=()
 for name in "${SERVICES[@]}"; do
 	if [[ "$(svc "${name}" "s['kind']")" == "systemd" ]]; then
 		unit="$(svc "${name}" "s['unit']")"
-		[[ -n "$(systemctl list-unit-files "${unit}" --no-legend 2>/dev/null)" ]] || { echo "  skipped ${name}"; continue; }
+		unit_installed "${unit}" || { echo "  skipped ${name}"; continue; }
 	fi
 	await_health "${name}" || failed+=("${name}")
 done
