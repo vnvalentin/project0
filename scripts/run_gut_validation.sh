@@ -6,6 +6,10 @@ RESULT_DIR="${RESULT_DIR:-build/validation}"
 JUNIT_FILE="${RESULT_DIR}/gut.xml"
 LOG_FILE="${RESULT_DIR}/gut.log"
 SUMMARY_FILE="${RESULT_DIR}/validation-summary.json"
+DASHBOARD_RESULTS_DIR="${DASHBOARD_RESULTS_DIR:-}"
+if [[ -z "$DASHBOARD_RESULTS_DIR" && -d "/data/code/project0-flow-mirror" ]]; then
+  DASHBOARD_RESULTS_DIR="/data/code/project0-flow-mirror/build/validation"
+fi
 
 mkdir -p "$RESULT_DIR"
 
@@ -65,5 +69,15 @@ cat > "$SUMMARY_FILE" <<EOF
   "log": "$LOG_FILE"
 }
 EOF
+
+if [[ -n "$DASHBOARD_RESULTS_DIR" ]]; then
+  if mkdir -p "$DASHBOARD_RESULTS_DIR" \
+    && cp "$JUNIT_FILE" "$DASHBOARD_RESULTS_DIR/gut.xml" \
+    && cp "$SUMMARY_FILE" "$DASHBOARD_RESULTS_DIR/validation-summary.json"; then
+    echo "Published dashboard test results to $DASHBOARD_RESULTS_DIR"
+  else
+    echo "WARNING: unable to publish dashboard test results to $DASHBOARD_RESULTS_DIR" >&2
+  fi
+fi
 
 exit "$exit_code"

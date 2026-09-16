@@ -38,6 +38,9 @@ class EnrollmentConfig:
     # this is eligible for the operator-invoked deprovision sweep. Default 30
     # days. Invite-path peers are never aged by this.
     peer_idle_ttl_seconds: int
+    public_auth_max_attempts: int = 5
+    public_auth_window_seconds: float = 60.0
+    public_auth_lockout_seconds: float = 300.0
 
 
 DEFAULT_DB_PATH = os.path.join(
@@ -100,6 +103,18 @@ def load_config() -> EnrollmentConfig:
             f"ENROLLMENT_PEER_IDLE_TTL_SECONDS must be an integer: {peer_idle_ttl_raw}"
         ) from exc
 
+    public_auth_max_attempts_raw = os.getenv("PUBLIC_AUTH_MAX_ATTEMPTS", "5").strip()
+    public_auth_window_raw = os.getenv("PUBLIC_AUTH_WINDOW_SECONDS", "60").strip()
+    public_auth_lockout_raw = os.getenv("PUBLIC_AUTH_LOCKOUT_SECONDS", "300").strip()
+    try:
+        public_auth_max_attempts = int(public_auth_max_attempts_raw)
+        public_auth_window_seconds = float(public_auth_window_raw)
+        public_auth_lockout_seconds = float(public_auth_lockout_raw)
+    except ValueError as exc:
+        raise RuntimeError("PUBLIC_AUTH_* values must be numeric") from exc
+    if public_auth_max_attempts < 1 or public_auth_window_seconds <= 0 or public_auth_lockout_seconds <= 0:
+        raise RuntimeError("PUBLIC_AUTH_* values must be positive")
+
     return EnrollmentConfig(
         opnsense_host=os.getenv("OPNSENSE_HOST", "192.168.1.1").strip(),
         opnsense_api_key=api_key,
@@ -119,4 +134,7 @@ def load_config() -> EnrollmentConfig:
         login_authority_port=login_authority_port,
         login_authority_timeout_seconds=login_authority_timeout_seconds,
         peer_idle_ttl_seconds=peer_idle_ttl_seconds,
+        public_auth_max_attempts=public_auth_max_attempts,
+        public_auth_window_seconds=public_auth_window_seconds,
+        public_auth_lockout_seconds=public_auth_lockout_seconds,
     )

@@ -1,7 +1,7 @@
 # Project0 Technical Debt Tracker
 
 Status: active
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-16
 Owner: valentin.vn@gmail.com
 
 ## Rule
@@ -79,7 +79,16 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   loopback-delegated to the login authority (mirroring `/login`, Slice 088), with
   the DT-009 abuse protections applied; then add an `EnrollmentHttpClient.register`
   method and re-enable the register button in WAN mode. Own ADR/slice.
-- Status: `open`
+- Status: `Resolved`
+- Closure date: 2026-09-16
+- Closure outcome: Slice 100 added loopback-delegated `POST /register`, the
+  public enrollment route, the Godot HTTPS client method, and WAN account-screen
+  registration followed by normal HTTPS login. The route inherits DT-009's
+  bounded public-auth limiter.
+- Validation evidence: registration/login pytest 8/8 and full enrollment pytest
+  120/120 passed on Windows, exit 0; loopback and client GDScript parse checks
+  reported no parse errors. Windows cannot load the repository's Linux-only
+  GDExtensions, so full Godot runtime validation remains Linux-host evidence.
 - Related work: [Slice 093](slices/093-client-https-login-wiring.md),
   [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
   [ADR 0005](adr/0005-character-selection-over-https.md),
@@ -123,11 +132,25 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   linked here, or is explicitly accepted permanently with a recorded
   compensating control (e.g. a documented WAF rule) if a follow-up slice is
   judged unnecessary.
-- Status: `Open`
+- Status: `Resolved`
+- Closure date: 2026-09-16
+- Closure outcome: Slice 099 added bounded, process-local public-auth controls
+  to `POST /login` and every `POST /characters/*` route. Login failures are
+  keyed by source host and normalized username; character requests are keyed by
+  source host; limited requests receive bounded `429 public_auth_rate_limited`
+  responses before authority delegation. Successful login clears its failure
+  window, and expired lockouts clear stale events.
+- Validation evidence: focused pytest passed 7/7 and the full enrollment suite
+  passed 119/119 on Windows, exit 0. The implementation uses an injected clock
+  in tests and configurable positive bounds in `EnrollmentConfig`.
 - Phase: 13 (Public game access)
 - Links: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
   (Scope/Safety invariants sections), [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md)
-  (Consequences section), [PROJECT-TRACKER.md](PROJECT-TRACKER.md#phase-13--public-game-access)
+  (Consequences section), [PROJECT-TRACKER.md](PROJECT-TRACKER.md#phase-13--public-game-access),
+  and [Slice 099](slices/099-public-auth-abuse-controls.md).
+- Remaining limitation: enforcement is process-local; distributed coordination
+  is deferred until the deployment topology requires multiple enrollment
+  workers. This is an explicit operational limitation, not an untracked gap.
 
 ## Resolved Items
 

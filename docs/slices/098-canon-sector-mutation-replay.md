@@ -1,6 +1,6 @@
 # Slice 098 — Canon sector mutation replay: server replicates the effective blueprint
 
-Status: **in-progress**
+Status: **delivered**
 
 Phase: 9 (Canon persistence and world mutation), completing the
 [P-013](../FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) code path.
@@ -81,4 +81,14 @@ rise for the two new files) + `scripts/check_record_sync.sh` exit 0.
 
 ## Root-cause learning
 
-None yet.
+No unexpected failure occurred during this slice. The resolver is deliberately
+pure and isolated from the transport and repository seams; its focused unit and
+SQLite-backed integration coverage, followed by the full Linux GUT and melee
+round-trip checks, supplied the required regression evidence.
+
+## Validation evidence
+
+On the Linux host, `scripts/run_gut_validation.sh` passed **493/493** tests
+across **72/72** scripts (exit 0). The authoritative melee E2E printed `ALL
+PASS`, exercising the effective-blueprint replication path, and
+`scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings.

@@ -147,12 +147,25 @@ delivered and validated by Copilot:
   no DNS dependency for the WireGuard tunnel itself, by design.
 - OPNsense nginx TLS vhost `/usr/local/etc/nginx/opnsense_http_vhost_plugins/enroll-proxy.conf`
   (listen 443 ssl, `*.valentin.vip` wildcard cert) reverse-proxies to
-  `192.168.1.254:8095`, publishing only `GET /healthz` and `POST /redeem`;
+  `192.168.1.254:8095`. The original deployment published only `GET /healthz`
+  and `POST /redeem`; Slice 100 now requires adding `POST /login`,
+  `POST /register`, and `POST /characters/{list,create,delete,select}` to the
+  explicit proxy allowlist before WAN self-service validation. The loopback
+  login authority remains private and is never published.
   every other path/method returns 403.
 - OPNsense Unbound host override `enroll.valentin.vip → 192.168.1.1` (LAN
   split-horizon) and a Cloudflare-proxied CNAME `enroll → valentin.vip` (the
   public path rides the existing WAN-443-from-Cloudflare-IPs rule; no
   firewall change was needed).
+
+On 2026-09-16, the OPNsense proxy was backed up and updated through the
+`okami` jump host. Its exact POST-only locations now publish `/login`,
+`/register`, and `/characters/{list,create,delete,select}` to the enrollment
+service; `configctl webgui restart` returned `OK`, and `nginx -t` passed. The
+live public checks returned FastAPI validation responses for empty POST bodies
+(422) and retained 403 responses for disallowed GET methods. The six Slice 100
+runtime files were deployed to `okami` with timestamped backups, and both
+`project0-login` and `project0-enrollment` were restarted successfully.
 
 Validation evidence:
 

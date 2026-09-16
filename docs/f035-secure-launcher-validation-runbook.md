@@ -12,6 +12,13 @@ Record the results in the F-035 change history (and the
 [Slice 054](slices/054-secure-windows-tunnel-enrollment.md) validation section)
 once complete.
 
+**Deployment prerequisite: completed 2026-09-16.** Slice 100's runtime files
+were deployed to `okami`, the OPNsense enrollment proxy was backed up and
+updated with exact POST-only locations for `/login`, `/register`, and all four
+`/characters/*` routes, and the OPNsense web GUI reload completed successfully.
+The loopback login authority remains private. Safe public checks returned 422
+from FastAPI validation for empty POST bodies, while GET requests remained 403.
+
 ## Evidence this run must produce
 
 - [ ] **Fresh enrollment** — a clean machine provisions its own peer and reaches
@@ -52,6 +59,11 @@ enrollment virtualenv.
 
    Method guard (should both be 403): `curl.exe https://enroll.valentin.vip/`
    and `curl.exe -X GET https://enroll.valentin.vip/redeem`.
+
+   The route publication was verified on 2026-09-16 with empty JSON bodies:
+   each POST reached FastAPI validation (422), while the GET method guards
+   remained 403. Do not include real credentials or assertions in this smoke
+   check.
 
 2. **Mint a single-use invite** (fallback path + the expiry test):
 

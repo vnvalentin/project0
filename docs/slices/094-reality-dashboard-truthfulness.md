@@ -37,14 +37,14 @@ The defect was in the dashboard's interpretation boundary, not in the delivery d
 - Given phase item counts, overall completion equals completed items divided by total items.
 - Given uncommitted record changes in committed view, the source revision and warning are visible.
 - Given the reconciled tracker, Phase 1 and Phase 8 show `done` consistently with their 100% work indexes.
-- Given the existing record set, `executive_model(read_repo_file)` returns `overall=80`, 29 shipped features, 5 active features, 4 not-started features, and no duplicate feature ids.
+- Given the existing record set, `executive_model(read_repo_file)` calculates overall completion from phase item counts, partitions every unique feature into exactly one stage, and returns no duplicate feature ids.
 
 ## Validation
 
 Focused command:
 
 ```text
-$env:PROJECT_ROOT="d:\code\project0"; python -c "import importlib.util; spec=importlib.util.spec_from_file_location('dash','dashboard/app.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); model=m.executive_model(m.read_repo_file); assert model['overall'] == 80; assert len(model['done']) == 29; assert len(model['active']) == 5; assert len(model['not_started']) == 4; ids=[f['id'] for f in m.feature_cards(m.read_repo_file)]; assert len(ids) == len(set(ids))"
+$env:PROJECT_ROOT="d:\code\project0"; python -c "import importlib.util; spec=importlib.util.spec_from_file_location('dash','dashboard/app.py'); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); model=m.executive_model(m.read_repo_file); cards=m.feature_cards(m.read_repo_file); phases=m.phase_progress_map(m.read_repo_file('docs/PROJECT-TRACKER.md')); done=sum(p['done_items'] for p in phases.values() if p['done_items'] is not None); total=sum(p['total_items'] for p in phases.values() if p['total_items'] is not None); assert model['overall'] == round(done / total * 100); assert len(model['done']) + len(model['active']) + len(model['not_started']) == len(cards); ids=[f['id'] for f in cards]; assert len(ids) == len(set(ids))"
 ```
 
 Expected pass signal: command exits 0 with all assertions passing.
@@ -71,6 +71,9 @@ Hypothesis and check: the parser recognized only `100% complete`, counted duplic
 
 Root cause and countermeasure: status-label drift and duplicate record headings crossed the dashboard parsing boundary without normalization. `_slice_done`, unique-id tracking, item-weighted aggregation, and provenance output now make those representations explicit.
 
-Regression evidence: the focused model assertions pass with overall 80%, 29 shipped, 5 active, 4 not-started, and zero duplicate feature ids; `scripts/check_record_sync.sh` passes with 0 errors. The full GUT gate remains blocked by the recorded unrelated failures.
+Regression evidence: the focused model assertions pass with the phase-weighted
+overall value, a complete unique-feature partition, and zero duplicate feature
+ids; `scripts/check_record_sync.sh` passes with 0 errors. The full GUT gate
+remains blocked by the recorded unrelated failures.
 
 Remaining limitation: committed view still reflects the dashboard source checkout's HEAD; unmerged branches are intentionally not presented as committed reality. The view now identifies that limitation and links to Working tree mode.

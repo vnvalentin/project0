@@ -9,7 +9,7 @@ Slice 088 (docs/slices/088-auth-gated-onboarding-login-delegation.md).
 """
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
 
 from .config import EnrollmentConfig, load_config
@@ -24,6 +24,7 @@ from .login_client import (
     RealLoginAuthorityClient,
 )
 from .opnsense_client import OpnsenseWireguardClient, RealOpnsenseWireguardClient
+from .rate_limit import PublicAuthRateLimiter
 from .service import EnrollmentService, RedeemRejected, RedeemRejectionReason
 from .store import EnrollmentStore
 
@@ -103,6 +104,11 @@ class LoginResponse(BaseModel):
     assertion: str
 
 
+class RegisterResponse(BaseModel):
+    account_id: str
+    username: str
+
+
 class CharacterListRequest(BaseModel):
     assertion: str = Field(min_length=1)
 
@@ -134,6 +140,7 @@ def create_app(
     service: EnrollmentService,
     login_authority_client: LoginAuthorityClient,
     character_client: CharacterClient | None = None,
+    public_auth_limiter: PublicAuthRateLimiter | None = None,
 ) -> FastAPI:
     """Build a FastAPI app bound to the given (already-configured) service and clients.
 
@@ -143,6 +150,20 @@ def create_app(
     fakes so no live call is ever made.
     """
     app = FastAPI(title="Project0 WireGuard Enrollment Service")
+    public_auth_limiter = public_auth_limiter or PublicAuthRateLimiter()
+
+    def _rate_limited(detail: str = "public_auth_rate_limited") -> HTTPException:
+        return HTTPException(status_code=429, detail=detail)
+
+    def _login_key(http_request: Request, username: str) -> str:
+        return f"login:{http_request.client.host if http_request.client else 'unknown'}:{username.casefold()}"
+
+    def _character_key(http_request: Request) -> str:
+        return f"characters:{http_request.client.host if http_request.client else 'unknown'}"
+
+    def _enforce_character_limit(http_request: Request) -> None:
+        if not public_auth_limiter.consume(_character_key(http_request)):
+            raise _rate_limited()
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -167,13 +188,31 @@ def create_app(
         )
 
     @app.post("/login", response_model=LoginResponse)
-    def login(request: LoginRequest) -> LoginResponse:
+    def login(http_request: Request, request: LoginRequest) -> LoginResponse:
+        key = _login_key(http_request, request.username)
+        if not public_auth_limiter.allowed(key):
+            raise _rate_limited()
         try:
             assertion = login_authority_client.verify_and_mint(request.username, request.password)
         except LoginAuthorityError as exc:
+            if exc.reason == LoginAuthorityError.BAD_CREDENTIALS:
+                public_auth_limiter.record_failure(key)
             status_code = _LOGIN_REJECTION_STATUS.get(exc.reason, 502)
             raise HTTPException(status_code=status_code, detail=exc.reason) from exc
+        public_auth_limiter.record_success(key)
         return LoginResponse(assertion=assertion)
+
+    @app.post("/register", response_model=RegisterResponse)
+    def register(http_request: Request, request: LoginRequest) -> RegisterResponse:
+        key = _login_key(http_request, request.username)
+        if not public_auth_limiter.consume(key):
+            raise _rate_limited()
+        try:
+            result = login_authority_client.register(request.username, request.password)
+        except LoginAuthorityError as exc:
+            status_code = 409 if exc.reason == "username_taken" else _LOGIN_REJECTION_STATUS.get(exc.reason, 502)
+            raise HTTPException(status_code=status_code, detail=exc.reason) from exc
+        return RegisterResponse(account_id=result["account_id"], username=result["username"])
 
     def _require_character_client() -> CharacterClient:
         if character_client is None:
@@ -184,7 +223,8 @@ def create_app(
         return HTTPException(status_code=_CHARACTER_REJECTION_STATUS.get(exc.reason, 400), detail=exc.reason)
 
     @app.post("/characters/list", response_model=CharacterListResponse)
-    def characters_list(request: CharacterListRequest) -> CharacterListResponse:
+    def characters_list(http_request: Request, request: CharacterListRequest) -> CharacterListResponse:
+        _enforce_character_limit(http_request)
         try:
             characters = _require_character_client().list_characters(request.assertion)
         except CharacterAuthorityError as exc:
@@ -192,7 +232,8 @@ def create_app(
         return CharacterListResponse(characters=characters)
 
     @app.post("/characters/create", response_model=CharacterResponse)
-    def characters_create(request: CharacterCreateRequest) -> CharacterResponse:
+    def characters_create(http_request: Request, request: CharacterCreateRequest) -> CharacterResponse:
+        _enforce_character_limit(http_request)
         try:
             character = _require_character_client().create_character(
                 request.assertion, request.name, request.cosmetic
@@ -202,7 +243,8 @@ def create_app(
         return CharacterResponse(character=character)
 
     @app.post("/characters/delete")
-    def characters_delete(request: CharacterMutateRequest) -> dict:
+    def characters_delete(http_request: Request, request: CharacterMutateRequest) -> dict:
+        _enforce_character_limit(http_request)
         try:
             _require_character_client().delete_character(request.assertion, request.character_id)
         except CharacterAuthorityError as exc:
@@ -210,7 +252,8 @@ def create_app(
         return {"outcome": "ok"}
 
     @app.post("/characters/select", response_model=CharacterAssertionResponse)
-    def characters_select(request: CharacterMutateRequest) -> CharacterAssertionResponse:
+    def characters_select(http_request: Request, request: CharacterMutateRequest) -> CharacterAssertionResponse:
+        _enforce_character_limit(http_request)
         try:
             assertion = _require_character_client().select_character(request.assertion, request.character_id)
         except CharacterAuthorityError as exc:

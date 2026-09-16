@@ -46,6 +46,7 @@ const REQUEST_METHOD: String = "POST"
 # Slice 088 path (verify credentials + mint an assertion) and Slice 089 path
 # (validate an assertion, no session bound) served from the same listener.
 const REQUEST_PATH_VERIFY: String = "/internal/verify-and-mint"
+const REQUEST_PATH_REGISTER: String = "/internal/register"
 const REQUEST_PATH_VALIDATE: String = "/internal/validate-assertion"
 # Slice 090 (ADR 0005): account-scoped character endpoints. Each takes an
 # account assertion, binds a synthetic negative-peer-id session via
@@ -236,7 +237,7 @@ func _try_parse_headers() -> void:
 		_reject(405, OUTCOME_MALFORMED)
 		return
 
-	if path != REQUEST_PATH_VERIFY and path != REQUEST_PATH_VALIDATE and not _is_character_path(path):
+	if path != REQUEST_PATH_VERIFY and path != REQUEST_PATH_REGISTER and path != REQUEST_PATH_VALIDATE and not _is_character_path(path):
 		_reject(404, OUTCOME_MALFORMED)
 		return
 	_request_path = path
@@ -277,6 +278,9 @@ func _handle_complete_request() -> void:
 		return
 
 	var raw: Dictionary = parsed
+	if _request_path == REQUEST_PATH_REGISTER:
+		await _handle_register(raw)
+		return
 	if _request_path == REQUEST_PATH_VALIDATE:
 		_handle_validate(raw)
 		return
@@ -427,6 +431,27 @@ func _handle_verify_and_mint(raw: Dictionary) -> void:
 		return
 
 	await _authenticate_and_respond(username_raw as String, password_raw as String)
+
+
+func _handle_register(raw: Dictionary) -> void:
+	if raw.size() != 2 or not raw.has("username") or not raw.has("password"):
+		_reject(400, OUTCOME_MALFORMED)
+		return
+	var username_raw: Variant = raw["username"]
+	var password_raw: Variant = raw["password"]
+	if not (username_raw is String) or (username_raw as String).is_empty() or not (password_raw is String) or (password_raw as String).is_empty():
+		_reject(400, OUTCOME_MALFORMED)
+		return
+	var synthetic_peer_id: int = _next_synthetic_peer_id
+	_next_synthetic_peer_id -= 1
+	var result: Dictionary = await _gateway.register(synthetic_peer_id, username_raw as String, password_raw as String)
+	_gateway.clear_session(synthetic_peer_id)
+	var outcome: String = String(result.get("outcome", OUTCOME_MALFORMED))
+	if outcome != OUTCOME_OK:
+		var status_code: int = 409 if outcome == CharacterRecordScript.REJECT_USERNAME_TAKEN else 400
+		_reject(status_code, "username_taken" if status_code == 409 else outcome)
+		return
+	_respond(200, "OK", {"outcome": OUTCOME_OK, "account_id": String(result["account_id"]), "username": String(result["username"])})
 
 
 ## Slice 089: {assertion} -> validate (no session bound) -> account_id + expiry.

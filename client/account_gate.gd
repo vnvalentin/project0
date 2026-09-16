@@ -43,8 +43,8 @@ func _ready() -> void:
 	if NetworkConfigScript.client_https_login_enabled():
 		_http_client = EnrollmentHttpClientScript.new()
 		add_child(_http_client)
-		register_button.disabled = true
-		register_button.tooltip_text = "Account registration is not available over the internet yet."
+		register_button.disabled = false
+		register_button.tooltip_text = "Click to register an account."
 
 func _on_login_pressed() -> void:
 	var username = username_input.text.strip_edges()
@@ -110,7 +110,7 @@ func _on_register_pressed() -> void:
 	
 	# Slice 093: no public HTTPS registration surface exists yet (DT-010).
 	if NetworkConfigScript.client_https_login_enabled():
-		status_label.text = "Status: Registration is not available over the internet yet"
+		await _perform_https_register(username, password)
 		return
 	
 	if not _validate_input(username, password):
@@ -132,6 +132,17 @@ func _on_register_pressed() -> void:
 		_fire_pending_auth()
 	else:
 		_connect_for_auth()
+	status_label.text = "Status: Registering..."
+	login_button.disabled = true
+	register_button.disabled = true
+	var result: Dictionary = await _http_client.register(EnrollmentHttpClientScript.resolve_base_url(), username, password)
+	if result["outcome"] == EnrollmentHttpClientScript.OUTCOME_OK:
+		status_label.text = "Status: Registration successful! Logging in..."
+		await _perform_https_login(username, password)
+	else:
+		status_label.text = "Status: Registration failed (%s)" % _https_failure_reason(result)
+		login_button.disabled = false
+		register_button.disabled = false
 
 ## Opens the auth connection to the login endpoint when the client login split is
 ## enabled (PROJECT0_CLIENT_LOGIN_SPLIT=1), else to the game port as before.

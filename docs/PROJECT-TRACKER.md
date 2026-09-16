@@ -76,15 +76,23 @@ Waves are sequential; tracks inside a wave run in parallel.
    consumed by both player-accounts and Phase 9 Canon; it unblocks the
    containerized runtime and the progression store. Engine only — no domain
    tables yet.
-5. **Two consumers in parallel.** Player accounts and characters
-   (`.scratch/player-accounts/`) alongside Canon persistence (P-011/P-012/P-013)
-   and JIT-generation completion (IP-008 boundary detection, F-026 LLM-on-boot,
-   P-009 hardware inference). Mostly disjoint files.
-6. **Containerized fixed-tick runtime (P-014).** Needs the Phase 9 persistence
-   design and a feature-stable server.
-7. **Biological progression and kinetic systems (P-016) — last.** Largest and
-   most speculative; needs the combat loop, persistence, the locked scale, and
-   the accounts vessel seam.
+5. **Persistence, JIT generation, and account foundations — done.** Accounts and
+  Characters, Canon persistence plus effective-blueprint replay, boundary-driven
+  JIT generation, and local inference are delivered. Further Canon mutation
+  kinds require a separately scoped gameplay authorization slice; do not reopen
+  these completed foundations as a batch.
+6. **Close public onboarding before advertising it.** Phase 13 has a working
+  auth-gated path, but its next small lots are security controls for the public
+  HTTPS account and character routes (DT-009), public account registration
+  (DT-010), then the bounded real-WAN validation in the F-035 runbook. Do not
+  allocate implementation slice numbers until each design is ready.
+7. **Finish the runtime boundary and deepen action input in parallel where files
+  do not overlap.** P-014 still needs production-cutover evidence; IP-015 can
+  incrementally expand the existing authoritative action seam. Neither permits
+  client-authored outcomes.
+8. **Biological progression and kinetic systems (P-016) — last.** Largest and
+  most speculative; needs the combat loop, persistence, locked scale, and an
+  accounts vessel seam.
 
 **Runs in parallel throughout (independent files):** public game access via
 WireGuard (P-024: `infra/`, `ci/`, the `native/wgnetstack/` GDExtension), and
@@ -115,12 +123,12 @@ migration is now resolved — Slice 041).
 | 5. Prediction and reconciliation proof | done | The client responds immediately to local input, acknowledges ordered server snapshots, reconciles prediction drift, and smoothly renders authoritative movement without remote-player replication or persistence. |
 | 6. Windows client package | done | A reproducible portable Windows 64-bit package launches the current client without the Godot editor, source share, or server-only files and can be configured to connect to the Linux server. |
 | 11. Multi-peer Player replication | done | Two clients connect to one server, see distinct Players, observe each other's authoritative movement, and clean up a disconnected Player. |
-| 7. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are documented, exercised, and synchronized with feature records. |
+| 7. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are each documented, exercised, and synchronized with feature records. |
 | 8. JIT world generation and local inference | done | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
 | 9. Canon persistence and world mutation | done | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
-| 10. Authoritative runtime and action input | in-progress | The server runs in an isolated fixed-tick runtime and resolves validated action intents, including combat, authoritatively. |
+| 10. Authoritative runtime and action input | in-progress | The deployed server runs in the isolated fixed-tick runtime with health and recovery evidence, and the server resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
-| 13. Public game access | in-progress | Remote players reach the home-hosted authoritative server over a split-tunnel WireGuard tunnel with invite-code enrollment and OPNsense-managed peers, without a VPS, client OS admin rights, or LAN exposure. |
+| 13. Public game access | in-progress | A new remote player can safely self-register, authenticate, select a Character, provision a least-privilege WireGuard peer, and enter the authoritative server from a real WAN Windows client; public-route abuse controls are validated, and no VPS, client OS admin rights, or LAN exposure is required. |
 | 14. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
 
 ### Phase work index
@@ -151,7 +159,7 @@ Progress: **100%** (3 of 3 items done)
 
 Progress: **100%** (1 of 1 items done)
 
-- Features: `done` [IP-001](FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer) — the connection proof (headless server, one ENet client, visible networked Player) is live and validated; the feature stays `In Progress` overall because movement sync and authority handoff are still unbuilt.
+- Features: `done` [IP-001](FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer) — the connection proof, authoritative movement, prediction/reconciliation, and multi-peer replication are live and validated across their completed phases.
 - Tech debt: `open` [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result) — no interactive GUI confirmation of the visual result yet, headless-only validation.
 
 **Phase 3 — LAN client connection**
@@ -222,7 +230,7 @@ Progress: **100%** (11 of 11 items done)
 
 Progress: **100%** (4 of 4 items done)
 
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `done` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), `done` [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `done` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
 - **Current slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **delivered; the server replays a sector's mutation log (`shared/canon_sector_resolver.gd`) and replicates the effective blueprint (destroyed structures removed) so a loaded sector reflects durable changes**
@@ -231,9 +239,9 @@ Progress: **100%** (4 of 4 items done)
 
 **Phase 10 — Authoritative runtime and action input**
 
-Progress: **50%** (2 of 4 items done)
+Progress: **40%** (2 of 5 items done)
 
-- Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime), `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input), `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
+- Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) — runtime foundations delivered; production-cutover evidence remains; `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input) — first melee seam delivered, broader action scope remains; `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), `queued` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
 - Tech debt: none yet.
 
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
@@ -250,9 +258,10 @@ Progress: **0%** (0 of 1 items done)
 
 Progress: **0%** (0 of 3 items done)
 
-- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the OPNsense tunnel, Windows DLL packaging, remote-Windows WAN runtime, enrollment service, and live `/healthz`/`/redeem` path are delivered and validated. Slice 054 remains active only for Windows secure-launcher live enrollment/tunnel evidence, real tunnel-teardown timing, and idempotent re-enrollment. Slice 088 delivers the [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md) auth-gated onboarding follow-up sequence's first slice (loopback login delegation), Slice 089 the second (`/redeem` signed-assertion + idempotent per-account peer lifecycle + aging/deprovision), Slice 090 ([ADR 0005](adr/0005-character-selection-over-https.md) Option A) the HTTPS character endpoints (list/create/delete/select + character-assertion mint, loopback-delegated), Slice 091 the Godot `EnrollmentHttpClient` client seam that consumes them, and Slice 093 the account/character scene wiring + tunnel world-entry that fixes the reused-client `account_authority_disabled` login failure — all delivered and validated on the Linux host (GUT 436/436); Slice 092 then switches the Windows launcher to self-service login (username/password to a signed account assertion, then `/redeem` with that assertion to bring up the tunnel; invite now an explicit fallback), validated by `go test ./native/windows_launcher/` (12/12). A live WAN client run of Slices 092-093 is user-pending.
-- Tech debt: `open` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration) — the new public `/login` surface has no rate-limiting/lockout/anti-enumeration yet (named liability, not silently deferred). `open` [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client) — no public HTTPS `/register` route yet, so WAN onboarding is login-only (register disabled in WAN mode).
-- **Current slice:** [092 — Auth-gated onboarding C-launcher: Windows launcher login + redeem-with-assertion + tunnel bring-up](slices/092-launcher-login-redeem-assertion.md) — **delivered; the Windows launcher now self-service logs in (username/password to a signed account assertion) and redeems its WireGuard peer with `{assertion, public_key}` (invite-code now an explicit fallback) before bringing up the tunnel, removing the "obtain an invite from a third device" dead-end; validated on Windows via `go test ./native/windows_launcher/` (12/12, up from 6). Live WAN tunnel bring-up is a user-pending real-Windows run.**   - **Feature:** [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage), under [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) - Prior slice: [093 — Auth-gated onboarding C-client-wiring: wire account/character gates to HTTPS + tunnel](slices/093-client-https-login-wiring.md) — **delivered; validated on the Linux host (GUT 436/436 across 64/64 scripts, exit 0). Live WAN client runtime run is user-pending.**   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the tunnel, Windows package, enrollment service, HTTPS login/character flow, assertion-gated peer provisioning, and client/launcher seams are delivered. The exit gate remains blocked on DT-009, DT-010, and live Windows WAN evidence.
+- Tech debt: `done` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration), `done` [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client).
+- **Latest delivered slice:** [100 — Public HTTPS account registration](slices/100-public-account-registration.md) — registration/login pytest 8/8 and full enrollment pytest 120/120, exit 0.
+  - **Next plan:** execute and record the F-035 real-WAN runbook. Phase 13 remains open only for live Windows evidence and the existing Slice 054 runtime checks.
 - Prior slice: [091 — Auth-gated onboarding C-client-seam: Godot `EnrollmentHttpClient`](slices/091-client-https-auth-character-seam.md) — **delivered; GUT 432/432 across 63/63 scripts, exit 0**
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 - Prior slice: [089 — Auth-gated onboarding B: `/redeem` signed-assertion + idempotent per-account peer lifecycle](slices/089-auth-gated-onboarding-peer-provisioning.md) — **delivered; GUT 420/420, enrollment pytest 96/96 on the Linux host**
@@ -623,6 +632,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Public game access
 
+- **Slice:** [100 — Public HTTPS account registration](slices/100-public-account-registration.md) — **delivered; registration/login pytest 8/8 and full enrollment pytest 120/120 passed**
+  - **Feature/debt:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard), resolved [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client)
+
+- **Slice:** [099 — Public authentication abuse controls](slices/099-public-auth-abuse-controls.md) — **delivered; focused pytest 7/7 and full enrollment pytest 119/119 passed**
+  - **Feature/debt:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard), resolved [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
+
 - **Slice:** [092 — Auth-gated onboarding C-launcher: Windows launcher login + redeem-with-assertion + tunnel bring-up](slices/092-launcher-login-redeem-assertion.md) — **delivered; validated on Windows via `go test ./native/windows_launcher/` (12/12, up from 6). Live WAN tunnel bring-up user-pending.**   - **Feature:** [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage), under [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)   - **Planning ticket:** [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md), [SLICE-REGISTRY.md](slices/SLICE-REGISTRY.md) (092)   - **Decision:** implements [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md) self-service provisioning at the launcher; no new ADR
 - **Slice:** [093 — Auth-gated onboarding C-client-wiring: wire account/character gates to HTTPS + tunnel](slices/093-client-https-login-wiring.md) — **delivered; validated on the Linux host in an isolated git worktree of commit 230cd06 (GUT 436/436 across 64/64 scripts, exit 0). Live WAN client runtime run user-pending.**
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
@@ -741,16 +756,21 @@ This section lists planned work with no implementation slice started yet. An
 item only becomes a tracked, in-progress slice (and moves out of this queue)
 once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
 
-- [~] Active — Auth-gated onboarding (Phase 13, [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)):
-  [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md) names a three-slice
-  follow-up sequence, reserved as 088–090 in
-  [SLICE-REGISTRY.md](slices/SLICE-REGISTRY.md). [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
-  (HTTPS `/login` delegation) is **delivered** (validated on the Linux host —
-  GUT 415/415, pytest 70/70) and has moved out of this queue into the Phase 13
-  slice index above. Still queued, no slice record yet: 089 (`/redeem` accepts a signed assertion
-  + idempotent per-account peer lifecycle/aging) and 090 (launcher/client
-  login → redeem → tunnel → assertion handoff flow, under
-  [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)).
+- [x] Done — Public-authentication abuse controls (Phase 13,
+  [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)):
+  [Slice 099](slices/099-public-auth-abuse-controls.md) implements bounded
+  rate limiting, lockout, and anti-enumeration for public `/login` and
+  `/characters/*`.
+- [x] Done — Public HTTPS account registration (Phase 13,
+  [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client)):
+  [Slice 100](slices/100-public-account-registration.md) loopback-delegates
+  registration to the login authority, applies DT-009 controls, and re-enables
+  the WAN registration path.
+- [ ] Awaiting evidence — Auth-gated real-WAN onboarding (Phase 13,
+  [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)):
+  after the two security blockers are closed, execute the six checks in the
+  [F-035 runbook](f035-secure-launcher-validation-runbook.md) from a real
+  off-LAN Windows client and record the evidence before closing the phase.
 - [x] Define the Godot 4 High-Level Multiplayer authority model for
   networked gameplay (client input/prediction vs. server
   simulation/replication), per [game-vision issue 03](../.scratch/game-vision/issues/03-define-authority-model.md).
