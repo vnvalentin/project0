@@ -71,6 +71,10 @@ services:
       PROJECT0_HEALTH_FILE: "/data/health.json"
     ports:
       - "${LOGIN_BIND:-192.168.1.254}:9998:9998/udp"
+      # Published here, not on the enrollment service: enrollment shares this
+      # container's network namespace (see its network_mode), and a service
+      # using another's namespace cannot publish its own ports.
+      - "${ENROLLMENT_BIND:-192.168.1.254}:8095:8095"
     volumes:
       - "${LOGIN_DATA_DIR:-/var/lib/project0/login}:/data"
     mem_limit: 1g
@@ -91,8 +95,14 @@ services:
       # in the container. `environment` overrides `env_file`, so pin it to the
       # mounted volume; the in-tree location is a host-deploy artifact.
       ENROLLMENT_DB_PATH: "/var/lib/project0/enrollment/enrollment.sqlite3"
-    ports:
-      - "${ENROLLMENT_BIND:-192.168.1.254}:8095:8095"
+    # The login authority's HTTP endpoint binds the literal 127.0.0.1 by
+    # deliberate design (ADR 0005 loopback delegation), so it is unreachable
+    # across container boundaries. Sharing the login server's network namespace
+    # makes 127.0.0.1 the same interface for both processes, reproducing the
+    # single-host topology the design assumes without exposing the endpoint.
+    network_mode: "service:login-server"
+    depends_on:
+      - login-server
     volumes:
       - "${ENROLLMENT_DATA_DIR:-/var/lib/project0/enrollment}:/var/lib/project0/enrollment"
     mem_limit: 512m
