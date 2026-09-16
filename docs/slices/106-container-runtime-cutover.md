@@ -153,6 +153,44 @@ three services, plus dry-run resolution and shell/YAML parse checks.
   validate an environment override. It produced a false negative during this
   investigation and should not be trusted for that purpose.
 
+- Symptom: every WAN client login failed. `POST /login` returned HTTP 502 with
+  `{"detail":"upstream_unavailable"}`, which the Windows launcher surfaced to
+  the user as a malformed response.
+- Public seam: `POST /login` on the public enrollment service.
+- Hypothesis: the enrollment container could not reach the login authority.
+- Discriminating check: the same request direct to the container bypassing
+  nginx returned the identical 502 with `server: uvicorn`, proving the failure
+  was the application's own upstream call and not the reverse proxy.
+- Confirmed root cause: the enrollment service delegates `/login` to the login
+  authority over `127.0.0.1:9997`, and
+  `server/login_loopback_http_endpoint.gd` binds the **literal** `127.0.0.1` by
+  deliberate design (ADR 0005 loopback delegation; the file states the bind is
+  "never resolved from NetworkConfig"). Under systemd both processes shared one
+  host, so that loopback was the same interface. This cutover placed them in
+  separate network namespaces, so each container's `127.0.0.1` became its own
+  and the delegation target vanished.
+- Why existing tests missed it: the Python tests inject a fake login-authority
+  client, and the container healthcheck only proves the enrollment process
+  answers `/healthz` — which it did, correctly, throughout the outage. No test
+  exercises the delegation across a real process boundary.
+- Countermeasure: the enrollment service now runs with
+  `network_mode: "service:login-server"`, sharing the login server's network
+  namespace so `127.0.0.1` is the same interface for both processes. This
+  reproduces the single-host topology the design assumes and keeps the endpoint
+  unreachable from outside, rather than rebinding it to `0.0.0.0` and breaking
+  the ADR 0005 boundary. Enrollment's published port moves to the login-server
+  service, because a container sharing another's namespace cannot publish ports.
+- Regression evidence: `POST /login` with deliberately invalid credentials
+  returned **401 Unauthorized** both directly (`192.168.1.254:8095`) and through
+  the public endpoint (`https://enroll.valentin.vip/login`), where it had
+  returned 502 before — proving the request now reaches the login authority and
+  receives a real verdict.
+- Remaining limitation: this was the **third** defect of the same class in this
+  cutover (Ollama host, enrollment DB path, login delegation). Each was
+  configuration that silently assumed a single host. Remaining host-assumed
+  values in `/etc/project0/*.env` are host state outside the repository and are
+  not statically checkable from here.
+
 ## Record links
 
 - Feature: [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
