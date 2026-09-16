@@ -35,6 +35,12 @@ services:
       PROJECT0_SERVER_PORT: "9999"
       PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
       PROJECT0_HEALTH_FILE: "/data/health.json"
+      # Ollama runs on the HOST. The server's default of 127.0.0.1 resolves to
+      # the container's own loopback, which silently disables JIT sector
+      # generation, so point it at the host gateway instead.
+      PROJECT0_OLLAMA_HOST: "${PROJECT0_OLLAMA_HOST:-http://host.docker.internal:11434}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${GAME_BIND:-192.168.1.254}:9999:9999/udp"
     volumes:
