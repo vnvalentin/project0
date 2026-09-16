@@ -17,7 +17,7 @@ if (-not $SkipCleanCheck -and $dirty.Count -gt 0) {
 }
 
 $sshArgs = @("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", $ServerHost)
-$remote = "$(Get-Date -AsUTC -Format yyyyMMddHHmmss)-$commit"
+$remote = "$((Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss'))-$commit"
 $remoteBackup = "$RemotePath.backup.$remote"
 
 New-Item -ItemType Directory -Force -Path (Split-Path $archive) | Out-Null
