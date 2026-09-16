@@ -225,9 +225,9 @@ Progress: **75%** (3 of 4 items done)
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `in-progress` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
-- **Current slice:** [095 — Canon entity GUIDs + mutation target-existence enforcement](slices/095-canon-entity-guids.md) — **in-progress; stable server-owned entity GUIDs (`shared/canon_entity_guid.gd`) + `apply_mutation` now rejects a mutation against a non-existent target**
-  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (second slice)
-  - Prior: [050 — Canon mutation persistence (dynamic world mutation tracking)](slices/050-canon-mutation-persistence.md) — **delivered; append-only mutation log with optimistic per-sector revision**
+- **Current slice:** [096 — Canon mutation intent DTO + server-authoritative resolution service](slices/096-canon-mutation-intent-service.md) — **in-progress; untrusted client intent → server-owned CanonMutationEvent (server stamps actor/event_id/tick), applied via the Slice 050 repository**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (third slice)
+  - Prior: [095 — Canon entity GUIDs + mutation target-existence enforcement](slices/095-canon-entity-guids.md); [050 — Canon mutation persistence](slices/050-canon-mutation-persistence.md)
 
 **Phase 10 — Authoritative runtime and action input**
 
@@ -602,6 +602,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `shared/canon_entity_guid.gd` (pure, deterministic SHA-256 identity for structures + spawn points) consumed by `server/canon_mutation_repository.gd` (`apply_mutation` rejects a `target_not_found` mutation before any write); no RPC, replay, or gameplay-authorization code
   - **Validation:** full GUT on the Linux host passed 462/462 tests across 68/68 scripts, exit 0 (up from 453/67); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
+- **Slice:** [096 — Canon mutation intent DTO + server-authoritative resolution service](slices/096-canon-mutation-intent-service.md) — **in-progress; server-authoritative intent→event resolution seam**
+  - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (third slice)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
+  - **Public seam:** `shared/canon_mutation_intent.gd` (pure client→server intent contract) + `server/canon_mutation_service.gd` (`resolve_intent` stamps server-owned actor/event_id/tick, applies via `server/canon_mutation_repository.gd`); the `@rpc` transport + headless e2e are Slice 097
+  - **Validation:** _pending Linux-host GUT + record-sync run_
 
 #### Phase 13 — Public game access
 

@@ -171,7 +171,7 @@ feature so future drift is easier to detect.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: GUID assignment, mutation event/state store, replay/load path, and mutation telemetry.
 - Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
-- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md)
+- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md)
 - Change history:
   - Date: 2026-09-14
     What changed: Started the first P-013 slice — a server-only append-only Canon mutation log (`server/canon_mutation_repository.gd`) on the Slice 045 immutable sectors, keyed by a server-owned `event_id`, with an optimistic per-sector revision derived from the log.
