@@ -54,6 +54,15 @@ func login(base_url: String, username: String, password: String) -> Dictionary:
 	var result: Dictionary = await _post_json(base_url, "/login", {"username": username, "password": password})
 	return _require_string_field(result, "assertion")
 
+func register(base_url: String, username: String, password: String) -> Dictionary:
+	var result: Dictionary = await _post_json(base_url, "/register", {"username": username, "password": password})
+	if result["outcome"] != OUTCOME_OK:
+		return {"outcome": result["outcome"], "status": result["status"]}
+	var data: Dictionary = result["data"]
+	if not (data.get("account_id") is String) or not (data.get("username") is String):
+		return {"outcome": OUTCOME_MALFORMED, "status": result["status"]}
+	return {"outcome": OUTCOME_OK, "account_id": data["account_id"], "username": data["username"]}
+
 
 ## List the account's Characters. Returns {"outcome": OUTCOME_OK, "characters": Array}.
 func list_characters(base_url: String, assertion: String) -> Dictionary:

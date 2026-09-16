@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -812,7 +813,7 @@ def render(view: str = "committed") -> str:
 .dr {{ margin-bottom:22px }} .waves {{ display:flex; flex-direction:column; gap:10px }} .wave {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .wave-h {{ display:flex; align-items:center; gap:10px }} .wave-h h3 {{ margin:0; font-size:14px; color:var(--text) }} .wn {{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:var(--cyan); color:#0b1118; font-weight:700; font-size:13px; flex:none }} .par {{ margin-left:auto; font-size:11px; color:var(--green); border:1px solid var(--green); border-radius:12px; padding:2px 8px }} .par.seq {{ color:var(--muted); border-color:var(--line) }} .wnote {{ font-size:12px; margin:6px 0 10px }} .rtracks {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px }} .rtrack {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--amber); border-radius:6px; padding:8px 10px }} .rtrack-h {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .rtrack-h strong {{ font-size:13px }} .rfeat {{ font-size:10px; color:var(--muted); white-space:nowrap }} .rtrack ul {{ padding-left:16px; margin:6px 0 0 }} .rtrack li {{ margin:3px 0; font-size:12px; color:var(--muted) }} .drband {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px }} .drcol {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .drcol h4 {{ margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted) }} .pcards {{ display:flex; flex-direction:column; gap:8px }} .pcard {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--green); border-radius:6px; padding:8px 10px }} .pcard p {{ font-size:12px; margin:6px 0 0 }} .seqrules {{ padding-left:18px }} .seqrules li {{ margin:5px 0; font-size:12px; color:var(--muted) }} @media(max-width:700px){{ .drband {{ grid-template-columns:1fr }} }}
 {PRIORITY_CSS}
 </style></head><body>
-<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="hdr-right"><a class="calib-link" href="/">\u2190 Reality view</a>{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
+<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="hdr-right"><a class="calib-link" href="/">\u2190 Reality view</a><a class="calib-link" href="/tests">Tests</a>{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
 <main>{calib_html}{hero_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
 <section class="dr"><h2 class="sech">Delivery roadmap \u2014 {done_count}/{wave_total} waves complete</h2><div class="waves">{waves_html}</div><div class="drband"><div class="drcol"><h4>Runs in parallel throughout</h4><div class="pcards">{par_html}</div></div><div class="drcol"><h4>Must sequence \u2014 hard deps &amp; shared files</h4><ul class="seqrules">{seq_html}</ul></div></div></section>
@@ -982,6 +983,35 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 """
 
 
+TESTS_CSS = """
+.trunbar{border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:22px;font-size:13px;background:var(--panel)}
+.trunbar.ok{border-left:5px solid var(--green)}
+.trunbar.bad{border-left:5px solid #f57a7a}
+.tsummary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-bottom:24px}
+.tstat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;border-top:4px solid var(--line)}
+.tstat .num{font-size:34px;font-weight:800;line-height:1}
+.tstat .lbl{font-size:11px;color:var(--muted);margin-top:6px;text-transform:uppercase;letter-spacing:.08em}
+.tstat.pass{border-top-color:var(--green)}.tstat.pass .num{color:var(--green)}
+.tstat.fail{border-top-color:#f57a7a}.tstat.fail .num{color:#f57a7a}
+.tstat.skip{border-top-color:var(--amber)}.tstat.skip .num{color:var(--amber)}
+.suites{display:flex;flex-direction:column;gap:8px}
+.suite{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.suite>summary{cursor:pointer;padding:12px 16px;display:flex;align-items:center;gap:12px;list-style:none}
+.suite>summary::-webkit-details-marker{display:none}
+.sname{flex:1;font-family:monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbadge{font-size:11px;font-weight:700;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.sbadge.ok{background:#16311f;color:var(--green)}
+.sbadge.bad{background:#3a1c1c;color:#f79c9c}
+.trow{padding:8px 16px 8px 40px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12px}
+.trow.fail{background:#241417}
+.tdot{font-weight:800;width:14px;text-align:center}
+.tdot.pass{color:var(--green)}.tdot.fail{color:#f57a7a}.tdot.skip{color:var(--amber)}
+.tname{flex:1;font-family:monospace;word-break:break-word}
+.ttime{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px}
+.tmsg{width:100%;margin:2px 0 0 24px;padding:8px 10px;background:#0e141b;border:1px solid var(--line);border-radius:6px;color:#f7b0b0;font-family:monospace;font-size:11px;white-space:pre-wrap;overflow-x:auto}
+"""
+
+
 def render_exec(view: str = "committed") -> str:
     reader = read_repo_file if view == "working" else read_committed_file
     m = executive_model(reader)
@@ -1043,7 +1073,7 @@ def render_exec(view: str = "committed") -> str:
 <style>{EXEC_CSS}</style></head><body>
 <header>
     <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 {prov} \u00b7 {issue_status} \u00b7 auto-refreshes</div></div>
-  <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/{other}">{esc(other_lbl)}</a></div>
+  <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
   <section class="hero">
@@ -1071,6 +1101,163 @@ def render_exec(view: str = "committed") -> str:
 </main></body></html>'''
 
 
+def _to_float(value: str) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def tests_model() -> dict:
+    summary = {}
+    raw_summary = read_repo_file("build/validation/validation-summary.json")
+    if raw_summary:
+        try:
+            summary = json.loads(raw_summary)
+        except json.JSONDecodeError:
+            summary = {}
+
+    raw_xml = read_repo_file("build/validation/gut.xml")
+    suites = []
+    total = passed = failed = skipped = 0
+    parse_error = ""
+    root = None
+    if raw_xml:
+        try:
+            root = ET.fromstring(raw_xml)
+        except ET.ParseError as exc:
+            parse_error = str(exc)
+
+    if root is not None:
+        for suite in root.iter("testsuite"):
+            cases = []
+            for case in suite.findall("testcase"):
+                status = (case.get("status") or "").lower()
+                failure = case.find("failure")
+                error = case.find("error")
+                if failure is not None or error is not None or status in ("fail", "error"):
+                    st = "fail"
+                elif status in ("skip", "skipped", "pending"):
+                    st = "skip"
+                else:
+                    st = "pass"
+                node = failure if failure is not None else error
+                message = ""
+                if node is not None:
+                    message = (node.text or node.get("message") or "").strip()
+                cases.append({
+                    "name": case.get("name", ""),
+                    "status": st,
+                    "time": _to_float(case.get("time")),
+                    "message": message,
+                })
+            suite_failed = sum(1 for c in cases if c["status"] == "fail")
+            suite_skipped = sum(1 for c in cases if c["status"] == "skip")
+            total += len(cases)
+            failed += suite_failed
+            skipped += suite_skipped
+            passed += len(cases) - suite_failed - suite_skipped
+            suites.append({
+                "name": suite.get("name", ""),
+                "tests": len(cases),
+                "failures": suite_failed,
+                "skipped": suite_skipped,
+                "time": _to_float(suite.get("time")),
+                "cases": cases,
+            })
+
+    # Failing suites first, then alphabetical, so red rises to the top.
+    suites.sort(key=lambda s: (s["failures"] == 0, s["name"]))
+    return {
+        "available": bool(raw_xml) and not parse_error,
+        "parse_error": parse_error,
+        "suites": suites,
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "summary": summary,
+    }
+
+
+def _tdot(status: str) -> str:
+    if status == "fail":
+        return '<span class="tdot fail">\u2717</span>'
+    if status == "skip":
+        return '<span class="tdot skip">\u25cb</span>'
+    return '<span class="tdot pass">\u2713</span>'
+
+
+def render_tests() -> str:
+    m = tests_model()
+    summary = m["summary"]
+    runner = esc(str(summary.get("runner", "GUT")))
+    run_status = str(summary.get("status", "unknown"))
+    stamp = esc(str(summary.get("timestamp_utc", "")))
+    ran = summary.get("scripts_ran")
+    expected = summary.get("scripts_expected")
+
+    if not m["available"]:
+        detail = esc(m["parse_error"]) if m["parse_error"] else \
+            "No build/validation/gut.xml found. Run scripts/run_gut_validation.sh to generate it."
+        body_html = f'<div class="sourcewarn">Test results unavailable: {detail}</div>'
+    else:
+        status_class = "ok" if run_status == "passed" else "bad"
+        status_line = (
+            f'<div class="trunbar {status_class}">Runner <b>{runner}</b> \u00b7 '
+            f'last result <b>{esc(run_status)}</b>'
+        )
+        if ran is not None and expected is not None:
+            status_line += f' \u00b7 {esc(str(ran))}/{esc(str(expected))} scripts ran'
+        if stamp:
+            status_line += f' \u00b7 {stamp}'
+        status_line += '</div>'
+
+        suites_html = ""
+        for s in m["suites"]:
+            open_attr = " open" if s["failures"] else ""
+            badge_cls = "bad" if s["failures"] else "ok"
+            badge_txt = (f'{s["failures"]} failed / {s["tests"]}'
+                         if s["failures"] else f'{s["tests"]} passed')
+            rows = ""
+            for c in s["cases"]:
+                msg = f'<div class="tmsg">{esc(c["message"])}</div>' if c["message"] else ""
+                rows += (
+                    f'<div class="trow {c["status"]}">{_tdot(c["status"])}'
+                    f'<span class="tname">{esc(c["name"])}</span>'
+                    f'<span class="ttime">{c["time"]:.3f}s</span>{msg}</div>'
+                )
+            skip_txt = f' \u00b7 {s["skipped"]} skipped' if s["skipped"] else ""
+            suites_html += (
+                f'<details class="suite"{open_attr}><summary>'
+                f'<span class="sbadge {badge_cls}">{esc(badge_txt)}{skip_txt}</span>'
+                f'<span class="sname">{esc(s["name"])}</span>'
+                f'<span class="ttime">{s["time"]:.2f}s</span></summary>{rows}</details>'
+            )
+
+        body_html = (
+            status_line
+            + '<div class="tsummary">'
+            + f'<div class="tstat total"><div class="num">{m["total"]}</div><div class="lbl">Tests</div></div>'
+            + f'<div class="tstat pass"><div class="num">{m["passed"]}</div><div class="lbl">Passed</div></div>'
+            + f'<div class="tstat fail"><div class="num">{m["failed"]}</div><div class="lbl">Failed</div></div>'
+            + f'<div class="tstat skip"><div class="num">{m["skipped"]}</div><div class="lbl">Skipped</div></div>'
+            + '</div>'
+            + f'<div class="suites">{suites_html}</div>'
+        )
+
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Project0 \u2014 Tests</title>
+<style>{EXEC_CSS}{TESTS_CSS}</style></head><body>
+<header>
+  <div><h1>Project0 \u2014 Tests</h1><div class="sub">Every automated test and its last recorded result \u00b7 build/validation/gut.xml \u00b7 auto-refreshes</div></div>
+  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a></div>
+</header>
+<main>
+  <section class="sec">{body_html}</section>
+</main></body></html>'''
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         restart_if_source_changed()
@@ -1088,6 +1275,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/detail":
             view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
             body = render(view).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/tests":
+            body = render_tests().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:

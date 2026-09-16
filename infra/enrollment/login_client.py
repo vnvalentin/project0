@@ -47,6 +47,8 @@ class LoginAuthorityClient(Protocol):
         """
         ...
 
+    def register(self, username: str, password: str) -> dict[str, str]: ...
+
 
 class RealLoginAuthorityClient:
     """The only implementation that performs real network I/O against the login authority's loopback endpoint."""
@@ -79,6 +81,34 @@ class RealLoginAuthorityClient:
         if payload.get("outcome") != "ok" or not isinstance(payload.get("assertion"), str):
             raise LoginAuthorityError(LoginAuthorityError.UPSTREAM_ERROR)
         return payload["assertion"]
+
+    def register(self, username: str, password: str) -> dict[str, str]:
+        payload = self._post_json("/internal/register", {"username": username, "password": password})
+        if payload.get("outcome") != "ok" or not isinstance(payload.get("account_id"), str) or not isinstance(payload.get("username"), str):
+            raise LoginAuthorityError(str(payload.get("outcome", LoginAuthorityError.UPSTREAM_ERROR)))
+        return {"account_id": payload["account_id"], "username": payload["username"]}
+
+    def _post_json(self, path: str, body: dict) -> dict:
+        encoded = json.dumps(body).encode("utf-8")
+        req = urllib_request.Request(
+            f"http://{self._host}:{self._port}{path}",
+            data=encoded,
+            method="POST",
+            headers={"Content-Type": "application/json", "Content-Length": str(len(encoded))},
+        )
+        try:
+            with urllib_request.urlopen(req, timeout=self._timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib_error.HTTPError as exc:
+            try:
+                payload = json.loads(exc.read().decode("utf-8"))
+                raise LoginAuthorityError(str(payload.get("outcome", LoginAuthorityError.UPSTREAM_ERROR))) from exc
+            except (json.JSONDecodeError, ValueError, AttributeError) as parse_exc:
+                raise LoginAuthorityError(LoginAuthorityError.UPSTREAM_ERROR) from parse_exc
+        except (urllib_error.URLError, TimeoutError, OSError) as exc:
+            raise LoginAuthorityError(LoginAuthorityError.UPSTREAM_UNAVAILABLE) from exc
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise LoginAuthorityError(LoginAuthorityError.UPSTREAM_ERROR) from exc
 
     @staticmethod
     def _reason_from_rejection_body(exc: urllib_error.HTTPError) -> str:

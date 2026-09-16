@@ -1,48 +1,50 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "Claude: Fix Active Script",
-            "type": "shell",
-            "command": "claude config set thinking false && claude \"Review and fix any syntax or logical bugs in ${relativeFile}\"",
-            "problemMatcher": ["$prev-context"],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "presentation": {
-                "reveal": "always",
-                "panel": "dedicated",
-                "focus": true
-            }
-        },
-        {
-            "label": "Claude: Write Custom Request",
-            "type": "shell",
-            "command": "claude config set thinking false && claude \"${input:customPrompt} for ${relativeFile}\"",
-            "problemMatcher": [],
-            "presentation": {
-                "reveal": "always",
-                "panel": "dedicated",
-                "focus": true
-            }
-        },
-        {
-            "label": "Engine: Run Headless Test",
-            "type": "shell",
-            "command": "godot --headless -s ${relativeFile}",
-            "problemMatcher": [],
-            "presentation": {
-                "reveal": "always",
-                "panel": "dedicated"
-            }
-        }
-    ],
-    "inputs": [
-        {
-            "id": "customPrompt",
-            "type": "promptString",
-            "description": "What should Claude do to this file?"
-        }
-    ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Claude: Fix Active Script",
+			"type": "shell",
+			"command": "claude config set thinking false && claude \"Review and fix any syntax or logical bugs in ${relativeFile}\"",
+			"problemMatcher": [
+				"$prev-context"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true
+			}
+		},
+		{
+			"label": "Claude: Write Custom Request",
+			"type": "shell",
+			"command": "claude config set thinking false && claude \"${input:customPrompt} for ${relativeFile}\"",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true
+			}
+		},
+		{
+			"label": "Engine: Run Headless Test",
+			"type": "shell",
+			"command": "godot --headless -s ${relativeFile}",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		}
+	],
+	"inputs": [
+		{
+			"id": "customPrompt",
+			"type": "promptString",
+			"description": "What should Claude do to this file?"
+		}
+	]
 }

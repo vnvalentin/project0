@@ -68,6 +68,12 @@ class FakeLoginAuthorityClient:
             raise LoginAuthorityError(self.fail_with_reason)
         return self.assertion
 
+    def register(self, username: str, password: str) -> dict[str, str]:
+        self.calls.append({"operation": "register", "username": username, "password": password})
+        if self.fail_with_reason is not None:
+            raise LoginAuthorityError(self.fail_with_reason)
+        return {"account_id": "acct-registered", "username": username}
+
 
 class FakeAssertionValidationClient:
     """Slice 089: records validate() calls; returns a fixed
