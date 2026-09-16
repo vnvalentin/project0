@@ -207,6 +207,18 @@ feature so future drift is easier to detect.
 - Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Slice 056 delivered the OCI image (pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful SIGTERM) and proved build, boot (`Server listening`, SQLite+Canon ready), healthy port-bound healthcheck, ~0.39s graceful stop, and run-beside-native with the native service untouched. Slice 057 moved durable state to the host boundary `/var/lib/project0` (data survives container replacement — Canon `idempotent` on second boot) and proved consistent SQLite backup/restore. Slice 067 wired the `ServerHealth` contract into a runtime health file (`PROJECT0_HEALTH_FILE`) the server rewrites each ~0.5 s tick stride, and switched the container `HEALTHCHECK` to consume it (fresh + `healthy`); proven on Linux — the file reports `"status":"healthy"`, `healthcheck.sh` passes while running, and a stale or missing file fails closed. Slices 068-085 then delivered the standalone login authority, shared assertions, split deployment, client handoff, Canon/accounts separation, and removal of the in-process game authority. P-014 remains active because the container has run beside the native service but the production game-server cutover itself is not recorded as complete.
 - Related work: [container-platform map](../.scratch/container-platform/map.md) and its resolved runtime, login, persistence, operator, migration, and worker decisions.
 - Change history:
+  - Date: 2026-09-16
+    What changed: Added Slice 101's opt-in server deployment path to the current
+    deployment pipeline. `scripts/deploy_server.ps1` archives the committed
+    source, backs up the remote checkout, validates extraction, and supports
+    explicit native, Docker candidate, and Docker split modes. Ordinary client
+    builds remain client-only.
+    Why: Keep server deployment reproducible and auditable without making a
+    client package build restart live services implicitly.
+    Related work: [Slice 101](slices/101-server-deployment-pipeline.md)
+    Validation: PowerShell parser checks passed for both deployment scripts;
+    the dirty-worktree guard stopped deployment before SSH; `git diff --check`
+    and `scripts/check_record_sync.sh` passed.
   - Date: 2026-09-15
     What changed: Delivered Slice 085 — removed the in-process login authority from the game server. The game process now builds an assertion-only login graph via `LoginRuntime.build_assertion_only_services` — a `SessionRegistry` + `CharacterService` + `LoginGateway` with **no `AuthService`**, so there is no register/login/PBKDF2 code path in the game process and it can never act as an accounts authority. `LoginGateway` now depends on a `SessionRegistry` directly for all session operations, with `AuthService` an optional collaborator (an additive third constructor argument, so the login process and every existing gateway/auth test are unchanged). `server/server_main.gd` uses the assertion-only builder, drops the `PROJECT0_GAME_ASSERTION_ONLY` opt-out and the `AuthService` handle, and clears sessions through the gateway on disconnect. Accounts live solely on the standalone login process (`build_services`, unchanged).
     Why: The 084 cutover made the game server assertion-only by default but still constructed the full account-authority graph behind a runtime opt-out; with nothing deployed and no clients, removing that graph permanently commits the game process to the split and shrinks its trusted surface.

@@ -116,8 +116,9 @@ contended range and everything after it is tracked explicitly:
 | 098 | Canon sector mutation replay: server replicates the effective blueprint (P-013) | interactive |
 | 099 | Public authentication abuse controls: bounded rate limiting and lockout (DT-009) | interactive |
 | 100 | Public HTTPS account registration delegated to the login authority (DT-010) | interactive |
+| 101 | Server deployment path in the current deployment pipeline (P-014) | interactive |
 
-Next free slice: **101** (verify against `docs/slices/` before reserving).
+Next free slice: **102** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
