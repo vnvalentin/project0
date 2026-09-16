@@ -1,9 +1,10 @@
 name: Deploy rehearsal
 
-# Runner and registry health check. Runs scripts/deploy_all.sh in --dry-run on
-# the deployment host: it resolves every registry entry, reports whether each
-# systemd unit is installed, and probes current health. It changes nothing, so
-# the first exercise of the self-hosted runner is not a real deployment.
+# Runner and stack health check. Runs scripts/deploy_containers.sh in --dry-run
+# on the deployment host: it resolves the image for every service in
+# deploy/compose.yml and reports the current container state. It changes
+# nothing, so the first exercise of the self-hosted runner is not a real
+# deployment.
 on:
   workflow_dispatch:
   schedule:
@@ -29,5 +30,5 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve registry and report host health
-        run: scripts/deploy_all.sh --dry-run
+      - name: Resolve images and report host state
+        run: scripts/deploy_containers.sh --tag "${PROJECT0_REHEARSAL_TAG:-main}" --dry-run
