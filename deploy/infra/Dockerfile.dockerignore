@@ -1,0 +1,8 @@
+# Build context for deploy/infra/Dockerfile only. BuildKit prefers
+# <dockerfile>.dockerignore over the root .dockerignore, which exists for the
+# game-server image and deliberately excludes infra/.
+#
+# The Python services need nothing but their own source, so ignore everything
+# and re-include infra/.
+*
+!infra
