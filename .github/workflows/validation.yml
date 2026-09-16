@@ -7,9 +7,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  godot-validation:
-    name: Godot tests and telemetry
+  godot:
+    name: Godot GUT suite
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
@@ -31,3 +35,79 @@ jobs:
           path: build/validation/
           if-no-files-found: error
           retention-days: 14
+
+  records:
+    name: Delivery record sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check delivery record sync
+        run: bash scripts/check_record_sync.sh
+
+  python:
+    name: Python service tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            infra/enrollment/requirements.txt
+            infra/operator/requirements.txt
+
+      - name: Install service dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r infra/enrollment/requirements.txt \
+                      -r infra/operator/requirements.txt \
+                      pytest
+
+      - name: Run enrollment and operator tests
+        run: python -m pytest infra/enrollment/tests infra/operator/tests -q
+
+  go:
+    name: wgnetstack build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: native/wgnetstack/go.sum
+
+      - name: Build wgnetstack bridge
+        working-directory: native/wgnetstack
+        run: go build ./...
+
+  launcher:
+    name: Windows launcher tests
+    # Every file in native/windows_launcher is `//go:build windows`, so these
+    # tests can only be compiled and executed on a Windows runner.
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: native/windows_launcher/go.sum
+
+      - name: Stage launcher payload placeholders
+        shell: bash
+        run: scripts/stage_launcher_payload_placeholders.sh
+
+      - name: Run launcher tests
+        working-directory: native/windows_launcher
+        run: go test ./...
