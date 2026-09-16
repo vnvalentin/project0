@@ -207,7 +207,10 @@ Progress: **71%** (5 of 7 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [102 — Full-stack CI validation gate](slices/102-ci-validation-pipeline.md) — **delivered; workflow YAML parsed and every new job's command validated directly**
+- **Current slice:** [103 — Linux-hosted Windows client package build](slices/103-linux-client-package-build.md) — **delivered; full cross-build executed on okami, artifacts and manifest verified**
+  - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
+
+- Prior slice: [102 — Full-stack CI validation gate](slices/102-ci-validation-pipeline.md) — **delivered; all five CI jobs green on PR #80**
   - **Feature:** [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry)
 
 - Prior slice: [094 — Reality dashboard truthfulness and delivery-record reconciliation](slices/094-reality-dashboard-truthfulness.md) — **delivered; focused parser validation and record-sync validation passed**
@@ -482,6 +485,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Full CI/CD pipeline for all servers and the client package](../.scratch/game-vision/map.md) (Delivery workflow / CI-CD)
   - **Decision:** no new ADR; extends the existing F-005 validation gate to the non-Godot components
+
+- **Slice:** [103 — Linux-hosted Windows client package build](slices/103-linux-client-package-build.md) — **delivered; full cross-build executed on okami, artifacts and manifest verified**
+  - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
+  - **Tech debt:** [DT-011](TECHNICAL-DEBT-TRACKER.md#dt-011-client-export-filter-ships-the-test-framework-and-build-artifacts) raised
+  - **Planning ticket:** [Full CI/CD pipeline for all servers and the client package](../.scratch/game-vision/map.md) (Delivery workflow / CI-CD)
+  - **Decision:** no new ADR; makes the existing F-002 package reproducible from a clean checkout
 
 #### Phase 10 — Authoritative runtime and action input
 
@@ -824,12 +833,11 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
 - [~] In progress — Full CI/CD pipeline (Phase 7 + Phase 10): [Slice 102](slices/102-ci-validation-pipeline.md)
   expands the [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry)
   gate to record-sync, the Python enrollment/operator suites, the wgnetstack
-  build, and the Windows launcher tests. Remaining: Slice 103 (Linux-hosted
-  Windows client package build,
-  [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)) and Slice 104
-  (registry-driven all-server deployment on tag,
+  build, and the Windows launcher tests. [Slice 103](slices/103-linux-client-package-build.md)
+  makes the Windows client package reproducible from a Linux runner. Remaining:
+  Slice 104 (registry-driven all-server deployment on tag,
   [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)),
-  both of which require a self-hosted runner on the deployment host.
+  which requires a self-hosted runner on the deployment host.
 - [ ] Queued — Remaining delivery workflow capabilities (Phase 7): Remote-SSH
   server workspace
   ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)) and

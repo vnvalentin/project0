@@ -1,7 +1,9 @@
 # Godot 4 Core Ignores
 .godot/
 *.import
-export_presets.cfg
+# export_presets.cfg IS tracked (Slice 103): it defines exactly which files ship
+# in the client package, so the build is not reproducible in CI without it. It
+# holds no credentials. Re-ignore it only if a preset ever gains a secret.
 
 # Build & Deployment Ignores
 build/

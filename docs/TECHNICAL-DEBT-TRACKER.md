@@ -53,6 +53,35 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
+### DT-011: Client export filter ships the test framework and build artifacts
+
+- Classification: `Delinquent Debt`
+- Debt type: `Quality`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: None. This is a discovered liability, not an accepted
+  tradeoff. `export_presets.cfg` uses `export_filter="all_resources"` with an
+  `exclude_filter` that omits `server/**`, `tests/**`, `infra/**`, `docs/**` and
+  similar, but does **not** exclude `addons/gut/**`, `build/**`, or
+  `skills-lock.json`. The first CI cross-build in
+  [Slice 103](slices/103-linux-client-package-build.md) showed the export
+  packing `res://build/validation/validation-summary.json` and
+  `res://skills-lock.json` into the shipped PCK.
+- Impact: Every shipped Windows client contains the GUT test framework and
+  whatever happens to be sitting in `build/validation/` on the build machine.
+  That leaks internal validation telemetry to players, inflates the PCK, and
+  makes the package contents depend on uncommitted local build state rather
+  than on the commit being built.
+- Remediation plan: Extend `exclude_filter` with `addons/gut/**`, `build/**`,
+  and `skills-lock.json`, then re-export and diff the PCK file list against the
+  current build to confirm only intended resources were removed. This changes
+  what ships, so it requires a runtime launch of the exported client as
+  evidence, not just a successful export — which is why Slice 103 recorded it
+  here rather than changing the shipped contents without that evidence.
+- Status: `open`
+- Related work: [Slice 103](slices/103-linux-client-package-build.md),
+  [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
+
 ### DT-010: No public HTTPS account-registration surface for the WAN client
 
 - Classification: `Strategic Technical Debt`
