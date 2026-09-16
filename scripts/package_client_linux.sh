@@ -55,6 +55,30 @@ require_tool x86_64-w64-mingw32-g++ "Install g++-mingw-w64-x86-64."
 require_tool zip "Install zip."
 require_tool git "Install git."
 
+# Godot resolves export templates under $HOME. GitHub Actions overrides HOME for
+# container jobs, which hides templates that the image installed under another
+# user's home, so link them into place instead of assuming a fixed location.
+ensure_export_templates() {
+	local version="4.3.stable"
+	local target="${HOME}/.local/share/godot/export_templates/${version}"
+	[[ -d "${target}" ]] && { echo "  export templates: ${target}"; return 0; }
+	local candidate
+	for candidate in \
+		"/root/.local/share/godot/export_templates/${version}" \
+		"/usr/local/share/godot/export_templates/${version}" \
+		"/usr/share/godot/export_templates/${version}"; do
+		if [[ -d "${candidate}" ]]; then
+			mkdir -p "$(dirname "${target}")"
+			ln -sfn "${candidate}" "${target}"
+			echo "  export templates linked from ${candidate}"
+			return 0
+		fi
+	done
+	echo "ERROR: Godot ${version} export templates not found under \$HOME (${HOME}) or any known image location." >&2
+	exit 1
+}
+ensure_export_templates
+
 log "Preparing godot-cpp at ${GODOT_CPP_REF}"
 if [[ ! -d "${GDEXT_DIR}/godot-cpp/.git" ]]; then
 	rm -rf "${GDEXT_DIR}/godot-cpp"
