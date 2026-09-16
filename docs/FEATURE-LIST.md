@@ -171,7 +171,7 @@ feature so future drift is easier to detect.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: GUID assignment, mutation event/state store, replay/load path, and mutation telemetry.
 - Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
-- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md)
+- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 097](slices/097-canon-mutation-rpc-transport.md)
 - Change history:
   - Date: 2026-09-15
     What changed: Third P-013 slice (Slice 096) - added `shared/canon_mutation_intent.gd` (the pure, bounded client->server mutation intent contract, refusing any server-owned field) and `server/canon_mutation_service.gd` (`resolve_intent` stamps the server-authenticated `actor_player_id`, a deterministic `(actor, client_seq)` `event_id`, and the authoritative `server_tick`, then applies via the Slice 050 repository and maps the outcome to an accepted/rejected resolution).

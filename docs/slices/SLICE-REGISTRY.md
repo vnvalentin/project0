@@ -112,8 +112,9 @@ contended range and everything after it is tracked explicitly:
 | 094 | Reality dashboard truthfulness and delivery-record reconciliation (F-025) | interactive |
 | 095 | Canon entity GUIDs + mutation target-existence enforcement (P-013) | interactive |
 | 096 | Canon mutation intent DTO + server-authoritative resolution service (P-013) | interactive |
+| 097 | Canon mutation intent RPC transport + headless round-trip e2e (P-013) | interactive |
 
-Next free slice: **097** (verify against `docs/slices/` before reserving).
+Next free slice: **098** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
