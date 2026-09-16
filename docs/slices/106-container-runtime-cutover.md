@@ -121,6 +121,38 @@ three services, plus dry-run resolution and shell/YAML parse checks.
 - Countermeasure: write via `sudo -n tee` directly rather than relying on a
   failed redirect. Verified the rollback target is readable and correct.
 
+- Symptom: after the cutover every JIT sector request logged
+  `Ignored provisional sector <id>: Generation did not reach validation.`
+- Public seam: `SectorBlueprintService.request_blueprint` via the containerized
+  game server.
+- Hypothesis: the container could not reach the Ollama service on the host.
+- Discriminating check: `ss -lntp | grep 11434` on the host (listening on `*`)
+  versus a request to `127.0.0.1:11434` from inside the container (no route).
+- Confirmed root cause: **two** independent faults. First, `127.0.0.1` inside a
+  container is the container's own loopback, so the host's Ollama was
+  unreachable — a regression introduced by this cutover. Second, and
+  pre-existing, `server/sector_blueprint_service.gd` built its `LocalLLMClient`
+  from its own hardcoded `@export var ollama_host` and never called
+  `configure_from_env()`, so `PROJECT0_OLLAMA_HOST` reached only the
+  boot-town client. Fixing only the first would have left generation broken
+  while appearing addressed.
+- Why existing tests missed it: the container healthcheck proves the tick loop
+  is alive, not that world generation succeeds, and no test exercises the
+  sector path against a real Ollama endpoint.
+- Countermeasure: `configure_from_env()` is now called on the sector path's
+  client (it only overrides an untouched export, so explicit configuration
+  still wins), and compose sets `PROJECT0_OLLAMA_HOST` to the host's LAN
+  address. The LAN address is used rather than `host.docker.internal` because
+  Godot's HTTP client performs its own name resolution and does not reliably
+  honor a `/etc/hosts` alias, which an earlier attempt proved.
+- Regression evidence: an in-container probe using `configure_from_env()`
+  resolved `http://192.168.1.254:11434`, model `llama3:latest`, and returned
+  `success=true outcome=success raw={"ok": true}` from a live generation.
+- Remaining limitation: `scripts/probe_ollama.gd` constructs its client
+  **without** `configure_from_env()`, so it always tests `127.0.0.1` and cannot
+  validate an environment override. It produced a false negative during this
+  investigation and should not be trusted for that purpose.
+
 ## Record links
 
 - Feature: [P-014](../FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
