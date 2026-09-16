@@ -53,6 +53,39 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
+### DT-012: Login authority shares the game server's image and codebase
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Architecture`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: Accepted tradeoff taken when containerizing the runtime.
+  The login server and game server are the same Godot codebase differing only
+  by entrypoint script, so one image serves both. That halves image build time
+  and storage, guarantees both processes run the identical code revision — which
+  matters because they share `PROJECT0_ASSERTION_SECRET` and a signed-assertion
+  contract — and gives a future zone server a third entrypoint on the same image
+  with no new build pipeline.
+- Impact: The login authority carries the entire game simulation codebase it
+  never executes, on the process most exposed to untrusted public traffic. The
+  two services cannot be built, versioned, released, or scaled independently:
+  a game-only change forces a login image rebuild and redeploy. This becomes
+  materially worse once the login service also owns **client update
+  distribution**, which is a different trust boundary, a different release
+  cadence, and a different scaling profile from authoritative simulation.
+- Remediation plan: Split the login authority into its own service with its own
+  image and release cadence. Extract the login/account/assertion code and the
+  shared contracts it needs into a boundary that does not pull in the game
+  simulation, give it a dedicated Dockerfile, and publish it as a separate
+  image. The shared assertion contract must stay version-compatible across the
+  two images, so the split requires an explicit schema/version compatibility
+  test between independently built login and game images — that test is the
+  main cost, and is why the split is deferred rather than taken now.
+- Status: `open`
+- Related work: [Slice 105](slices/105-container-images-and-registry.md),
+  [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+  [.scratch/container-platform/issues/02-account-login-service-boundary.md](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+
 ### DT-011: Client export filter ships the test framework and build artifacts
 
 - Classification: `Delinquent Debt`
