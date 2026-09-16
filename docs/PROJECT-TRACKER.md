@@ -601,7 +601,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `shared/canon_entity_guid.gd` (pure, deterministic SHA-256 identity for structures + spawn points) consumed by `server/canon_mutation_repository.gd` (`apply_mutation` rejects a `target_not_found` mutation before any write); no RPC, replay, or gameplay-authorization code
-  - **Validation:** _pending Linux-host GUT + record-sync run_
+  - **Validation:** full GUT on the Linux host passed 462/462 tests across 68/68 scripts, exit 0 (up from 453/67); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
 #### Phase 13 — Public game access
 
