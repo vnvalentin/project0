@@ -9,6 +9,9 @@ services:
       # set DASHBOARD_REPO_SOURCE to a mirror checkout kept synced to origin/main
       # (see project0-flow-mirror-sync.timer) so the dashboard reflects GitHub.
       - ${DASHBOARD_REPO_SOURCE:-..}:/repo:ro
+    environment:
+      GITHUB_REPO: ${GITHUB_REPO:-vnvalentin/project0}
+      GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-300}
     read_only: true
     security_opt:
       - no-new-privileges:true
