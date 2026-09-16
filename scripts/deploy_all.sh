@@ -50,40 +50,41 @@ log() { printf '\n== %s\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 # Registry access goes through python3 stdlib json so the registry needs no
-# third-party YAML parser on the host.
+# third-party YAML parser on the host. Values are passed as argv, never
+# interpolated into the Python source, so a crafted --only cannot inject code.
 reg() { python3 -c "
 import json,sys
-r=json.load(open('${registry}'))
-sys.stdout.write(str(eval(sys.argv[1], {'r': r})))
-" "$1"; }
+r=json.load(open(sys.argv[1]))
+sys.stdout.write(str(eval(sys.argv[2], {'r': r})))
+" "${registry}" "$1"; }
 
 DEPLOY_ROOT="$(reg "r['deploy_root']")"
 BACKUP_ROOT="$(reg "r['backup_root']")"
 
 mapfile -t SERVICES < <(python3 -c "
-import json
-r=json.load(open('${registry}'))
-only=set(filter(None, '${ONLY}'.split(',')))
+import json,sys
+r=json.load(open(sys.argv[1]))
+only=set(filter(None, sys.argv[2].split(',')))
 for s in r['services']:
     if not only or s['name'] in only:
         print(s['name'])
-")
+" "${registry}" "${ONLY}")
 [[ ${#SERVICES[@]} -gt 0 ]] || fail "no services selected"
 
 svc() { python3 -c "
 import json,sys
-r=json.load(open('${registry}'))
-s=[x for x in r['services'] if x['name']==sys.argv[1]][0]
-print(eval(sys.argv[2], {'s': s}))
-" "$1" "$2"; }
+r=json.load(open(sys.argv[1]))
+s=[x for x in r['services'] if x['name']==sys.argv[2]][0]
+print(eval(sys.argv[3], {'s': s}))
+" "${registry}" "$1" "$2"; }
 
 # `systemctl list-unit-files` exits nonzero for an absent unit, which under
 # `set -o pipefail` would abort the whole run instead of reporting a skip.
 unit_state() {
-	systemctl list-unit-files "$1" --no-legend 2>/dev/null | awk '{print $2}' || true
+	systemctl show -p LoadState --value "$1" 2>/dev/null || true
 }
 
-unit_installed() { [[ -n "$(unit_state "$1")" ]]; }
+unit_installed() { [[ "$(unit_state "$1")" == loaded ]]; }
 
 log "Deploy plan"
 echo "  commit      : ${COMMIT}"
@@ -176,7 +177,7 @@ done
 stamp="$(date -u +%Y%m%d%H%M%S)"
 backup="${BACKUP_ROOT}/$(basename "${DEPLOY_ROOT}").backup.${stamp}-$(git rev-parse --short "${COMMIT}")"
 staging="$(mktemp -d)"
-trap 'rm -rf "${staging}"' EXIT
+rollback_done=false
 
 log "Staging commit $(git rev-parse --short "${COMMIT}")"
 git archive --format=tar "${COMMIT}" | tar -x -C "${staging}"
@@ -192,6 +193,8 @@ mkdir -p "${DEPLOY_ROOT}"
 cp -a "${staging}/." "${DEPLOY_ROOT}/"
 
 restore_backup() {
+	[[ "${rollback_done}" == true ]] && return 0
+	rollback_done=true
 	echo "ROLLBACK: restoring ${backup} to ${DEPLOY_ROOT}" >&2
 	rm -rf "${DEPLOY_ROOT}"
 	mv "${backup}" "${DEPLOY_ROOT}"
@@ -218,6 +221,40 @@ for name in "${SERVICES[@]}"; do
 		|| { [[ "${ROLLBACK}" == true ]] && restore_backup; fail "dependency install failed for ${name}"; }
 	echo "  ${name}: ${requirements} installed into ${venv}"
 done
+
+
+on_exit() {
+	local status=$?
+	if [[ "${status}" -ne 0 && "${ROLLBACK}" == true && -d "${backup}" ]]; then
+		restore_backup || true
+	fi
+	rm -rf "${staging}"
+	exit "${status}"
+}
+trap on_exit EXIT
+
+# Runtime state is intentionally outside the source archive, but the current
+# enrollment unit's ReadWritePaths points at this historical in-tree location.
+# Carry it forward during the transition so replacing the source cannot strand
+# the allocation database or cause the service to fail before its health check.
+preserve_runtime_state() {
+	local relative="$1"
+	if [[ -d "${backup}/${relative}" ]]; then
+		mkdir -p "${DEPLOY_ROOT}/${relative}"
+		cp -a "${backup}/${relative}/." "${DEPLOY_ROOT}/${relative}/"
+		echo "  preserved runtime state: ${relative}"
+	fi
+}
+preserve_runtime_state "infra/enrollment/.data"
+preserve_runtime_state ".godot"
+preserve_runtime_state "addons/godot-sqlite/bin"
+preserve_runtime_state "native/wgnetstack/gdext/build"
+
+log "Validating server scripts before restart"
+godot --headless --path "${DEPLOY_ROOT}" --check-only -s server/server_main.gd >/tmp/project0-server-parse.log 2>&1 \
+	|| { cat /tmp/project0-server-parse.log >&2; fail "game server parse validation failed"; }
+godot --headless --path "${DEPLOY_ROOT}" --check-only -s server/login_server_main.gd >/tmp/project0-login-parse.log 2>&1 \
+	|| { cat /tmp/project0-login-parse.log >&2; fail "login server parse validation failed"; }
 
 log "Restarting services"
 for name in "${SERVICES[@]}"; do

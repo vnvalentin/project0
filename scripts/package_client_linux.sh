@@ -31,6 +31,7 @@ DLL_NAME="libwgnetstack_gdext.windows.template_release.x86_64.dll"
 GDEXT_DIR="native/wgnetstack/gdext"
 STAGE="build/client-package/stage"
 PAYLOAD="native/windows_launcher/payload"
+SCONS_JOBS="${SCONS_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 
 log() { printf '\n== %s\n' "$*"; }
 
@@ -45,10 +46,38 @@ log "Checking cross-build toolchain"
 require_tool godot "Install Godot 4.3 plus the 4.3.stable export templates."
 require_tool go "Install Go >= 1.23."
 require_tool scons "Install with 'pip install scons' or 'apt-get install scons'."
+# The host-side GDExtension and its cgo archive need a NATIVE toolchain, not
+# just the mingw cross-compilers.
+require_tool gcc "Install build-essential (native gcc is needed for the Linux host build)."
+require_tool g++ "Install build-essential (native g++ is needed for the Linux host build)."
 require_tool x86_64-w64-mingw32-gcc "Install mingw-w64."
 require_tool x86_64-w64-mingw32-g++ "Install g++-mingw-w64-x86-64."
 require_tool zip "Install zip."
 require_tool git "Install git."
+
+# Godot resolves export templates under $HOME. GitHub Actions overrides HOME for
+# container jobs, which hides templates that the image installed under another
+# user's home, so link them into place instead of assuming a fixed location.
+ensure_export_templates() {
+	local version="4.3.stable"
+	local target="${HOME}/.local/share/godot/export_templates/${version}"
+	[[ -d "${target}" ]] && { echo "  export templates: ${target}"; return 0; }
+	local candidate
+	for candidate in \
+		"/root/.local/share/godot/export_templates/${version}" \
+		"/usr/local/share/godot/export_templates/${version}" \
+		"/usr/share/godot/export_templates/${version}"; do
+		if [[ -d "${candidate}" ]]; then
+			mkdir -p "$(dirname "${target}")"
+			ln -sfn "${candidate}" "${target}"
+			echo "  export templates linked from ${candidate}"
+			return 0
+		fi
+	done
+	echo "ERROR: Godot ${version} export templates not found under \$HOME (${HOME}) or any known image location." >&2
+	exit 1
+}
+ensure_export_templates
 
 log "Preparing godot-cpp at ${GODOT_CPP_REF}"
 if [[ ! -d "${GDEXT_DIR}/godot-cpp/.git" ]]; then
@@ -62,9 +91,22 @@ log "Building wgnetstack Windows c-archive"
 make -C native/wgnetstack cgoarchive-windows
 
 log "Building wgnetstack GDExtension Windows DLL"
-(cd "${GDEXT_DIR}" && scons platform=windows target=template_release use_mingw=yes)
+(cd "${GDEXT_DIR}" && scons -j"${SCONS_JOBS}" platform=windows target=template_release use_mingw=yes)
 dll_built="${GDEXT_DIR}/build/${DLL_NAME}"
 [[ -f "${dll_built}" ]] || { echo "ERROR: GDExtension DLL not produced at ${dll_built}" >&2; exit 1; }
+
+# Godot runs this export ON Linux, and addons/wgnetstack/wgnetstack.gdextension
+# maps linux.editor.x86_64 to the template_debug .so. Godot loads the HOST
+# platform's library before it will export any preset, so without this the
+# Windows export aborts with "configuration errors". Building it here is what
+# makes the package reproducible on a clean runner.
+log "Building wgnetstack Linux c-archive (export host)"
+make -C native/wgnetstack cgoarchive
+
+log "Building wgnetstack GDExtension Linux .so (export host)"
+(cd "${GDEXT_DIR}" && scons -j"${SCONS_JOBS}" platform=linux target=template_debug)
+host_so="${GDEXT_DIR}/build/libwgnetstack_gdext.linux.template_debug.x86_64.so"
+[[ -f "${host_so}" ]] || { echo "ERROR: host GDExtension not produced at ${host_so}" >&2; exit 1; }
 
 log "Exporting Godot Windows client"
 rm -rf "${STAGE}"

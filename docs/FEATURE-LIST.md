@@ -734,7 +734,7 @@ for a developer to pick up. No implementation has started.
 
 ### F-035: Secure Windows tunnel enrollment and credential storage
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: A Windows client provisions its own WireGuard peer through
   self-service HTTPS login or an explicit single-use invite fallback, stores the
   private key with Windows DPAPI, starts the in-process tunnel without a batch
