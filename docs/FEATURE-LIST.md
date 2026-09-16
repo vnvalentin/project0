@@ -171,9 +171,13 @@ feature so future drift is easier to detect.
 - Phase: 9. Canon persistence and world mutation
 - Public seam: GUID assignment, mutation event/state store, replay/load path, and mutation telemetry.
 - Validation: A future slice must prove stable identity, idempotent mutation application, and rejection of unauthorized world-state changes.
-- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md)
+- Implementation slices: [Slice 050](slices/050-canon-mutation-persistence.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 097](slices/097-canon-mutation-rpc-transport.md)
 - Change history:
   - Date: 2026-09-15
+    What changed: Fourth P-013 slice (Slice 097) - put the mutation intent on the wire: `client/network_client.gd` gains `submit_canon_mutation_intent` plus the C->S and S->C `@rpc` relays, and `server/server_main.gd` wires a live `CanonMutationRepository`/`CanonMutationService` resolving each intent against the sender peer's authenticated Character id and returning the resolution to that peer only. Also fixed the service to echo `client_seq` on early rejections so a client can correlate responses.
+    Why: World mutation needed a real over-the-wire path; the client expresses intent and the server owns the outcome, returned privately to the submitter.
+    Related work: [Slice 097](slices/097-canon-mutation-rpc-transport.md), [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 050](slices/050-canon-mutation-persistence.md)
+    Validation: full `scripts/run_gut_validation.sh` on the Linux host passed 482/482 tests across 70/70 scripts, exit 0; `scripts/test_canon_mutation_rpc_e2e.gd` printed ALL PASS (real ENet round-trip: client submits an intent, server resolves, resolution relayed back); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings.  - Date: 2026-09-15
     What changed: Third P-013 slice (Slice 096) - added `shared/canon_mutation_intent.gd` (the pure, bounded client->server mutation intent contract, refusing any server-owned field) and `server/canon_mutation_service.gd` (`resolve_intent` stamps the server-authenticated `actor_player_id`, a deterministic `(actor, client_seq)` `event_id`, and the authoritative `server_tick`, then applies via the Slice 050 repository and maps the outcome to an accepted/rejected resolution).
     Why: World-mutation follows the CLAUDE.md intent/resolution split - the client expresses intent, the server owns identity, actor, clock, and outcome - so a client can neither forge who acted nor replay one action into two mutations.
     Related work: [Slice 096](slices/096-canon-mutation-intent-service.md), [Slice 095](slices/095-canon-entity-guids.md), [Slice 050](slices/050-canon-mutation-persistence.md)

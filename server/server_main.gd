@@ -42,6 +42,8 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const AccountCharacterRepositoryScript: Script = preload("res://server/account_character_repository.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
+const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutation_repository.gd")
+const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_service.gd")
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
@@ -146,6 +148,8 @@ var _account_repository: Object = null
 var _character_service: Object = null
 var _login_gateway: Object = null
 var _canon_repository: Object = null
+var _canon_mutation_repository: Object = null
+var _canon_mutation_service: Object = null
 ## Slice 079: only opened when PROJECT0_CANON_DB_PATH is set; otherwise Canon
 ## reuses _accounts_store and this stays null.
 var _canon_store: SqliteStore = null
@@ -307,6 +311,17 @@ func _start_server() -> void:
 		return
 	var canon_db_label: String = canon_db_path if not canon_db_path.is_empty() else ("shared:%s" % accounts_db_path)
 	print("Starting town Canon ready: %s (canon db: %s)." % [canon_result["outcome"], canon_db_label])
+
+	# Slice 050/097: the durable Canon mutation log and the server-authoritative
+	# resolution service, on the same store as Canon. Fail closed on a schema
+	# failure, matching the Canon boot checks above.
+	_canon_mutation_repository = CanonMutationRepositoryScript.new(canon_store, _canon_repository)
+	var mutation_schema: Dictionary = _canon_mutation_repository.ensure_schema()
+	if mutation_schema["outcome"] != "ok":
+		push_error("Refusing to start: Canon mutation schema failed: %s — %s" % [mutation_schema["outcome"], mutation_schema["detail"]])
+		quit(1)
+		return
+	_canon_mutation_service = CanonMutationServiceScript.new(_canon_mutation_repository, Callable(self, "_current_server_tick"))
 	# Slice 046: authoritative movement now drives non-blocking JIT requests for
 	# unexplored sectors. The detector performs only cheap sector math and the
 	# generator accepts work synchronously before awaiting Ollama in a deferred
@@ -349,6 +364,9 @@ func _start_server() -> void:
 	root.multiplayer.multiplayer_peer = _peer
 	root.multiplayer.peer_connected.connect(_on_peer_connected)
 	root.multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	var mutation_network_client: Node = root.get_node_or_null("NetworkClient")
+	if mutation_network_client != null:
+		mutation_network_client.canon_mutation_intent_received.connect(_on_canon_mutation_intent)
 	_spawn_target_dummies()
 	print("Server listening on %s:%d" % [bind_address, server_port])
 	# Slice 067: the tick loop is up and the socket is bound — report healthy.
@@ -534,6 +552,28 @@ func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> voi
 	for peer_id: int in _player_states.keys():
 		network_client.rpc_id(peer_id, "receive_sector_blueprint", blueprint)
 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
+
+
+## Slice 097 (P-013): resolve a client's Canon mutation intent authoritatively
+## and return the resolution to that peer only. The actor is the peer's
+## server-bound Character id; an unbound (unauthenticated) peer is rejected by
+## the service. Never broadcast.
+func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
+	if _canon_mutation_service == null:
+		return
+	var player_state: Node = _player_states.get(sender_peer_id)
+	if player_state == null:
+		return
+	var resolution: Dictionary = _canon_mutation_service.resolve_intent(player_state.character_id, intent)
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(sender_peer_id, "receive_canon_mutation_resolution", resolution)
+
+
+## Server-owned monotonic tick used as the mutation event clock (Slice 097).
+func _current_server_tick() -> int:
+	return _monster_tick
 
 
 ## Deterministic, visibly distinct starting positions for connected peers so
