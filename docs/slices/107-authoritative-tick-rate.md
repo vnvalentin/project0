@@ -76,6 +76,10 @@ rate on okami, plus the full GUT suite.
 - `scripts/run_gut_validation.sh` on okami: **72 scripts, 493 tests, 493
   passing, 1750 asserts**, identical script/test counts to the pre-change
   baseline, so no test silently stopped running.
+- Deployed as `v0.1.2` and measured live: game `30.33/s`, login `30.33/s`, both
+  against an advertised `30`. The user then played the client at the new rate
+  and confirmed it is fine — the only available evidence for simulation feel,
+  which no automated check can supply.
 
 ## Root-cause learning
 
