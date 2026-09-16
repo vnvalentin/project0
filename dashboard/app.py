@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 import html
+import json
 import os
 import re
 import subprocess
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "vnvalentin/project0")
+GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "300"))
 SELF_PATH = Path(__file__).resolve()
 try:
     _SELF_MTIME = SELF_PATH.stat().st_mtime
 except OSError:
     _SELF_MTIME = None
+_ISSUE_CACHE = {"at": 0.0, "data": {"available": False, "issues": [], "error": "not loaded"}}
 
 
 def restart_if_source_changed() -> None:
@@ -54,6 +60,34 @@ def _git(args: list[str]) -> tuple[int, str]:
         return proc.returncode, proc.stdout
     except (OSError, subprocess.SubprocessError):
         return 1, ""
+
+
+def github_issues() -> dict:
+    now = time.time()
+    if now - float(_ISSUE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
+        return _ISSUE_CACHE["data"]
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=open&per_page=100"
+    req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
+    try:
+        with urlopen(req, timeout=5) as response:
+            raw = response.read().decode("utf-8")
+        parsed = json.loads(raw)
+        issues = []
+        for item in parsed:
+            if "pull_request" in item:
+                continue
+            issues.append({
+                "number": int(item.get("number", 0)),
+                "title": str(item.get("title", "")),
+                "url": str(item.get("html_url", "")),
+                "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
+            })
+        issues.sort(key=lambda issue: issue["number"])
+        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "error": ""}
+    except Exception as exc:
+        data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
+    _ISSUE_CACHE.update({"at": now, "data": data})
+    return data
 
 
 def read_committed_file(name: str) -> str:
@@ -547,15 +581,15 @@ DELIVERY_ROADMAP = {
             ],
         },
         {
-            "n": "5", "title": "Two big consumers (parallel)",
-            "note": "Accounts: auth/session/CRUD/world-entry and the Windows login/Character/gameplay lifecycle are implemented and validated (Linux 315/315 tests; Windows GUI acceptance confirmed). Canon/JIT: IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045-047); P-009 local-inference config/telemetry (Slice 051) and F-026 LLM-on-boot + town-derived monster exclusion (Slices 052-053) implemented \u2014 Phase 8 is 11/11. Remaining: P-013 GUIDs/RPC/replay and F-035 secure-launcher live tunnel validation.",
+            "n": "5", "title": "Two big consumers (parallel)", "done": True,
+            "note": "Accounts: auth/session/CRUD/world-entry and the Windows login/Character/gameplay lifecycle are implemented and validated (Linux 315/315 tests; Windows GUI acceptance confirmed). Canon/JIT: IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045-047); P-009 local-inference config/telemetry (Slice 051) and F-026 LLM-on-boot + town-derived monster exclusion (Slices 052-053) implemented \u2014 Phase 8 is 11/11. P-013 GUIDs/RPC/replay (Slices 095-098) also done \u2014 Phase 9 is 4/4.",
             "tracks": [
                 {"name": "Player accounts & characters", "feat": "F-031 \u00b7 F-032 \u00b7 F-033 \u00b7 F-034", "steps": [
                     "Auth/session + Character CRUD/world entry (Slices 040, 042-043) \u2014 done",
                     "Character CRUD/select/create \u2192 world entry (Slices 042-044) \u2014 done"]},
                 {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
                     "IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045/046) \u2014 done",
-                    "P-009 inference (Slice 051) + F-026 LLM-on-boot & monster exclusion (Slices 052-053) \u2014 done; P-013 mutation (Slice 050) done, GUIDs/RPC/replay remaining"]},
+                    "P-009 inference (Slice 051) + F-026 LLM-on-boot & monster exclusion (Slices 052-053) \u2014 done; P-013 GUIDs/RPC/replay (Slices 095-098) \u2014 done"]},
             ],
         },
         {
@@ -931,6 +965,14 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 .pill{display:inline-flex;align-items:center;gap:7px;font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:7px 13px}
 .pill .dot{color:var(--green);font-weight:800}
 .pill small{color:var(--muted);font-family:monospace}
+.issues{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.issue{display:block;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--cyan);border-radius:10px;padding:14px 16px;text-decoration:none;color:var(--text)}
+.issue:hover{border-left-color:var(--green)}
+.issue .inum{font-family:monospace;color:var(--cyan);font-size:12px;margin-bottom:5px}
+.issue .ititle{font-size:14px;margin-bottom:9px}
+.issue .labels{display:flex;flex-wrap:wrap;gap:5px}
+.issue .label{font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:2px 7px}
+.sourcewarn{background:#332619;border:1px solid var(--amber);color:#ffe0a0;border-radius:10px;padding:12px 14px}
 .legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-top:14px;flex-wrap:wrap}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
@@ -943,6 +985,8 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 def render_exec(view: str = "committed") -> str:
     reader = read_repo_file if view == "working" else read_committed_file
     m = executive_model(reader)
+    issue_feed = github_issues()
+    open_issues = issue_feed["issues"]
 
     focus_html = "".join(
         f'<div class="fcard"><div class="ph">Phase {c["phase_num"]} \u00b7 {c["pct"]}%</div>'
@@ -971,6 +1015,19 @@ def render_exec(view: str = "committed") -> str:
         for f in m["done"]
     ) or '<p class="empty">Nothing shipped yet.</p>'
 
+    if issue_feed["available"]:
+        issues_html = "".join(
+            f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
+            f'<div class="ititle">{esc(issue["title"])}</div><div class="labels">'
+            f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
+            f'</div></a>'
+            for issue in open_issues
+        ) or '<p class="empty">No open GitHub issues.</p>'
+        issue_status = f'{len(open_issues)} open issue(s) from {esc(issue_feed["repo"])}'
+    else:
+        issues_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
+        issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
+
     other = "?view=working" if view != "working" else "?view=committed"
     other_lbl = "Working tree" if view != "working" else "Committed"
     src = "live working tree" if view == "working" else "last committed state"
@@ -985,7 +1042,7 @@ def render_exec(view: str = "committed") -> str:
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Project0 \u2014 Reality</title>
 <style>{EXEC_CSS}</style></head><body>
 <header>
-  <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 {prov} \u00b7 auto-refreshes</div></div>
+    <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 {prov} \u00b7 {issue_status} \u00b7 auto-refreshes</div></div>
   <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
@@ -994,9 +1051,11 @@ def render_exec(view: str = "committed") -> str:
     <div class="tiles">
       <div class="tile done"><div class="num">{len(m["done"])}</div><div class="lbl">Shipped</div></div>
       <div class="tile active"><div class="num">{len(m["active"])}</div><div class="lbl">In progress</div></div>
-      <div class="tile todo"><div class="num">{len(m["not_started"])}</div><div class="lbl">Not started</div></div>
+            <div class="tile todo"><div class="num">{len(open_issues) if issue_feed["available"] else len(m["not_started"])}</div><div class="lbl">Open GitHub issues</div></div>
     </div>
   </section>
+
+    <section class="sec"><h2>GitHub source of truth</h2><div class="issues">{issues_html}</div></section>
 
   <section class="sec"><h2>\u25b6 Focused on now</h2><div class="focus">{focus_html}</div></section>
 
