@@ -619,7 +619,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [Canon persistence issue](../.scratch/game-vision/issues/05-define-canon-persistence.md)
   - **Public seam:** `shared/canon_sector_resolver.gd` (`resolve_effective_blueprint`) consumed by `server/server_main.gd` (`_effective_blueprint_for`, applied at both sector-replication points); no client change, no RPC signature change
-  - **Validation:** _pending Linux-host GUT + record-sync run_
+  - **Validation:** full GUT on the Linux host passed 493/493 tests across 72/72 scripts, exit 0 (up from 482/70); the melee e2e printed ALL PASS (effective-blueprint replication path renders the hub); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
 #### Phase 13 — Public game access
 
