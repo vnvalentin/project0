@@ -36,6 +36,7 @@ const ServerPlayerStateScript: Script = preload("res://server/server_player_stat
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const HouseAllocatorScript: Script = preload("res://server/house_allocator.gd")
 const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
+const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
@@ -234,6 +235,7 @@ func _start_server() -> void:
 	_monster_manager = ServerMonsterManagerScript.new(_starting_town_hub_blueprint.get("spawn_points", []), int(Time.get_ticks_usec()), ServerMonsterManagerScript.RESPAWN_COOLDOWN_TICKS, exclusion_half_extent)
 	_monster_manager.monster_died.connect(_on_monster_died)
 	_monster_manager.monster_respawned.connect(_on_monster_respawned)
+	_monster_manager.player_hit.connect(_on_monster_player_hit)
 	physics_frame.connect(_on_physics_frame)
 	print("Spawned %d monsters outside the town." % _monster_manager.monster_count())
 
@@ -389,6 +391,8 @@ func _on_peer_connected(peer_id: int) -> void:
 	player_state.combat_event_emitted.connect(_on_player_state_combat_event_emitted)
 	player_state.melee_swing_started.connect(_on_player_state_melee_swing_started)
 	player_state.character_bound.connect(_on_player_state_character_bound)
+	player_state.health_changed.connect(_on_player_state_health_changed)
+	player_state.player_defeated.connect(_on_player_state_player_defeated)
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
 	player_state.set_target_dummies(_target_dummies)
@@ -460,6 +464,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.combat_event_emitted.disconnect(_on_player_state_combat_event_emitted)
 		player_state.melee_swing_started.disconnect(_on_player_state_melee_swing_started)
 		player_state.character_bound.disconnect(_on_player_state_character_bound)
+		player_state.health_changed.disconnect(_on_player_state_health_changed)
+		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
 	if _sector_boundary_detector != null:
@@ -581,9 +587,11 @@ func _on_physics_frame() -> void:
 	if _monster_manager == null:
 		return
 	var player_positions: Array[Vector3] = []
-	for player_state: Node in _player_states.values():
-		player_positions.append(player_state.position)
-	_monster_manager.advance_all(player_positions, MONSTER_TICK_DELTA, _monster_tick)
+	var player_peer_ids: Array[int] = []
+	for peer_id: int in _player_states.keys():
+		player_positions.append(_player_states[peer_id].position)
+		player_peer_ids.append(peer_id)
+	_monster_manager.advance_all(player_positions, MONSTER_TICK_DELTA, _monster_tick, player_peer_ids)
 	_monster_tick += 1
 	_broadcast_monster_positions()
 
@@ -643,6 +651,20 @@ func _on_monster_died(spawn_id: String, server_tick: int) -> void:
 	print("Monster %s defeated at tick %d." % [spawn_id, server_tick])
 
 
+## Slice 094: routes a monster's landed, telegraph-fair attack (surfaced by
+## ServerMonsterManager.player_hit against the nearest player it was resolving
+## against) to that peer's authoritative ServerPlayerState. The monster never
+## touches player state directly — this is the single owner of that routing,
+## mirroring how _on_player_state_combat_event_emitted is the sole route for a
+## player hit reaching a monster. A no-op if the victim has since disconnected.
+func _on_monster_player_hit(victim_peer_id: int, spawn_id: String, server_tick: int) -> void:
+	var player_state: Node = _player_states.get(victim_peer_id)
+	if player_state == null:
+		return
+	player_state.receive_monster_damage(MonsterContractsScript.DAMAGE_TO_PLAYER, server_tick)
+	print("Monster %s hit peer %d for %d at tick %d." % [spawn_id, victim_peer_id, MonsterContractsScript.DAMAGE_TO_PLAYER, server_tick])
+
+
 ## Slice 033: in addition to existing telemetry, tells every connected peer to
 ## (re)spawn a cosmetic representation for the respawned monster at its new
 ## position — mirrors the peer-connect replication above but triggered by the
@@ -675,6 +697,27 @@ func _on_player_state_action_resolved(peer_id: int, resolution: Object) -> void:
 		resolution.rejection_reason,
 		resolution.server_tick
 	)
+
+
+## Slice 094: replicates a Player's authoritative HP change to the owning
+## client only (peer-scoped like receive_action_resolution) so its HUD can show
+## current HP. Other peers do not need another peer's HP in this slice.
+func _on_player_state_health_changed(peer_id: int, current_hp: int, max_hp: int, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_health_update", current_hp, max_hp)
+
+
+## Slice 094: tells the owning client its Player was defeated (then provisionally
+## respawned at full HP; the reposition itself replicates through the normal
+## authoritative-position channel) so its HUD can flash a brief cue.
+func _on_player_state_player_defeated(peer_id: int, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	print("Peer %d defeated; respawned at full HP." % peer_id)
+	network_client.rpc_id(peer_id, "receive_player_defeated")
 
 
 ## Broadcasts a confirmed CombatEvent.HIT to every connected peer (including

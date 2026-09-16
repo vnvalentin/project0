@@ -65,6 +65,16 @@ signal combat_event_received(kind: String, attacker_peer_id: int, target_id: Str
 ## directly and does not need this signal for itself).
 signal melee_swing_started_received(peer_id: int, windup_ticks: int, active_ticks: int, facing: Vector3)
 
+## Slice 094: emitted on the owning client when the server replicates its
+## Player's authoritative HP (on monster damage or the provisional full-HP
+## respawn), so a HUD element can display it. Presentation only — this autoload
+## never computes HP itself.
+signal player_health_changed(current_hp: int, max_hp: int)
+
+## Slice 094: emitted on the owning client the tick its Player was defeated
+## (and provisionally respawned at full HP), so a HUD element can flash a cue.
+signal player_defeated_received()
+
 ## Slice 017: emitted on this client after a server-sent sector blueprint is
 ## received and re-validated, carrying the sector id, validation outcome, and
 ## rendered tile/structure counts — client-side replication telemetry and an
@@ -111,6 +121,7 @@ signal return_to_character_select_finished(outcome: String)
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 
@@ -162,6 +173,12 @@ var _latest_remote_players: Dictionary = {}
 ## Slice 087: the account resume token obtained at handoff, kept in memory so the
 ## in-world return can re-establish a login session without re-authenticating.
 var _resume_assertion: String = ""
+
+## Slice 094: latest replicated authoritative HP, retained so a HUD element
+## created after the first receive_health_update (scene-entry ordering) reads
+## the current value. Defaults to the provisional full pool.
+var latest_current_hp: int = PlayerCombatContractsScript.PLAYER_MAX_HP
+var latest_max_hp: int = PlayerCombatContractsScript.PLAYER_MAX_HP
 
 
 func _ready() -> void:
@@ -639,6 +656,26 @@ func receive_action_resolution(sequence: int, result: String, rejection_reason: 
 @rpc("authority", "call_remote", "reliable")
 func receive_combat_event(kind: String, attacker_peer_id: int, target_id: String, impact_position: Vector3, server_tick: int) -> void:
 	combat_event_received.emit(kind, attacker_peer_id, target_id, impact_position, server_tick)
+
+
+## RPC target (Slice 094): called by the server on the owning client only with
+## its Player's current authoritative HP. Retained in latest_current_hp/
+## latest_max_hp so a HUD created after this first arrives (scene-entry
+## ordering) still reads the current value, and relayed via a signal so the HUD
+## decides how to render it — this autoload never computes HP.
+@rpc("authority", "call_remote", "reliable")
+func receive_health_update(current_hp: int, max_hp: int) -> void:
+	latest_current_hp = current_hp
+	latest_max_hp = max_hp
+	player_health_changed.emit(current_hp, max_hp)
+
+
+## RPC target (Slice 094): called by the server on the owning client the tick
+## its Player was defeated (then provisionally respawned at full HP). Relayed
+## via a signal so the HUD can flash a brief cue.
+@rpc("authority", "call_remote", "reliable")
+func receive_player_defeated() -> void:
+	player_defeated_received.emit()
 
 
 ## RPC target: called by the server on every connected peer whenever any
