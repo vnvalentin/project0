@@ -128,7 +128,7 @@ migration is now resolved — Slice 041).
 | 9. Canon persistence and world mutation | done | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Authoritative runtime and action input | in-progress | The deployed server runs in the isolated fixed-tick runtime with health and recovery evidence, and the server resolves validated action intents, including combat, authoritatively. |
 | 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
-| 13. Public game access | in-progress | A new remote player can safely self-register, authenticate, select a Character, provision a least-privilege WireGuard peer, and enter the authoritative server from a real WAN Windows client; public-route abuse controls are validated, and no VPS, client OS admin rights, or LAN exposure is required. |
+| 13. Public game access | done | A new remote player can safely self-register, authenticate, select a Character, provision a least-privilege WireGuard peer, and enter the authoritative server from a real WAN Windows client; public-route abuse controls are validated, and no VPS, client OS admin rights, or LAN exposure is required. |
 | 14. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
 
 ### Phase work index
@@ -271,10 +271,9 @@ Progress: **0%** (0 of 1 items done)
 
 Progress: **0%** (0 of 3 items done)
 
-- Features: `in-progress` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the tunnel, Windows package, enrollment service, HTTPS login/character flow, assertion-gated peer provisioning, and client/launcher seams are delivered. The exit gate remains blocked on DT-009, DT-010, and live Windows WAN evidence.
+- Features: `done` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the tunnel, Windows package, enrollment service, HTTPS login/character flow, assertion-gated peer provisioning, client/launcher seams, and real off-LAN Windows validation are delivered.
 - Tech debt: `done` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration), `done` [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client).
-- **Latest delivered slice:** [100 — Public HTTPS account registration](slices/100-public-account-registration.md) — registration/login pytest 8/8 and full enrollment pytest 120/120, exit 0.
-  - **Next plan:** execute and record the F-035 real-WAN runbook. Phase 13 remains open only for live Windows evidence and the existing Slice 054 runtime checks.
+- **Latest delivered validation:** [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — all six real-WAN checks user-confirmed passed on 2026-09-16.
 - Prior slice: [091 — Auth-gated onboarding C-client-seam: Godot `EnrollmentHttpClient`](slices/091-client-https-auth-character-seam.md) — **delivered; GUT 432/432 across 63/63 scripts, exit 0**
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 - Prior slice: [089 — Auth-gated onboarding B: `/redeem` signed-assertion + idempotent per-account peer lifecycle](slices/089-auth-gated-onboarding-peer-provisioning.md) — **delivered; GUT 420/420, enrollment pytest 96/96 on the Linux host**

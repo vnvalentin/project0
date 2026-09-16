@@ -21,17 +21,17 @@ from FastAPI validation for empty POST bodies, while GET requests remained 403.
 
 ## Evidence this run must produce
 
-- [ ] **Fresh enrollment** — a clean machine provisions its own peer and reaches
+- [x] **Fresh enrollment** — a clean machine provisions its own peer and reaches
   gameplay.
-- [ ] **Persisted restart** — a relaunch reuses the DPAPI-protected key with no
+- [x] **Persisted restart** — a relaunch reuses the DPAPI-protected key with no
   re-enrollment.
-- [ ] **Malformed / expired invite rejection** — a bad or expired invite fails
+- [x] **Malformed / expired invite rejection** — a bad or expired invite fails
   closed (no peer, no tunnel).
-- [ ] **DPAPI access scoping** — the stored private key cannot be unprotected by
+- [x] **DPAPI access scoping** — the stored private key cannot be unprotected by
   another user / machine.
-- [ ] **Revoked-peer rejection** — after an operator revoke, the client can no
+- [x] **Revoked-peer rejection** — after an operator revoke, the client can no
   longer connect.
-- [ ] **One-launch WAN gameplay** — from off-LAN, a single launch brings up the
+- [x] **One-launch WAN gameplay** — from off-LAN, a single launch brings up the
   tunnel and plays.
 
 ## Roles
@@ -180,6 +180,15 @@ user on that machine can unprotect it.
 ---
 
 ## Part C — Recording the evidence
+
+### Recorded result — 2026-09-16
+
+The user confirmed all six checks passed on the current off-LAN Windows client
+using the current WAN launcher. Fresh enrollment, persisted restart,
+malformed/expired invite rejection, DPAPI access scoping, revoked-peer
+rejection, and one-launch WAN gameplay all passed. No passwords, invite codes,
+private keys, DPAPI files, or assertion tokens were retained in the repository
+or conversation.
 
 Once all six boxes are checked, add a dated change-history entry to
 [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)

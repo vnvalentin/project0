@@ -1,6 +1,6 @@
 # Slice 054: Secure Windows tunnel enrollment and credential storage
 
-**Status:** In Progress (secure launcher implemented; enrollment service deployed live and validated; Windows-launcher live tunnel validation pending)
+**Status:** Delivered (secure launcher, live enrollment service, and real off-LAN Windows validation complete)
 **Linked Feature:** F-035
 **Parent Feature:** P-024
 **Related Slices:** 035 (Windows tunnel package), 048 (enrollment service), 049 (revocation lifecycle)
@@ -180,7 +180,20 @@ Validation evidence:
 - No private key was ever transmitted (the client sends only the public key).
 
 This closes the service-deployment gap described above; the DNS-resolution
-failure noted earlier no longer applies. The remaining open item is the
-Windows-launcher live tunnel validation (Acceptance checks 1-7 and the
-Validation section's Windows-side `go test`/build/runtime evidence), which is
-separate from the enrollment service's own deployment and is not yet complete.
+failure noted earlier no longer applies. The user confirmed all six F-035
+real-WAN checks passed on 2026-09-16 using the current launcher: fresh
+enrollment, persisted restart, malformed/expired invite rejection, DPAPI
+access scoping, revoked-peer rejection, and one-launch off-LAN gameplay. No
+credential, private key, invite code, DPAPI blob, or assertion was recorded.
+
+## Live WAN validation evidence
+
+- Fresh enrollment: passed; peer state was created and gameplay reached the
+  connected Player state.
+- Persisted restart: passed; the protected peer was reused without
+  re-enrollment.
+- Malformed/expired invite rejection: passed; invalid enrollment failed closed.
+- DPAPI access scoping: passed; the protected key was not usable outside its
+  owning Windows user context.
+- Revoked-peer rejection: passed; the revoked peer could not reconnect.
+- One-launch WAN gameplay: passed from an off-LAN Windows network.

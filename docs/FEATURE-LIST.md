@@ -198,7 +198,7 @@ feature so future drift is easier to detect.
 
 ### P-014: Containerized fixed-tick authoritative server runtime
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: The authoritative Godot server runs in an isolated Docker container with a bounded 20–30 Hz simulation tick and server-owned physics/state.
 - Problem solved: Multiplayer behavior needs a reproducible Linux runtime boundary and predictable simulation cadence.
 - Phase: 10. Authoritative runtime and action input
@@ -758,18 +758,27 @@ for a developer to pick up. No implementation has started.
   [Slice 092](slices/092-launcher-login-redeem-assertion.md)
 - Public seam: Windows bootstrapper/enrollment client, `POST /redeem`, DPAPI
   credential store, and the existing `NetworkClient` tunnel startup seam.
-- Validation: The enrollment service itself is now deployed live and validated
-  (see the 2026-09-14 deployment change history entry below). Remaining Slice
-  054 evidence must still cover the Windows-launcher side: fresh enrollment,
-  persisted restart, malformed/expired invite rejection, DPAPI access scoping,
-  revoked peer rejection, and a one-launch WAN gameplay run against the live
-  service. The current embedded-key verifier remains a temporary validation
-  artifact until then. See [docs/f035-secure-launcher-validation-runbook.md](f035-secure-launcher-validation-runbook.md) for the step-by-step live-validation procedure.
+- Validation: The enrollment service is deployed live and the user confirmed
+  all six real-WAN Windows checks on 2026-09-16: fresh enrollment, persisted
+  restart, malformed/expired invite rejection, DPAPI access scoping,
+  revoked-peer rejection, and one-launch off-LAN gameplay. See
+  [docs/f035-secure-launcher-validation-runbook.md](f035-secure-launcher-validation-runbook.md)
+  for the recorded checklist. No credentials or private artifacts were retained.
 - Related work: [P-024](#p-024-public-game-access-via-opnsense-native-wireguard),
   [Slice 048](slices/048-wireguard-enrollment-service.md),
   [Slice 049](slices/049-wireguard-revocation-lifecycle.md),
   [Slice 054](slices/054-secure-windows-tunnel-enrollment.md).
 - Change history:
+  - Date: 2026-09-16
+    What changed: Completed the six-check real-WAN validation for the secure
+    Windows launcher and moved F-035 to Implemented.
+    Why: Confirm the complete user path against the live enrollment service and
+    home-hosted server, not only unit tests and Linux service checks.
+    Related work: [Slice 054](slices/054-secure-windows-tunnel-enrollment.md),
+    [F-035 runbook](f035-secure-launcher-validation-runbook.md).
+    Validation: User-confirmed fresh enrollment, restart persistence,
+    malformed/expired rejection, DPAPI scoping, revoked-peer rejection, and
+    one-launch off-LAN gameplay all passed on 2026-09-16.
   - Date: 2026-09-16
     What changed: Reconciled the feature plan after the auth-gated onboarding
     delivery. Slice 092 adds self-service launcher login and assertion-gated
