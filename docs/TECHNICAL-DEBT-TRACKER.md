@@ -53,6 +53,69 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
+### DT-013: Advertised `tick_rate` does not match the actual authoritative tick rate
+
+- Classification: `Delinquent Debt`
+- Debt type: `Architecture`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: None. This is a discovered liability, not an accepted
+  tradeoff. `server/server_health.gd` declares `DEFAULT_TICK_RATE = 30` clamped
+  to `[20, 30]` and publishes `tick_rate: 30` in the health contract, but
+  `project.godot` has **no `[physics]` section**, so Godot runs
+  `_physics_process` at its default 60 Hz and `server_tick` (sourced from
+  `_monster_tick`) advances at 60/s. Measured on the containerized server at two
+  points 85 minutes apart: `server_tick 11100` at `uptime 184.9s` and
+  `server_tick 320040` at `uptime 5333.9s` — both exactly 60.0 ticks/second
+  against an advertised 30.
+- Impact: The authoritative tick is the unit of time for
+  `BurnoutInstance.start_tick`/`end_tick`, `ExecutionProfile` invulnerability
+  windows and `recovery_end_tick`, cooldowns, and Canon mutation ordering, per
+  `CLAUDE.md`. Any consumer converting ticks to seconds using the advertised
+  `tick_rate` is wrong by a factor of two. Today the blast radius is small
+  because progression and Burnout are not implemented; it grows with every
+  tick-denominated contract built on top of it. It also means the "fixed
+  simulation tick" is currently whatever Godot's default happens to be rather
+  than an explicit, owned decision.
+- Remediation plan: Decide the intended authoritative rate, then make it
+  explicit and singular — set `physics/common/physics_ticks_per_second` in
+  `project.godot` to the chosen value and derive the health contract's
+  `tick_rate` from the same source instead of a separate constant, so the two
+  cannot drift again. Add a test asserting the advertised rate equals the
+  observed tick advance over a bounded window. Changing the rate alters
+  simulation timing, so it needs runtime evidence (movement, monster combat,
+  reconciliation), not just a unit test.
+- Status: `open`
+- Related work: [Slice 106](slices/106-container-runtime-cutover.md) (where it
+  was observed), [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime),
+  [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+
+### DT-014: Container images ship without the wgnetstack GDExtension
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Infrastructure`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: Accepted tradeoff. `native/wgnetstack/gdext/build/` is
+  gitignored, so the Linux `.so` is not in the build context and the published
+  images do not contain it. Building it inside the image would add a full
+  godot-cpp compile to every image build for a library the server processes do
+  not currently call. The servers start and run correctly without it.
+- Impact: Both Godot containers log `GDExtension dynamic library not found` and
+  `Error loading extension` at every boot. That is persistent false-alarm noise
+  in the logs of the authoritative server, which trains operators to ignore
+  startup errors — and it means any future server-side use of the tunnel
+  extension will fail at runtime rather than at build time.
+- Remediation plan: Either build the Linux GDExtension as a stage in the
+  `project0-godot` image (the cross-build already exists in
+  `scripts/package_client_linux.sh`), or make the `.gdextension` entry
+  conditional so a server build does not declare a library it never loads.
+  Prefer the former once anything server-side needs the tunnel.
+- Status: `open`
+- Related work: [Slice 105](slices/105-container-images-and-registry.md),
+  [Slice 106](slices/106-container-runtime-cutover.md),
+  [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+
 ### DT-012: Login authority shares the game server's image and codebase
 
 - Classification: `Strategic Technical Debt`
