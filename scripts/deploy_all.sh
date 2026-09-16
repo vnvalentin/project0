@@ -50,32 +50,33 @@ log() { printf '\n== %s\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 # Registry access goes through python3 stdlib json so the registry needs no
-# third-party YAML parser on the host.
+# third-party YAML parser on the host. Values are passed as argv, never
+# interpolated into the Python source, so a crafted --only cannot inject code.
 reg() { python3 -c "
 import json,sys
-r=json.load(open('${registry}'))
-sys.stdout.write(str(eval(sys.argv[1], {'r': r})))
-" "$1"; }
+r=json.load(open(sys.argv[1]))
+sys.stdout.write(str(eval(sys.argv[2], {'r': r})))
+" "${registry}" "$1"; }
 
 DEPLOY_ROOT="$(reg "r['deploy_root']")"
 BACKUP_ROOT="$(reg "r['backup_root']")"
 
 mapfile -t SERVICES < <(python3 -c "
-import json
-r=json.load(open('${registry}'))
-only=set(filter(None, '${ONLY}'.split(',')))
+import json,sys
+r=json.load(open(sys.argv[1]))
+only=set(filter(None, sys.argv[2].split(',')))
 for s in r['services']:
     if not only or s['name'] in only:
         print(s['name'])
-")
+" "${registry}" "${ONLY}")
 [[ ${#SERVICES[@]} -gt 0 ]] || fail "no services selected"
 
 svc() { python3 -c "
 import json,sys
-r=json.load(open('${registry}'))
-s=[x for x in r['services'] if x['name']==sys.argv[1]][0]
-print(eval(sys.argv[2], {'s': s}))
-" "$1" "$2"; }
+r=json.load(open(sys.argv[1]))
+s=[x for x in r['services'] if x['name']==sys.argv[2]][0]
+print(eval(sys.argv[3], {'s': s}))
+" "${registry}" "$1" "$2"; }
 
 # `systemctl list-unit-files` exits nonzero for an absent unit, which under
 # `set -o pipefail` would abort the whole run instead of reporting a skip.
