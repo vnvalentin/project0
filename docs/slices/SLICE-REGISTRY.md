@@ -122,8 +122,9 @@ contended range and everything after it is tracked explicitly:
 | 104 | Registry-driven all-server deployment on tag (P-014) | interactive |
 | 105 | Container images for every service, published to GHCR (F-002, P-014) | interactive |
 | 106 | Container runtime cutover: compose stack deployed by image tag (P-014) | interactive |
+| 107 | Drive the engine at the contracted authoritative tick rate (DT-013) | interactive |
 
-Next free slice: **107** (verify against `docs/slices/` before reserving).
+Next free slice: **108** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

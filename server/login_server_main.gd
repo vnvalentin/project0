@@ -59,6 +59,8 @@ func _initialize() -> void:
 func _start_login_server() -> void:
 	_health_file_path = _resolve_health_file_path()
 	_health_tick_rate = ServerHealthScript.resolve_tick_rate(OS.get_environment("PROJECT0_TICK_RATE"))
+	# DT-013: keep the login process on the same authoritative cadence it reports.
+	Engine.physics_ticks_per_second = _health_tick_rate
 	_boot_ticks_ms = Time.get_ticks_msec()
 	_write_health(ServerHealthScript.STATUS_STARTING)
 
