@@ -51,6 +51,7 @@ infra/operator/.data/
 # Windows one-click launcher payloads and local builds; payloads may contain
 # tester-specific private keys and must never enter source control.
 native/windows_launcher/payload/
+native/windows_launcher/*.exe
 dist/Project0-WAN.exe
 # Dashboard host-specific runtime config (mirror path, LAN bind)
 dashboard/.env
