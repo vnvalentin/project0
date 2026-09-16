@@ -44,6 +44,7 @@ const AccountCharacterRepositoryScript: Script = preload("res://server/account_c
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutation_repository.gd")
 const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_service.gd")
+const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_resolver.gd")
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
@@ -396,7 +397,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	# Slice 017: replicate the validated starting town hub to this peer before
 	# spawning any Player, so the world exists before its occupants. All these
 	# RPCs are reliable, so ordering is guaranteed.
-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _starting_town_hub_blueprint)
+	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(_starting_town_hub_blueprint.get("sector_id", ""), _starting_town_hub_blueprint))
 	print("Sent starting town hub blueprint to peer %d (sector_id=%s)." % [peer_id, _starting_town_hub_blueprint.get("sector_id", "")])
 
 	network_client.rpc_id(peer_id, "spawn_own_player_representation")
@@ -550,8 +551,20 @@ func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> voi
 	if network_client == null:
 		return
 	for peer_id: int in _player_states.keys():
-		network_client.rpc_id(peer_id, "receive_sector_blueprint", blueprint)
+		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint))
 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
+
+
+## Slice 098 (P-013): replay the sector's durable mutation log onto its blueprint
+## so peers render the effective (post-mutation) world. Falls back to the
+## unchanged blueprint when the mutation store is unavailable or empty.
+func _effective_blueprint_for(sector_id: String, blueprint: Dictionary) -> Dictionary:
+	if _canon_mutation_repository == null or sector_id.is_empty():
+		return blueprint
+	var listed: Dictionary = _canon_mutation_repository.list_mutations(sector_id)
+	if listed["outcome"] != CanonMutationRepositoryScript.OUTCOME_OK:
+		return blueprint
+	return CanonSectorResolverScript.resolve_effective_blueprint(blueprint, listed["mutations"])
 
 
 ## Slice 097 (P-013): resolve a client's Canon mutation intent authoritatively
