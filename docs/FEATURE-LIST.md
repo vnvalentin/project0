@@ -2192,6 +2192,10 @@ for a developer to pick up. No implementation has started.
 - Validation: Local runner passes 14/14 tests and 38 assertions; forced runner failure exits nonzero and emits `status: failed`. CI configuration is syntactically reviewed and uses the same local command.
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [Development Workflow](DEVELOPMENT-WORKFLOW.md)
 - Change history:
+  - Date: 2026-09-16
+    What changed: Expanded the gate from a single Godot job to five jobs — GUT suite, delivery record sync, Python enrollment/operator suites, wgnetstack build, and Windows launcher tests on a Windows runner — plus `scripts/stage_launcher_payload_placeholders.sh` so the embed-dependent launcher package compiles on a clean checkout.
+    Why: Record-sync, the 183 Python service tests, and the launcher tests were only ever run by hand on one machine, so a regression in any non-Godot component could reach `main` unnoticed.
+    Validation evidence: Slice 102 — GUT 493/493 on okami, record-sync 0 errors, pytest 183 passed, wgnetstack `go build` clean, and launcher `go test` passing against staged placeholders.
   - Date: 2026-09-12
     What changed: Added push/pull-request validation with retained JUnit and JSON telemetry artifacts.
     Why: Make executable validation and regression evidence part of delivery rather than an optional local habit.
