@@ -59,6 +59,20 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the eighth F-036 slice (Slice 123) — the
+    `ActivityRoutine` contract (`shared/activity_routine.gd`): activity-driven NPC
+    movement where the current activity is a PURE function of elapsed ticks over
+    a looping routine (free off-screen simulation, route-consistent arrival with
+    no drift), with idle/patrol fallback for an empty routine and an
+    interrupt/resume lifecycle that preserves the routine clock. Fail-closed
+    parsing.
+    Why: Give NPCs believable, cheap schedules that stay correct unobserved — the
+    activity/population base the spawning slice builds on.
+    Related work: [Slice 123](slices/123-phase14-activity-routine.md), #227, #229.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 509 tests /
+    509 passing, exit 0; new `test_activity_routine.gd` ran 16/16. Feature stays
+    `In Progress`: the NPC spawning / significance slice remains.
+  - Date: 2026-09-17
     What changed: Delivered the seventh F-036 slice (Slice 122) — the
     `StatusEffect` contract (`shared/status_effect.gd`): a deliberate magical or
     impairment effect that is resistible (a resistance at or above the effect's
