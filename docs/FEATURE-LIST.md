@@ -59,6 +59,20 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the fifth F-036 slice (Slice 120) — the
+    `CombatHealth` contract (`shared/combat_health.gd`): the shared
+    health/defeat/recovery pool for players and NPCs (damage floors at zero and
+    never heals; recovery caps at max and never harms; defeat at zero; a 0..1
+    presentation fraction). No injury subsystem. Fail-closed parsing;
+    pure/deterministic.
+    Why: Give players and NPCs one identical health mechanic — the Player's first
+    HP pool — before the damage-resolution and status-effect slices.
+    Related work: [Slice 120](slices/120-phase14-combat-health.md), #227, #231.
+    Validation: full GUT suite on Linux host `okami` — 77 scripts / 549 tests /
+    549 passing, exit 0; new `test_combat_health.gd` ran 12/12. Feature stays
+    `In Progress`: damage resolution, status effects, movement, and spawning
+    slices remain.
+  - Date: 2026-09-17
     What changed: Delivered the fourth F-036 slice (Slice 119) — the
     `TechniqueContract` (`shared/technique_contract.gd`): multidimensional
     readiness (a technique needs a COMBINATION of stats, e.g. Jump Slash wants
