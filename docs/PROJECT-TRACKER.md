@@ -241,6 +241,10 @@ Progress: **71%** (5 of 7 items done)
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #214
 
+- **Also delivered:** [115 — Goal What Good Looks Like criteria](slices/115-goal-good-looks-like-criteria.md) — **Goal completion now depends on explicit customer-outcome `What Good Looks Like` criteria in the parent Goal, not merely on the current child issues; existing researched maps and mirrored GitHub Goal issues now carry WGL checklists**
+  - **Features:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)
+  - **GitHub issue:** #215
+
 **Phase 8 — JIT world generation and local inference**
 
 Progress: **100%** (11 of 11 items done)
@@ -549,6 +553,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #214
   - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 with 15 Goal cards, `Target coverage`, percent, open/closed labels, and nonzero coverage samples; `scripts/check_record_sync.sh` exit 0
+
+- **Slice:** [115 — Goal What Good Looks Like criteria](slices/115-goal-good-looks-like-criteria.md) — **delivered; every researched `.scratch` goal map now has a customer-outcome WGL checklist, parent GitHub Goal issues were mirrored from those maps, and dashboard target coverage parses those criteria instead of treating child issue completion as goal closure**
+  - **Features:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration)
+  - **GitHub issue:** #215
+  - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 (`zone-sharding` 0%, `basic-monsters` 75%, `world-scale` 100%); parent Goal issue mirror updated 14 WGL maps with no failures; `scripts/check_record_sync.sh` exit 0
 
 #### Phase 10 — Authoritative runtime and action input
 

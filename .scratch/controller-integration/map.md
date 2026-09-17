@@ -4,6 +4,13 @@ Produce a validated, handoff-ready plan for a controller integration placeholder
 
 The map is complete when the supported controller scope, action contract, fallback behavior, and executable validation evidence are clear enough to create an implementation ticket safely.
 
+## What Good Looks Like
+
+- [ ] Supported controller families and connection states are decided for the first placeholder.
+- [ ] Controller input maps to the existing named actions without changing server authority or network contracts.
+- [ ] Keyboard/mouse behavior remains unchanged and fallback/disconnect behavior is specified.
+- [ ] A realistic validation path exists for the first controller implementation slice.
+
 ## Notes
 
 - Domain: Godot 4 client input, networked movement and action presentation, GDScript 2.0 strict typing.

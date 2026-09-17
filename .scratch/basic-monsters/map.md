@@ -11,6 +11,13 @@ implementation slice under Phase 10 (Authoritative runtime and action input).
 See [Project Tracker](../../docs/PROJECT-TRACKER.md) and
 [CLAUDE.md](../../CLAUDE.md).
 
+## What Good Looks Like
+
+- [x] Server-owned monster HP, damage, and death outcomes exist at a public combat seam.
+- [x] A monster can detect, chase, telegraph, attack, recover, and emit bounded telemetry.
+- [x] Monsters spawn from validated town spawn points and respawn without blocking play.
+- [ ] A player-facing run confirms monsters are visible, readable, fightable, and defeatable in the intended client experience.
+
 ## Notes
 
 - Domain: server-authoritative combat, extends the existing

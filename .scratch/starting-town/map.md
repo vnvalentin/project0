@@ -10,6 +10,13 @@ implementation slice under Phase 8 (JIT world generation) / Phase 9 (Canon
 persistence). See [Project Tracker](../../docs/PROJECT-TRACKER.md) and
 [CLAUDE.md](../../CLAUDE.md).
 
+## What Good Looks Like
+
+- [x] The starting town sector schema accepts validated structures and spawn points while preserving older schemas.
+- [x] The client can translate the validated town blueprint into visible facade geometry.
+- [x] A stable hub sector fixture is materialized and replicated to clients through the real server/client seam.
+- [x] Players receive unique session-scoped house allocation and facade proximity presentation without claiming interiors or economy.
+
 ## Notes
 
 - Domain: Godot 4 GDScript, server-authoritative per CLAUDE.md's Runtime

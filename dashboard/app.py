@@ -268,18 +268,28 @@ def issue_is_complete(issue: dict) -> bool:
 def issue_covers_goal_target(issue: dict) -> bool:
     return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
 
-def goal_target_coverage(goal: dict, covered_children: int, total_children: int) -> int:
-    labels = goal.get("labels", [])
-    body = goal.get("body", "")
-    if "new" in labels or "(missing map.md)" in body:
+def goal_good_looks_like(body: str) -> dict:
+    match = re.search(r"^##\s+What Good Looks Like\s*\n+([\s\S]*?)(?=\n##\s|\Z)", body, re.M | re.I)
+    if not match:
+        return {"total": 0, "done": 0, "missing": True}
+    total, done = 0, 0
+    for line in match.group(1).splitlines():
+        checked = re.match(r"^\s*-\s*\[([ xX])\]\s+\S+", line)
+        bullet = re.match(r"^\s*-\s+\S+", line)
+        if checked:
+            total += 1
+            if checked.group(1).lower() == "x":
+                done += 1
+        elif bullet:
+            total += 1
+    return {"total": total, "done": done, "missing": total == 0}
+
+
+def goal_target_coverage(criteria: dict) -> int:
+    total = criteria.get("total", 0)
+    if total <= 0:
         return 0
-    if goal.get("state") == "closed":
-        return 100
-    if total_children == 0:
-        return 0
-    # Open parent goals still have fog to clear. Child issue completion shows
-    # known planning progress, but it does not by itself close the goal target.
-    return min(90, round(covered_children / total_children * 100))
+    return round(criteria.get("done", 0) / total * 100)
 
 
 def goal_issue_cards(issue_feed: dict) -> list[dict]:
@@ -303,7 +313,8 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
         covered = sum(1 for child in children if issue_covers_goal_target(child))
         open_count = total - github_closed
         child_percent = round(covered / total * 100) if total else 0
-        target_percent = goal_target_coverage(issue, covered, total)
+        criteria = goal_good_looks_like(issue.get("body", ""))
+        target_percent = goal_target_coverage(criteria)
         cards.append({
             **issue,
             "child_total": total,
@@ -312,6 +323,9 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
             "target_covered": covered,
             "target_percent": target_percent,
             "child_percent": child_percent,
+            "criteria_total": criteria["total"],
+            "criteria_done": criteria["done"],
+            "criteria_missing": criteria["missing"],
             "percent": target_percent,
         })
     cards.sort(key=lambda card: (-card["percent"], card["title"]))
@@ -1192,10 +1206,10 @@ def render_exec(view: str = "committed") -> str:
         issues_html = "".join(
             f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
             f'<div class="ititle">{esc(issue["title"])}</div>'
-            f'<div class="gstats"><span>Target coverage: {issue["target_percent"]}%</span>'
+            f'<div class="gstats"><span>Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria</span>'
             f'<span class="gdone">{issue["target_percent"]}%</span></div>'
             f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
-            f'<div class="labels"><span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
+            f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
             f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
             f'</div></a>'
             for issue in goal_cards
