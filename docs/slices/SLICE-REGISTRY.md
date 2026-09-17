@@ -127,8 +127,9 @@ contended range and everything after it is tracked explicitly:
 | 109 | Host-assumption sweep and post-deploy smoke checks (P-014) | interactive |
 | 110 | Ship the Linux wgnetstack GDExtension in the server image (DT-014) | interactive |
 | 111 | Dashboard issue traceability detail (F-025) | interactive |
+| 112 | Reality page Goal source of truth (F-025) | interactive |
 
-Next free slice: **112** (verify against `docs/slices/` before reserving).
+Next free slice: **113** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

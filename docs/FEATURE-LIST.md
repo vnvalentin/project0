@@ -1847,7 +1847,7 @@ for a developer to pick up. No implementation has started.
 - Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
   `feature_stage`, `phase_rows`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -1881,6 +1881,15 @@ for a developer to pick up. No implementation has started.
     stop foregrounding obsolete hardcoded roadmap prose.
     Validation: `python -m py_compile dashboard/app.py`, focused dashboard render
     checks, and `scripts/check_record_sync.sh` passed; see [Slice 111](slices/111-dashboard-issue-traceability-detail.md).
+  - Date: 2026-09-16
+    What changed: Slice 112 changes the Reality page's GitHub Source of Truth
+    section to show only parent Goal issues, with each card showing closed/total
+    child issue counts, open child count, and a completion percentage.
+    Why: A flat list of every open issue made the source-of-truth section noisy
+    after the `.scratch` hierarchy was mirrored into GitHub. The Reality page
+    should orient around goals and progress through their child issues.
+    Validation: `python -m py_compile dashboard/app.py`, focused Reality render
+    checks, and `scripts/check_record_sync.sh` passed; see [Slice 112](slices/112-reality-goal-source-of-truth.md).
 
 ### F-022: Player house allocation
 

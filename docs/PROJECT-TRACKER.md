@@ -229,6 +229,10 @@ Progress: **71%** (5 of 7 items done)
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #206
 
+- **Also delivered:** [112 — Reality page Goal source of truth](slices/112-reality-goal-source-of-truth.md) — **Reality page GitHub Source of Truth now renders only parent Goal issues and shows each goal's percent complete from closed child issues over total child issues; non-goal workflow issues and child planning issues are hidden from that section**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #207
+
 **Phase 8 — JIT world generation and local inference**
 
 Progress: **100%** (11 of 11 items done)
@@ -522,6 +526,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #206
   - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused render check exit 0 with traceability heading, goal heading, hidden old roadmap, `zone-sharding` new/unresearched, `95/95` child count, and `15/15` goal count all true; `scripts/check_record_sync.sh` exit 0
+
+- **Slice:** [112 — Reality page Goal source of truth](slices/112-reality-goal-source-of-truth.md) — **delivered; `/` now uses GitHub Issues as the visible source of truth by rendering only parent Goal issues, grouped with their child issue states and completion percentage**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #207
+  - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 with exactly 15 goal cards, percent/open/closed child counts present, non-goal workflow issues absent, child issue cards absent, and the summary tile relabeled to open goal child issues; `scripts/check_record_sync.sh` exit 0
 
 #### Phase 10 — Authoritative runtime and action input
 

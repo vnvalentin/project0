@@ -70,7 +70,7 @@ def github_issues() -> dict:
     try:
         issues = []
         for page in range(1, 6):
-            url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=open&per_page=100&page={page}"
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
             req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
             with urlopen(req, timeout=5) as response:
                 raw = response.read().decode("utf-8")
@@ -82,6 +82,7 @@ def github_issues() -> dict:
                     "number": int(item.get("number", 0)),
                     "title": str(item.get("title", "")),
                     "url": str(item.get("html_url", "")),
+                    "state": str(item.get("state", "open")),
                     "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
                     "body": str(item.get("body", "")),
                 })
@@ -256,6 +257,37 @@ def traceability_model(goals: list[dict], issue_feed: dict) -> dict:
         "missing_maps": [g for g in goals if g.get("map_missing")],
         "slices": slice_issue_stats(),
     }
+
+
+def goal_issue_cards(issue_feed: dict) -> list[dict]:
+    issues = issue_feed.get("issues", [])
+    children_by_parent: dict[int, list[dict]] = {}
+    for issue in issues:
+        match = re.search(r"^Parent goal:\s*#(\d+)\b", issue.get("body", ""), re.M)
+        if not match:
+            continue
+        parent = int(match.group(1))
+        children_by_parent.setdefault(parent, []).append(issue)
+
+    cards = []
+    for issue in issues:
+        labels = issue.get("labels", [])
+        if "Goal" not in labels and not issue.get("title", "").startswith("Goal:"):
+            continue
+        children = children_by_parent.get(issue["number"], [])
+        total = len(children)
+        closed = sum(1 for child in children if child.get("state") == "closed")
+        open_count = total - closed
+        percent = round(closed / total * 100) if total else 0
+        cards.append({
+            **issue,
+            "child_total": total,
+            "child_closed": closed,
+            "child_open": open_count,
+            "percent": percent,
+        })
+    cards.sort(key=lambda card: (-card["percent"], card["title"]))
+    return cards
 
 
 def feature_stage(status: str) -> str:
@@ -1049,6 +1081,10 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 .issue .ititle{font-size:14px;margin-bottom:9px}
 .issue .labels{display:flex;flex-wrap:wrap;gap:5px}
 .issue .label{font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:12px;padding:2px 7px}
+.issue .gstats{display:flex;justify-content:space-between;gap:10px;align-items:center;color:var(--muted);font-size:12px;margin:8px 0}
+.issue .gbar{height:8px;background:#0e141b;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:8px 0 10px}
+.issue .gbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan))}
+.issue .gdone{font-weight:800;color:var(--green)}
 .sourcewarn{background:#332619;border:1px solid var(--amber);color:#ffe0a0;border-radius:10px;padding:12px 14px}
 .legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-top:14px;flex-wrap:wrap}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -1092,7 +1128,10 @@ def render_exec(view: str = "committed") -> str:
     reader = read_repo_file if view == "working" else read_committed_file
     m = executive_model(reader)
     issue_feed = github_issues()
-    open_issues = issue_feed["issues"]
+    all_issues = issue_feed["issues"]
+    open_issues = [issue for issue in all_issues if issue.get("state") == "open"]
+    goal_cards = goal_issue_cards(issue_feed)
+    open_goal_children = sum(goal["child_open"] for goal in goal_cards)
 
     focus_html = "".join(
         f'<div class="fcard"><div class="ph">Phase {c["phase_num"]} \u00b7 {c["pct"]}%</div>'
@@ -1124,12 +1163,16 @@ def render_exec(view: str = "committed") -> str:
     if issue_feed["available"]:
         issues_html = "".join(
             f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
-            f'<div class="ititle">{esc(issue["title"])}</div><div class="labels">'
+            f'<div class="ititle">{esc(issue["title"])}</div>'
+            f'<div class="gstats"><span>{issue["child_closed"]} closed / {issue["child_total"]} child issues</span>'
+            f'<span class="gdone">{issue["percent"]}%</span></div>'
+            f'<div class="gbar"><i style="width:{issue["percent"]}%"></i></div>'
+            f'<div class="labels"><span class="label">{issue["child_open"]} open</span>'
             f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
             f'</div></a>'
-            for issue in open_issues
-        ) or '<p class="empty">No open GitHub issues.</p>'
-        issue_status = f'{len(open_issues)} open issue(s) from {esc(issue_feed["repo"])}'
+            for issue in goal_cards
+        ) or '<p class="empty">No Goal issues found.</p>'
+        issue_status = f'{len(goal_cards)} goal issue(s), {open_goal_children} open child issue(s) from {esc(issue_feed["repo"])}'
     else:
         issues_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
         issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
@@ -1157,7 +1200,7 @@ def render_exec(view: str = "committed") -> str:
     <div class="tiles">
       <div class="tile done"><div class="num">{len(m["done"])}</div><div class="lbl">Shipped</div></div>
       <div class="tile active"><div class="num">{len(m["active"])}</div><div class="lbl">In progress</div></div>
-            <div class="tile todo"><div class="num">{len(open_issues) if issue_feed["available"] else len(m["not_started"])}</div><div class="lbl">Open GitHub issues</div></div>
+        <div class="tile todo"><div class="num">{open_goal_children if issue_feed["available"] else len(m["not_started"])}</div><div class="lbl">Open goal child issues</div></div>
     </div>
   </section>
 
