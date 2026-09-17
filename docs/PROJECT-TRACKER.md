@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [122 — Phase 14 status-effect (resistible / removable)](slices/122-phase14-status-effect.md) — **delivered; `shared/status_effect.gd` + 13 GUT tests, full suite 506/506 across 73/73 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques), 120 (health), 121 (damage).
-- Tech debt: none identified; Slices 116-122 record why no new debt entry is needed.
+- Current slice: [123 — Phase 14 activity-routine](slices/123-phase14-activity-routine.md) — **delivered; `shared/activity_routine.gd` + 16 GUT tests, full suite 509/509 across 73/73 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques), 120 (health), 121 (damage), 122 (status).
+- Tech debt: none identified; Slices 116-123 record why no new debt entry is needed.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [123 — Phase 14 activity-routine](slices/123-phase14-activity-routine.md) — **delivered; `ActivityRoutine` (pure time→activity resolution over a looping routine, free off-screen simulation, route-consistent arrival, idle/patrol fallback, interrupt/resume) + 16 public-seam tests; full GUT suite 509/509 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #229)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [122 — Phase 14 status-effect (resistible / removable)](slices/122-phase14-status-effect.md) — **delivered; `StatusEffect` (deliberate magical/impairment effect, deterministic resistance gate, cleanse/expire lifecycle, no injury system) + 13 public-seam tests; full GUT suite 506/506 across 73/73, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #231)
