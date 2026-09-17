@@ -59,6 +59,20 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the fourth F-036 slice (Slice 119) — the
+    `TechniqueContract` (`shared/technique_contract.gd`): multidimensional
+    readiness (a technique needs a COMBINATION of stats, e.g. Jump Slash wants
+    STR/DEX/WIS/INT together), per-node shortfalls, proficiency-driven
+    reliability, and mastery/teaching gates (teaching requires full mastery).
+    Fail-closed parsing; pure/deterministic.
+    Why: Give techniques a reproducible readiness/reliability seam composing the
+    vessel and item models, before proficiency-state and teaching-flow slices.
+    Related work: [Slice 119](slices/119-phase14-technique-contract.md), #227, #230, #234.
+    Validation: full GUT suite on Linux host `okami` — 76 scripts / 537 tests /
+    537 passing, exit 0; new `test_technique_contract.gd` ran 11/11. Feature
+    stays `In Progress`: technique proficiency state, teaching/discovery,
+    movement, combat, and spawning slices remain.
+  - Date: 2026-09-17
     What changed: Delivered the third F-036 slice (Slice 118) — the
     `ItemContract` (`shared/item_contract.gd`): item metadata (14 slots,
     mundane/magical category, binding), the item/item-class proficiency

@@ -134,8 +134,9 @@ contended range and everything after it is tracked explicitly:
 | 116 | Phase 14 Character foundation handoff (#227, F-036) | interactive |
 | 117 | Phase 14 Character alignment & disposition contract (#227, #228, F-036) | interactive |
 | 118 | Phase 14 item & equipment effectiveness contract (#227, #233, F-036) | interactive |
+| 119 | Phase 14 technique readiness & proficiency contract (#227, #230, #234, F-036) | interactive |
 
-Next free slice: **119** (verify against `docs/slices/` before reserving).
+Next free slice: **120** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
