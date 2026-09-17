@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [121 — Phase 14 damage-resolution composition](slices/121-phase14-damage-resolution.md) — **delivered; `shared/damage_resolution.gd` + 12 GUT tests, full suite 505/505 across 73/73 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques), 120 (health).
-- Tech debt: none identified; Slices 116-121 record why no new debt entry is needed.
+- Current slice: [122 — Phase 14 status-effect (resistible / removable)](slices/122-phase14-status-effect.md) — **delivered; `shared/status_effect.gd` + 13 GUT tests, full suite 506/506 across 73/73 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques), 120 (health), 121 (damage).
+- Tech debt: none identified; Slices 116-122 record why no new debt entry is needed.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [122 — Phase 14 status-effect (resistible / removable)](slices/122-phase14-status-effect.md) — **delivered; `StatusEffect` (deliberate magical/impairment effect, deterministic resistance gate, cleanse/expire lifecycle, no injury system) + 13 public-seam tests; full GUT suite 506/506 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #231)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [121 — Phase 14 damage-resolution composition](slices/121-phase14-damage-resolution.md) — **delivered; `DamageResolution` (pure composition of weapon/attribute/technique/mitigation into one damage amount for `CombatHealth`, mitigation-capped, floored at zero) + 12 public-seam tests incl. end-to-end composition; full GUT suite 505/505 across 73/73, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #231)

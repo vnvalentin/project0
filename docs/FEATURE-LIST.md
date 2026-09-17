@@ -59,6 +59,19 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the seventh F-036 slice (Slice 122) — the
+    `StatusEffect` contract (`shared/status_effect.gd`): a deliberate magical or
+    impairment effect that is resistible (a resistance at or above the effect's
+    potency negates it, deterministically) and removable (cleansed on demand or
+    expired by duration). Ordinary damage never produces one — no injury system.
+    Fail-closed parsing; pure value + lifecycle.
+    Why: Complete the Phase 14 combat primitives — spells/impairments that resolve
+    by one shared rule for players and NPCs, guaranteed removable.
+    Related work: [Slice 122](slices/122-phase14-status-effect.md), #227, #231.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 506 tests /
+    506 passing, exit 0; new `test_status_effect.gd` ran 13/13. Feature stays
+    `In Progress`: activity/movement and spawning slices remain.
+  - Date: 2026-09-17
     What changed: Delivered the sixth F-036 slice (Slice 121) — the
     `DamageResolution` contract (`shared/damage_resolution.gd`): the pure,
     deterministic seam that COMPOSES weapon effective magnitude, attacker
