@@ -1847,7 +1847,7 @@ for a developer to pick up. No implementation has started.
 - Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
   `feature_stage`, `phase_rows`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -1900,6 +1900,15 @@ for a developer to pick up. No implementation has started.
     served the merged records and issue UI.
     Validation: Local script/dashboard checks, record-sync, and host rollout
     checks passed; see [Slice 113](slices/113-dashboard-apps-source-layout.md).
+  - Date: 2026-09-16
+    What changed: Slice 114 adds a target-condition coverage metric to Reality
+    page Goal cards, computed from resolved child planning issue status, while
+    retaining separate GitHub open/closed child issue counts.
+    Why: GitHub issue state alone does not tell whether the child planning set
+    covers the goal's target condition. Operators need to see both planning
+    coverage and issue workflow state on the Goal card.
+    Validation: `python -m py_compile dashboard/app.py`, focused Reality render
+    checks, and `scripts/check_record_sync.sh` passed; see [Slice 114](slices/114-goal-target-coverage-cards.md).
 
 ### F-022: Player house allocation
 

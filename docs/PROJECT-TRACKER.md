@@ -237,6 +237,10 @@ Progress: **71%** (5 of 7 items done)
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #211
 
+- **Also delivered:** [114 — Goal target coverage cards](slices/114-goal-target-coverage-cards.md) — **Reality page Goal cards now show target-condition coverage from resolved child planning issue status, while preserving separate GitHub open/closed child issue counts**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #214
+
 **Phase 8 — JIT world generation and local inference**
 
 Progress: **100%** (11 of 11 items done)
@@ -540,6 +544,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #211
   - **Validation:** `bash -n scripts/run_gut_validation.sh` exit 0; `python -m py_compile dashboard/app.py` exit 0; dashboard render checks passed locally; host rollout validated `/apps/project0/dashboard`, `/apps/project0/dashboard/repo`, `GET /`, `GET /detail`, and `GET /health`
+
+- **Slice:** [114 — Goal target coverage cards](slices/114-goal-target-coverage-cards.md) — **delivered; Reality page Goal cards now show `Target coverage` as resolved child planning issues over total child issues, with GitHub closed/open child counts still visible separately**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #214
+  - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 with 15 Goal cards, `Target coverage`, percent, open/closed labels, and nonzero coverage samples; `scripts/check_record_sync.sh` exit 0
 
 #### Phase 10 — Authoritative runtime and action input
 

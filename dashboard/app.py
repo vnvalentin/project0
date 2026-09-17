@@ -259,6 +259,29 @@ def traceability_model(goals: list[dict], issue_feed: dict) -> dict:
     }
 
 
+def issue_is_complete(issue: dict) -> bool:
+    if issue.get("state") == "closed":
+        return True
+    return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
+
+
+def issue_covers_goal_target(issue: dict) -> bool:
+    return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
+
+def goal_target_coverage(goal: dict, covered_children: int, total_children: int) -> int:
+    labels = goal.get("labels", [])
+    body = goal.get("body", "")
+    if "new" in labels or "(missing map.md)" in body:
+        return 0
+    if goal.get("state") == "closed":
+        return 100
+    if total_children == 0:
+        return 0
+    # Open parent goals still have fog to clear. Child issue completion shows
+    # known planning progress, but it does not by itself close the goal target.
+    return min(90, round(covered_children / total_children * 100))
+
+
 def goal_issue_cards(issue_feed: dict) -> list[dict]:
     issues = issue_feed.get("issues", [])
     children_by_parent: dict[int, list[dict]] = {}
@@ -276,15 +299,20 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
             continue
         children = children_by_parent.get(issue["number"], [])
         total = len(children)
-        closed = sum(1 for child in children if child.get("state") == "closed")
-        open_count = total - closed
-        percent = round(closed / total * 100) if total else 0
+        github_closed = sum(1 for child in children if child.get("state") == "closed")
+        covered = sum(1 for child in children if issue_covers_goal_target(child))
+        open_count = total - github_closed
+        child_percent = round(covered / total * 100) if total else 0
+        target_percent = goal_target_coverage(issue, covered, total)
         cards.append({
             **issue,
             "child_total": total,
-            "child_closed": closed,
+            "child_closed": github_closed,
             "child_open": open_count,
-            "percent": percent,
+            "target_covered": covered,
+            "target_percent": target_percent,
+            "child_percent": child_percent,
+            "percent": target_percent,
         })
     cards.sort(key=lambda card: (-card["percent"], card["title"]))
     return cards
@@ -1164,10 +1192,10 @@ def render_exec(view: str = "committed") -> str:
         issues_html = "".join(
             f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
             f'<div class="ititle">{esc(issue["title"])}</div>'
-            f'<div class="gstats"><span>{issue["child_closed"]} closed / {issue["child_total"]} child issues</span>'
-            f'<span class="gdone">{issue["percent"]}%</span></div>'
-            f'<div class="gbar"><i style="width:{issue["percent"]}%"></i></div>'
-            f'<div class="labels"><span class="label">{issue["child_open"]} open</span>'
+            f'<div class="gstats"><span>Target coverage: {issue["target_percent"]}%</span>'
+            f'<span class="gdone">{issue["target_percent"]}%</span></div>'
+            f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
+            f'<div class="labels"><span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
             f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
             f'</div></a>'
             for issue in goal_cards
