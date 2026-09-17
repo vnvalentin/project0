@@ -1,4 +1,5 @@
 # Slice 039 — Accounts and characters persistence repository
+GitHub issue: #95
 
 Status: **delivered** (server-only data layer; no RPC, no PBKDF2 hashing, no
 client, no world entry).

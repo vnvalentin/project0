@@ -1,4 +1,5 @@
 # Slice 102 - Full-stack CI validation gate
+GitHub issue: #95
 
 Status: **delivered**
 

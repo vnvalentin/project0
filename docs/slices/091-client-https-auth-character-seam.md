@@ -1,4 +1,5 @@
 # Slice 091 — Auth-gated onboarding C-client-seam: Godot `EnrollmentHttpClient`
+GitHub issue: #95
 
 Status: **delivered**
 

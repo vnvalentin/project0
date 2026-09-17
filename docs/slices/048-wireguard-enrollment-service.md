@@ -1,4 +1,5 @@
 # Slice 048: WireGuard invite-code enrollment service (logic + tests)
+GitHub issue: #95
 
 Status: delivered (service logic + automated tests; live deployment pending)
 

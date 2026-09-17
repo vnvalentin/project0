@@ -1,4 +1,5 @@
 # Slice 032: In-client wgnetstack netstack bridge (Linux prototype)
+GitHub issue: #95
 
 Status: delivered (Linux prototype validated end to end; the Godot client
 reaches `connected: player spawned` through the bridge against the live

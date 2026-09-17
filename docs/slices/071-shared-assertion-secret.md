@@ -1,4 +1,5 @@
 # Slice 071 — Shared assertion secret across the game + login units
+GitHub issue: #95
 
 Status: **delivered**
 

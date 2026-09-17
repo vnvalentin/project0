@@ -1,4 +1,5 @@
 # Slice 095 — Canon entity GUIDs + mutation target-existence enforcement
+GitHub issue: #95
 
 Status: **in-progress**
 

@@ -1,4 +1,5 @@
 # Slice 054: Secure Windows tunnel enrollment and credential storage
+GitHub issue: #95
 
 **Status:** Delivered (secure launcher, live enrollment service, and real off-LAN Windows validation complete)
 **Linked Feature:** F-035

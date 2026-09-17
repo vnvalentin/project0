@@ -1,4 +1,5 @@
 # Slice 011: Mind versus Tool architecture refinement
+GitHub issue: #95
 
 Status: complete
 

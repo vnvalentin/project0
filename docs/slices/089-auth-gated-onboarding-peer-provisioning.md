@@ -1,4 +1,5 @@
 # Slice 089 — Auth-gated onboarding B: `/redeem` accepts a signed assertion + idempotent per-account peer lifecycle and aging/deprovision
+GitHub issue: #95
 
 Status: **delivered**
 

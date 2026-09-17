@@ -1,4 +1,5 @@
 # Slice 028: WireGuard remote-access infrastructure foundation
+GitHub issue: #95
 
 Status: awaiting evidence (records-first handoff; live OPNsense/host execution
 owned by Copilot in a follow-up)

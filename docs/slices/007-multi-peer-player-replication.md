@@ -1,4 +1,5 @@
 # Slice 007: Two-client Player replication and disconnect cleanup
+GitHub issue: #95
 
 Tracker context: Phase 11 — Multi-peer Player replication; advances
 [P-016](../FEATURE-LIST.md#p-016-multi-peer-player-replication).

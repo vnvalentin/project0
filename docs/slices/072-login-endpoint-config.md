@@ -1,4 +1,5 @@
 # Slice 072 — Login-endpoint config: `NetworkConfig.resolve_login_port`
+GitHub issue: #95
 
 Status: **delivered**
 

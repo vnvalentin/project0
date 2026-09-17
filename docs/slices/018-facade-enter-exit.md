@@ -1,4 +1,5 @@
 # Slice 018: Facade enter/exit proximity labels
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-021](../FEATURE-LIST.md#f-021-facade-enter-exit-proximity-labels).

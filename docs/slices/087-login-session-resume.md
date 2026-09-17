@@ -1,4 +1,5 @@
 # Slice 087 — Login-session resume (in-world Character Select without re-login)
+GitHub issue: #95
 
 Status: **delivered**
 

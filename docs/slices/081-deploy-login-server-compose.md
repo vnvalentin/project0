@@ -1,4 +1,5 @@
 # Slice 081 — Deploy the standalone login server via docker-compose (opt-in profile)
+GitHub issue: #95
 
 Status: **delivered**
 

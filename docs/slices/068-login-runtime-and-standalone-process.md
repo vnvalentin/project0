@@ -1,4 +1,5 @@
 # Slice 068 — Login runtime extraction + standalone login-server process
+GitHub issue: #95
 
 Status: **delivered**
 

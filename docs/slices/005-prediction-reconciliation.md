@@ -1,4 +1,5 @@
 # Slice 005: Predicted local movement with authoritative reconciliation
+GitHub issue: #95
 
 Tracker context: Phase 5 — Prediction and reconciliation proof; advances
 [IP-001](../FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer).

@@ -1,4 +1,5 @@
 # Slice 080 — One-time Canon migration into a dedicated store on first split boot
+GitHub issue: #95
 
 Status: **delivered**
 

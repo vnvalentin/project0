@@ -1,4 +1,5 @@
 # Slice 042 — Character CRUD over the wire (server)
+GitHub issue: #95
 
 Status: **delivered** (server-only, session-gated Character CRUD; no client UI,
 no world entry).

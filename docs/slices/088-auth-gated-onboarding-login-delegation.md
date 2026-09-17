@@ -1,4 +1,5 @@
 # Slice 088 — Auth-gated onboarding A: HTTPS `/login` on the enrollment service, delegating credential verification to the login authority
+GitHub issue: #95
 
 Status: **delivered**
 

@@ -1,4 +1,5 @@
 # Slice 076 — Game server assertion-only mode: refuse account-authority RPCs
+GitHub issue: #95
 
 Status: **delivered**
 

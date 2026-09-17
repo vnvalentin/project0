@@ -1,4 +1,5 @@
 # Slice 093 — Auth-gated onboarding C-client-wiring: wire account/character gates to HTTPS + tunnel
+GitHub issue: #95
 
 Status: **delivered** (unit + suite validated on the Linux host; live WAN
 runtime run is user-pending — see Validation evidence)

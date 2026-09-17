@@ -1,4 +1,5 @@
 # Slice 002: Client connects to headless server and shows connected Player
+GitHub issue: #95
 
 Tracker context: Phase 2 — Network connection proof; advances
 [P-001](../FEATURE-LIST.md#p-001-server-authoritative-networked-multiplayer)

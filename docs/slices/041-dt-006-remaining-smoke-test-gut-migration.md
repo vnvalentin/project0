@@ -1,4 +1,5 @@
 # Slice 041 — DT-006 remaining-smoke-test GUT migration
+GitHub issue: #95
 
 Status: **delivered** (test-tooling/records only; no gameplay, schema, or
 network-contract change).

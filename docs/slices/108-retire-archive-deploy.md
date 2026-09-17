@@ -1,4 +1,5 @@
 # Slice 108 - Retire the git-archive deploy path
+GitHub issue: #95
 
 Status: **delivered**
 

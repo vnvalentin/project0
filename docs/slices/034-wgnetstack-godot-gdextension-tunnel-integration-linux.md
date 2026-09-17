@@ -1,4 +1,5 @@
 # Slice 034: wgnetstack in-client GDExtension + tunnel integration (Linux)
+GitHub issue: #95
 
 Status: delivered (Linux in-process GDExtension tunnel validated end to end;
 the real Godot client reaches `connected: player spawned` through the

@@ -1,4 +1,5 @@
 # Slice 074 — Signed Character snapshot in the session assertion (contract + issuer)
+GitHub issue: #95
 
 Status: **delivered**
 

@@ -1,4 +1,5 @@
 # Slice 105 - Container images for every service, published to GHCR
+GitHub issue: #95
 
 Status: **in progress**
 

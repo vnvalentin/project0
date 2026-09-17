@@ -1,4 +1,5 @@
 # Slice 066 — Operator control plane: audited start/stop lifecycle actions
+GitHub issue: #95
 
 Status: **delivered**
 

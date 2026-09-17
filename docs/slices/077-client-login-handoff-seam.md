@@ -1,4 +1,5 @@
 # Slice 077 — Client login→game handoff seam
+GitHub issue: #95
 
 Status: **delivered**
 

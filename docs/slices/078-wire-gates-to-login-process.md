@@ -1,4 +1,5 @@
 # Slice 078 — Wire login-screen gates to the login process (opt-in client flag)
+GitHub issue: #95
 
 Status: **delivered**
 

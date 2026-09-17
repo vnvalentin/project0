@@ -1,4 +1,5 @@
 # Slice 004: Server-authoritative movement for one connected Player
+GitHub issue: #95
 
 Tracker context: Phase 4 — Authoritative movement proof; advances
 [IP-001](../FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer).

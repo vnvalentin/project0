@@ -1,4 +1,5 @@
 # Slice 038 — Shared server-owned SQLite persistence foundation
+GitHub issue: #95
 
 Status: **delivered** (engine seam only; no domain tables).
 

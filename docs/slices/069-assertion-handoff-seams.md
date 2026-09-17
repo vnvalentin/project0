@@ -1,4 +1,5 @@
 # Slice 069 — Assertion handoff seams: request from login, present to game
+GitHub issue: #95
 
 Status: **delivered**
 

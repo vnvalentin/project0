@@ -1,4 +1,5 @@
 # Slice 052 — F-026 LLM town generation ON at server boot
+GitHub issue: #95
 
 Status: **delivered**
 

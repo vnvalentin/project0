@@ -1,4 +1,5 @@
 # Slice 098 — Canon sector mutation replay: server replicates the effective blueprint
+GitHub issue: #95
 
 Status: **delivered**
 

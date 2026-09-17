@@ -1,4 +1,5 @@
 # Slice 049: WireGuard peer revocation/ban lifecycle (logic + tests)
+GitHub issue: #95
 
 Status: delivered (revocation logic + automated tests; live OPNsense
 deletion and the real ~25s tunnel-teardown timing remain pending)

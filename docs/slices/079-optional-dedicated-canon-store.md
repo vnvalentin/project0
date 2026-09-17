@@ -1,4 +1,5 @@
 # Slice 079 — Optional dedicated Canon store (opt-in canon/accounts DB split)
+GitHub issue: #95
 
 Status: **delivered**
 

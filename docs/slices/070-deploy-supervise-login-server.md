@@ -1,4 +1,5 @@
 # Slice 070 — Deploy + supervise the standalone login server
+GitHub issue: #95
 
 Status: **delivered**
 
