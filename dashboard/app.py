@@ -379,6 +379,10 @@ def phase_rows(text: str) -> list[dict[str, str]]:
     return rows
 
 
+def normalize_tracker_text(text: str) -> str:
+    return text.replace("â€”", "—").replace("â€“", "–").replace("â€¦", "…")
+
+
 def slice_cards(text: str) -> list[dict[str, str]]:
     cards = []
     pattern = r"^- \*\*(?:Current\s+)?[Ss]lice:\*\*\s*(?:\[([^]]+)\]\([^)]*\)|([^—]+))\s*—\s*\*\*([^*]+)\*\*"
@@ -443,9 +447,10 @@ def action_items(phases: list[dict[str, str]], debts: list[dict[str, str]], slic
 
 
 def phase_progress_map(tracker: str) -> dict:
+    tracker = normalize_tracker_text(tracker)
     out = {}
     for m in re.finditer(
-        r"\*\*Phase (\d+)\s*[—-]\s*([^*]+?)\*\*\s+Progress:\s*\*\*(\d+)%\*\*"
+        r"\*\*Phase (\d+)\s*(?:—|–|□|-)\s*([^*]+?)\*\*\s+Progress:\s*\*\*(\d+)%\*\*"
         r"(?:\s*\((\d+) of (\d+) items done\))?",
         tracker,
     ):
@@ -481,6 +486,7 @@ def current_slice_numbers(tracker: str) -> set:
 
 
 def slice_index_rows(tracker: str) -> list[dict]:
+    tracker = normalize_tracker_text(tracker)
     # Walk the whole tracker, tracking phase context from both the work-index
     # (**Phase N — Title**) and slice-index (#### Phase N — Title) headers, and
     # collect every Slice/Current slice entry deduped by number.
@@ -1061,8 +1067,18 @@ def executive_model(reader) -> dict:
         mnum = re.match(r"(\d+)", p["phase"])
         if mnum:
             status_by_num[int(mnum.group(1))] = p["status"].lower()
-    phases = [{"num": n, "title": meta["title"], "pct": meta["progress"],
-               "status": status_by_num.get(n, "")} for n, meta in sorted(prog.items())]
+    slice_counts: dict[int, dict[str, int]] = {}
+    for row in rows:
+        counts = slice_counts.setdefault(row["phase_num"], {"total": 0, "delivered": 0})
+        counts["total"] += 1
+        counts["delivered"] += 1 if row["done"] else 0
+    phases = []
+    for n, meta in sorted(prog.items()):
+        counts = slice_counts.get(n, {"total": 0, "delivered": 0})
+        phases.append({"num": n, "title": meta["title"], "pct": meta["progress"],
+                       "status": status_by_num.get(n, ""),
+                       "slice_total": counts["total"],
+                       "slice_delivered": counts["delivered"]})
     # Weight overall completion by tracked phase items.
     done_items = sum(m["done_items"] for m in prog.values() if m.get("done_items") is not None)
     total_items = sum(m["total_items"] for m in prog.values() if m.get("total_items") is not None)
@@ -1119,6 +1135,7 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 .bars{display:flex;flex-direction:column;gap:12px}
 .brow{display:grid;grid-template-columns:250px 1fr 54px;gap:14px;align-items:center}
 .brow .bl{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phase-slices{color:var(--muted);font-size:10px;margin-left:6px}
 .brow .bl small{color:var(--muted);font-family:monospace;margin-right:7px}
 .track{height:15px;background:#0e141b;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .track>i{display:block;height:100%;border-radius:8px}
@@ -1177,6 +1194,12 @@ TESTS_CSS = """
 """
 
 
+def phase_activity_label(phase: dict) -> str:
+    if not phase["slice_total"]:
+        return ""
+    return f' <span class="phase-slices">{phase["slice_delivered"]}/{phase["slice_total"]} slices delivered</span>'
+
+
 def render_exec(view: str = "committed") -> str:
     reader = read_repo_file if view == "working" else read_committed_file
     m = executive_model(reader)
@@ -1202,7 +1225,8 @@ def render_exec(view: str = "committed") -> str:
     ) or '<p class="empty">No features in progress.</p>'
 
     phase_html = "".join(
-        f'<div class="brow"><div class="bl"><small>P{p["num"]:02d}</small>{esc(_exec_short(p["title"]))}</div>'
+        f'<div class="brow"><div class="bl"><small>P{p["num"]:02d}</small>{esc(_exec_short(p["title"]))}'
+        f'{phase_activity_label(p)}</div>'
         f'<div class="track"><i style="width:{p["pct"]}%;background:{_pcol(p["pct"])}"></i></div>'
         f'<div class="bp" style="color:{_pcol(p["pct"])}">{p["pct"]}%</div></div>'
         for p in m["phases"]
