@@ -14,6 +14,13 @@ Planning only (plan-not-do): this map decides the contracts and shapes; it does 
 build the console or the endpoints. The map is complete when every decision below is
 sharp enough to open implementation slices safely, captured in a capstone ADR + spec.
 
+## What Good Looks Like
+
+- [ ] A versioned ops-snapshot contract defines current-state telemetry for every Project0 server.
+- [ ] Tier-1 transport, server registry, and per-server telemetry content are decided.
+- [ ] Authenticated control actions are bounded, authorized, audited, and separated from public traffic.
+- [ ] The operator-console surface is specified and captured in a capstone ADR/spec for downstream slices.
+
 ## Notes
 
 - **Domain:** Godot 4 GDScript 2.0 strict typing; server-authoritative per

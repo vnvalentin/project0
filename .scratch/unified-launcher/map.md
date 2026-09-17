@@ -22,6 +22,13 @@ and integrity, onboarding, the registration decision, packaging/build changes,
 and the integrated launcher state machine plus security boundaries are decided
 well enough to create implementation slices without guessing.
 
+## What Good Looks Like
+
+- [ ] The launcher mode-selection contract makes LAN and WAN explicit and safe for the tester.
+- [ ] Client payload versioning, patch manifest, delivery, integrity verification, and rollback are specified.
+- [ ] First-run onboarding covers account login/enrollment and the WAN registration decision without weakening public-route safety.
+- [ ] Packaging/build and launcher state-machine slices are clear enough to implement without guessing.
+
 ## Notes
 
 - Domain: Windows Go launcher, WireGuard tunnel enrollment, DPAPI-protected

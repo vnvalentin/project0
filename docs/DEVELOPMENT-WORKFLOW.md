@@ -48,9 +48,17 @@ dashboard.
 5. **Done** — the slice is delivered and validated with evidence. Feature
    `Status: Implemented` (equivalently *Done*).
 
-A **goal/map** is "complete" only when every one of its issues has graduated out
-of Vetting — each `resolved`, and either promoted to a feature or recorded as a
-decision/ADR.
+A **goal/map** is "complete" only when its own `## What Good Looks Like`
+criteria are satisfied by evidence. Child issues are the known work and learning
+questions under that goal; they do not, by themselves, define the goal's success
+condition. Resolving every currently known child issue can still leave the goal
+open when more fog must be cleared or new child issues must be created.
+
+Every `.scratch/<goal>/map.md` must contain a `## What Good Looks Like` section
+with customer-outcome acceptance criteria. Write criteria as checkboxes so the
+dashboard can distinguish target-condition coverage from child-issue workflow
+state. A goal folder with no `map.md` is a new, unresearched goal and has 0%
+target coverage until the map and criteria are written.
 
 ### Promotion rules
 

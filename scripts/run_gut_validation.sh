@@ -7,8 +7,8 @@ JUNIT_FILE="${RESULT_DIR}/gut.xml"
 LOG_FILE="${RESULT_DIR}/gut.log"
 SUMMARY_FILE="${RESULT_DIR}/validation-summary.json"
 DASHBOARD_RESULTS_DIR="${DASHBOARD_RESULTS_DIR:-}"
-if [[ -z "$DASHBOARD_RESULTS_DIR" && -d "/data/code/project0-flow-mirror" ]]; then
-  DASHBOARD_RESULTS_DIR="/data/code/project0-flow-mirror/build/validation"
+if [[ -z "$DASHBOARD_RESULTS_DIR" && -d "/apps/project0/dashboard/repo" ]]; then
+  DASHBOARD_RESULTS_DIR="/apps/project0/dashboard/repo/build/validation"
 fi
 
 mkdir -p "$RESULT_DIR"

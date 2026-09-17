@@ -259,6 +259,39 @@ def traceability_model(goals: list[dict], issue_feed: dict) -> dict:
     }
 
 
+def issue_is_complete(issue: dict) -> bool:
+    if issue.get("state") == "closed":
+        return True
+    return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
+
+
+def issue_covers_goal_target(issue: dict) -> bool:
+    return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
+
+def goal_good_looks_like(body: str) -> dict:
+    match = re.search(r"^##\s+What Good Looks Like\s*\n+([\s\S]*?)(?=\n##\s|\Z)", body, re.M | re.I)
+    if not match:
+        return {"total": 0, "done": 0, "missing": True}
+    total, done = 0, 0
+    for line in match.group(1).splitlines():
+        checked = re.match(r"^\s*-\s*\[([ xX])\]\s+\S+", line)
+        bullet = re.match(r"^\s*-\s+\S+", line)
+        if checked:
+            total += 1
+            if checked.group(1).lower() == "x":
+                done += 1
+        elif bullet:
+            total += 1
+    return {"total": total, "done": done, "missing": total == 0}
+
+
+def goal_target_coverage(criteria: dict) -> int:
+    total = criteria.get("total", 0)
+    if total <= 0:
+        return 0
+    return round(criteria.get("done", 0) / total * 100)
+
+
 def goal_issue_cards(issue_feed: dict) -> list[dict]:
     issues = issue_feed.get("issues", [])
     children_by_parent: dict[int, list[dict]] = {}
@@ -276,15 +309,24 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
             continue
         children = children_by_parent.get(issue["number"], [])
         total = len(children)
-        closed = sum(1 for child in children if child.get("state") == "closed")
-        open_count = total - closed
-        percent = round(closed / total * 100) if total else 0
+        github_closed = sum(1 for child in children if child.get("state") == "closed")
+        covered = sum(1 for child in children if issue_covers_goal_target(child))
+        open_count = total - github_closed
+        child_percent = round(covered / total * 100) if total else 0
+        criteria = goal_good_looks_like(issue.get("body", ""))
+        target_percent = goal_target_coverage(criteria)
         cards.append({
             **issue,
             "child_total": total,
-            "child_closed": closed,
+            "child_closed": github_closed,
             "child_open": open_count,
-            "percent": percent,
+            "target_covered": covered,
+            "target_percent": target_percent,
+            "child_percent": child_percent,
+            "criteria_total": criteria["total"],
+            "criteria_done": criteria["done"],
+            "criteria_missing": criteria["missing"],
+            "percent": target_percent,
         })
     cards.sort(key=lambda card: (-card["percent"], card["title"]))
     return cards
@@ -1164,10 +1206,10 @@ def render_exec(view: str = "committed") -> str:
         issues_html = "".join(
             f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
             f'<div class="ititle">{esc(issue["title"])}</div>'
-            f'<div class="gstats"><span>{issue["child_closed"]} closed / {issue["child_total"]} child issues</span>'
-            f'<span class="gdone">{issue["percent"]}%</span></div>'
-            f'<div class="gbar"><i style="width:{issue["percent"]}%"></i></div>'
-            f'<div class="labels"><span class="label">{issue["child_open"]} open</span>'
+            f'<div class="gstats"><span>Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria</span>'
+            f'<span class="gdone">{issue["target_percent"]}%</span></div>'
+            f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
+            f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
             f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
             f'</div></a>'
             for issue in goal_cards

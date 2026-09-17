@@ -13,6 +13,13 @@ persistence, security, deployment, migration, rollback, observability, and
 future worker integration are decided well enough to create implementation
 slices without guessing.
 
+## What Good Looks Like
+
+- [x] Runtime ownership and service boundaries are decided for the game server, login authority, operator plane, persistence, and future workers.
+- [x] Deployment, migration, rollback, and data-location rules are explicit enough for bounded implementation slices.
+- [x] Security boundaries preserve server authority, keep public enrollment separate from operator controls, and avoid embedding sensitive OPNsense/client secrets in game containers.
+- [x] Observability and worker-extension contracts are specified well enough that implementation can proceed without guessing.
+
 ## Notes
 
 - Domain: Linux deployment, Godot headless authority, containers, service

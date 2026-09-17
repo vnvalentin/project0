@@ -16,6 +16,13 @@ the resolved [Basic Monsters map](../basic-monsters/map.md) and reopens its "a
 monster is always aggressive" assumption. See
 [Project Tracker](../../docs/PROJECT-TRACKER.md) and [CLAUDE.md](../../CLAUDE.md).
 
+## What Good Looks Like
+
+- [ ] NPC disposition, including HOSTILE and PASSIVE behavior, is specified without duplicating the monster system.
+- [ ] Non-combat movement for NPCs is specified at a server-authoritative public seam.
+- [ ] A provisional shared stat block gives both Player and NPC compatible HP-first state without claiming the final vessel system.
+- [ ] Hostile NPC damage to Player and passive NPC spawn source are scoped into safe implementation slices.
+
 ## Notes
 
 - Domain: server-authoritative non-player behavior, extending the existing

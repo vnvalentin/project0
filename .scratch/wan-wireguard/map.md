@@ -4,6 +4,14 @@
 
 Public game access for Project0 via OPNsense-native WireGuard (embedded userspace netstack GDExtension client in Godot 4.3, HTTPS invite-code enrollment service, OPNsense WireGuard API peer management, LAN-isolated firewall rules, split-tunneling `192.168.1.254:9999` on public IP `192.69.180.236` / `game.valentin.vip`).
 
+## What Good Looks Like
+
+- [x] The client can reach the game server through an embedded userspace WireGuard netstack without OS admin rights or a separate VPN app.
+- [x] OPNsense WireGuard infrastructure and LAN isolation rules are automated and default-deny outside the game host path.
+- [x] Enrollment can create least-privilege peers and return usable split-tunnel client config.
+- [x] Peer revocation/ban lifecycle removes access and reclaims peer identity cleanly.
+- [ ] Remaining public-edge hardening decisions, such as GeoIP/rate-limit posture, are either implemented or explicitly accepted as residual risk.
+
 ## Notes
 
 - Domain: Networking, OPNsense, Godot GDExtension, WireGuard userspace netstack, Security & Access Control.

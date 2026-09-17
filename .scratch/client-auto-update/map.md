@@ -21,6 +21,13 @@ is **remote code delivery**. See [Project Tracker](../../docs/PROJECT-TRACKER.md
 [player-accounts](../player-accounts/map.md) effort whose auth handshake this
 version gate must order against.
 
+## What Good Looks Like
+
+- [ ] The packaged Windows tester client has a server-owned client build version handshake before authentication/world entry.
+- [ ] An out-of-date client is refused with a bounded reason and a mandatory update path.
+- [ ] Patch units, transport, integrity verification, apply/restart, and rollback are specified with fail-closed behavior.
+- [ ] The update flow is handoff-ready as bounded implementation slices with validation and telemetry expectations.
+
 ## Notes
 
 - Domain: Godot 4.3 GDScript 2.0 strict typing, server-authoritative per

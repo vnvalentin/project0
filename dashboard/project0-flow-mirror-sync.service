@@ -1,5 +1,5 @@
 [Unit]
-Description=Sync Project0 Flow dashboard mirror to origin/main
+Description=Sync Project0 Flow dashboard repo clone to origin/main
 Documentation=https://github.com/vnvalentin/project0
 After=network-online.target
 Wants=network-online.target
@@ -8,12 +8,10 @@ Wants=network-online.target
 Type=oneshot
 User=vic
 # Host umask is 077; force 022 so git writes world-readable files and the
-# read-only dashboard container (USER nobody) can read the mirror.
+# read-only dashboard container (USER nobody) can read the clone.
 UMask=0022
-Environment=HOME=/home/vic
-# Self-healing: clone the mirror if it is missing or not a git repo, otherwise
+Environment=HOME=/tmp
+# Self-healing: clone the repo if it is missing or not a git repo, otherwise
 # fetch and hard-reset it to origin/main. Then normalize perms so the read-only
-# dashboard container (USER nobody) can read every file. A fresh clone is a new
-# directory inode, which breaks the running container's bind mount, so the
-# clone path also restarts the container (best-effort).
-ExecStart=/bin/sh -c 'set -e; D=/data/code/project0-flow-mirror; if [ -d "$D/.git" ]; then git -C "$D" fetch --prune --quiet origin; git -C "$D" reset --hard --quiet origin/main; chmod -R a+rX "$D"; else rm -rf "$D"; git clone --quiet https://github.com/vnvalentin/project0.git "$D"; chmod -R a+rX "$D"; docker restart project0-flow >/dev/null 2>&1 || true; fi'
+# dashboard container (USER nobody) can read every file.
+ExecStart=/bin/sh -c 'set -e; APP=/apps/project0/dashboard; D="$APP/repo"; mkdir -p "$APP"; if [ -d "$D/.git" ]; then git -C "$D" fetch --prune --quiet origin; git -C "$D" reset --hard --quiet origin/main; else rm -rf "$D"; git clone --quiet https://github.com/vnvalentin/project0.git "$D"; fi; chmod -R a+rX "$D"; docker restart project0-flow >/dev/null 2>&1 || true'
