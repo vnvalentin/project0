@@ -43,7 +43,7 @@ feature so future drift is easier to detect.
 
 ### F-036: Phase 14 unified Character and NPC generalization
 
-- Status: `Ready`
+- Status: `In Progress`
 - Feature: Players and NPCs share one server-authoritative Character model with
   a fixed balanced six-node baseline, uncapped organic development, shared
   techniques, equipment, movement, combat, disposition, and spawning contracts.
@@ -58,6 +58,21 @@ feature so future drift is easier to detect.
   and authority/hidden-state review before this feature becomes Implemented.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the first F-036 slice (Slice 116) — the shared
+    `CharacterFoundation` contract (`shared/character_foundation.gd`): one
+    server-authoritative Character for players and NPCs, controller type
+    separate from disposition/kind, fixed balanced six-node baseline plus a
+    separate additive organic-development layer, pure deterministic effective
+    derivation, fail-closed `from_wire_dict`, and a presentation snapshot that
+    exposes only normalized graph proportions (no raw numeric stats).
+    Why: Establish the unified Player/NPC foundation the remaining Phase 14 and
+    Phase 15 subsystems build on, without duplicating player and NPC logic.
+    Related work: [Slice 116](slices/116-phase14-character-foundation-handoff.md), #227.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 502 tests /
+    502 passing / 1780 asserts, exit 0; new `test_character_foundation.gd` ran
+    9/9. Feature stays `In Progress`: equipment, techniques, movement, combat,
+    disposition, and spawning slices remain.
   - Date: 2026-09-17
     What changed: Opened F-036 and Slice 116 as the records-first Phase 14
     Character foundation handoff.

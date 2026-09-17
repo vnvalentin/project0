@@ -1,9 +1,13 @@
 # Slice 116 - Phase 14 Character foundation handoff
 GitHub issue: #227
 
-Status: **ready**
+Status: **delivered**
 
 Phase: 14 (NPC generalization and shared Character)
+
+Public seam implemented: `shared/character_foundation.gd`
+(`CharacterFoundation`) with tests in
+`tests/unit/test_character_foundation.gd`.
 
 Feature: [F-036](../FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
 
@@ -68,7 +72,18 @@ bash scripts/check_record_sync.sh
 
 Evidence must include focused Character-contract tests, full GUT telemetry,
 record-sync output, and a review of hidden-state and authority invariants.
-This records a ready handoff; no implementation validation is claimed here.
+
+**Delivered evidence (2026-09-17, Linux host `okami`):** the full GUT suite ran
+green with the new script included — **73 scripts / 502 tests / 502 passing /
+1780 asserts, exit 0** (`build/validation/validation-summary.json`,
+`build/validation/gut.xml`). The new `test_character_foundation.gd` block ran
+all **9/9** of its tests (player/NPC one-contract parity, fixed balanced
+budget, deterministic multi-node effective derivation, snapshot excludes raw
+numeric stats, and fail-closed rejection of unsupported version, unsupported
+controller, non-finite value, budget violation, and non-dictionary input),
+confirming the script executed (not a silent preload skip). GUT cannot run on
+Windows (missing sqlite/wgnetstack native libs), so validation was performed on
+the Linux host per repo convention.
 
 ## Safety invariants
 
