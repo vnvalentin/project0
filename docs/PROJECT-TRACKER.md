@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [119 — Phase 14 technique readiness & proficiency](slices/119-phase14-technique-contract.md) — **delivered; `shared/technique_contract.gd` + 11 GUT tests, full suite 537/537 across 76/76 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment).
-- Tech debt: none identified; Slices 116-119 record why no new debt entry is needed.
+- Current slice: [120 — Phase 14 shared health / defeat / recovery](slices/120-phase14-combat-health.md) — **delivered; `shared/combat_health.gd` + 12 GUT tests, full suite 549/549 across 77/77 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques).
+- Tech debt: none identified; Slices 116-120 record why no new debt entry is needed.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [120 — Phase 14 shared health / defeat / recovery](slices/120-phase14-combat-health.md) — **delivered; `CombatHealth` (shared damage/recovery/defeat pool, presentation fraction, no injury subsystem) + 12 public-seam tests; full GUT suite 549/549 across 77/77, exit 0 on the Linux host**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #231)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [119 — Phase 14 technique readiness & proficiency](slices/119-phase14-technique-contract.md) — **delivered; `TechniqueContract` (multidimensional readiness, per-node shortfalls, proficiency reliability, mastery/teaching gates) + 11 public-seam tests; full GUT suite 537/537 across 76/76, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #230, #234)
