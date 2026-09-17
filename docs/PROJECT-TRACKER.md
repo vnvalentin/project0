@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [123 — Phase 14 activity-routine](slices/123-phase14-activity-routine.md) — **delivered; `shared/activity_routine.gd` + 16 GUT tests, full suite 509/509 across 73/73 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques), 120 (health), 121 (damage), 122 (status).
-- Tech debt: none identified; Slices 116-123 record why no new debt entry is needed.
+- Current slice: [124 — Phase 14 spawn-anchor / NPC population](slices/124-phase14-spawn-anchor.md) — **delivered; `shared/spawn_anchor.gd` + 15 GUT tests, full suite 508/508 across 73/73 on the Linux host; completes the Phase 14 shared-contract set (116-124)**. Prior: Slices 116 (foundation), 117 (alignment), 118 (equipment), 119 (techniques), 120 (health), 121 (damage), 122 (status), 123 (activity).
+- Tech debt: none identified; Slices 116-124 record why no new debt entry is needed.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [124 — Phase 14 spawn-anchor / NPC population](slices/124-phase14-spawn-anchor.md) — **delivered; `SpawnAnchor` (fixed-anchor staffing: deficit, pressure-scaled replacement delay, promote-ambient-or-generate-new-identity, never resurrect) + 15 public-seam tests; full GUT suite 508/508 across 73/73, exit 0 on the Linux host; completes the Phase 14 shared-contract set (116-124)**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #232)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [123 — Phase 14 activity-routine](slices/123-phase14-activity-routine.md) — **delivered; `ActivityRoutine` (pure time→activity resolution over a looping routine, free off-screen simulation, route-consistent arrival, idle/patrol fallback, interrupt/resume) + 16 public-seam tests; full GUT suite 509/509 across 73/73, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #229)
