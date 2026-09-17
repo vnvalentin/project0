@@ -67,22 +67,26 @@ def github_issues() -> dict:
     now = time.time()
     if now - float(_ISSUE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
         return _ISSUE_CACHE["data"]
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=open&per_page=100"
-    req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
     try:
-        with urlopen(req, timeout=5) as response:
-            raw = response.read().decode("utf-8")
-        parsed = json.loads(raw)
         issues = []
-        for item in parsed:
-            if "pull_request" in item:
-                continue
-            issues.append({
-                "number": int(item.get("number", 0)),
-                "title": str(item.get("title", "")),
-                "url": str(item.get("html_url", "")),
-                "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
-            })
+        for page in range(1, 6):
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=open&per_page=100&page={page}"
+            req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
+            with urlopen(req, timeout=5) as response:
+                raw = response.read().decode("utf-8")
+            parsed = json.loads(raw)
+            for item in parsed:
+                if "pull_request" in item:
+                    continue
+                issues.append({
+                    "number": int(item.get("number", 0)),
+                    "title": str(item.get("title", "")),
+                    "url": str(item.get("html_url", "")),
+                    "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
+                    "body": str(item.get("body", "")),
+                })
+            if len(parsed) < 100:
+                break
         issues.sort(key=lambda issue: issue["number"])
         data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "error": ""}
     except Exception as exc:
@@ -170,12 +174,21 @@ def issue_state(status: str) -> str:
     return "todo"
 
 
-def goal_maps() -> list[dict]:
+def github_issue_by_source(issue_feed: dict) -> dict[str, dict]:
+    lookup = {}
+    for issue in issue_feed.get("issues", []):
+        match = re.search(r"^Source:\s*(.+)$", issue.get("body", ""), re.M)
+        if match:
+            lookup[match.group(1).strip()] = issue
+    return lookup
+
+
+def goal_maps(issue_feed: dict | None = None) -> list[dict]:
+    issue_lookup = github_issue_by_source(issue_feed or github_issues())
     goals = []
     for name in list_repo_dir(".scratch"):
         map_text = read_repo_file(f".scratch/{name}/map.md")
-        if not map_text:
-            continue
+        map_missing = not bool(map_text)
         title_lookup = issue_titles_from_map(map_text)
         issues = []
         for issue_name in list_repo_dir(f".scratch/{name}/issues"):
@@ -185,25 +198,64 @@ def goal_maps() -> list[dict]:
             stem = issue_name[:-3]
             status = issue_field(text, "Status") or "unclaimed"
             number = re.match(r"^(\d+)", stem)
+            source = f".scratch/{name}/issues/{issue_name}"
+            github_issue = issue_lookup.get(source, {})
             issues.append({
                 "id": number.group(1) if number else "",
                 "title": title_lookup.get(stem) or slug_title(stem),
                 "status": status,
                 "type": issue_field(text, "Type"),
                 "state": issue_state(status),
+                "source": source,
+                "github_number": github_issue.get("number"),
+                "github_url": github_issue.get("url", ""),
             })
         decided = sum(1 for issue in issues if issue["state"] == "decided")
         total = len(issues)
+        goal_source = f".scratch/{name}/map.md" if not map_missing else f".scratch/{name}/ (missing map.md)"
+        github_goal = issue_lookup.get(goal_source, {})
         goals.append({
             "name": name,
             "title": map_title(map_text, name),
-            "destination": map_destination(map_text),
+            "destination": map_destination(map_text) if not map_missing else "New goal that has not been researched yet; map.md is not present.",
             "issues": issues,
             "decided": decided,
             "total": total,
             "percent": round(decided / total * 100) if total else 0,
+            "map_missing": map_missing,
+            "source": goal_source,
+            "github_number": github_goal.get("number"),
+            "github_url": github_goal.get("url", ""),
         })
     return goals
+
+
+def slice_issue_stats() -> dict:
+    total, missing = 0, []
+    for name in list_repo_dir("docs/slices"):
+        if not re.match(r"^\d{3}-.+\.md$", name):
+            continue
+        total += 1
+        text = read_repo_file(f"docs/slices/{name}")
+        if not re.search(r"^GitHub issue:\s*(#[0-9]+|https://github\.com/[^/]+/[^/]+/issues/[0-9]+)", text, re.M | re.I):
+            missing.append(name)
+    return {"total": total, "missing": missing, "linked": total - len(missing)}
+
+
+def traceability_model(goals: list[dict], issue_feed: dict) -> dict:
+    child_total = sum(g["total"] for g in goals)
+    child_linked = sum(1 for g in goals for i in g["issues"] if i.get("github_number"))
+    goal_linked = sum(1 for g in goals if g.get("github_number"))
+    goal_labels = sum(1 for issue in issue_feed.get("issues", []) if issue["title"].startswith("Goal:") and "Goal" in issue.get("labels", []))
+    return {
+        "goals": len(goals),
+        "goal_linked": goal_linked,
+        "goal_labels": goal_labels,
+        "child_total": child_total,
+        "child_linked": child_linked,
+        "missing_maps": [g for g in goals if g.get("map_missing")],
+        "slices": slice_issue_stats(),
+    }
 
 
 def feature_stage(status: str) -> str:
@@ -443,7 +495,9 @@ def snapshot(view: str = "committed") -> dict:
     phases = phase_rows(tracker)
     slices = slice_cards(tracker) + queue_items(tracker)
     debts = debt_cards(debt)
-    return {"phases": phases, "slices": slices, "debts": debts, "goals": goal_maps(), "features": feature_cards(reader), "actions": action_items(phases, debts, slices), "calibration": calibration(), "slice_lane": build_slice_lane(tracker), "view": view}
+    issue_feed = github_issues()
+    goals = goal_maps(issue_feed)
+    return {"phases": phases, "slices": slices, "debts": debts, "goals": goals, "features": feature_cards(reader), "actions": action_items(phases, debts, slices), "calibration": calibration(), "slice_lane": build_slice_lane(tracker), "view": view, "issue_feed": issue_feed, "traceability": traceability_model(goals, issue_feed)}
 
 
 def esc(value: str) -> str:
@@ -507,6 +561,12 @@ PRIORITY_CSS = (
     ".calib { font-size:12px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:14px; }"
     ".calib.warn { border-color:var(--amber); background:#332619; color:#ffe0a0; }"
     ".calib code { color:var(--cyan); }"
+    ".trace { margin-bottom:22px; }"
+    ".tgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:12px; }"
+    ".tbox { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px; border-top:4px solid var(--cyan); }"
+    ".tnum { font-size:30px; line-height:1; font-weight:800; color:var(--cyan); }"
+    ".tlbl { margin-top:7px; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }"
+    ".tracepills { margin-top:8px; }"
     ".sl { margin-bottom:22px; }"
     ".nextslice { background:#122a1e; border:1px solid var(--green); border-left:5px solid var(--green); border-radius:8px; padding:12px 14px; margin-bottom:14px; }"
     ".ns-tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#0b1118; background:var(--green); padding:2px 9px; border-radius:12px; margin-bottom:8px; }"
@@ -663,17 +723,19 @@ def render(view: str = "committed") -> str:
     goal_html = ""
     for g in goals:
         chips = "".join(
-            f'<span class="chip {i["state"]}" title="{esc(i["status"])}">{esc((i["id"] + " ") if i["id"] else "")}{esc(i["title"])}</span>'
+            f'<span class="chip {i["state"]}" title="{esc(i["status"])}">{esc(("#" + str(i["github_number"]) + " · ") if i.get("github_number") else "")}{esc((i["id"] + " ") if i["id"] else "")}{esc(i["title"])}</span>'
             for i in g["issues"]
         ) or '<span class="chip todo">no issues</span>'
         dest = g["destination"]
         if len(dest) > 170:
             dest = dest[:167].rstrip() + "\u2026"
+        issue_count = f'#{g["github_number"]} · {g["decided"]}/{g["total"]} · {g["percent"]}%' if g.get("github_number") else f'no GitHub issue · {g["decided"]}/{g["total"]} · {g["percent"]}%'
+        missing = '<span class="itag none">new / unresearched</span>' if g.get("map_missing") else ''
         goal_html += (
             f'<section class="goal"><div class="goal-head"><h3>{esc(g["title"])}</h3>'
-            f'<span class="pct">{g["decided"]}/{g["total"]} \u00b7 {g["percent"]}%</span></div>'
+            f'<span class="pct">{esc(issue_count)}</span></div>'
             f'<div class="bar"><div class="fill" style="width:{g["percent"]}%"></div></div>'
-            f'<p class="dest">{esc(dest)}</p><div class="chips">{chips}</div></section>'
+            f'<p class="dest">{esc(dest)}</p><div class="itags">{missing}<span class="itag">{esc(g["source"])}</span></div><div class="chips">{chips}</div></section>'
         )
     goal_html = goal_html or '<p class="empty">No goal maps found</p>'
     vetting_n = sum(1 for g in goals for i in g["issues"] if i["state"] != "decided")
@@ -687,6 +749,21 @@ def render(view: str = "committed") -> str:
     flow_html = '<div class="arw">\u2192</div>'.join(
         f'<div class="stage {cls}"><span class="n">{n}</span><span class="lbl">{esc(name)}</span></div>'
         for name, n, cls in stage_defs
+    )
+    trace = data["traceability"]
+    missing_map_html = "".join(
+        f'<span class="pill"><small>#{esc(str(g.get("github_number") or "?"))}</small>{esc(g["name"])} · new / unresearched</span>'
+        for g in trace["missing_maps"]
+    ) or '<span class="pill"><span class="dot">✓</span>No unresearched goal folders</span>'
+    trace_html = (
+        '<section class="trace"><h2 class="sech">GitHub traceability baseline</h2>'
+        '<div class="tgrid">'
+        f'<div class="tbox"><div class="tnum">{trace["slices"]["linked"]}/{trace["slices"]["total"]}</div><div class="tlbl">slice records linked</div></div>'
+        f'<div class="tbox"><div class="tnum">{trace["goal_linked"]}/{trace["goals"]}</div><div class="tlbl">parent goal issues</div></div>'
+        f'<div class="tbox"><div class="tnum">{trace["child_linked"]}/{trace["child_total"]}</div><div class="tlbl">child planning issues</div></div>'
+        f'<div class="tbox"><div class="tnum">{len(trace["slices"]["missing"])}</div><div class="tlbl">missing slice links</div></div>'
+        '</div>'
+        f'<div class="pills tracepills">{missing_map_html}</div></section>'
     )
     waves = DELIVERY_ROADMAP["waves"]
     next_wave = next((w for w in waves if not w.get("done")), None)
@@ -813,13 +890,12 @@ def render(view: str = "committed") -> str:
 .dr {{ margin-bottom:22px }} .waves {{ display:flex; flex-direction:column; gap:10px }} .wave {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .wave-h {{ display:flex; align-items:center; gap:10px }} .wave-h h3 {{ margin:0; font-size:14px; color:var(--text) }} .wn {{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; background:var(--cyan); color:#0b1118; font-weight:700; font-size:13px; flex:none }} .par {{ margin-left:auto; font-size:11px; color:var(--green); border:1px solid var(--green); border-radius:12px; padding:2px 8px }} .par.seq {{ color:var(--muted); border-color:var(--line) }} .wnote {{ font-size:12px; margin:6px 0 10px }} .rtracks {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px }} .rtrack {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--amber); border-radius:6px; padding:8px 10px }} .rtrack-h {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .rtrack-h strong {{ font-size:13px }} .rfeat {{ font-size:10px; color:var(--muted); white-space:nowrap }} .rtrack ul {{ padding-left:16px; margin:6px 0 0 }} .rtrack li {{ margin:3px 0; font-size:12px; color:var(--muted) }} .drband {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:12px }} .drcol {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px }} .drcol h4 {{ margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted) }} .pcards {{ display:flex; flex-direction:column; gap:8px }} .pcard {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--green); border-radius:6px; padding:8px 10px }} .pcard p {{ font-size:12px; margin:6px 0 0 }} .seqrules {{ padding-left:18px }} .seqrules li {{ margin:5px 0; font-size:12px; color:var(--muted) }} @media(max-width:700px){{ .drband {{ grid-template-columns:1fr }} }}
 {PRIORITY_CSS}
 </style></head><body>
-<header><div><h1>Project0 Flow</h1><p>Kanban + Andon visual management</p></div><div class="hdr-right"><a class="calib-link" href="/">\u2190 Reality view</a><a class="calib-link" href="/tests">Tests</a>{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
-<main>{calib_html}{hero_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
+<header><div><h1>Project0 Traceability</h1><p>Issue hierarchy, slices, and delivery records</p></div><div class="hdr-right"><a class="calib-link" href="/">\u2190 Reality view</a><a class="calib-link" href="/tests">Tests</a>{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
+<main>{calib_html}{trace_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
-<section class="dr"><h2 class="sech">Delivery roadmap \u2014 {done_count}/{wave_total} waves complete</h2><div class="waves">{waves_html}</div><div class="drband"><div class="drcol"><h4>Runs in parallel throughout</h4><div class="pcards">{par_html}</div></div><div class="drcol"><h4>Must sequence \u2014 hard deps &amp; shared files</h4><ul class="seqrules">{seq_html}</ul></div></div></section>
 <section class="sl"><h2 class="sech">Slices \u2014 what's part of what, in priority order</h2>{slices_html}</section>
-<section class="rmwrap"><h2>Vetting \u00b7 goal roadmap <span>{decided_issues}/{total_issues} issues decided \u00b7 {overall_pct}%</span></h2><div class="roadmap">{goal_html}</div></section>
-<h2 class="sech">Implementation pipeline \u2014 features correlated to their issues</h2>
+<section class="rmwrap"><h2>Goals \u00b7 parent issues and child planning issues <span>{decided_issues}/{total_issues} local issues decided \u00b7 {overall_pct}%</span></h2><div class="roadmap">{goal_html}</div></section>
+<h2 class="sech">Implementation pipeline \u2014 features correlated to local planning issues</h2>
 <section class="board">{column_html}</section>
 <div class="grid"><section class="panel"><h2>Andon / Stop Signals</h2>{andon_html}</section><section class="panel"><h2>Phase Status</h2>{phase_html or '<p>No phase data found</p>'}</section></div>
 </main></body></html>'''

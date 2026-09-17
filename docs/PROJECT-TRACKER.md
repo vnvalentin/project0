@@ -225,6 +225,10 @@ Progress: **71%** (5 of 7 items done)
 - **Also delivered:** [094 — Reality dashboard truthfulness and delivery-record reconciliation](slices/094-reality-dashboard-truthfulness.md) — **feature count deduplication, delivered-slice recognition, item-weighted overall completion, commit provenance, and stale Phase 1/8 status reconciliation**
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
 
+- **Also delivered:** [111 — Dashboard issue traceability detail](slices/111-dashboard-issue-traceability-detail.md) — **detail screen now foregrounds GitHub traceability: 110/110 slice records linked, 15/15 parent goal issues, 95/95 child planning issues, and `zone-sharding` shown as new/unresearched instead of omitted; stale hardcoded delivery-roadmap block removed from `/detail`**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #206
+
 **Phase 8 — JIT world generation and local inference**
 
 Progress: **100%** (11 of 11 items done)
@@ -513,6 +517,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** [DT-011](TECHNICAL-DEBT-TRACKER.md#dt-011-client-export-filter-ships-the-test-framework-and-build-artifacts) raised
   - **Planning ticket:** [Full CI/CD pipeline for all servers and the client package](../.scratch/game-vision/map.md) (Delivery workflow / CI-CD)
   - **Decision:** no new ADR; makes the existing F-002 package reproducible from a clean checkout
+
+- **Slice:** [111 — Dashboard issue traceability detail](slices/111-dashboard-issue-traceability-detail.md) — **delivered; `/detail` now shows GitHub Issue traceability totals, parent goal issues, child planning issues, missing slice links, and the new/unresearched status for goal folders without `map.md`; stale hardcoded delivery-roadmap prose removed from this screen**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #206
+  - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused render check exit 0 with traceability heading, goal heading, hidden old roadmap, `zone-sharding` new/unresearched, `95/95` child count, and `15/15` goal count all true; `scripts/check_record_sync.sh` exit 0
 
 #### Phase 10 — Authoritative runtime and action input
 

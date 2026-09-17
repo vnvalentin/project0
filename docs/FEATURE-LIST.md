@@ -1847,7 +1847,7 @@ for a developer to pick up. No implementation has started.
 - Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
   `feature_stage`, `phase_rows`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -1871,6 +1871,16 @@ for a developer to pick up. No implementation has started.
     status without identifying the source revision.
     Validation: Focused parser model check and `scripts/check_record_sync.sh`
     passed; see [Slice 094](slices/094-reality-dashboard-truthfulness.md).
+  - Date: 2026-09-16
+    What changed: Slice 111 changes `/detail` from a stale roadmap-heavy screen
+    into a GitHub traceability detail view. It now shows linked slice records,
+    parent `.scratch` goal issues, child planning issues, and goal folders
+    without `map.md` as new/unresearched.
+    Why: The delivery workflow now treats GitHub Issues as the baseline source
+    of work intent, so the detail screen needed to reflect that hierarchy and
+    stop foregrounding obsolete hardcoded roadmap prose.
+    Validation: `python -m py_compile dashboard/app.py`, focused dashboard render
+    checks, and `scripts/check_record_sync.sh` passed; see [Slice 111](slices/111-dashboard-issue-traceability-detail.md).
 
 ### F-022: Player house allocation
 
