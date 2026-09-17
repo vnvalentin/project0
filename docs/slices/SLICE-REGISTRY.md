@@ -132,8 +132,9 @@ contended range and everything after it is tracked explicitly:
 | 114 | Goal target coverage cards (F-025) | interactive |
 | 115 | Goal What Good Looks Like criteria (F-025, P-004) | interactive |
 | 116 | Phase 14 Character foundation handoff (#227, F-036) | interactive |
+| 117 | Phase 14 Character alignment & disposition contract (#227, #228, F-036) | interactive |
 
-Next free slice: **117** (verify against `docs/slices/` before reserving).
+Next free slice: **118** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
