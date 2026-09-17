@@ -3,6 +3,43 @@
 # pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful
 # shutdown via tini. Runs `server/server_main.gd` exactly like the native
 # systemd unit (scripts/project0-server.service) does.
+
+# DT-014: build the Linux wgnetstack GDExtension rather than shipping without
+# it. `native/wgnetstack/gdext/build/` is gitignored, so the .so is absent from
+# the build context and both Godot processes logged "GDExtension dynamic
+# library not found" at every boot. Persistent false-alarm errors in an
+# authoritative server's log train operators to ignore startup failures, which
+# is exactly how the login-delegation outage stayed hidden.
+#
+# This stage depends only on native/wgnetstack and the pinned godot-cpp
+# revision, so it stays cached while application code changes.
+FROM debian:bookworm-slim AS gdext-builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Pinned to the revision the shipped extension was built against (Slice 035),
+# so the image never silently tracks whatever branch 4.3 points at.
+ARG GODOT_CPP_REF=d5cc777a89d899665fb61f1650ef0dc0cf6488c4
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential scons git ca-certificates golang-go \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY native/wgnetstack /src/native/wgnetstack
+
+RUN git clone --quiet --branch 4.3 https://github.com/godotengine/godot-cpp.git \
+        /src/native/wgnetstack/gdext/godot-cpp \
+    && git -C /src/native/wgnetstack/gdext/godot-cpp checkout --quiet "${GODOT_CPP_REF}"
+
+# The headless Godot binary is an editor build, so it resolves
+# linux.editor.x86_64 -> the template_debug library. Only that target is built.
+RUN make -C /src/native/wgnetstack cgoarchive \
+    && cd /src/native/wgnetstack/gdext \
+    && scons -j"$(nproc)" platform=linux target=template_debug \
+    && test -f build/libwgnetstack_gdext.linux.template_debug.x86_64.so
+
 FROM debian:bookworm-slim
 
 # Pinned Godot runtime (provenance = the official 4.3-stable release tag).
@@ -28,6 +65,12 @@ RUN wget -q "${GODOT_URL}" -O /tmp/godot.zip \
 
 WORKDIR /app
 COPY . /app
+
+# Placed before the import so the baked cache is built with the extension
+# present; otherwise the cache records a failed load.
+COPY --from=gdext-builder \
+    /src/native/wgnetstack/gdext/build/libwgnetstack_gdext.linux.template_debug.x86_64.so \
+    /app/native/wgnetstack/gdext/build/
 
 # Bake the import cache so GDExtensions (godot-sqlite, wgnetstack) and resources
 # resolve at runtime without writing res:// on first boot.
