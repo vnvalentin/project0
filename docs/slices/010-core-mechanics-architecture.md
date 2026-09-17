@@ -3,7 +3,7 @@ GitHub issue: #95
 
 Status: complete
 
-Tracker context: Phase 7 - Delivery workflow capabilities; implements the
+Tracker context: Phase 13 - Delivery workflow capabilities; implements the
 living architecture anchor and defines the contract for future Phase 10 and
 Phase 12 work.
 

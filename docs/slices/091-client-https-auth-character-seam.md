@@ -3,7 +3,7 @@ GitHub issue: #95
 
 Status: **delivered**
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 per [ADR 0005](../adr/0005-character-selection-over-https.md) (Option A). The
 client-consumer seam of the HTTPS character surface; the UI-scene rewiring +

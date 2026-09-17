@@ -1,7 +1,7 @@
 # Slice 033: Client monster replication and rendering
 GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; completes
+Tracker context: Phase 12 — Authoritative runtime and action input; completes
 [IP-023](../FEATURE-LIST.md#ip-023-basic-monster-combat)'s "visible to and
 fightable by players" boundary. Fifth Basic Monsters slice; the client-side
 half of the two-slice boundary recorded in

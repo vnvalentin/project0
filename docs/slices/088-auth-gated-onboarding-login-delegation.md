@@ -3,7 +3,7 @@ GitHub issue: #95
 
 Status: **delivered**
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 per [ADR 0004](../adr/0004-auth-gated-tunnel-provisioning.md) follow-up (A). This is
 the first of a three-slice sequence the ADR names but deliberately does not
@@ -394,7 +394,7 @@ here and belong to Slice 089.
 - Slice registry reservation: [docs/slices/SLICE-REGISTRY.md](SLICE-REGISTRY.md)
   (row 088; 089 and 090 reserved for the rest of the ADR's follow-up sequence).
 - Governing feature: [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard),
-  Phase 13 — Public game access.
+  Phase 11 — Public game access.
 - Related prior slices this design reuses without modification: [Slice 059 — Signed session assertion contract, issuer, and validator](059-session-assertions.md),
   [Slice 060 — Assertion-backed session establishment in the login gateway](060-assertion-session-binding.md),
   [Slice 068 — Login runtime extraction + standalone login-server process](068-login-runtime-and-standalone-process.md),

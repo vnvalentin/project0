@@ -3,7 +3,7 @@ GitHub issue: #95
 
 Status: **delivered**
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 under [F-035](../FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)
 per [ADR 0004](../adr/0004-auth-gated-tunnel-provisioning.md). The launcher-side

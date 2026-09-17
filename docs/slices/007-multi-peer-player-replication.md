@@ -1,7 +1,7 @@
 # Slice 007: Two-client Player replication and disconnect cleanup
 GitHub issue: #95
 
-Tracker context: Phase 11 — Multi-peer Player replication; advances
+Tracker context: Phase 7 — Multi-peer Player replication; advances
 [P-016](../FEATURE-LIST.md#p-016-multi-peer-player-replication).
 Planning ticket: [game-vision issue 13](../.scratch/game-vision/issues/13-multi-peer-player-replication.md).
 

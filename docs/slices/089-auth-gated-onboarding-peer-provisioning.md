@@ -3,7 +3,7 @@ GitHub issue: #95
 
 Status: **delivered**
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 per [ADR 0004](../adr/0004-auth-gated-tunnel-provisioning.md) follow-up (B). Second
 of the three-slice sequence `docs/slices/SLICE-REGISTRY.md` reserves as 088–090.
@@ -651,7 +651,7 @@ Slice 088 and are reused without re-litigation.
 - Slice registry reservation: [docs/slices/SLICE-REGISTRY.md](SLICE-REGISTRY.md)
   (row 089; 090 reserved for the launcher/client flow that follows).
 - Governing feature: [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard),
-  Phase 13 — Public game access.
+  Phase 11 — Public game access.
 - Sibling delegation pattern this design extends without re-deriving:
   [Slice 088 — Auth-gated onboarding A: HTTPS /login delegation](088-auth-gated-onboarding-login-delegation.md).
 - Related prior slices this design reuses without modification: [Slice 059 — Signed session assertion contract, issuer, and validator](059-session-assertions.md),

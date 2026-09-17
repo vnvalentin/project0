@@ -1,7 +1,7 @@
 # Slice 013: Melee strike visual indicator and player facing
 GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; advances
+Tracker context: Phase 12 — Authoritative runtime and action input; advances
 [IP-015](../FEATURE-LIST.md#ip-015-authoritative-action-input) with the
 cosmetic presentation half of Slice 012's authoritative melee strike, per the
 melee-combat decision map's ("Not yet specified" section) deferred item on
