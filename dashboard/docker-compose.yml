@@ -5,10 +5,10 @@ services:
     ports:
       - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_HOST_PORT:-8080}:8080"
     volumes:
-      # Repo source the dashboard renders. Defaults to the local working tree;
-      # set DASHBOARD_REPO_SOURCE to a mirror checkout kept synced to origin/main
-      # (see project0-flow-mirror-sync.timer) so the dashboard reflects GitHub.
-      - ${DASHBOARD_REPO_SOURCE:-..}:/repo:ro
+      # Repo source the dashboard renders. In production this compose project
+      # lives at /apps/project0/dashboard and defaults to the dedicated clone at
+      # /apps/project0/dashboard/repo, mounted read-only in the container.
+      - ${DASHBOARD_REPO_SOURCE:-./repo}:/repo:ro
     environment:
       GITHUB_REPO: ${GITHUB_REPO:-vnvalentin/project0}
       GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-300}

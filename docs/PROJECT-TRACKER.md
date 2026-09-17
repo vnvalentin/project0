@@ -233,6 +233,10 @@ Progress: **71%** (5 of 7 items done)
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #207
 
+- **Also delivered:** [113 — Dashboard apps source layout](slices/113-dashboard-apps-source-layout.md) — **dashboard container now standardizes on `/apps/project0/dashboard` as the compose app directory and `/apps/project0/dashboard/repo` as the dedicated read-only repo clone, replacing the stale `/data/code/project0` mirror path**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #211
+
 **Phase 8 — JIT world generation and local inference**
 
 Progress: **100%** (11 of 11 items done)
@@ -531,6 +535,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #207
   - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 with exactly 15 goal cards, percent/open/closed child counts present, non-goal workflow issues absent, child issue cards absent, and the summary tile relabeled to open goal child issues; `scripts/check_record_sync.sh` exit 0
+
+- **Slice:** [113 — Dashboard apps source layout](slices/113-dashboard-apps-source-layout.md) — **delivered; dashboard compose defaults to a dedicated `./repo` clone and the host-standard app directory is `/apps/project0/dashboard`, so the container no longer depends on a home-directory checkout or stale `/data/code/project0` mirror**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #211
+  - **Validation:** `bash -n scripts/run_gut_validation.sh` exit 0; `python -m py_compile dashboard/app.py` exit 0; dashboard render checks passed locally; host rollout validated `/apps/project0/dashboard`, `/apps/project0/dashboard/repo`, `GET /`, `GET /detail`, and `GET /health`
 
 #### Phase 10 — Authoritative runtime and action input
 

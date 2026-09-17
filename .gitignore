@@ -57,3 +57,4 @@ native/windows_launcher/*.exe
 dist/Project0-WAN.exe
 # Dashboard host-specific runtime config (mirror path, LAN bind)
 dashboard/.env
+dashboard/repo/

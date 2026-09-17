@@ -1847,7 +1847,7 @@ for a developer to pick up. No implementation has started.
 - Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
   `feature_stage`, `phase_rows`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -1890,6 +1890,16 @@ for a developer to pick up. No implementation has started.
     should orient around goals and progress through their child issues.
     Validation: `python -m py_compile dashboard/app.py`, focused Reality render
     checks, and `scripts/check_record_sync.sh` passed; see [Slice 112](slices/112-reality-goal-source-of-truth.md).
+  - Date: 2026-09-16
+    What changed: Slice 113 moves the live dashboard deployment contract to
+    `/apps/project0/dashboard`, with compose/app files at that path and a
+    dedicated read-only clone at `/apps/project0/dashboard/repo` mounted as
+    `/repo` in the container.
+    Why: The previous `/data/code/project0` source mirror was stale and was not a
+    git checkout, so restarting the container did not guarantee the dashboard
+    served the merged records and issue UI.
+    Validation: Local script/dashboard checks, record-sync, and host rollout
+    checks passed; see [Slice 113](slices/113-dashboard-apps-source-layout.md).
 
 ### F-022: Player house allocation
 
