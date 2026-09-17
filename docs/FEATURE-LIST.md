@@ -46,7 +46,7 @@ feature so future drift is easier to detect.
 - Status: `Planned`
 - Feature: VS Code on Windows can operate the repository, Git state, database configuration, and Claude CLI on the Linux development server through Remote-SSH.
 - Problem solved: The visual workstation and the authoritative development/runtime environment need a defined boundary.
-- Phase: 7. Delivery workflow capabilities
+- Phase: 13. Delivery workflow capabilities
 - Public seam: Remote-SSH workspace configuration and documented server-side command path.
 - Validation: A future operations slice must prove repository edits, Git inspection, and bounded command execution occur on the Linux host.
 
@@ -55,7 +55,7 @@ feature so future drift is easier to detect.
 - Status: `Planned`
 - Feature: Repository ignore rules quarantine heavy binary assets, including 3D meshes, textures, and music, from normal AI context and repository scans without adding service cost.
 - Problem solved: Large binary assets consume model context and obscure the source files needed for reasoning.
-- Phase: 7. Delivery workflow capabilities
+- Phase: 13. Delivery workflow capabilities
 - Public seam: `.gitignore`, scan configuration, and a documented asset validation command.
 - Validation: A future slice must prove source scans exclude quarantined assets while the game/runtime asset path remains explicit and usable.
 
@@ -201,7 +201,7 @@ feature so future drift is easier to detect.
 - Status: `Implemented`
 - Feature: The authoritative Godot server runs in an isolated Docker container with a bounded 20–30 Hz simulation tick and server-owned physics/state.
 - Problem solved: Multiplayer behavior needs a reproducible Linux runtime boundary and predictable simulation cadence.
-- Phase: 10. Authoritative runtime and action input
+- Phase: 12. Authoritative runtime and action input
 - Public seam: Server container entrypoint, tick loop, health output, and runtime telemetry.
 - Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam), [Slice 056](slices/056-game-server-container-image.md) (game-server container image, run beside native), [Slice 057](slices/057-game-server-persistence-boundary.md) (host-persistent data boundary + SQLite backup/restore), [Slice 058](slices/058-login-gateway-seam.md) (in-process login gateway seam), [Slice 059](slices/059-session-assertions.md) (signed session assertion contract, issuer, validator), [Slice 060](slices/060-assertion-session-binding.md) (assertion-backed session establishment in the gateway), [Slice 061](slices/061-operator-status-service.md) (operator control plane: read-only status service), [Slice 062](slices/062-operator-restart-action.md) (operator control plane: job/audit model + service restart action), [Slice 063](slices/063-operator-mint-invite-action.md) (operator control plane: audited mint-invite action), [Slice 064](slices/064-operator-revoke-peer-action.md) (operator control plane: audited revoke-peer action), [Slice 065](slices/065-operator-durable-audit-sink.md) (operator control plane: durable SQLite audit sink), [Slice 066](slices/066-operator-lifecycle-actions.md) (operator control plane: audited start/stop lifecycle actions), [Slice 067](slices/067-server-health-file-healthcheck.md) (runtime health file + container HEALTHCHECK), [Slice 068](slices/068-login-runtime-and-standalone-process.md) (login runtime extraction + standalone login-server process), [Slice 069](slices/069-assertion-handoff-seams.md) (assertion handoff seams: request from login, present to game), [Slice 070](slices/070-deploy-supervise-login-server.md) (deploy + supervise the standalone login server), [Slice 071](slices/071-shared-assertion-secret.md) (shared assertion secret across the game + login units), [Slice 072](slices/072-login-endpoint-config.md) (login-endpoint config: NetworkConfig.resolve_login_port), [Slice 073](slices/073-login-game-handoff-e2e.md) (login→game handoff e2e over real ENet, two server processes), [Slice 074](slices/074-assertion-character-snapshot.md) (signed Character snapshot in the session assertion), [Slice 075](slices/075-cross-db-world-entry.md) (cross-DB world entry: bind Player from the assertion snapshot), [Slice 076](slices/076-game-assertion-only-mode.md) (game server assertion-only mode: refuse account-authority RPCs), [Slice 077](slices/077-client-login-handoff-seam.md) (client login→game handoff seam), [Slice 078](slices/078-wire-gates-to-login-process.md) (wire login-screen gates to the login process, opt-in), [Slice 079](slices/079-optional-dedicated-canon-store.md) (optional dedicated Canon store: opt-in canon/accounts DB split on the game server), [Slice 080](slices/080-canon-migration-on-split-boot.md) (one-time Canon migration into a dedicated store on first split boot), [Slice 081](slices/081-deploy-login-server-compose.md) (deploy the standalone login server via docker-compose, opt-in profile), [Slice 082](slices/082-containerized-login-split-e2e.md) (containerized login-split e2e: compose split overlay + two-container handoff proof), [Slice 083](slices/083-split-launcher-shared-secret.md) (one-command split launcher with shared-secret management), [Slice 084](slices/084-login-split-cutover.md) (login-split cutover: split on by default), [Slice 085](slices/085-remove-game-in-process-login.md) (remove in-process login from the game server: assertion-only graph, no AuthService).
 - Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Slice 056 delivered the OCI image (pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful SIGTERM) and proved build, boot (`Server listening`, SQLite+Canon ready), healthy port-bound healthcheck, ~0.39s graceful stop, and run-beside-native with the native service untouched. Slice 057 moved durable state to the host boundary `/var/lib/project0` (data survives container replacement — Canon `idempotent` on second boot) and proved consistent SQLite backup/restore. Slice 067 wired the `ServerHealth` contract into a runtime health file (`PROJECT0_HEALTH_FILE`) the server rewrites each ~0.5 s tick stride, and switched the container `HEALTHCHECK` to consume it (fresh + `healthy`); proven on Linux — the file reports `"status":"healthy"`, `healthcheck.sh` passes while running, and a stale or missing file fails closed. Slices 068-085 then delivered the standalone login authority, shared assertions, split deployment, client handoff, Canon/accounts separation, and removal of the in-process game authority. P-014 remains active because the container has run beside the native service but the production game-server cutover itself is not recorded as complete.
@@ -398,7 +398,7 @@ feature so future drift is easier to detect.
   Burnout, and equilibrium-bound magic through server-validated play.
 - Problem solved: Combat and progression need one coherent opportunity-cost
   model that rewards embodied play without stat-gating player reasoning.
-- Phase: 12. Biological progression and kinetic systems (also constrains Phase 10)
+- Phase: 15. Biological progression and kinetic systems (also constrains Phase 12)
 - Public seam: Future versioned shared contracts, server-owned progression and
   action-resolution services, replicated effective state, and client
   presentation/prediction adapters defined by `CLAUDE.md` and ADR 0002.
@@ -446,7 +446,7 @@ for a developer to pick up. No implementation has started.
   **Slice 044 adds client login/register and character select/create UI screens**
   (account_gate.tscn, character_gate.tscn, updated project.godot main_scene).
   The server portion of F-033 is complete; GUI confirmation on Windows pending.
-- Phase: 14. Player accounts and characters
+- Phase: 10. Player accounts and characters
 - Implementation slices: [Slice 043](slices/043-character-world-entry.md),
   [Slice 044](slices/044-client-login-character-ui.md) (GUI scaffolding, Windows verification pending).
 - Public seam: `server/character_service.gd` (`get_selected_character`);
@@ -512,7 +512,7 @@ for a developer to pick up. No implementation has started.
   - `player_identity.gd`: restructured to hold account_id, username,
     selected_character_id, selected_character dict, display_name, target_host
     (was: only display_name + target_host).
-- Phase: 14. Player accounts and characters
+- Phase: 10. Player accounts and characters
 - Implementation slices: [Slice 044](slices/044-client-login-character-ui.md)
 - Public seam: `account_gate.tscn`/`account_gate.gd`;
   `character_gate.tscn`/`character_gate.gd`; `player_identity.gd` new fields;
@@ -625,7 +625,7 @@ for a developer to pick up. No implementation has started.
   `server/auth_service.gd` gains a `get_session_registry()` getter so
   `server_main.gd` shares one `SessionRegistry` instance between auth and
   character CRUD.
-- Phase: 14. Player accounts and characters
+- Phase: 10. Player accounts and characters
 - Implementation slices: [Slice 042](slices/042-character-crud-rpc.md)
 - Public seam: `server/character_service.gd` (`CharacterService.list_characters`,
   `create_character`, `select_character`, `delete_character`);
@@ -697,7 +697,7 @@ for a developer to pick up. No implementation has started.
   simulation tick and every other connected peer's movement/combat processing
   never stall while a hash runs — see
   [Slice 040](slices/040-account-auth-session.md#threading) for detail.
-- Phase: 14. Player accounts and characters
+- Phase: 10. Player accounts and characters
 - Implementation slices: [Slice 040](slices/040-account-auth-session.md)
 - Public seam: `server/password_hasher.gd` (`PasswordHasher.hash_password`,
   `verify_password`); `server/session_registry.gd` (`SessionRegistry.bind`,
@@ -753,7 +753,7 @@ for a developer to pick up. No implementation has started.
   `infra/enrollment` FastAPI service behind `enroll.valentin.vip`; the Windows
   client only calls its `/redeem` endpoint and never owns the enrollment
   service, OPNsense credentials, or allocation database.
-- Phase: 13. Public game access
+- Phase: 11. Public game access
 - Implementation slices: [Slice 054](slices/054-secure-windows-tunnel-enrollment.md),
   [Slice 092](slices/092-launcher-login-redeem-assertion.md)
 - Public seam: Windows bootstrapper/enrollment client, `POST /redeem`, DPAPI
@@ -920,7 +920,7 @@ for a developer to pick up. No implementation has started.
   with an equivalently protected registration route; finally run and record the
   real-WAN checks in [the F-035 runbook](f035-secure-launcher-validation-runbook.md).
   Allocate the follow-up slice numbers only when their bounded designs are ready.
-- Phase: 13. Public game access
+- Phase: 11. Public game access
 - Public seam: `infra/opnsense/setup_wireguard_game_tunnel.py` and
   `ci/host-firewall-helper.sh` (Slice 028); `native/wgnetstack/` producing
   `libwgnetstack.so`/`wgnetstack.dll` with C-exported `wgnetstack_start`/
@@ -1261,7 +1261,7 @@ for a developer to pick up. No implementation has started.
   graphical client against the live server and saw the monster render, chase,
   flash on each hit, die on the third hit, and respawn. IP-023 is
   `Implemented`.
-- Phase: 10. Authoritative runtime and action input
+- Phase: 12. Authoritative runtime and action input
 - Implementation slices: [Slice 020](slices/020-monster-hp-damage-death.md), [Slice 021](slices/021-monster-ai-state-machine.md), [Slice 022](slices/022-monster-spawning-and-respawn.md), [Slice 029](slices/029-authoritative-monster-melee-damage.md), [Slice 033](slices/033-client-monster-replication-and-rendering.md)
 - Public seam: `shared/monster_contracts.gd`
   (`MAX_HP`, `DAMAGE_PER_HIT`, `WINDUP_TICKS`, `ATTACK_ACTIVE_TICKS`,
@@ -1423,7 +1423,7 @@ for a developer to pick up. No implementation has started.
 - Feature: Client action input, including sword slashing, is validated and resolved by the authoritative server while the client presents responsive feedback.
 - Problem solved: Action gameplay must remain responsive without allowing clients to decide combat outcomes.
 - How it solves the problem so far: Slice 012 adds the first authoritative action: a bounded melee `ActionIntent`/`ActionResolution`/`CombatEvent` contract (`shared/combat_contracts.gd`), a per-peer fixed-60Hz-tick `WINDUP -> ACTIVE -> RECOVERY -> IDLE` state machine with monotonic sequence validation, idempotent replay, and bounded rejection codes (`server/server_player_state.gd`), authoritative locomotion throttling during WINDUP/RECOVERY, and a deterministic vector reach/arc hit test against a server-owned stationary `TargetDummy` that broadcasts a replicated `CombatEvent.HIT` (`server/server_main.gd`). The client captures attack input, predicts the disposable windup/recovery locomotion slowdown, and reconciles on rejection (`client/player.gd`); a client-side target dummy renders a flash/wobble reaction to the authoritative hit (`client/target_dummy.gd`). Slice 013 adds a purely cosmetic strike-line telegraph (`client/melee_strike_visual.gd`): the attacker's own client shows it during its disposable predicted `ACTIVE` window (hiding immediately on rejection), and a new server-broadcast `melee_swing_started` signal (`server/server_player_state.gd`, relayed by `server/server_main.gd`) lets every other connected peer's `RemotePlayer` mirror an equivalent timed line, all without any client asserting a hit or altering reach/arc truth. Only melee strikes against one stationary dummy exist so far — no damage/HP, other action kinds, moving targets, or PvP — so the feature remains `In Progress` rather than `Implemented`.
-- Phase: 10. Authoritative runtime and action input
+- Phase: 12. Authoritative runtime and action input
 - Implementation slices: [Slice 012](slices/012-authoritative-melee-strike.md), [Slice 013](slices/013-melee-strike-visual-indicator.md)
 - Public seam: `shared/combat_contracts.gd`, `server/server_player_state.gd` (`apply_action_intent`, `set_target_dummies`, `action_resolved`, `combat_event_emitted`, `melee_swing_started`), `server/server_main.gd` (target dummy spawn and RPC relay, `melee_swing_started` relay), `client/network_client.gd` (`submit_action_intent`, `receive_action_resolution`, `receive_combat_event`, `receive_melee_swing_started`), `client/player.gd`, `client/target_dummy.gd`, `client/remote_player.gd`, `client/melee_strike_visual.gd`.
 - Validation: See [Slice 012](slices/012-authoritative-melee-strike.md) and [Slice 013](slices/013-melee-strike-visual-indicator.md) for exact commands and results (Slice 012: 21/21 focused unit tests, 4/4 focused integration tests, a real two-process ENet smoke test, and 48/48 full suite, exit 0; Slice 013: 9/9 focused unit tests, 23 assertions, and 57/57 full suite, 161 assertions, exit 0).
@@ -1450,7 +1450,7 @@ for a developer to pick up. No implementation has started.
 - How it solves the problem: Adopt Godot 4's High-Level Multiplayer API with
   the server as the authority for Player position and world state; client
   sends input, server simulates and reconciles prediction.
-- Phase: 2. Network connection proof (also advances Phase 4, Phase 5, and Phase 11)
+- Phase: 2. Network connection proof (also advances Phase 4, Phase 5, and Phase 7)
 - Implementation slices: [Slice 002](slices/002-client-connects-to-server.md),
   [Slice 004](slices/004-authoritative-player-movement.md),
   [Slice 005](slices/005-prediction-reconciliation.md),
@@ -1714,7 +1714,7 @@ for a developer to pick up. No implementation has started.
   the only claim on that name among live rows. See
   [Slice 039](slices/039-accounts-characters-repository.md#reconciliation-name-reservation-across-soft-delete)
   for the full rationale.
-- Phase: 14. Player accounts and characters
+- Phase: 10. Player accounts and characters
 - Implementation slices: [Slice 039](slices/039-accounts-characters-repository.md),
   [Slice 040](slices/040-account-auth-session.md) (boot-wires the repository
   into the running server for the first time)
@@ -1762,7 +1762,7 @@ for a developer to pick up. No implementation has started.
 - Feature: One server-owned SQLite engine (`server/sqlite_store.gd`, `class_name SqliteStore`) that opens a database in `user://` (never `res://`), enables `PRAGMA journal_mode=WAL`, reads/writes `PRAGMA user_version` and fails closed on an unsupported version, exposes an atomic `BEGIN`/`COMMIT`/`ROLLBACK` transaction helper, and a parameter-bound query API (`query_with_bindings`).
 - Problem solved: nothing in this repository durably persists structured records across restarts yet. Both Phase 14 (Player accounts and characters) and Phase 9 (Canon persistence) independently need a durable, atomic, fail-closed, injection-safe store; building two would diverge and duplicate risk. This is Wave 4 of the delivery roadmap — "the linchpin, build once."
 - How it solves the problem: Slice 038 vendors the `godot-sqlite` GDExtension (2shady4u, MIT) pinned at release `v4.4` (built against Godot 4.3-stable, an exact engine match) into `addons/godot-sqlite/`, then wraps it in a server-only `RefCounted` seam that never leaves `server/`. Every write path goes through `transaction()` (rollback on any failure, so no partial durable record) and `query_with_bindings()` (never string-concatenated SQL). An existing database's `user_version` is checked on open and rejected outright if it doesn't match the one version this build supports — never guessed/migrated forward.
-- Phase: 9 (Canon persistence and world mutation) and 14 (Player accounts and characters) — cross-cutting shared foundation, not owned by either phase's domain schema.
+- Phase: 9 (Canon persistence and world mutation) and 10 (Player accounts and characters) — cross-cutting shared foundation, not owned by either phase's domain schema.
 - Implementation slices: [Slice 038](slices/038-shared-sqlite-persistence-foundation.md)
 - Public seam: `server/sqlite_store.gd` (`SqliteStore.open`, `close`, `is_open`, `get_user_version`, `transaction`, `query_with_bindings`, `query`); `addons/godot-sqlite/` (vendored, pinned).
 - Validation: Headless extension-load proof (ad hoc smoke script, `godot --headless --path . --script ...`) — exit 0, `SMOKE_OK`, no load error. Focused `tests/integration/test_sqlite_store.gd` 6/6 passed, 22 asserts. Full suite `scripts/run_gut_validation.sh` 213/213 across 28 scripts, exit 0 (`scripts_expected == scripts_ran == 28`).
@@ -1800,7 +1800,7 @@ for a developer to pick up. No implementation has started.
 - Feature: The server keeps the player out of walls and buildings — authoritative movement resolves against the town's solid cells (wall tiles + building footprints) with wall-sliding, so the village is physically solid to walk around in.
 - Problem solved: The server owned player position by pure integration with no collision, so the player walked straight through walls, houses, and the village hall.
 - How it solves the problem: Slice 030 adds `shared/sector_collision_map.gd` (`SectorCollisionMap`), built from the validated blueprint into a blocked grid-cell set (every `wall` tile plus each structure's per-kind footprint from `SectorGeometryLookup.structure_footprint`); `resolve_move(from, to)` does axis-separated sliding so the player stops at a solid cell's face and slides along walls. `server/server_player_state.gd`'s movement integration applies `resolve_move` when a map is injected (null = free movement, backward compatible), and `server/server_main.gd` builds the map from the hub at boot and injects it into every peer. Walkable ground (floor/path/plaza/gate/grass/water) stays open; the southern gate is passable.
-- Phase: 10. Authoritative runtime and action input
+- Phase: 12. Authoritative runtime and action input
 - Implementation slices: [Slice 030](slices/030-server-side-collision.md)
 - Public seam: `shared/sector_collision_map.gd` (`is_blocked`, `resolve_move`, `blocked_count`), `shared/sector_geometry_lookup.gd` (`structure_footprint`), `server/server_player_state.gd` (`set_collision_map`), `server/server_main.gd` (`_town_collision`).
 - Validation: See [Slice 030](slices/030-server-side-collision.md) — 6/6 collision-map + 4/4 player-state-collision + 10/10 lookup focused tests; full suite `scripts/run_gut_validation.sh` 188/188 across 24 scripts, exit 0. Live client-blocked confirmation is pending a server restart.
@@ -1817,7 +1817,7 @@ for a developer to pick up. No implementation has started.
 - Feature: Copilot in VS Code produces a bounded implementation handoff that triggers Claude Code CLI for the named multi-file changes and returns validation evidence for review, backed by a durable handoff template and a defined traceable-handoff evidence record.
 - Problem solved: Planning, implementation, and review can drift when agent ownership and handoff evidence are implicit.
 - How it solves the problem: Slice 027 promotes the handoff brief to a durable template (`docs/templates/claude-code-handoff-template.md`), adds an "Agent-assisted delivery orchestration" section to `DEVELOPMENT-WORKFLOW.md` defining the loop (Copilot brief → Claude Code CLI implements → returns evidence → Copilot reviews) and the five-part traceable-handoff evidence record, and demonstrates one real traceable handoff (Slice 008) whose review caught a missing-evidence gap and tracked it as DT-006 rather than accepting it. Ownership stays authoritative in `AGENTS.md` and `.github/copilot-instructions.md`.
-- Phase: 7. Delivery workflow capabilities
+- Phase: 13. Delivery workflow capabilities
 - Implementation slices: [Slice 027](slices/027-agent-assisted-delivery-orchestration.md)
 - Public seam: `docs/templates/claude-code-handoff-template.md`, the `DEVELOPMENT-WORKFLOW.md` "Agent-assisted delivery orchestration" section, and the slice records with their synchronized `FEATURE-LIST.md`/`PROJECT-TRACKER.md` entries.
 - Validation: See [Slice 027](slices/027-agent-assisted-delivery-orchestration.md) — focused documentation check (required template sections present, workflow section present, no unresolved placeholders) PASS exit 0, plus `scripts/run_gut_validation.sh` 168/168 across 22 scripts, exit 0 (no regression).
@@ -1843,7 +1843,7 @@ for a developer to pick up. No implementation has started.
   `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and `TECHNICAL-DEBT-TRACKER.md` on
   each request and renders the board; it runs read-only in the
   `project0-flow-visual` container and hot-reloads on source change.
-- Phase: 7. Delivery workflow capabilities
+- Phase: 13. Delivery workflow capabilities
 - Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
   `feature_stage`, `phase_rows`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
@@ -2227,7 +2227,7 @@ for a developer to pick up. No implementation has started.
   magic equilibrium, versioned contracts, intent validation, Canon boundaries,
   telemetry, implementation placement, and test seams while distinguishing the
   current implementation from future target behavior.
-- Phase: 7. Delivery workflow capabilities
+- Phase: 13. Delivery workflow capabilities
 - Implementation slices: [Slice 010](slices/010-core-mechanics-architecture.md)
 - Public seam: Root `CLAUDE.md`, linked `AGENTS.md`, `CONTEXT.md`, ADR 0002,
   and delivery records.
@@ -2259,7 +2259,7 @@ for a developer to pick up. No implementation has started.
 - Feature: Every push and pull request runs the repository's GUT validation suite and preserves machine-readable results.
 - Problem solved: Local validation can be forgotten or can pass without leaving durable evidence for regression review.
 - How it solves the problem: `.github/workflows/validation.yml` runs the same `scripts/run_gut_validation.sh` delivery command in a pinned Godot 4.3 container, fails the check on a nonzero result, and uploads JUnit XML, logs, and a JSON status summary even when validation fails.
-- Phase: 7. Delivery workflow capabilities
+- Phase: 13. Delivery workflow capabilities
 - Implementation slices: Current delivery-process slice, recorded in [Project Tracker](PROJECT-TRACKER.md#implementation-slice-index)
 - Public seam: `.github/workflows/validation.yml`, `scripts/run_gut_validation.sh`, and `build/validation/validation-summary.json`.
 - Validation: Local runner passes 14/14 tests and 38 assertions; forced runner failure exits nonzero and emits `status: failed`. CI configuration is syntactically reviewed and uses the same local command.
@@ -2294,7 +2294,7 @@ for a developer to pick up. No implementation has started.
 - Feature: Two connected clients see distinct Player representations and observe each other's server-authoritative movement.
 - Problem solved: The network proof through Slice 005 models only one connected Player and does not replicate peer state to other clients.
 - How it solves the problem: The server owns one `ServerPlayerState` per connected peer (keyed by peer id) and replicates each peer's authoritative position to every other connected peer; each client renders every other peer as a distinct `RemotePlayer_<peer_id>` node, spawned/despawned by explicit server RPCs. Slice 007 implements this for two concurrent peers.
-- Phase: 11. Multi-peer Player replication
+- Phase: 7. Multi-peer Player replication
 - Implementation slices: [Slice 007](slices/007-multi-peer-player-replication.md), [Slice 086](slices/086-multipeer-character-replication.md)
 - Public seam: `server/server_main.gd`, `server/server_player_state.gd`, `client/network_client.gd`, and `client/remote_player.gd`.
 - Validation: Headlessly validated via `scripts/test_multi_peer_replication.gd` and verified interactively in a physical two-machine LAN run with multiple peers.

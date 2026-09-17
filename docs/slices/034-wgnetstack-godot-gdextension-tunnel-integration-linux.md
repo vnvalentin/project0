@@ -6,7 +6,7 @@ the real Godot client reaches `connected: player spawned` through the
 in-process `WgNetstack` tunnel with no external process, and the full GUT
 suite stays green at 199/199)
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 by delivering S3a of the netstack-bridge design: wrapping the Slice 032
 `native/wgnetstack` Go bridge as a real in-process Godot 4.3 GDExtension and

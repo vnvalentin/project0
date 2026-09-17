@@ -81,18 +81,34 @@ Waves are sequential; tracks inside a wave run in parallel.
   JIT generation, and local inference are delivered. Further Canon mutation
   kinds require a separately scoped gameplay authorization slice; do not reopen
   these completed foundations as a batch.
-6. **Close public onboarding before advertising it.** Phase 13 has a working
-  auth-gated path, but its next small lots are security controls for the public
-  HTTPS account and character routes (DT-009), public account registration
-  (DT-010), then the bounded real-WAN validation in the F-035 runbook. Do not
-  allocate implementation slice numbers until each design is ready.
-7. **Finish the runtime boundary and deepen action input in parallel where files
-  do not overlap.** P-014 still needs production-cutover evidence; IP-015 can
-  incrementally expand the existing authoritative action seam. Neither permits
-  client-authored outcomes.
-8. **Biological progression and kinetic systems (P-016) — last.** Largest and
-  most speculative; needs the combat loop, persistence, locked scale, and an
-  accounts vessel seam.
+6. **Public onboarding (Phase 11) — done.** Public HTTPS registration (DT-010),
+  abuse controls (DT-009), and the auth-gated real-WAN validation are delivered
+  under P-024.
+7. **Finish the runtime boundary and deepen action input (Phase 12).** P-014
+  still needs production-cutover evidence and the login-image split (DT-012);
+  IP-015 can incrementally expand the existing authoritative action seam.
+  Neither permits client-authored outcomes.
+8. **NPC generalization (Phase 14) bridges combat into progression.** Generalize
+  the always-aggressive Monster into a dispositioned NPC with a shared HP-first
+  stat block — the first Player HP pool and the on-ramp to the Phase 15 vessel.
+9. **Biological progression and kinetic systems (Phase 15, P-016).** Largest and
+  most speculative; needs the combat loop, persistence, locked scale, and the
+  Phase 14 shared stat-block seam.
+10. **Client experience (Phase 16).** One Windows launcher for LAN/WAN choice,
+  mandatory pre-auth version gate + integrity-checked patching, controller
+  input through existing named actions, and first-run onboarding. Sourced from
+  `.scratch/{unified-launcher,client-auto-update,controller-integration}`.
+11. **Fleet operations console (Phase 17).** A private, authenticated LAN
+  telemetry + bounded-control console over every server, extending the operator
+  control plane (Slices 061–063). Sourced from `.scratch/server-admin-console`.
+12. **Horizontal scale / zone sharding (Phase 18) — research-first.** No
+  `map.md` yet; needs a research map and ADR before slices are scoped.
+
+**Renumber note (2026-09-16):** phases were reordered into a clean forward
+sequence during a trajectory reassessment. Previous → current: 11→7, 14→10,
+13→11, 10→12, 7→13, 12→15; new phases 14 and 16–18 were added. The renumber
+updated live records and slice "Tracker context" stamps; dated change-history
+prose and ADRs keep their original numbers as append-only history.
 
 **Runs in parallel throughout (independent files):** public game access via
 WireGuard (P-024: `infra/`, `ci/`, the `native/wgnetstack/` GDExtension), and
@@ -113,6 +129,12 @@ migration is now resolved — Slice 041).
 
 ## Phases
 
+Phases are numbered in clean forward-delivery order. Numbers 0–13 are complete
+or in-progress work; 14–18 are the forward roadmap sourced from the current
+`.scratch/<goal>/` maps. (This sequence was renumbered on 2026-09-16 during a
+trajectory reassessment; earlier records referred to some of these phases by
+their previous numbers — see the change note under "Delivery order".)
+
 | Phase | Status | Exit gate |
 | --- | --- | --- |
 | 0. Foundation and contracts | done | Foundation records completed, cross-linked, and validated; gate marker removed. |
@@ -122,14 +144,18 @@ migration is now resolved — Slice 041).
 | 4. Authoritative movement proof | done | One connected client sends WASD intent, the server owns and updates that Player position, and the client displays the returned authoritative position without prediction or interpolation. |
 | 5. Prediction and reconciliation proof | done | The client responds immediately to local input, acknowledges ordered server snapshots, reconciles prediction drift, and smoothly renders authoritative movement without remote-player replication or persistence. |
 | 6. Windows client package | done | A reproducible portable Windows 64-bit package launches the current client without the Godot editor, source share, or server-only files and can be configured to connect to the Linux server. |
-| 11. Multi-peer Player replication | done | Two clients connect to one server, see distinct Players, observe each other's authoritative movement, and clean up a disconnected Player. |
-| 7. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are each documented, exercised, and synchronized with feature records. |
+| 7. Multi-peer Player replication | done | Two clients connect to one server, see distinct Players, observe each other's authoritative movement, and clean up a disconnected Player. |
 | 8. JIT world generation and local inference | done | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
 | 9. Canon persistence and world mutation | done | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
-| 10. Authoritative runtime and action input | in-progress | The deployed server runs in the isolated fixed-tick runtime with health and recovery evidence, and the server resolves validated action intents, including combat, authoritatively. |
-| 12. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
-| 13. Public game access | done | A new remote player can safely self-register, authenticate, select a Character, provision a least-privilege WireGuard peer, and enter the authoritative server from a real WAN Windows client; public-route abuse controls are validated, and no VPS, client OS admin rights, or LAN exposure is required. |
-| 14. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
+| 10. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
+| 11. Public game access | done | A new remote player can safely self-register, authenticate, select a Character, provision a least-privilege WireGuard peer, and enter the authoritative server from a real WAN Windows client; public-route abuse controls are validated, and no VPS, client OS admin rights, or LAN exposure is required. |
+| 12. Authoritative runtime and action input | in-progress | The deployed server runs in the isolated fixed-tick runtime with health and recovery evidence, and the server resolves validated action intents, including combat, authoritatively. |
+| 13. Delivery workflow capabilities | in-progress | Agent handoffs, Remote-SSH operation, asset quarantine, and the architecture anchor are each documented, exercised, and synchronized with feature records. |
+| 14. NPC generalization and shared stat block | queued | The always-aggressive Monster is generalized into a server-authoritative NPC that carries a HOSTILE/PASSIVE disposition, moves when it has no combat target, shares an HP-first provisional stat block with the Player (giving the Player an HP pool for the first time), lets hostile NPCs damage the Player, and defines a passive-NPC spawn source — without duplicating the monster system. |
+| 15. Biological progression and kinetic systems | queued | Server-validated play redistributes the six-node vessel, derives kinetic and friction effects, unlocks Meridians, applies Burnout, and enforces magic equilibrium without gating player reasoning. |
+| 16. Client experience: controller, launcher, and auto-update | queued | A single Windows launcher selects LAN vs WAN safely, verifies the client build against a server-owned manifest and applies an integrity-checked, atomic, rollback-safe patch before world entry (mandatory pre-auth version gate), routes supported controller input through the existing named actions without adding client authority, and guides first-run onboarding — with keyboard/mouse behavior unchanged. |
+| 17. Fleet operations console | queued | A private, authenticated LAN console shows versioned current-state telemetry for every Project0 server and performs a bounded, authorized, audited set of control actions kept separate from public traffic, never bypassing server authority. |
+| 18. Horizontal scale and zone sharding | queued (research-first) | The world scales across multiple authoritative shards with a decided ownership and cross-shard handoff boundary. This goal has no `.scratch/zone-sharding/map.md` yet; a research map and ADR must close before implementation slices are scoped, so the exit gate is provisional. |
 
 ### Phase work index
 
@@ -190,17 +216,17 @@ Progress: **100%** (1 of 1 items done)
 - Features: `done` [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package) — the client was exported, launched outside the editor/source share, and connected over LAN.
 - Tech debt: none; DT-005 is resolved by the real Windows export and launch evidence.
 
-**Phase 11 — Multi-peer Player replication**
+**Phase 7 — Multi-peer Player replication**
 
 Progress: **100%** (1 of 1 items done)
 
 - Features: `done` [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication) — two-client authoritative Player replication; Slice 007 implements and validates two-peer replication and disconnect cleanup, verified by user in interactive GUI and physical LAN runs.
 - Tech debt: `done` [DT-003](TECHNICAL-DEBT-TRACKER.md#dt-003-no-interactive-gui-confirmation-of-slice-002s-visual-result), [DT-004](TECHNICAL-DEBT-TRACKER.md#dt-004-no-physical-two-machine-windowslinux-lan-run-of-slice-003) — interactive GUI and physical LAN runs verified by user.
 
-- **Current slice:** [086 — Multi-peer Character replication](slices/086-multipeer-character-replication.md) — **delivered; remote Players are labeled with their bound Character's display name (server broadcasts identity at world entry; late-joiners are seeded); GUT 401/401 + login-handoff e2e ALL PASS on Linux. Closes the Phase 14 multi-peer Character replication follow-up. Live two-client GUI confirmation is a manual follow-up.**
+- **Current slice:** [086 — Multi-peer Character replication](slices/086-multipeer-character-replication.md) — **delivered; remote Players are labeled with their bound Character's display name (server broadcasts identity at world entry; late-joiners are seeded); GUT 401/401 + login-handoff e2e ALL PASS on Linux. Closes the Phase 10 multi-peer Character replication follow-up. Live two-client GUI confirmation is a manual follow-up.**
   - **Feature:** [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication)
 
-**Phase 7 — Delivery workflow capabilities**
+**Phase 13 — Delivery workflow capabilities**
 
 Progress: **71%** (5 of 7 items done)
 
@@ -259,14 +285,14 @@ Progress: **100%** (11 of 11 items done)
 
 Progress: **100%** (4 of 4 items done)
 
-- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 14), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), `done` [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `done` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
+- Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation) (cross-cutting persistence-engine foundation, shared with Phase 10), `done` [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), `done` [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization), `done` [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking).
 - Tech debt: none yet.
 
 - **Current slice:** [098 — Canon sector mutation replay: server replicates the effective blueprint](slices/098-canon-sector-mutation-replay.md) — **delivered; the server replays a sector's mutation log (`shared/canon_sector_resolver.gd`) and replicates the effective blueprint (destroyed structures removed) so a loaded sector reflects durable changes**
   - **Feature:** [P-013](FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking) (fifth slice, completes the code path)
   - Prior: [097 — Canon mutation intent RPC transport](slices/097-canon-mutation-rpc-transport.md); [096 — intent DTO + resolution service](slices/096-canon-mutation-intent-service.md)
 
-**Phase 10 — Authoritative runtime and action input**
+**Phase 12 — Authoritative runtime and action input**
 
 Progress: **40%** (2 of 5 items done)
 
@@ -298,16 +324,16 @@ Progress: **40%** (2 of 5 items done)
 - Prior tooling slice: [101 — Server deployment path in the current deployment pipeline](slices/101-server-deployment-pipeline.md) — **delivered; PowerShell parser checks passed and the dirty-worktree guard stopped deployment before SSH**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
-**Phase 12 — Biological progression and kinetic systems**
+**Phase 15 — Biological progression and kinetic systems**
 
 Progress: **0%** (0 of 1 items done)
 
 - Features: `queued` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
 - Tech debt: none yet.
 
-**Phase 13 — Public game access**
+**Phase 11 — Public game access**
 
-Progress: **0%** (0 of 3 items done)
+Progress: **100%** (3 of 3 items done)
 
 - Features: `done` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the tunnel, Windows package, enrollment service, HTTPS login/character flow, assertion-gated peer provisioning, client/launcher seams, and real off-LAN Windows validation are delivered.
 - Tech debt: `done` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration), `done` [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client).
@@ -320,16 +346,69 @@ Progress: **0%** (0 of 3 items done)
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 - Also active: [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — **in progress; secure launcher implemented and full-suite tested; enrollment service deployed live and validated; Windows-launcher live tunnel validation pending**
 
-**Phase 14 — Player accounts and characters**
+**Phase 10 — Player accounts and characters**
 
 Progress: **100%** (6 of 6 items done)
 
-- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 14 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. Multi-peer Character replication is now delivered ([Slice 086](slices/086-multipeer-character-replication.md), under Phase 11/F-004); in-world return to Character Select without re-login is delivered ([Slice 087](slices/087-login-session-resume.md)); the mandatory-auth hard-flip remains a queued follow-up.
+- Design complete: the player-accounts map and its six tickets are resolved and the handoff-ready spec is [spec.md](../.scratch/player-accounts/spec.md); `CONTEXT.md` now carries Account and Character as canonical terms. All six Phase 10 delivery items are now implemented and validated, including the Windows GUI login/Character/world lifecycle in Slice 044. Multi-peer Character replication is now delivered ([Slice 086](slices/086-multipeer-character-replication.md), under Phase 7/F-004); in-world return to Character Select without re-login is delivered ([Slice 087](slices/087-login-session-resume.md)); the mandatory-auth hard-flip remains a queued follow-up.
 - Features: `done` [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation), `done` [F-030](FEATURE-LIST.md#f-030-accounts-and-characters-persistence-repository), `done` [F-031](FEATURE-LIST.md#f-031-account-authentication-and-session-server), `done` [F-032](FEATURE-LIST.md#f-032-character-crud-over-the-wire-server), `done` [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), `done` [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens).
 - Tech debt: none yet.
 
 - **Current slice:** [087 — Login-session resume (in-world Character Select without re-login)](slices/087-login-session-resume.md) — **delivered; the handoff fetches a bounded account resume token (server TTL, default 1h) and the in-world Character Select button re-establishes a login session from it to return to the roster, falling back to the login screen on expiry; GUT 407/407 + login-handoff e2e ALL PASS on Linux; Windows GUI confirmed**
   - **Features:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens)
+
+**Phase 14 — NPC generalization and shared stat block**
+
+Progress: **0%** (design in `.scratch/npcs`; no delivery items allocated yet)
+
+- Source goal: [npcs map](../.scratch/npcs/map.md) — generalizes the resolved
+  [basic-monsters](../.scratch/basic-monsters/map.md) work and reopens its
+  "a monster is always aggressive" assumption.
+- Scope: NPC disposition (HOSTILE/PASSIVE), non-combat movement, a provisional
+  shared HP-first stat block that gives the Player an HP pool for the first
+  time, hostile-NPC→Player damage, and a passive-NPC spawn source — all at a
+  server-authoritative seam, without duplicating the monster system.
+- Features/tech debt: none allocated yet; reserve via
+  [SLICE-REGISTRY.md](slices/SLICE-REGISTRY.md) and create `F-<n>` entries when
+  the first slice starts. Bridges combat into Phase 15.
+
+**Phase 16 — Client experience: controller, launcher, and auto-update**
+
+Progress: **0%** (design in `.scratch`; no delivery items allocated yet)
+
+- Source goals: [unified-launcher map](../.scratch/unified-launcher/map.md),
+  [client-auto-update map](../.scratch/client-auto-update/map.md),
+  [controller-integration map](../.scratch/controller-integration/map.md).
+- Scope: one Windows launcher for safe LAN/WAN selection; a server-owned client
+  build version gate before authentication with integrity-verified, atomic,
+  rollback-safe patching (remote code delivery); controller input routed through
+  existing named actions without adding client authority; first-run onboarding.
+  Keyboard/mouse behavior unchanged.
+- Features/tech debt: none allocated yet. The launcher and auto-update goals
+  overlap on the patch/version contract and should share one decision.
+
+**Phase 17 — Fleet operations console**
+
+Progress: **0%** (design in `.scratch/server-admin-console`; no delivery items allocated yet)
+
+- Source goal: [server-admin-console map](../.scratch/server-admin-console/map.md).
+- Scope: a private, authenticated LAN console showing a versioned ops-snapshot
+  for every Project0 server (login, game, and any later server) plus a bounded,
+  authorized, audited control-action catalog kept separate from public traffic.
+  Extends the operator control plane (Slices 061–063).
+- Features/tech debt: none allocated yet.
+
+**Phase 18 — Horizontal scale and zone sharding**
+
+Progress: **0%** (research-first; no `map.md` yet)
+
+- Source goal: `.scratch/zone-sharding` — **new and unresearched** (no `map.md`).
+  Must produce a research map and capstone ADR before any implementation slice
+  is scoped; the exit gate is provisional until then.
+- Scope (provisional): scale the world across multiple authoritative shards with
+  a decided ownership and cross-shard handoff boundary, without weakening server
+  authority.
+- Features/tech debt: none allocated yet.
 
 ### Implementation slice index
 
@@ -386,9 +465,9 @@ the phase exit gate; it is not a count of completed slices.
 - **Slice:** [006 — Portable Windows client package](slices/006-windows-client-package.md) — **100% complete; exported and LAN-tested by user**
   - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
 
-#### Phase 11 — Multi-peer Player replication
+#### Phase 7 — Multi-peer Player replication
 
-- **Slice:** [086 — Multi-peer Character replication](slices/086-multipeer-character-replication.md) — **delivered; ServerPlayerState emits `character_bound` at world entry, server_main broadcasts `receive_remote_player_identity` to every other peer and seeds late-joiners, NetworkClient caches+relays it, and RemotePlayer renders a billboarded name label; GUT 401/401 across 59 scripts + login-handoff e2e ALL PASS on Linux; closes the Phase 14 multi-peer Character replication follow-up**
+- **Slice:** [086 — Multi-peer Character replication](slices/086-multipeer-character-replication.md) — **delivered; ServerPlayerState emits `character_bound` at world entry, server_main broadcasts `receive_remote_player_identity` to every other peer and seeds late-joiners, NetworkClient caches+relays it, and RemotePlayer renders a billboarded name label; GUT 401/401 across 59 scripts + login-handoff e2e ALL PASS on Linux; closes the Phase 10 multi-peer Character replication follow-up**
   - **Feature:** [F-004](FEATURE-LIST.md#f-004-multi-peer-player-replication)
   - **Planning ticket:** [Multi-peer Player replication](../.scratch/game-vision/issues/13-multi-peer-player-replication.md)
 
@@ -502,7 +581,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** none identified
   - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (ticket 04), [ADR 0003](adr/0003-imperial-world-scale.md)
 
-#### Phase 7 — Delivery workflow capabilities
+#### Phase 13 — Delivery workflow capabilities
 
 - **Slice:** [010 — Core mechanics architecture contract](slices/010-core-mechanics-architecture.md) — **100% complete; focused documentation and full-suite validation passed**
   - **Features:** [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
@@ -559,7 +638,7 @@ the phase exit gate; it is not a count of completed slices.
   - **GitHub issue:** #215
   - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 (`zone-sharding` 0%, `basic-monsters` 75%, `world-scale` 100%); parent Goal issue mirror updated 14 WGL maps with no failures; `scripts/check_record_sync.sh` exit 0
 
-#### Phase 10 — Authoritative runtime and action input
+#### Phase 12 — Authoritative runtime and action input
 
 - **Slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; server/login_runtime.gd build_assertion_only_services builds the game graph with NO AuthService (SessionRegistry + CharacterService + LoginGateway only); server/login_gateway.gd now holds a SessionRegistry directly for session ops with AuthService optional (additive third constructor arg — login process + all existing gateway/auth tests unchanged); server/server_main.gd uses the assertion-only builder, drops the PROJECT0_GAME_ASSERTION_ONLY opt-out + the AuthService handle, and clears sessions via the gateway; tests/integration/test_login_runtime.gd adds an assertion-only case (no auth, refuses accounts, accepts the assertion path) and test_login_assertion_handoff.gd wires its game side via the assertion-only builder; validated on Linux GUT 58/58, boot logs "assertion-only game server", scripts/test_login_handoff_e2e.gd ALL PASS (world entry "Handoff Hero") with the game process building no AuthService**
 - **Slice:** [084 — Login-split cutover: split on by default](slices/084-login-split-cutover.md) — **delivered; the login split is now the canonical topology — shared/network_config.gd client_login_split_enabled() defaults ON (PROJECT0_CLIENT_LOGIN_SPLIT=0 selects the legacy single-connection flow) and server/server_main.gd runs the game server assertion-only by default (PROJECT0_GAME_ASSERTION_ONLY=0 re-enables in-process login for a combined single-process run); tests/unit/test_network_config_client_split.gd updated for the new default; safe now because nothing is deployed and no client is configured; validated on Linux GUT 58/58, headless boot logs assertion-only mode: true by default / false with =0, and scripts/test_login_handoff_e2e.gd ALL PASS with the new default (world_entry ok, bound Player "Handoff Hero")**
@@ -679,7 +758,7 @@ the phase exit gate; it is not a count of completed slices.
 - **Slice:** [038 — Shared server-owned SQLite persistence foundation](slices/038-shared-sqlite-persistence-foundation.md) — **100% complete; engine seam only (no domain tables); focused and full-suite validation passed**
   - **Feature:** [F-029](FEATURE-LIST.md#f-029-shared-server-owned-sqlite-persistence-foundation)
   - **Tech debt:** none identified
-  - **Planning ticket:** [player-accounts issue 03](../.scratch/player-accounts/issues/03-research-godot-persistence-sqlite.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md) (the persistence-mechanism decision was made in the player-accounts design track; this slice is Wave 4, the shared build-once foundation both Phase 9 Canon and Phase 14 accounts consume)
+  - **Planning ticket:** [player-accounts issue 03](../.scratch/player-accounts/issues/03-research-godot-persistence-sqlite.md), [player-accounts issue 06](../.scratch/player-accounts/issues/06-account-character-persistence-design.md) (the persistence-mechanism decision was made in the player-accounts design track; this slice is Wave 4, the shared build-once foundation both Phase 9 Canon and Phase 10 accounts consume)
   - **Decision:** no new ADR; implements the already-accepted ticket 03/06 decision (one shared `godot-sqlite` engine, WAL, fail-closed `user_version`, parameter-bound queries)
 - **Slice:** [045 — Canon sector persistence and one-time blueprint canonicalization](slices/045-canon-sector-persistence.md) — **100% complete; focused, runtime parse, full GUT, and record-sync validation passed**
   - **Features:** [P-011](FEATURE-LIST.md#p-011-canonical-history-archive), [P-012](FEATURE-LIST.md#p-012-one-time-blueprint-canonicalization)
@@ -717,7 +796,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Public seam:** `shared/canon_sector_resolver.gd` (`resolve_effective_blueprint`) consumed by `server/server_main.gd` (`_effective_blueprint_for`, applied at both sector-replication points); no client change, no RPC signature change
   - **Validation:** full GUT on the Linux host passed 493/493 tests across 72/72 scripts, exit 0 (up from 482/70); the melee e2e printed ALL PASS (effective-blueprint replication path renders the hub); `scripts/check_record_sync.sh` passed with 0 errors and 6 pre-existing warnings
 
-#### Phase 13 — Public game access
+#### Phase 11 — Public game access
 
 - **Slice:** [100 — Public HTTPS account registration](slices/100-public-account-registration.md) — **delivered; registration/login pytest 8/8 and full enrollment pytest 120/120 passed**
   - **Feature/debt:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard), resolved [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client)
@@ -793,7 +872,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Deployment:** the enrollment service is live behind `enroll.valentin.vip` (systemd `project0-enrollment.service` on the okami Linux host, `192.168.1.254:8095`, OPNsense nginx TLS vhost publishing only `/healthz` and `/redeem`); the WireGuard endpoint uses the static WAN IP `192.69.180.236:51900` directly (no `game` DNS record). Validated 2026-09-14: `infra/enrollment/tests` 55/55 passed; live `/healthz` and `/redeem` proof through Cloudflare (real OPNsense peer registration, then revoke); method guard confirmed.
   - **Non-goal:** no change to the verified temporary WAN path until replacement enrollment evidence exists
 
-#### Phase 14 — Player accounts and characters
+#### Phase 10 — Player accounts and characters
 
 - **Slice:** [087 — Login-session resume (in-world Character Select without re-login)](slices/087-login-session-resume.md) — **delivered; the login→game handoff also fetches a bounded account resume token (server-owned `PROJECT0_RESUME_TTL_SECONDS`, default 1h, clamped), and `NetworkClient.perform_return_to_character_select` re-establishes a login session from it so the in-world Character Select button returns to the roster without re-login (falling back to the login screen on expiry); GUT 407/407 across 60 scripts + login-handoff e2e ALL PASS on Linux; Windows GUI confirmed**
   - **Feature:** [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (extends the [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) assertion mechanism)
@@ -843,17 +922,17 @@ This section lists planned work with no implementation slice started yet. An
 item only becomes a tracked, in-progress slice (and moves out of this queue)
 once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
 
-- [x] Done — Public-authentication abuse controls (Phase 13,
+- [x] Done — Public-authentication abuse controls (Phase 11,
   [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)):
   [Slice 099](slices/099-public-auth-abuse-controls.md) implements bounded
   rate limiting, lockout, and anti-enumeration for public `/login` and
   `/characters/*`.
-- [x] Done — Public HTTPS account registration (Phase 13,
+- [x] Done — Public HTTPS account registration (Phase 11,
   [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client)):
   [Slice 100](slices/100-public-account-registration.md) loopback-delegates
   registration to the login authority, applies DT-009 controls, and re-enables
   the WAN registration path.
-- [ ] Awaiting evidence — Auth-gated real-WAN onboarding (Phase 13,
+- [ ] Awaiting evidence — Auth-gated real-WAN onboarding (Phase 11,
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)):
   after the two security blockers are closed, execute the six checks in the
   [F-035 runbook](f035-secure-launcher-validation-runbook.md) from a real
@@ -885,7 +964,7 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   the JIT boundary path continue as follow-up slices, resolving the open
   event-model questions in
   [game-vision issue 05](../.scratch/game-vision/issues/05-define-canon-persistence.md).
-- [ ] Queued — Containerized fixed-tick server runtime (Phase 10, in progress):
+- [ ] Queued — Containerized fixed-tick server runtime (Phase 12, in progress):
   [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
   is now `in-progress` — its runtime boundary is decided by the
   [container-platform map](../.scratch/container-platform/map.md) and
@@ -893,11 +972,11 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   bounded fixed-tick + fail-closed health contract foundation. Remaining P-014
   work: the container image under `/apps/project0`, tick-loop wiring, and
   run-beside-native equivalence per the migration decision.
-- [~] In progress — Server deployment path (Phase 10, [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)):
+- [~] In progress — Server deployment path (Phase 12, [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)):
   [Slice 101](slices/101-server-deployment-pipeline.md) adds an opt-in
   commit-archive deployment path with native, Docker candidate, and Docker
   split modes. Ordinary client builds remain client-only.
-- [x] Done — Full CI/CD pipeline (Phase 7 + Phase 10): [Slice 102](slices/102-ci-validation-pipeline.md)
+- [x] Done — Full CI/CD pipeline (Phase 13 + Phase 12): [Slice 102](slices/102-ci-validation-pipeline.md)
   expands the [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry)
   gate to record-sync, the Python enrollment/operator suites, the wgnetstack
   build, and the Windows launcher tests. [Slice 103](slices/103-linux-client-package-build.md)
@@ -906,7 +985,7 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   all-server deployment on tag. Remaining operator actions: register the
   self-hosted runner on the deployment host and run one tag deploy to prove the
   mutating path, which has no runtime evidence yet.
-- [ ] Queued — Remaining delivery workflow capabilities (Phase 7): Remote-SSH
+- [ ] Queued — Remaining delivery workflow capabilities (Phase 13): Remote-SSH
   server workspace
   ([P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace)) and
   token-efficient asset quarantine
@@ -937,7 +1016,7 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   [Slice 036](slices/036-world-scale-measurement-contract.md) (the `WorldScale`
   contract) and [Slice 037](slices/037-world-scale-constant-relabel.md) (the
   meters→yards constant relabel). See [world-scale map](../.scratch/world-scale/map.md).
-- [ ] In progress — Basic Monsters map (Phase 10 handoff, pre-slice design):
+- [ ] In progress — Basic Monsters map (Phase 12 handoff, pre-slice design):
   charting a minimal server-authoritative monster (flat HP/damage/death,
   detect/chase/attack state machine with a readable attack telegraph per
   `CLAUDE.md`'s Combat Reading rules), spawned from the Starting Town map's
@@ -979,7 +1058,7 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   [F-026](FEATURE-LIST.md#f-026-organic-districted-starting-city) is now
   `Implemented`; this map is closed. See
   [organic-village map](../.scratch/organic-village/map.md).
-- [x] In progress — Public game access via WireGuard (Phase 13): the first
+- [x] In progress — Public game access via WireGuard (Phase 11): the first
   implementation slice,
   [028 — WireGuard remote-access infrastructure foundation](slices/028-wireguard-remote-access-infrastructure-foundation.md),
   is scoped against issues
@@ -992,7 +1071,7 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   `ci/host-firewall-helper.sh`) and live-execution validation evidence are a
   follow-up handoff owned by Copilot.
 - [~] Active — Secure Windows tunnel enrollment and credential storage (Phase
-  13): [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)
+  11): [F-035](FEATURE-LIST.md#f-035-secure-windows-tunnel-enrollment-and-credential-storage)
   and [Slice 054](slices/054-secure-windows-tunnel-enrollment.md) replace the
   temporary embedded-key WAN verifier with invite redemption, client-generated
   keys, Windows DPAPI protection, automatic tunnel startup, and operator
@@ -1033,20 +1112,20 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   the real ~25s tunnel-teardown timing, and idempotent re-enrollment (reusing
   an existing peer UUID) remain queued, unscoped work for
   [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
-- [x] Ready — Player accounts and characters, data layer (Phase 14): design
+- [x] Ready — Player accounts and characters, data layer (Phase 10): design
   complete (`.scratch/player-accounts/spec.md`, all six tickets resolved,
   `CONTEXT.md` reconciled). The Wave 4 shared SQLite foundation
   ([Slice 038](slices/038-shared-sqlite-persistence-foundation.md), F-029)
   and the `accounts`/`characters` schema and repository on top of it
   ([Slice 039](slices/039-accounts-characters-repository.md), F-030) are now
   delivered.
-- [x] In progress — Player accounts and characters, auth + session (Phase 14):
+- [x] In progress — Player accounts and characters, auth + session (Phase 10):
   the register/login ENet RPC seam, PBKDF2-HMAC-SHA256 hashing (off the main
   thread), and the opaque in-memory `SessionRegistry`
   ([Slice 040](slices/040-account-auth-session.md), F-031) are now delivered,
   additive to the existing always-playable connect lifecycle (auth is not yet
   mandatory for world entry).
-- [x] In progress — Player accounts and characters, Character CRUD (Phase 14):
+- [x] In progress — Player accounts and characters, Character CRUD (Phase 10):
   session-gated `list_characters`/`create_character`/`select_character`/
   `delete_character` over ENet ([Slice 042](slices/042-character-crud-rpc.md),
   F-032) are delivered — every operation is scoped to the peer's session
@@ -1054,9 +1133,9 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   global live-name uniqueness, and ownership. Still queued, unscoped: client
   login/character screens replacing `identity_gate.tscn` (spec slice 5), and
   Character -> Player `start_for_peer` instantiation (spec slice 6). Self-serve
-  registration behind the Phase 13 WireGuard gate; up to 5 globally-unique,
+  registration behind the Phase 11 WireGuard gate; up to 5 globally-unique,
   soft-deletable Characters per Account.
-- [x] In progress — Player accounts and characters, world entry (Phase 14):
+- [x] In progress — Player accounts and characters, world entry (Phase 10):
   the server-side selected-Character world-entry binding
   ([Slice 043](slices/043-character-world-entry.md), F-033) is delivered —
   `get_selected_character` resolves the session's selection and

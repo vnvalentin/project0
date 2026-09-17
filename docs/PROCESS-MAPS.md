@@ -104,7 +104,7 @@ flowchart LR
 | DT-009 public-auth abuse controls | Ready | Bounded SDD/BDD/TDD and a reserved slice | Required before public advertising |
 | DT-010 HTTPS account registration | Ready after DT-009 design | Bounded registration design using the same protections | WAN registration is currently disabled |
 | F-035 / Slices 092-093 real-WAN validation | Awaiting evidence | Record six runbook checks from an off-LAN Windows client | No live self-service auth-gated run yet |
-| Phase 10 action-input expansion | Queued | Pick one action seam without overlapping server hot spots | First authoritative melee seam already exists |
+| Phase 12 action-input expansion | Queued | Pick one action seam without overlapping server hot spots | First authoritative melee seam already exists |
 
 ### Kanban operating rules
 
