@@ -6,6 +6,10 @@ data, and deployment rules. Treat the
 [development workflow](../docs/DEVELOPMENT-WORKFLOW.md) as mandatory operating
 logic for every implementation slice.
 
+The tool-neutral systems/implementation contract is
+[docs/SYSTEMS-SPECIFICATION.md](../docs/SYSTEMS-SPECIFICATION.md) (formerly
+`CLAUDE.md`); treat it as the authoritative systems spec.
+
 Use [TPSA](../docs/tpsa.md) as the core behavior profile for all activities.
 
 Use the delivery records together:

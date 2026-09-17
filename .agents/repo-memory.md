@@ -12,7 +12,7 @@ quick-reference and seed, not a replacement for them.
 
 ## Canonical rule sources (read these first)
 
-- Delivery + safety: [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md),
+- Delivery + safety: [AGENTS.md](../AGENTS.md), [docs/SYSTEMS-SPECIFICATION.md](../docs/SYSTEMS-SPECIFICATION.md),
   [docs/ENGINEERING-CONSTITUTION.md](../docs/ENGINEERING-CONSTITUTION.md),
   [docs/DEVELOPMENT-WORKFLOW.md](../docs/DEVELOPMENT-WORKFLOW.md).
 - Delivery records: [docs/PROJECT-TRACKER.md](../docs/PROJECT-TRACKER.md),
