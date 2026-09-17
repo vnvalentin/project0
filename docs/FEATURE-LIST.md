@@ -59,6 +59,21 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the ninth F-036 slice (Slice 124) — the `SpawnAnchor`
+    contract (`shared/spawn_anchor.gd`): fixed-anchor NPC population staffing.
+    Deficit + a pressure-scaled replacement DELAY (busy places refill faster;
+    never an instant clone), sourcing a silent promotion of an ambient NPC when
+    available or a newly generated identity otherwise — never resurrecting the
+    same individual. Fail-closed parsing. Completes the Phase 14 shared-contract
+    set (Slices 116-124).
+    Why: Keep settlements believably staffed under attrition without clones or
+    reincarnation — the last Phase 14 combat/world primitive.
+    Related work: [Slice 124](slices/124-phase14-spawn-anchor.md), #227, #232.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 508 tests /
+    508 passing, exit 0; new `test_spawn_anchor.gd` ran 15/15. Feature stays
+    `In Progress`: the shared contracts are complete; wiring them into the
+    running server/client is the follow-on integration work.
+  - Date: 2026-09-17
     What changed: Delivered the eighth F-036 slice (Slice 123) — the
     `ActivityRoutine` contract (`shared/activity_routine.gd`): activity-driven NPC
     movement where the current activity is a PURE function of elapsed ticks over
