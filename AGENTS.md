@@ -4,6 +4,11 @@ All development follows [the Engineering Constitution](docs/ENGINEERING-CONSTITU
 It is operating logic for implementation, not background documentation.
 Use [TPSA](docs/tpsa.md) as the core behavior profile for all activities.
 
+The tool-neutral systems/implementation contract is
+[docs/SYSTEMS-SPECIFICATION.md](docs/SYSTEMS-SPECIFICATION.md) (formerly
+`CLAUDE.md`, now a pointer stub). Any LLM working this repo — Copilot, Claude, or
+another — treats it as authoritative.
+
 ## Repository commands
 
 - Test: `scripts/run_gut_validation.sh` runs the automated GUT suite under
@@ -21,7 +26,9 @@ Use [TPSA](docs/tpsa.md) as the core behavior profile for all activities.
   command result and be recorded in the slice validation section.
 - Typecheck: Not applicable as a separate step. GDScript 2.0 static types are
   enforced by the same `--check-only` parse above; strict typing is a code-style
-  requirement (see Code Style in `CLAUDE.md`), not a standalone tool.
+  requirement (see Code Style in
+  [docs/SYSTEMS-SPECIFICATION.md](docs/SYSTEMS-SPECIFICATION.md)), not a
+  standalone tool.
 - Lint: Not applicable. No GDScript linter is installed.
 - Build: Not applicable during this phase. No export presets or packaged builds
   exist yet; the project runs from source via the Godot 4.3 editor/headless
