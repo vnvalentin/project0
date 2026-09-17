@@ -80,6 +80,12 @@ it has one primary phase for delivery ownership. Slice completion measures the
 slice's own evidence; phase completion measures progress toward the phase exit
 gate and is not reduced to a count of completed slices.
 
+Every work item must be traceable to a GitHub Issue before work starts. Local
+planning tickets under `.scratch/` may refine the design, but they do not
+replace the GitHub Issue that anchors external intent, branch work, pull request
+review, slice records, and tracker updates. Pull requests that complete the work
+use a closing keyword such as `Fixes #N`; partial or related work uses `Refs #N`.
+
 Apply TPSA as small-lot, frequent delivery: prefer the smallest independently
 observable, reversible slice that tests one hypothesis and produces evidence.
 Feature groups and phases must not become excuses for bundled implementation.
@@ -101,9 +107,10 @@ Every implementation slice follows `docs/DEVELOPMENT-WORKFLOW.md`:
 6. Validate the cheapest focused check first, then relevant type, lint, build,
    integration, and full-suite checks.
 7. Record the design, scenarios, tests, ADR or no-ADR rationale, validation, and
-   review outcome. Name the feature IDs advanced, check for duplicates, update
-   `FEATURE-LIST.md` and `PROJECT-TRACKER.md`, and record telemetry and stop
-   signals. Update documentation when behavior or operations change.
+   review outcome. Name the GitHub Issue, feature IDs advanced, check for
+   duplicates, update `FEATURE-LIST.md` and `PROJECT-TRACKER.md`, and record
+   telemetry and stop signals. Update documentation when behavior or operations
+   change.
 
 ## 5. Jidoka and Genchi Genbutsu
 

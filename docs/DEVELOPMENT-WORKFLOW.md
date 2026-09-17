@@ -93,10 +93,13 @@ calling the flow complete.
 
 Classify the request and identify the user outcome, affected systems and
 boundaries, unacceptable outcomes, smallest useful change, and explicit
-non-goals. Check `FEATURE-LIST.md` for an existing feature before creating a
-new one. Record the feature IDs advanced by the slice and ask Wayfinder or
-grilling questions when a product, ownership, or safety decision is unclear.
-Ask only questions that affect implementation or safety.
+non-goals. Identify the governing GitHub Issue before work starts; create one
+when no suitable issue exists. Local `.scratch/<goal>/issues/*.md` planning
+tickets can refine design and decisions, but they are not a substitute for the
+GitHub Issue. Check `FEATURE-LIST.md` for an existing feature before creating a
+new one. Record the GitHub Issue and feature IDs advanced by the slice and ask
+Wayfinder or grilling questions when a product, ownership, or safety decision is
+unclear. Ask only questions that affect implementation or safety.
 
 ## 2. SDD
 
@@ -226,6 +229,8 @@ Each implementation ticket links:
 - Focused validation command, expected pass signal, and telemetry artifact path.
 - Feature IDs advanced or created, duplicate-check result, and synchronized
 	`FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates.
+- GitHub Issue number or URL, plus the closing or reference keyword expected in
+   the pull request (`Fixes #N`, `Closes #N`, `Resolves #N`, or `Refs #N`).
 - Telemetry events, failure states, and stop signals, or an explicit rationale
 	for why the slice has no observable runtime telemetry.
 
@@ -248,7 +253,7 @@ Whenever a slice is started, in progress, or completed, all 4 sections of
 3. **`### Implementation slice index`**:
    - Record the slice with its status (e.g., `100% complete; focused and full-suite validation passed`).
    - Link the slice record `docs/slices/0NN-*.md`, feature IDs, tech debt IDs,
-     planning tickets, and ADRs.
+   GitHub Issue, planning tickets, and ADRs.
 4. **`## Work queue`**:
    - Mark `[x]` for items that have been scoped and delivered by slices.
    - Update status labels (`Ready`, `Queued`, `In progress`) for active design mapping.
@@ -265,9 +270,9 @@ The loop:
 
 1. **Brief** — Copilot fills the durable
    [handoff template](templates/claude-code-handoff-template.md) from a governing
-   ticket with a recorded decision: user outcome, bounded scope and non-goals,
-   target public seam, safety invariants, acceptance scenarios, the exact
-   validation command, and the required return evidence.
+   GitHub Issue and ticket with a recorded decision: user outcome, bounded scope
+   and non-goals, target public seam, safety invariants, acceptance scenarios,
+   the exact validation command, and the required return evidence.
 2. **Implement** — Claude Code CLI makes the named multi-file changes and runs
    the validation, owning application/test and implementation-facing record
    edits. Copilot makes these edits directly only when the user explicitly
@@ -279,10 +284,10 @@ The loop:
    rather than accepting it.
 
 A handoff is **traceable** only when the slice record and delivery records
-together carry the brief, the change set at the declared seam, the validation
-evidence (focused command, expected pass signal, and the machine-readable
-artifact with its exit code), the review outcome, and the synchronized
-`FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates. An edit outside the declared
-scope is an unscoped edit; a session limit, timeout, or validation failure
-leaves the slice `blocked`/`awaiting evidence`. Completion is never inferred
-from files appearing in the tree.
+together carry the GitHub Issue, the brief, the change set at the declared seam,
+the validation evidence (focused command, expected pass signal, and the
+machine-readable artifact with its exit code), the review outcome, and the
+synchronized `FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates. An edit outside the
+declared scope is an unscoped edit; a session limit, timeout, or validation
+failure leaves the slice `blocked`/`awaiting evidence`. Completion is never
+inferred from files appearing in the tree.

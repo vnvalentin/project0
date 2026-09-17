@@ -21,6 +21,10 @@ quick-reference and seed, not a replacement for them.
 
 ## Branching + PR rule (mandatory; canonical in AGENTS.md + DEVELOPMENT-WORKFLOW.md)
 
+- Every work item must be tied to a GitHub Issue before work starts. Link the
+  issue from the branch/PR, slice record, tracker entries, and any local
+  `.scratch` planning ticket references. Use `Fixes #N`/`Closes #N`/`Resolves #N`
+  when the PR completes it; use `Refs #N` for related or partial work.
 - `main` is always releasable; **never** commit directly to `main`.
 - Every change gets its own branch cut from the latest `origin/main`, named
   `type/short-topic` (`slice/NNN-topic`, `fix/topic`, `docs/topic`,
