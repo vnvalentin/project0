@@ -125,8 +125,9 @@ contended range and everything after it is tracked explicitly:
 | 107 | Drive the engine at the contracted authoritative tick rate (DT-013) | interactive |
 | 108 | Retire the git-archive deploy path (P-014) | interactive |
 | 109 | Host-assumption sweep and post-deploy smoke checks (P-014) | interactive |
+| 110 | Ship the Linux wgnetstack GDExtension in the server image (DT-014) | interactive |
 
-Next free slice: **110** (verify against `docs/slices/` before reserving).
+Next free slice: **111** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

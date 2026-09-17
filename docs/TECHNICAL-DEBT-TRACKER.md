@@ -53,32 +53,6 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
-### DT-014: Container images ship without the wgnetstack GDExtension
-
-- Classification: `Strategic Technical Debt`
-- Debt type: `Infrastructure`
-- Owner: valentin.vn@gmail.com
-- Date created: 2026-09-16
-- Benefit or reason: Accepted tradeoff. `native/wgnetstack/gdext/build/` is
-  gitignored, so the Linux `.so` is not in the build context and the published
-  images do not contain it. Building it inside the image would add a full
-  godot-cpp compile to every image build for a library the server processes do
-  not currently call. The servers start and run correctly without it.
-- Impact: Both Godot containers log `GDExtension dynamic library not found` and
-  `Error loading extension` at every boot. That is persistent false-alarm noise
-  in the logs of the authoritative server, which trains operators to ignore
-  startup errors — and it means any future server-side use of the tunnel
-  extension will fail at runtime rather than at build time.
-- Remediation plan: Either build the Linux GDExtension as a stage in the
-  `project0-godot` image (the cross-build already exists in
-  `scripts/package_client_linux.sh`), or make the `.gdextension` entry
-  conditional so a server build does not declare a library it never loads.
-  Prefer the former once anything server-side needs the tunnel.
-- Status: `open`
-- Related work: [Slice 105](slices/105-container-images-and-registry.md),
-  [Slice 106](slices/106-container-runtime-cutover.md),
-  [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
-
 ### DT-012: Login authority shares the game server's image and codebase
 
 - Classification: `Strategic Technical Debt`
@@ -241,6 +215,39 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   workers. This is an explicit operational limitation, not an untracked gap.
 
 ## Resolved Items
+
+### DT-014: Container images ship without the wgnetstack GDExtension
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Infrastructure`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: Accepted tradeoff. `native/wgnetstack/gdext/build/` is
+  gitignored, so the Linux `.so` is not in the build context and the published
+  images do not contain it. Building it inside the image would add a full
+  godot-cpp compile to every image build for a library the server processes do
+  not currently call. The servers start and run correctly without it.
+- Impact: Both Godot containers log `GDExtension dynamic library not found` and
+  `Error loading extension` at every boot. That is persistent false-alarm noise
+  in the logs of the authoritative server, which trains operators to ignore
+  startup errors — and it means any future server-side use of the tunnel
+  extension will fail at runtime rather than at build time.
+- Remediation plan: Either build the Linux GDExtension as a stage in the
+  `project0-godot` image (the cross-build already exists in
+  `scripts/package_client_linux.sh`), or make the `.gdextension` entry
+  conditional so a server build does not declare a library it never loads.
+  Prefer the former once anything server-side needs the tunnel.
+- Status: `done` — resolved by
+  [Slice 110](slices/110-ship-wgnetstack-extension.md). A cached image stage now
+  builds the Linux `template_debug` GDExtension and copies it in before the
+  import cache is baked. Risk reduced: the authoritative server's boot log no
+  longer carries four expected errors, so a real startup failure is visible.
+  Measured after the change: 0 occurrences of `GDExtension dynamic library not
+  found` / `Error loading extension`, previously four lines at every boot.
+- Related work: [Slice 105](slices/105-container-images-and-registry.md),
+  [Slice 106](slices/106-container-runtime-cutover.md),
+  [GitHub Issue #92](https://github.com/vnvalentin/project0/issues/92),
+  [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 
 ### DT-013: Advertised `tick_rate` does not match the actual authoritative tick rate
 
