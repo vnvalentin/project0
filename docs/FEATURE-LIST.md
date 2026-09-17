@@ -59,6 +59,22 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the sixth F-036 slice (Slice 121) — the
+    `DamageResolution` contract (`shared/damage_resolution.gd`): the pure,
+    deterministic seam that COMPOSES weapon effective magnitude, attacker
+    attribute, technique reliability, and defender mitigation into one incoming
+    damage amount for `CombatHealth.apply_damage`. Attribute scales relative to
+    the creation baseline; mitigation is capped so a hit always stings; damage
+    floors at zero. Stateless; fail-closed parsing.
+    Why: Tie the item, technique, foundation, and health contracts together so a
+    strike does the right damage by one shared rule for players and NPCs.
+    Related work: [Slice 121](slices/121-phase14-damage-resolution.md), #227,
+    #231.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 505 tests /
+    505 passing, exit 0; new `test_damage_resolution.gd` ran 12/12 (including an
+    end-to-end composition test). Feature stays `In Progress`: status effects,
+    movement, and spawning slices remain.
+  - Date: 2026-09-17
     What changed: Delivered the fifth F-036 slice (Slice 120) — the
     `CombatHealth` contract (`shared/combat_health.gd`): the shared
     health/defeat/recovery pool for players and NPCs (damage floors at zero and
