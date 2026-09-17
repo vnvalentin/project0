@@ -20,11 +20,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Pinned to the revision the shipped extension was built against (Slice 035),
 # so the image never silently tracks whatever branch 4.3 points at.
 ARG GODOT_CPP_REF=d5cc777a89d899665fb61f1650ef0dc0cf6488c4
+# Debian's golang-go is too old to parse this module's go directive, so pin the
+# upstream toolchain rather than depending on the distro's version.
+ARG GO_VERSION=1.23.12
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential scons git ca-certificates golang-go \
-    && rm -rf /var/lib/apt/lists/*
+        build-essential scons git ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -sSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -C /usr/local -xz
+
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 WORKDIR /src
 COPY native/wgnetstack /src/native/wgnetstack
