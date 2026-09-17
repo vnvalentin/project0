@@ -1,0 +1,21 @@
+{
+  "//": "Post-deploy smoke checks (Slice 109). Health checks only prove a process answers for itself; these exercise paths that cross a process or container boundary, which is where every defect in the container cutover actually lived. A failing check fails the deploy and triggers rollback.",
+  "version": 1,
+  "checks": [
+    {
+      "name": "enrollment-delegates-to-login-authority",
+      "//": "The exact request that broke after the cutover. Enrollment delegates /login to the login authority over the literal 127.0.0.1 (ADR 0005). When that target is unreachable the app returns 502 upstream_unavailable, which a client reports as a malformed response. Deliberately invalid credentials must produce an authentication verdict (401), never a gateway error.",
+      "method": "POST",
+      "url": "http://127.0.0.1:8095/login",
+      "body": "{\"username\":\"__deploy_smoke__\",\"password\":\"__deploy_smoke__\"}",
+      "expect_status": "401"
+    },
+    {
+      "name": "enrollment-healthz",
+      "//": "Kept as the control: it passed throughout the login outage, which is precisely why it is not sufficient on its own.",
+      "method": "GET",
+      "url": "http://127.0.0.1:8095/healthz",
+      "expect_status": "200"
+    }
+  ]
+}
