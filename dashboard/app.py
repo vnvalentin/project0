@@ -457,6 +457,17 @@ def phase_progress_map(tracker: str) -> dict:
     return out
 
 
+def phase_numbering_notice(tracker: str) -> str:
+    progress = phase_progress_map(tracker)
+    current_phase = progress.get(7, {})
+    workflow_phase = progress.get(13, {})
+    if current_phase.get("title") == "Multi-peer Player replication" and workflow_phase.get("title") == "Delivery workflow capabilities":
+        return "Current numbering: Phase 7 is Multi-peer Player replication; delivery workflow is Phase 13."
+    if current_phase.get("title") == "Delivery workflow capabilities" and 13 not in progress:
+        return "This source uses pre-2026-09-16 phase numbering. Refresh the dashboard mirror before interpreting Phase 7 progress."
+    return "Phase percentages follow the phase numbers in docs/PROJECT-TRACKER.md."
+
+
 def _slice_done(status: str) -> bool:
     # Accept both completion labels used by the tracker.
     s = status.lower()
@@ -571,7 +582,7 @@ def snapshot(view: str = "committed") -> dict:
     debts = debt_cards(debt)
     issue_feed = github_issues()
     goals = goal_maps(issue_feed)
-    return {"phases": phases, "slices": slices, "debts": debts, "goals": goals, "features": feature_cards(reader), "actions": action_items(phases, debts, slices), "calibration": calibration(), "slice_lane": build_slice_lane(tracker), "view": view, "issue_feed": issue_feed, "traceability": traceability_model(goals, issue_feed)}
+    return {"phases": phases, "slices": slices, "debts": debts, "goals": goals, "features": feature_cards(reader), "actions": action_items(phases, debts, slices), "calibration": calibration(), "phase_notice": phase_numbering_notice(tracker), "slice_lane": build_slice_lane(tracker), "view": view, "issue_feed": issue_feed, "traceability": traceability_model(goals, issue_feed)}
 
 
 def esc(value: str) -> str:

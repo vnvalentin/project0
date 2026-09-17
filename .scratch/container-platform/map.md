@@ -27,10 +27,12 @@ slices without guessing.
   operator operations, telemetry, and controlled updates.
 - Planning mode: this map produces decisions and handoff material. It does not
   implement containerization or service code while charting.
-- Current reality: the Godot game server runs as a native systemd process;
-  enrollment runs as a separate systemd Python/uvicorn process; the read-only
-  flow dashboard runs in Docker. P-014 (containerized fixed-tick authoritative
-  server runtime) is planned, not delivered.
+- Current reality: the Godot game and login authorities, enrollment service, and
+  dashboard run in the containerized deployment topology established by
+  Slices 106-110, with host-persistent state and the native service retained
+  only as a documented rollback boundary. P-014's runtime foundation and
+  cutover are delivered; production mutation-path evidence and the independent
+  login-image release boundary remain tracked follow-up work (DT-012).
 - Standing constraints: preserve the current native server as rollback during
   migration; keep OPNsense and client private keys outside the game container;
   keep the public enrollment route separate from operator controls; preserve
