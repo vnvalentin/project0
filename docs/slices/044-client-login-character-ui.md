@@ -1,4 +1,5 @@
 # Slice 044: Client Login and Character Selection UI
+GitHub issue: #95
 
 **Status:** Delivered (server and Windows GUI validation complete)
 **Linked Feature:** F-034 (new feature in FEATURE-LIST.md)

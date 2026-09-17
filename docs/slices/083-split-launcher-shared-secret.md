@@ -1,4 +1,5 @@
 # Slice 083 — One-command split launcher with shared-secret management
+GitHub issue: #95
 
 Status: **delivered**
 

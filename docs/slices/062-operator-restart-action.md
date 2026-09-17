@@ -1,4 +1,5 @@
 # Slice 062 — Operator control plane: job/audit model + service restart action
+GitHub issue: #95
 
 Status: **delivered**
 

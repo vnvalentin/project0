@@ -96,6 +96,10 @@ Do not create implementation slices or product code while this gate is open.
   and Work Queue) per `docs/DEVELOPMENT-WORKFLOW.md`.
 - Before editing, state the user outcome, scope, non-goals, affected boundary,
   unacceptable outcomes, hypothesis, and cheapest discriminating check.
+- Before starting work, identify the governing GitHub Issue; create one when no
+  suitable issue exists. Link it from the branch/PR, slice record, tracker
+  records, and any local `.scratch` planning ticket references. Local planning
+  tickets do not replace the GitHub Issue.
 - Test at the public seam and run the narrowest relevant validation first.
 - Stop on unexpected failure, degraded health, missing evidence, or unclear
   security boundaries.

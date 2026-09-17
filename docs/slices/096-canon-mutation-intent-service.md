@@ -1,4 +1,5 @@
 # Slice 096 — Canon mutation intent DTO + server-authoritative resolution service
+GitHub issue: #95
 
 Status: **in-progress**
 

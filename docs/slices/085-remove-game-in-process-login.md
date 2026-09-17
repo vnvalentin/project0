@@ -1,4 +1,5 @@
 # Slice 085 — Remove in-process login from the game server
+GitHub issue: #95
 
 Status: **delivered**
 

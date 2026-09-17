@@ -1,4 +1,5 @@
 # Slice 055 — Server fixed-tick and health snapshot contract
+GitHub issue: #95
 
 Status: **delivered**
 

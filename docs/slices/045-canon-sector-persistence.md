@@ -1,4 +1,5 @@
 # Slice 045 — Canon sector persistence and one-time blueprint canonicalization
+GitHub issue: #95
 
 Status: **delivered**
 

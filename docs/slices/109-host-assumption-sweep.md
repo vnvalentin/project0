@@ -1,4 +1,5 @@
 # Slice 109 - Host-assumption sweep and post-deploy smoke checks
+GitHub issue: #95
 
 Status: **delivered**
 

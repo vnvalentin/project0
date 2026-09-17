@@ -1,4 +1,5 @@
 # Slice 073 — Login→game handoff e2e (over real ENet, two server processes)
+GitHub issue: #95
 
 Status: **delivered**
 

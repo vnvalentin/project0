@@ -1,4 +1,5 @@
 # Slice 060 — Assertion-backed session establishment in the login gateway
+GitHub issue: #95
 
 Status: **delivered**
 

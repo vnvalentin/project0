@@ -1,4 +1,5 @@
 # Slice 021: Monster AI state machine with attack telegraph
+GitHub issue: #95
 
 Tracker context: Phase 10 — Authoritative runtime and action input; advances
 [IP-023](../FEATURE-LIST.md#ip-023-basic-monster-combat).

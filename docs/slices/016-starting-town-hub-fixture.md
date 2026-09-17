@@ -1,4 +1,5 @@
 # Slice 016: Starting town hub fixture
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-019](../FEATURE-LIST.md#f-019-starting-town-hub-fixture).

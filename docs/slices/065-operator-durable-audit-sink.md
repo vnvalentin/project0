@@ -1,4 +1,5 @@
 # Slice 065 — Operator control plane: durable SQLite audit sink
+GitHub issue: #95
 
 Status: **delivered**
 

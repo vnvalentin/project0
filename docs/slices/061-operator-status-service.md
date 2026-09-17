@@ -1,4 +1,5 @@
 # Slice 061 — Operator control plane: read-only status service
+GitHub issue: #95
 
 Status: **delivered**
 

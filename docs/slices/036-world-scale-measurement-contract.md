@@ -1,4 +1,5 @@
 # Slice 036: Imperial world-scale measurement contract (WorldScale)
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference (cross-cutting
 scale foundation; the Sector/Tile span it fixes also underpins Phase 10 runtime

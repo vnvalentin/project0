@@ -1,4 +1,5 @@
 # Slice 037: World-scale constant relabel (meters → yards)
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference (completes the
 constant-adoption half of the world-scale foundation). Advances

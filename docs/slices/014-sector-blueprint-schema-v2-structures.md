@@ -1,4 +1,5 @@
 # Slice 014: Sector blueprint schema v2 — structures and spawn points
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-017](../FEATURE-LIST.md#f-017-sector-blueprint-schema-v2-structures-and-spawn-points).

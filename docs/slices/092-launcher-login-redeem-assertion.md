@@ -1,4 +1,5 @@
 # Slice 092 — Auth-gated onboarding C-launcher: Windows launcher login + redeem-with-assertion
+GitHub issue: #95
 
 Status: **delivered**
 

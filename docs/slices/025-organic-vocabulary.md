@@ -1,4 +1,5 @@
 # Slice 025: Schema v3 organic vocabulary in the starting town
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-026](../FEATURE-LIST.md#f-026-organic-districted-starting-city) and extends

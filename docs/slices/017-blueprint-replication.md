@@ -1,4 +1,5 @@
 # Slice 017: Server-to-client blueprint replication
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-020](../FEATURE-LIST.md#f-020-server-to-client-sector-blueprint-replication).

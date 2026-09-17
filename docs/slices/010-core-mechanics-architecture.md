@@ -1,4 +1,5 @@
 # Slice 010: Core mechanics architecture contract
+GitHub issue: #95
 
 Status: complete
 

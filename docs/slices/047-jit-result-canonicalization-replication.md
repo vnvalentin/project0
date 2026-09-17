@@ -1,4 +1,5 @@
 # Slice 047 — JIT result canonicalization and sector replication
+GitHub issue: #95
 
 Status: **delivered**
 

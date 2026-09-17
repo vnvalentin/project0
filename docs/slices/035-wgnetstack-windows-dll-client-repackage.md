@@ -1,4 +1,5 @@
 # Slice 035: wgnetstack Windows DLL cross-compile + client repackage (S3b)
+GitHub issue: #95
 
 Status: delivered (build + package: the wgnetstack GDExtension cross-compiles
 to a valid PE32+ Windows DLL and the portable Windows client package bundles

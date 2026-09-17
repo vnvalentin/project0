@@ -1,4 +1,5 @@
 # Slice 086 — Multi-peer Character replication
+GitHub issue: #95
 
 Status: **delivered**
 

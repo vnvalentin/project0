@@ -1,4 +1,5 @@
 # Slice 058 — In-process login gateway seam over AuthService/CharacterService
+GitHub issue: #95
 
 Status: **delivered**
 

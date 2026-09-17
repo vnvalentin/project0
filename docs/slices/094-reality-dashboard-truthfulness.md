@@ -1,4 +1,5 @@
 # Slice 094 - Reality dashboard truthfulness and delivery-record reconciliation
+GitHub issue: #95
 
 Status: **delivered**
 

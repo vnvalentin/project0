@@ -1,4 +1,5 @@
 # Slice 090 — Auth-gated onboarding C-server: HTTPS character endpoints (loopback-delegated)
+GitHub issue: #95
 
 Status: **delivered**
 

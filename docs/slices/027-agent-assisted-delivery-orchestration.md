@@ -1,4 +1,5 @@
 # Slice 027: Agent-assisted delivery orchestration
+GitHub issue: #95
 
 Status: complete
 

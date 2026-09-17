@@ -1,4 +1,5 @@
 # Slice 012: Server-authoritative melee strike and hit registration
+GitHub issue: #95
 
 Tracker context: Phase 10 — Authoritative runtime and action input; advances
 [IP-015](../FEATURE-LIST.md#ip-015-authoritative-action-input).

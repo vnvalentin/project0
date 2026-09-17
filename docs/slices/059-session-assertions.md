@@ -1,4 +1,5 @@
 # Slice 059 — Signed session assertion contract, issuer, and validator
+GitHub issue: #95
 
 Status: **delivered**
 

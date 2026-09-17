@@ -1,4 +1,5 @@
 # Slice 006: Portable Windows client package
+GitHub issue: #95
 
 Tracker context: Phase 6 — Windows client package; advances
 [F-002](../FEATURE-LIST.md#f-002-portable-windows-client-package).

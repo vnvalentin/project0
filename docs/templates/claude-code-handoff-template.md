@@ -20,6 +20,7 @@ template expresses a handoff, it does not redefine those rules.
 
 ## Repository context
 
+- GitHub issue: <#number or issue URL; use Fixes/Closes/Resolves when this handoff will complete it, otherwise Refs>
 - Governing ticket: <relative ticket path>
 - Primary phase and slice: <phase / slice id>
 - Files Claude Code may create or change: <paths>
@@ -58,8 +59,8 @@ A handoff is *traceable* only when all of the following are recorded together in
 the slice record and delivery records, so planning → implementation → review can
 be reconstructed without guesswork:
 
-1. **Brief** — this filled-in template (bounded scope, seam, non-goals,
-   validation, required evidence), linked from the slice record.
+1. **Brief** — this filled-in template (GitHub Issue, bounded scope, seam,
+   non-goals, validation, required evidence), linked from the slice record.
 2. **Change set** — the exact files Claude Code created or changed, matching the
    declared scope. Any file outside the declared scope is an unscoped edit and
    is flagged in review, never silently accepted.

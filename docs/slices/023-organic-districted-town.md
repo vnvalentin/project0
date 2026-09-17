@@ -1,4 +1,5 @@
 # Slice 023: Bigger organic districted starting town
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; opens
 [F-026](../FEATURE-LIST.md#f-026-organic-districted-starting-city) and

@@ -1,4 +1,5 @@
 # Slice 075 — Cross-DB world entry: bind Player from the assertion snapshot
+GitHub issue: #95
 
 Status: **delivered**
 

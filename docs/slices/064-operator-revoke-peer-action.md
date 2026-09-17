@@ -1,4 +1,5 @@
 # Slice 064 — Operator control plane: audited revoke-peer action
+GitHub issue: #95
 
 Status: **delivered**
 

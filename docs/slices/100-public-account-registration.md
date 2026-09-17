@@ -1,4 +1,5 @@
 # Slice 100 - Public HTTPS account registration
+GitHub issue: #95
 
 Status: **delivered**
 

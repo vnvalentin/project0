@@ -1,4 +1,5 @@
 # Slice 097 — Canon mutation intent RPC transport + headless round-trip e2e
+GitHub issue: #95
 
 Status: **in-progress**
 

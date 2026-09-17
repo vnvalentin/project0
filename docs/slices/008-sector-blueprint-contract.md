@@ -1,4 +1,5 @@
 # Slice 008: Async validated sector blueprint contract
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [IP-004](../FEATURE-LIST.md#ip-004-structured-sector-blueprint-translation).

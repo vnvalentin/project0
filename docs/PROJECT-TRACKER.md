@@ -225,6 +225,14 @@ Progress: **71%** (5 of 7 items done)
 - **Also delivered:** [094 — Reality dashboard truthfulness and delivery-record reconciliation](slices/094-reality-dashboard-truthfulness.md) — **feature count deduplication, delivered-slice recognition, item-weighted overall completion, commit provenance, and stale Phase 1/8 status reconciliation**
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
 
+- **Also delivered:** [111 — Dashboard issue traceability detail](slices/111-dashboard-issue-traceability-detail.md) — **detail screen now foregrounds GitHub traceability: 110/110 slice records linked, 15/15 parent goal issues, 95/95 child planning issues, and `zone-sharding` shown as new/unresearched instead of omitted; stale hardcoded delivery-roadmap block removed from `/detail`**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #206
+
+- **Also delivered:** [112 — Reality page Goal source of truth](slices/112-reality-goal-source-of-truth.md) — **Reality page GitHub Source of Truth now renders only parent Goal issues and shows each goal's percent complete from closed child issues over total child issues; non-goal workflow issues and child planning issues are hidden from that section**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #207
+
 **Phase 8 — JIT world generation and local inference**
 
 Progress: **100%** (11 of 11 items done)
@@ -251,7 +259,7 @@ Progress: **100%** (4 of 4 items done)
 Progress: **40%** (2 of 5 items done)
 
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) — runtime foundations delivered; production-cutover evidence remains; `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input) — first melee seam delivered, broader action scope remains; `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), `queued` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract).
-- Tech debt: `open` [DT-012](TECHNICAL-DEBT-TRACKER.md#dt-012-login-authority-shares-the-game-servers-image-and-codebase) — login authority shares the game server's image and codebase; `done` [DT-013](TECHNICAL-DEBT-TRACKER.md#dt-013-advertised-tick_rate-does-not-match-the-actual-authoritative-tick-rate) — engine now runs at the advertised rate (Slice 107); `open` [DT-014](TECHNICAL-DEBT-TRACKER.md#dt-014-container-images-ship-without-the-wgnetstack-gdextension) — container images ship without the wgnetstack GDExtension.
+- Tech debt: `open` [DT-012](TECHNICAL-DEBT-TRACKER.md#dt-012-login-authority-shares-the-game-servers-image-and-codebase) — login authority shares the game server's image and codebase; `done` [DT-013](TECHNICAL-DEBT-TRACKER.md#dt-013-advertised-tick_rate-does-not-match-the-actual-authoritative-tick-rate) — engine now runs at the advertised rate (Slice 107); `done` [DT-014](TECHNICAL-DEBT-TRACKER.md#dt-014-container-images-ship-without-the-wgnetstack-gdextension) — the Linux GDExtension now ships in the server image (Slice 110).
 
 - **Current slice:** [107 — Drive the engine at the contracted authoritative tick rate](slices/107-authoritative-tick-rate.md) — **delivered; the server ran at Godot's 60 Hz default while advertising 30 because Slice 055 built the tick contract but deferred applying it. Measured after the fix: `server_tick 1170` over `uptime 38.733s` = 30.21 ticks/s against advertised 30 (match), where the same measurement before gave 60.0/s twice. Full GUT 493/493 across 72 scripts, unchanged counts**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -259,7 +267,11 @@ Progress: **40%** (2 of 5 items done)
 
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
-- **Current tooling slice:** [109 — Host-assumption sweep and post-deploy smoke checks](slices/109-host-assumption-sweep.md) — **delivered; audited every hardcoded loopback and host path against the container topology, corrected the last wrong value at source, and added smoke checks that exercise cross-boundary calls. Proven in both directions: passes on the fixed stack (`HTTP 401`), and after deliberately reintroducing the Slice 106 defect it produced `FAIL ... expected 401, got 502` and rolled back — the exact failure that reached the user as a malformed client response**
+- **Current tooling slice:** [110 — Ship the Linux wgnetstack GDExtension in the server image](slices/110-ship-wgnetstack-extension.md) — **delivered; a cached image stage builds the extension and copies it in before the import cache is baked. Boot-log occurrences of `GDExtension dynamic library not found` / `Error loading extension` went from four at every boot to **0**, so a real startup failure is now visible. Resolves DT-014**
+  - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
+  - **Tech debt:** resolves [DT-014](TECHNICAL-DEBT-TRACKER.md#dt-014-container-images-ship-without-the-wgnetstack-gdextension)
+  - **GitHub issue:** #92
+- Prior tooling slice: [109 — Host-assumption sweep and post-deploy smoke checks](slices/109-host-assumption-sweep.md) — **delivered; audited every hardcoded loopback and host path against the container topology, corrected the last wrong value at source, and added smoke checks that exercise cross-boundary calls. Proven in both directions: passes on the fixed stack (`HTTP 401`), and after deliberately reintroducing the Slice 106 defect it produced `FAIL ... expected 401, got 502` and rolled back — the exact failure that reached the user as a malformed client response**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 - Prior tooling slice: [108 — Retire the git-archive deploy path](slices/108-retire-archive-deploy.md) — **delivered; deleted `deploy_all.sh`, `deploy_server.ps1`, and `services.json`, repointed the rehearsal workflow, and dropped the dead `-DeployServer` stage. Both previously untested deploy failure paths were exercised on the live stack: a missing tag failed with `nothing was changed` and left all services healthy, and an injected health failure produced `ROLLBACK: redeploying previous tag v0.1.1`. Known limitation recorded: rollback reverts the image tag, not the compose file**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -509,6 +521,16 @@ the phase exit gate; it is not a count of completed slices.
   - **Tech debt:** [DT-011](TECHNICAL-DEBT-TRACKER.md#dt-011-client-export-filter-ships-the-test-framework-and-build-artifacts) raised
   - **Planning ticket:** [Full CI/CD pipeline for all servers and the client package](../.scratch/game-vision/map.md) (Delivery workflow / CI-CD)
   - **Decision:** no new ADR; makes the existing F-002 package reproducible from a clean checkout
+
+- **Slice:** [111 — Dashboard issue traceability detail](slices/111-dashboard-issue-traceability-detail.md) — **delivered; `/detail` now shows GitHub Issue traceability totals, parent goal issues, child planning issues, missing slice links, and the new/unresearched status for goal folders without `map.md`; stale hardcoded delivery-roadmap prose removed from this screen**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #206
+  - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused render check exit 0 with traceability heading, goal heading, hidden old roadmap, `zone-sharding` new/unresearched, `95/95` child count, and `15/15` goal count all true; `scripts/check_record_sync.sh` exit 0
+
+- **Slice:** [112 — Reality page Goal source of truth](slices/112-reality-goal-source-of-truth.md) — **delivered; `/` now uses GitHub Issues as the visible source of truth by rendering only parent Goal issues, grouped with their child issue states and completion percentage**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #207
+  - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 with exactly 15 goal cards, percent/open/closed child counts present, non-goal workflow issues absent, child issue cards absent, and the summary tile relabeled to open goal child issues; `scripts/check_record_sync.sh` exit 0
 
 #### Phase 10 — Authoritative runtime and action input
 

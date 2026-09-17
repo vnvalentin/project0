@@ -1,4 +1,5 @@
 # Slice 082 — Containerized login-split e2e (compose split overlay + two-container handoff)
+GitHub issue: #95
 
 Status: **delivered**
 

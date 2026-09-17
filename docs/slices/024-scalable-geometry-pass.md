@@ -1,4 +1,5 @@
 # Slice 024: Scalable geometry pass (merged ground mesh + merged wall colliders)
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; remediates
 [DT-008](../TECHNICAL-DEBT-TRACKER.md#dt-008-per-tile-staticbody3d-geometry-does-not-scale-to-city-size)
