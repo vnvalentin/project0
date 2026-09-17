@@ -59,6 +59,20 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the second F-036 slice (Slice 117) — the
+    `CharacterAlignment` contract (`shared/character_alignment.gd`): continuous
+    morality/chaos axes, deterministic D&D-style label derivation with a
+    deceptive `declared_label`, relationship-driven `disposition_toward()`, and
+    lawful-under-authority restraint. Fail-closed parsing; pure and
+    deterministic (no RNG/clock/IO).
+    Why: Give AI Characters a believable, auditable stance toward the player,
+    on the shared Character seam, before combat/movement slices consume it.
+    Related work: [Slice 117](slices/117-phase14-character-alignment.md), #227, #228.
+    Validation: full GUT suite on Linux host `okami` — 74 scripts / 514 tests /
+    514 passing, exit 0; new `test_character_alignment.gd` ran 12/12. Feature
+    stays `In Progress`: equipment, techniques, movement, combat, and spawning
+    slices remain.
+  - Date: 2026-09-17
     What changed: Delivered the first F-036 slice (Slice 116) — the shared
     `CharacterFoundation` contract (`shared/character_foundation.gd`): one
     server-authoritative Character for players and NPCs, controller type
