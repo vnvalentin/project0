@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [117 — Phase 14 Character alignment & disposition](slices/117-phase14-character-alignment.md) — **delivered; `shared/character_alignment.gd` + 12 GUT tests, full suite 514/514 across 74/74 on the Linux host**. Prior: [Slice 116](slices/116-phase14-character-foundation-handoff.md) (Character foundation).
-- Tech debt: none identified; Slices 116-117 record why no new debt entry is needed.
+- Current slice: [118 — Phase 14 item & equipment effectiveness](slices/118-phase14-item-equipment.md) — **delivered; `shared/item_contract.gd` + 12 GUT tests, full suite 526/526 across 75/75 on the Linux host**. Prior: Slices 116 (foundation), 117 (alignment).
+- Tech debt: none identified; Slices 116-118 record why no new debt entry is needed.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [118 — Phase 14 item & equipment effectiveness](slices/118-phase14-item-equipment.md) — **delivered; `ItemContract` (slots/category/binding, item+class proficiency effectiveness curve, mastery proc, tradeability) + 12 public-seam tests; full GUT suite 526/526 across 75/75, exit 0 on the Linux host**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #233)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [117 — Phase 14 Character alignment & disposition](slices/117-phase14-character-alignment.md) — **delivered; `CharacterAlignment` contract (morality/chaos axes, deceptive label, relationship-driven disposition, lawful-under-authority restraint) + 12 public-seam tests; full GUT suite 514/514 across 74/74, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #228)

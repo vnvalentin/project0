@@ -59,6 +59,20 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the third F-036 slice (Slice 118) — the
+    `ItemContract` (`shared/item_contract.gd`): item metadata (14 slots,
+    mundane/magical category, binding), the item/item-class proficiency
+    effectiveness curve (giant-sword example: 0%→50%, 50%→100%, 100%→150%; at
+    100% class, floor 100% and mastery 200%), the mastery proc, and
+    binding-governed tradeability. Fail-closed parsing; pure/deterministic.
+    Why: Give equipment a reproducible, tunable effectiveness seam that reshapes
+    capability without replacing development, before equip/inventory wiring.
+    Related work: [Slice 118](slices/118-phase14-item-equipment.md), #227, #233.
+    Validation: full GUT suite on Linux host `okami` — 75 scripts / 526 tests /
+    526 passing, exit 0; new `test_item_contract.gd` ran 12/12. Feature stays
+    `In Progress`: equip/inventory state, techniques, movement, combat, and
+    spawning slices remain.
+  - Date: 2026-09-17
     What changed: Delivered the second F-036 slice (Slice 117) — the
     `CharacterAlignment` contract (`shared/character_alignment.gd`): continuous
     morality/chaos axes, deterministic D&D-style label derivation with a
