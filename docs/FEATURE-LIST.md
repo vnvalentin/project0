@@ -41,6 +41,30 @@ feature so future drift is easier to detect.
 
 ## Planned Features
 
+### F-036: Phase 14 unified Character and NPC generalization
+
+- Status: `Ready`
+- Feature: Players and NPCs share one server-authoritative Character model with
+  a fixed balanced six-node baseline, uncapped organic development, shared
+  techniques, equipment, movement, combat, disposition, and spawning contracts.
+- Problem solved: NPC behavior and progression must not duplicate the player
+  model or bypass the same authority, capability, and consequence rules.
+- Phase: 14. NPC generalization and shared Character
+- Public seam: Server-owned Character/progression resolution and a bounded
+  replicated Character snapshot containing presentation-safe derived state.
+- Implementation slices: [Slice 116](slices/116-phase14-character-foundation-handoff.md)
+- Validation: Slice 116 establishes the records-first handoff. Implementation
+  must add public-seam GUT coverage, full GUT telemetry, record-sync evidence,
+  and authority/hidden-state review before this feature becomes Implemented.
+- Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
+- Change history:
+  - Date: 2026-09-17
+    What changed: Opened F-036 and Slice 116 as the records-first Phase 14
+    Character foundation handoff.
+    Why: Consolidate the resolved NPC generalization decisions before code
+    implementation and preserve one shared Player/NPC authority boundary.
+    Related work: #227-#235, ADR 0006, Slice 116.
+
 ### P-005: Remote-SSH server workspace
 
 - Status: `Planned`
@@ -204,7 +228,7 @@ feature so future drift is easier to detect.
 - Phase: 12. Authoritative runtime and action input
 - Public seam: Server container entrypoint, tick loop, health output, and runtime telemetry.
 - Implementation slices: [Slice 055](slices/055-server-fixed-tick-and-health-contract.md) (fixed-tick + health contract seam), [Slice 056](slices/056-game-server-container-image.md) (game-server container image, run beside native), [Slice 057](slices/057-game-server-persistence-boundary.md) (host-persistent data boundary + SQLite backup/restore), [Slice 058](slices/058-login-gateway-seam.md) (in-process login gateway seam), [Slice 059](slices/059-session-assertions.md) (signed session assertion contract, issuer, validator), [Slice 060](slices/060-assertion-session-binding.md) (assertion-backed session establishment in the gateway), [Slice 061](slices/061-operator-status-service.md) (operator control plane: read-only status service), [Slice 062](slices/062-operator-restart-action.md) (operator control plane: job/audit model + service restart action), [Slice 063](slices/063-operator-mint-invite-action.md) (operator control plane: audited mint-invite action), [Slice 064](slices/064-operator-revoke-peer-action.md) (operator control plane: audited revoke-peer action), [Slice 065](slices/065-operator-durable-audit-sink.md) (operator control plane: durable SQLite audit sink), [Slice 066](slices/066-operator-lifecycle-actions.md) (operator control plane: audited start/stop lifecycle actions), [Slice 067](slices/067-server-health-file-healthcheck.md) (runtime health file + container HEALTHCHECK), [Slice 068](slices/068-login-runtime-and-standalone-process.md) (login runtime extraction + standalone login-server process), [Slice 069](slices/069-assertion-handoff-seams.md) (assertion handoff seams: request from login, present to game), [Slice 070](slices/070-deploy-supervise-login-server.md) (deploy + supervise the standalone login server), [Slice 071](slices/071-shared-assertion-secret.md) (shared assertion secret across the game + login units), [Slice 072](slices/072-login-endpoint-config.md) (login-endpoint config: NetworkConfig.resolve_login_port), [Slice 073](slices/073-login-game-handoff-e2e.md) (login→game handoff e2e over real ENet, two server processes), [Slice 074](slices/074-assertion-character-snapshot.md) (signed Character snapshot in the session assertion), [Slice 075](slices/075-cross-db-world-entry.md) (cross-DB world entry: bind Player from the assertion snapshot), [Slice 076](slices/076-game-assertion-only-mode.md) (game server assertion-only mode: refuse account-authority RPCs), [Slice 077](slices/077-client-login-handoff-seam.md) (client login→game handoff seam), [Slice 078](slices/078-wire-gates-to-login-process.md) (wire login-screen gates to the login process, opt-in), [Slice 079](slices/079-optional-dedicated-canon-store.md) (optional dedicated Canon store: opt-in canon/accounts DB split on the game server), [Slice 080](slices/080-canon-migration-on-split-boot.md) (one-time Canon migration into a dedicated store on first split boot), [Slice 081](slices/081-deploy-login-server-compose.md) (deploy the standalone login server via docker-compose, opt-in profile), [Slice 082](slices/082-containerized-login-split-e2e.md) (containerized login-split e2e: compose split overlay + two-container handoff proof), [Slice 083](slices/083-split-launcher-shared-secret.md) (one-command split launcher with shared-secret management), [Slice 084](slices/084-login-split-cutover.md) (login-split cutover: split on by default), [Slice 085](slices/085-remove-game-in-process-login.md) (remove in-process login from the game server: assertion-only graph, no AuthService).
-- Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Slice 056 delivered the OCI image (pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful SIGTERM) and proved build, boot (`Server listening`, SQLite+Canon ready), healthy port-bound healthcheck, ~0.39s graceful stop, and run-beside-native with the native service untouched. Slice 057 moved durable state to the host boundary `/var/lib/project0` (data survives container replacement — Canon `idempotent` on second boot) and proved consistent SQLite backup/restore. Slice 067 wired the `ServerHealth` contract into a runtime health file (`PROJECT0_HEALTH_FILE`) the server rewrites each ~0.5 s tick stride, and switched the container `HEALTHCHECK` to consume it (fresh + `healthy`); proven on Linux — the file reports `"status":"healthy"`, `healthcheck.sh` passes while running, and a stale or missing file fails closed. Slices 068-085 then delivered the standalone login authority, shared assertions, split deployment, client handoff, Canon/accounts separation, and removal of the in-process game authority. P-014 remains active because the container has run beside the native service but the production game-server cutover itself is not recorded as complete.
+- Validation: Slice 055 delivered the pure `ServerHealth` contract (bounded 20–30 Hz tick, fail-closed versioned health snapshot); authoritative Linux gate 326/326 across 45/45 scripts, exit 0. Slice 056 delivered the OCI image (pinned Godot 4.3 headless, non-root, UDP 9999, baked import cache, graceful SIGTERM) and proved build, boot (`Server listening`, SQLite+Canon ready), healthy port-bound healthcheck, ~0.39s graceful stop, and run-beside-native with the native service untouched. Slice 057 moved durable state to the host boundary `/var/lib/project0` (data survives container replacement — Canon `idempotent` on second boot) and proved consistent SQLite backup/restore. Slice 067 wired the `ServerHealth` contract into a runtime health file (`PROJECT0_HEALTH_FILE`) the server rewrites each ~0.5 s tick stride, and switched the container `HEALTHCHECK` to consume it (fresh + `healthy`); proven on Linux — the file reports `"status":"healthy"`, `healthcheck.sh` passes while running, and a stale or missing file fails closed. Slices 068-085 then delivered the standalone login authority, shared assertions, split deployment, client handoff, Canon/accounts separation, and removal of the in-process game authority. Slices 106-110 completed the container runtime cutover, fixed 30 Hz runtime, registry-driven deployment path, and Linux GDExtension packaging. P-014 remains active only for production mutation-path evidence and the independently releasable login image boundary (DT-012).
 - Related work: [container-platform map](../.scratch/container-platform/map.md) and its resolved runtime, login, persistence, operator, migration, and worker decisions.
 - Change history:
   - Date: 2026-09-16
@@ -827,7 +851,7 @@ for a developer to pick up. No implementation has started.
 
 ### P-024: Public game access via OPNsense-native WireGuard
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Remote players reach the home-hosted authoritative server over a
   split-tunnel WireGuard connection — an in-process userspace netstack
   GDExtension in the Godot client, an invite-code enrollment service, and
@@ -913,13 +937,11 @@ for a developer to pick up. No implementation has started.
   host (see the 2026-09-15 delivery change history entry below).
 - Ready basis: all six `.scratch/wan-wireguard/` issues are `resolved`
   (SDD-GAME-WG-001).
-- Exit-gate plan: the implemented path is not yet safe to advertise or complete
-  for a new remote player. First remediate [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)
-  across the public authentication and character routes; then remediate
-  [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client)
-  with an equivalently protected registration route; finally run and record the
-  real-WAN checks in [the F-035 runbook](f035-secure-launcher-validation-runbook.md).
-  Allocate the follow-up slice numbers only when their bounded designs are ready.
+- Exit-gate outcome: DT-009 and DT-010 are resolved, and the six real-WAN checks
+  in [the F-035 runbook](f035-secure-launcher-validation-runbook.md) passed on
+  2026-09-16. P-024 is implemented and safe to advertise; future enrollment
+  changes must preserve the existing abuse controls, fail-closed peer lifecycle,
+  and no-private-key-transmission invariants.
 - Phase: 11. Public game access
 - Public seam: `infra/opnsense/setup_wireguard_game_tunnel.py` and
   `ci/host-firewall-helper.sh` (Slice 028); `native/wgnetstack/` producing
@@ -961,10 +983,9 @@ for a developer to pick up. No implementation has started.
   revoked key, and fail-closed rejection on both `delClient` and
   `reconfigure` upstream failures (no local release, retry succeeds once
   healthy) — again all against a fake OPNsense client and a temp sqlite DB.
-  The live enrollment deployment and invite-path OPNsense proof are recorded;
-  remaining Phase 13 evidence is protected self-service onboarding, real
-  tunnel-teardown timing within one keepalive interval, and the F-035 real-WAN
-  runbook. Slice 088's acceptance evidence is
+  The live enrollment deployment, invite-path OPNsense proof, and F-035
+  real-WAN runbook are recorded; real tunnel-teardown timing within one
+  keepalive interval remains operational follow-up. Slice 088's acceptance evidence is
   `GODOT_BIN=godot bash scripts/run_gut_validation.sh` on the Linux host
   (`validation-summary.json` status `passed`, exit 0, 62/62 scripts, 415/415
   tests, 1511 asserts) and `.venv-enrollment/bin/python -m pytest
