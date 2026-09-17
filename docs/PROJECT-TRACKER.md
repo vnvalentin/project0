@@ -351,8 +351,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   baseline, uncapped organic development, multidimensional techniques,
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
-- Feature: `ready` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [116 — Phase 14 Character foundation handoff](slices/116-phase14-character-foundation-handoff.md) — **ready; records-first handoff, implementation not started**.
+- Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
+- Current slice: [116 — Phase 14 Character foundation handoff](slices/116-phase14-character-foundation-handoff.md) — **delivered; `shared/character_foundation.gd` + 9 GUT tests, full suite 502/502 across 73/73 on the Linux host**.
 - Tech debt: none identified; Slice 116 records why no new debt entry is needed.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
@@ -406,7 +406,7 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
-- **Slice:** [116 — Phase 14 Character foundation handoff](slices/116-phase14-character-foundation-handoff.md) — **ready; records-first handoff, implementation not started**
+- **Slice:** [116 — Phase 14 Character foundation handoff](slices/116-phase14-character-foundation-handoff.md) — **delivered; unified `CharacterFoundation` contract + 9 public-seam tests; full GUT suite 502/502 across 73/73, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227
   - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
@@ -912,10 +912,12 @@ This section lists planned work with no implementation slice started yet. An
 item only becomes a tracked, in-progress slice (and moves out of this queue)
 once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
 
-- [ ] Ready — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
+- [x] Delivered — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
   [Slice 116](slices/116-phase14-character-foundation-handoff.md),
-  [#227](https://github.com/vnvalentin/project0/issues/227)); records-first
-  handoff is complete, implementation has not started.
+  [#227](https://github.com/vnvalentin/project0/issues/227)); the shared
+  `CharacterFoundation` contract is implemented and GUT-validated. Equipment,
+  techniques, movement, combat, disposition, and spawning remain as follow-up
+  slices under F-036.
 
 - [x] Done — Public-authentication abuse controls (Phase 11,
   [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration)):
