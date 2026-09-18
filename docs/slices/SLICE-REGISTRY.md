@@ -162,8 +162,9 @@ contended range and everything after it is tracked explicitly:
 | 144 | Phase 16 F-037: client build version identity + export-time stamp (#100, #182, F-037) | interactive |
 | 145 | Phase 16 F-037: pre-auth version handshake contract + server-owned required-version resolution (#100, F-037) | interactive |
 | 146 | Phase 16 F-037: live version-gate enforcement — deferred peer admission + client handshake/rejection (#100, F-037) | interactive |
+| 147 | Phase 16 F-037: signed update-manifest verifier + patch hash/size verification (#100, F-037) | interactive |
 
-Next free slice: **147** (verify against `docs/slices/` before reserving).
+Next free slice: **148** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

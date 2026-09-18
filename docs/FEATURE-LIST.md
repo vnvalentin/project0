@@ -61,7 +61,9 @@ feature so future drift is easier to detect.
   [Slice 145](slices/145-version-handshake-contract.md) (pre-auth version
   handshake contract + server-owned required-version resolution),
   [Slice 146](slices/146-version-gate-enforcement.md) (live version-gate
-  enforcement: deferred peer admission, client handshake/rejection).
+  enforcement: deferred peer admission, client handshake/rejection),
+  [Slice 147](slices/147-signed-update-manifest.md) (signed update-manifest
+  verifier + patch hash/size verification).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -71,6 +73,26 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the fourth F-037 slice (Slice 147) — the **signed
+    update-manifest verifier**, the trust anchor for remote code delivery.
+    `shared/update_manifest.gd` verifies a detached RSA signature over the raw
+    manifest bytes **before parsing them**, validates the fields fail-closed, and
+    verifies a downloaded patch against the signed size and streamed SHA-256.
+    Outcomes are bounded (`unverified`, `malformed`, `unsupported_version`,
+    `key_unusable`, `hash_mismatch`, `size_mismatch`, `unreadable`) and the
+    manifest is `null` on every non-ok result.
+    Why: Verifying a re-serialized copy is a classic signature bypass — two byte
+    strings can parse to the same object, so the bytes actually read must be the
+    bytes verified. Deliberately not wired to a trusted key yet: a placeholder key
+    would look functional while trusting nothing real.
+    Related work: [Slice 147](slices/147-signed-update-manifest.md),
+    [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), #100.
+    Validation: full GUT suite on the Linux host — 104 scripts / 762 tests / 762
+    passing, exit 0; new `test_update_manifest` 11/11 using **real RSA-3072
+    keypairs generated in-test**, covering genuine tampered-document and
+    foreign-key refusals plus equal-length/wrong-content patch rejection.
+    record-sync exit 0.
   - Date: 2026-09-18
     What changed: Delivered the third F-037 slice (Slice 146) — **the mandatory
     version gate is now live**. The client sends `VersionHandshake.request()` as
