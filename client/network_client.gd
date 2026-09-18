@@ -81,6 +81,11 @@ signal canon_mutation_intent_received(sender_peer_id: int, intent: Dictionary)
 ## never computes HP itself.
 signal player_health_changed(current_hp: int, max_hp: int)
 
+## Slice 127: emitted when the server replicates the local Player's
+## presentation-safe Character snapshot at world entry, so a HUD element can
+## show the vessel readout. Presentation only — derived graph state, no raw stats.
+signal character_snapshot_changed(snapshot: Dictionary)
+
 ## Slice 094: emitted on the owning client the tick its Player was defeated
 ## (and provisionally respawned at full HP), so a HUD element can flash a cue.
 signal player_defeated_received()
@@ -189,6 +194,10 @@ var _resume_assertion: String = ""
 ## the current value. Defaults to the provisional full pool.
 var latest_current_hp: int = PlayerCombatContractsScript.PLAYER_MAX_HP
 var latest_max_hp: int = PlayerCombatContractsScript.PLAYER_MAX_HP
+
+## Slice 127: latest replicated presentation-safe Character snapshot, retained so
+## a HUD element created after it first arrives still reads the current value.
+var latest_character_snapshot: Dictionary = {}
 
 
 func _ready() -> void:
@@ -703,6 +712,17 @@ func receive_health_update(current_hp: int, max_hp: int) -> void:
 	latest_current_hp = current_hp
 	latest_max_hp = max_hp
 	player_health_changed.emit(current_hp, max_hp)
+
+
+## RPC target (Slice 127): called by the server on the owning client with its
+## Player's presentation-safe Character snapshot. Retained in
+## latest_character_snapshot so a HUD created after this first arrives still
+## reads it, and relayed via a signal so the HUD decides how to render it — this
+## autoload never derives Character state.
+@rpc("authority", "call_remote", "reliable")
+func receive_character_snapshot(snapshot: Dictionary) -> void:
+	latest_character_snapshot = snapshot
+	character_snapshot_changed.emit(snapshot)
 
 
 ## RPC target (Slice 094): called by the server on the owning client the tick

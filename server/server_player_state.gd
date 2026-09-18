@@ -40,6 +40,7 @@ const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
+const CharacterFoundationScript: Script = preload("res://shared/character_foundation.gd")
 
 ## Emitted every physics tick after this peer's authoritative position is
 ## computed, so server_main.gd can broadcast it to every other connected
@@ -84,6 +85,12 @@ signal health_changed(peer_id: int, current_hp: int, max_hp: int, server_tick: i
 ## reposition itself replicates through the existing position_updated channel.
 signal player_defeated(peer_id: int, server_tick: int)
 
+## Slice 127: emitted at world entry with this Player's presentation-safe
+## Character snapshot (derived graph axes + controller/kind context only, never
+## raw stat numbers), so server_main.gd can replicate it to the owning client
+## for a vessel readout without this node knowing about networking itself.
+signal character_snapshot_ready(peer_id: int, snapshot: Dictionary)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
 ## Slice 094: the spawn anchor this Player is returned to on the provisional
@@ -99,6 +106,11 @@ var _spawn_position: Vector3 = Vector3.ZERO
 var _health: Object = CombatHealthScript.new(
 	float(PlayerCombatContractsScript.PLAYER_MAX_HP), float(PlayerCombatContractsScript.PLAYER_MAX_HP)
 )
+
+## Slice 127: the Player's server-owned unified Character (baseline humanoid),
+## the same CharacterFoundation contract NPCs use. Server-authoritative; only a
+## presentation-safe snapshot (never the raw nodes) crosses to the client.
+var _character: Object
 ## Forward-facing direction used for the melee arc check; defaults to -Z
 ## (Godot's forward) and is updated from non-zero movement input, since this
 ## slice has no independent look/aim input.
@@ -172,6 +184,10 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	_last_processed_action_sequence = -1
 	_last_action_resolution = null
 	_hit_target_ids_this_swing.clear()
+	_character = CharacterFoundationScript.create_baseline(
+		CharacterFoundationScript.CONTROLLER_PLAYER, CharacterFoundationScript.KIND_HUMANOID
+	)["character"]
+	character_snapshot_ready.emit(owning_peer_id, character_snapshot())
 
 
 ## Public seam: called by server_main.gd to register the server-owned target
@@ -202,6 +218,13 @@ func current_hp() -> int:
 ## Slice 094/125: the Player's maximum authoritative HP.
 func max_hp() -> int:
 	return int(round(_health.max_health))
+
+
+## Slice 127: the Player's presentation-safe Character snapshot (controller/kind
+## context + normalized graph axes only, never the raw stat numbers). The client
+## renders the vessel shape without learning the values.
+func character_snapshot() -> Dictionary:
+	return _character.to_presentation_snapshot()
 
 
 ## Public seam (Slice 094): applies a monster's authoritative, telegraph-fair

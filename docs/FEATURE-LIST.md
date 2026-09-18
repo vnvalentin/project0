@@ -59,6 +59,28 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the twelfth F-036 slice (Slice 127) — wired the
+    unified `CharacterFoundation` into the live server. `ServerPlayerState` now
+    creates a baseline humanoid Character at world entry and exposes a
+    presentation-safe `character_snapshot()` (normalized graph axes +
+    controller/kind only, never raw stat numbers) via a
+    `character_snapshot_ready` signal; `server_main` replicates it to the owning
+    client on a new peer-scoped RPC mirroring the HP channel; `NetworkClient`
+    stores it and a minimal HUD `VesselLabel` renders "Vessel: humanoid
+    (balanced)".
+    Why: The first replication of unified Character state to the client — the
+    presentation-safe boundary the Slice 116 handoff requires, reusable for NPCs.
+    Related work: [Slice 127](slices/127-phase14-character-foundation-server.md),
+    #227, #230.
+    Validation: full GUT suite on Linux host `okami` — 74 scripts / 502 tests /
+    502 passing, exit 0; new `test_character_foundation_replication` 4/4 (real
+    `ServerPlayerState` node incl. the no-raw-numbers presentation-safe
+    invariant) and `test_character_vessel_label` 5/5, with the real-scene tests
+    `test_identity_gate_and_movement` 4/4 and `test_melee_strike_visual_indicator`
+    9/9 unchanged (the new HUD node + client signal load in `gameplay.tscn`).
+    Feature stays `In Progress`: giving NPCs a `CharacterFoundation` and richer
+    graph rendering remain.
+  - Date: 2026-09-17
     What changed: Delivered the eleventh F-036 slice (Slice 126) — migrated the
     MONSTER's server-owned HP pool from the provisional `MonsterCombatState`
     (Slice 020) to the shared `CombatHealth` contract, seeded at
