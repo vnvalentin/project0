@@ -309,10 +309,10 @@ Progress: **40%** (2 of 5 items done)
 
 **Phase 15 — Biological progression and kinetic systems**
 
-Progress: **in-progress** (P-016-A foundation underway)
+Progress: **in-progress** (P-016-A foundation delivered; subsystems underway)
 
 - Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
-- Current slice: [134 — Phase 15 (P-016-A): effective mechanics snapshot](slices/134-phase15-effective-mechanics-snapshot.md) — **delivered; `EffectiveMechanicsSnapshot` — deterministic derivation of effective nodes from the vessel under current tuning + a presentation-safe normalized graph (no raw numbers) + fail-closed `from_presentation_wire`; new `test_effective_mechanics_snapshot` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. Prior: Slices 132 (tuning), 133 (vessel). The L1+L2 data contracts are complete; next: the server progression service + headless assertion, then P-016-B…F.
+- Current slice: [135 — Phase 15 (P-016-B): inverse friction modifier](slices/135-phase15-friction-modifier.md) — **delivered; friction tuning namespace + `FrictionModifier` (Massive Bulk / Fragile Agility derivation from effective nodes); new `test_friction_modifier` 7/7; full GUT suite 500/500 across 73/73, exit 0 on the Linux host**. Prior: Slices 132-134 (P-016-A L1+L2 foundation). Next: kinetic (P-016-C), meridian (D), burnout (E), magic (F), and the server progression service.
 - Tech debt: none yet.
 
 **Phase 11 — Public game access**
@@ -407,6 +407,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 15 — Biological progression and kinetic systems
 
+- **Slice:** [135 — Phase 15 (P-016-B): inverse friction modifier](slices/135-phase15-friction-modifier.md) — **delivered; the friction tuning namespace on `server/embodiment_tuning.gd` + `shared/friction_modifier.gd` — pure derivation of Massive Bulk (high STR + CON) / Fragile Agility (high DEX + low CON) / none profiles + modifier factors from the effective nodes; new `test_friction_modifier` 7/7; full GUT suite 500/500 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+  - **GitHub issue:** #219 (design source: SYSTEMS-SPECIFICATION.md Inverse Biological Friction)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 - **Slice:** [134 — Phase 15 (P-016-A): effective mechanics snapshot](slices/134-phase15-effective-mechanics-snapshot.md) — **delivered; `shared/effective_mechanics_snapshot.gd` — deterministic derivation of effective nodes from the durable vessel under the current tuning + a presentation-safe normalized graph (never raw numbers) + fail-closed `from_presentation_wire`; new `test_effective_mechanics_snapshot` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**
   - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **GitHub issue:** #219 (design source #224)

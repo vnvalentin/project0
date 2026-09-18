@@ -694,8 +694,24 @@ feature so future drift is easier to detect.
 - Implementation slices: [Slice 132](slices/132-phase15-embodiment-tuning.md)
   (P-016-A foundation, part 1), [Slice 133](slices/133-phase15-vessel-progression.md)
   (P-016-A foundation, part 2), [Slice 134](slices/134-phase15-effective-mechanics-snapshot.md)
-  (P-016-A foundation, part 3).
+  (P-016-A foundation, part 3), [Slice 135](slices/135-phase15-friction-modifier.md)
+  (P-016-B inverse friction).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the fourth P-016 slice (Slice 135, P-016-B) — the
+    first subsystem atop the read-model. Added the friction tuning namespace on
+    `server/embodiment_tuning.gd` + `shared/friction_modifier.gd`: the pure
+    derivation of Massive Bulk (high STR + CON → shorter dodge, longer recovery,
+    sinks) or Fragile Agility (high DEX + low CON → fast stamina regen, ~zero
+    stagger resistance, water-skip) from the effective nodes, per the spec's
+    Inverse Biological Friction.
+    Why: The first embodiment cost derived on the P-016-A seam — pushing a body
+    to an extreme has organic consequences.
+    Related work: [Slice 135](slices/135-phase15-friction-modifier.md), #219.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 500 tests /
+    500 passing, exit 0; new `test_friction_modifier` 7/7. Feature stays
+    `In Progress`: kinetic/meridian/burnout/magic (P-016-C…F) and the server
+    progression service remain.
   - Date: 2026-09-17
     What changed: Delivered the third P-016 slice (Slice 134, P-016-A part 3) —
     `shared/effective_mechanics_snapshot.gd` (`EffectiveMechanicsSnapshot`): the
