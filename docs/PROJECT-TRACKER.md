@@ -136,7 +136,7 @@ their previous numbers — see the change note under "Delivery order".)
 | 13. Delivery workflow capabilities | in-progress | Agent orchestration and CI/dashboard foundations remain synchronized; Remote-SSH and asset quarantine are either delivered with evidence or explicitly retained as planned non-blockers. |
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
 | 15. Biological progression and kinetic systems | done | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. **Exit gate met (Slice 140):** the versioned tuning + vessel redistribution + effective-snapshot foundation (P-016-A) and all five subsystems (P-016-B…F) are composed by a server-authoritative `EmbodimentProgressionService` into a deterministic, presentation-safe snapshot, proven end-to-end by 503/503 GUT tests. |
-| 16. Client delivery experience | queued (design) | A converged Windows client-delivery contract specifies LAN/WAN mode selection, mandatory pre-auth version gating, signed manifest and patch trust, atomic restart/rollback, repair/offline behavior, onboarding, and a separate named-action controller slice. |
+| 16. Client delivery experience | queued (implementation planning) | Design converged in the Phase 16 handoff spec and ADR: explicit LAN/WAN launcher modes, mandatory pre-auth version gating, RSA-signed manifest and full-pack trust, atomic restart/rollback, repair behavior, onboarding, and a separate XInput named-action controller slice. No delivery slice has started. |
 | 17. Fleet operations console | queued (design) | A capstone spec resolves the versioned ops snapshot, telemetry content, registry, operator-token control seam, bounded actions, audit, and standalone LAN console surface before implementation slices are allocated. |
 | 18. Horizontal scale and zone sharding | queued (research-first) | A researched ownership and cross-shard handoff model plus ADR exists before any implementation feature or slice is created; until then this phase has no validated exit gate. |
 
@@ -358,7 +358,7 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
-Progress: **0%** (design in `.scratch`; no delivery items allocated yet)
+Progress: **design complete; 0% implementation** (handoff ready; no delivery items allocated yet)
 
 - Source goals: [unified-launcher map](../.scratch/unified-launcher/map.md),
   [client-auto-update map](../.scratch/client-auto-update/map.md),
@@ -368,8 +368,13 @@ Progress: **0%** (design in `.scratch`; no delivery items allocated yet)
   rollback-safe patching (remote code delivery); controller input routed through
   existing named actions without adding client authority; first-run onboarding.
   Keyboard/mouse behavior unchanged.
-- Features/tech debt: none allocated yet. The launcher and auto-update goals
-  overlap on the patch/version contract and should share one decision.
+- Handoff: [Windows client delivery contract](../.scratch/client-auto-update/spec.md)
+  and [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md).
+- GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
+  [#182](https://github.com/vnvalentin/project0/issues/182), and
+  [#117](https://github.com/vnvalentin/project0/issues/117).
+- Features/tech debt: none allocated yet. Implementation must be sliced from the
+  handoff and retain the signed-manifest, fail-closed, rollback-safe boundary.
 
 **Phase 17 — Fleet operations console**
 

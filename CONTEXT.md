@@ -101,6 +101,16 @@ server-authoritative, generated, canon-persisted content`.
   formula (Phase 12, 0% built).
   _Avoid_: enemy, mob (keep the term consistent with this repo's existing
   "Player"/"TargetDummy" naming register).
+- **Client build version**: The semver identity of a packaged Windows client
+  build, used by the server-owned pre-auth version gate. Distinct from a data
+  contract's `schema_version` or `tuning_version`.
+- **Update manifest**: The offline-signed release record that binds one client
+  build version to one full `Project0.pck` URL, byte size, and SHA-256.
+- **Patch**: A full replacement `Project0.pck` for one client build version;
+  v1 does not use delta patches.
+- **Version handshake**: The first client/server message after connection and
+  before authentication, where the client presents its build version and the
+  server accepts or rejects it.
 
 ## External contexts
 
