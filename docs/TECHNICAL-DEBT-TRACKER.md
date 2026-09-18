@@ -76,7 +76,14 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   build does not declare a library it never loads, or stop excluding the addon
   and ship a client-side stub. Prefer the former; the exclusion itself is
   correct and must not be reversed just to silence the log.
-- Status: `open`
+- Status: `done` — resolved by [Slice 151](slices/151-client-export-metadata-exclusion.md),
+  which excludes `.godot/**` editor/import metadata from the Windows pack. The
+  source project retains the server-only SQLite extension and the client still
+  excludes `addons/godot-sqlite/**`; the package no longer carries the stale
+  `.godot/extension_list.cfg` that caused Godot to try loading the absent
+  extension. Fresh export evidence: the package contains neither the extension
+  list nor the SQLite addon, and the packaged client boot no longer logs the
+  three expected SQLite GDExtension errors.
 - Discovery evidence: Observed while running the real packaged client during the
   Slice 149 pack-lock probe (`Project0.exe --headless` from
   `native/windows_launcher/payload`). Not previously recorded.

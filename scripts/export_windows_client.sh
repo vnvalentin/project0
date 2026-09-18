@@ -36,11 +36,30 @@ mkdir -p "${STAGE_DIR}"
 VERSION_CONTRACT="shared/client_build_version.gd"
 VERSION_CONTRACT_BACKUP="$(mktemp)"
 cp "${VERSION_CONTRACT}" "${VERSION_CONTRACT_BACKUP}"
+SERVER_EXTENSION_STAGE="$(mktemp -d)"
+SERVER_SQLITE_EXTENSION="addons/godot-sqlite/gdsqlite.gdextension"
+EDITOR_EXTENSION_CACHE=".godot/extension_list.cfg"
 restore_version_contract() {
 	mv -f "${VERSION_CONTRACT_BACKUP}" "${VERSION_CONTRACT}"
+	if [ -f "${SERVER_EXTENSION_STAGE}/gdsqlite.gdextension" ]; then
+		mv -f "${SERVER_EXTENSION_STAGE}/gdsqlite.gdextension" "${SERVER_SQLITE_EXTENSION}"
+	fi
+	if [ -f "${SERVER_EXTENSION_STAGE}/extension_list.cfg" ]; then
+		mv -f "${SERVER_EXTENSION_STAGE}/extension_list.cfg" "${EDITOR_EXTENSION_CACHE}"
+	fi
+	rmdir "${SERVER_EXTENSION_STAGE}" 2>/dev/null || true
 }
 trap restore_version_contract EXIT
 scripts/stamp_client_build_version.sh "${VERSION}"
+
+# DT-015: Godot regenerates .godot/extension_list.cfg from every .gdextension
+# declaration it sees, even when both paths are excluded from the export filter.
+# Hide the server-only declaration and its generated cache for this client export;
+# the trap restores both before this script exits.
+mv "${SERVER_SQLITE_EXTENSION}" "${SERVER_EXTENSION_STAGE}/gdsqlite.gdextension"
+if [ -f "${EDITOR_EXTENSION_CACHE}" ]; then
+	mv "${EDITOR_EXTENSION_CACHE}" "${SERVER_EXTENSION_STAGE}/extension_list.cfg"
+fi
 
 echo "Exporting Windows Desktop preset (version ${VERSION})..."
 godot --headless --path . --export-release "Windows Desktop" "${STAGE_DIR}/Project0.exe"

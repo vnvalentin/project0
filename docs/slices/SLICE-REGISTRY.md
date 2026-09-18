@@ -166,8 +166,9 @@ contended range and everything after it is tracked explicitly:
 | 148 | Phase 16 F-037: HTTPS update staging — verified patch staged to user://, nothing left behind on failure (#100, F-037) | interactive |
 | 149 | Phase 16 F-037: updater transaction — atomic pack swap, interrupted-swap recovery, rollback, bounded retries (Go launcher) (#100, #182, F-037) | interactive |
 | 150 | Phase 16 F-037: embed the trusted release public key + one-command release signing (#100, F-037) | interactive |
+| 151 | Phase 16 DT-015: exclude editor import metadata from packaged client to remove server-only GDExtension boot noise (#100, F-037, DT-015) | interactive |
 
-Next free slice: **151** (verify against `docs/slices/` before reserving).
+Next free slice: **152** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

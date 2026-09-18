@@ -69,7 +69,9 @@ feature so future drift is easier to detect.
   [Slice 149](slices/149-updater-transaction.md) (updater transaction: atomic
   pack swap, interrupted-swap recovery, rollback, bounded retries),
   [Slice 150](slices/150-trusted-signing-key.md) (embedded trusted release key +
-  one-command release signing).
+  one-command release signing),
+  [Slice 151](slices/151-client-export-metadata-exclusion.md) (DT-015: exclude
+  editor/import metadata from the packaged client).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -79,6 +81,24 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered Slice 151, closing DT-015. The Windows preset already
+    excluded the server-only `addons/godot-sqlite/**`, but `all_resources` still
+    carried `.godot/extension_list.cfg`, which referenced the intentionally
+    absent SQLite GDExtension and produced three false-alarm errors at every
+    packaged-client boot. Adding `.godot/**` to the export exclusion removes the
+    stale editor declaration without shipping SQLite or changing server exports.
+    Why: Update and rollback testing depends on a trustworthy packaged-client
+    log; expected extension errors would mask a real startup failure.
+    Related work: [Slice 151](slices/151-client-export-metadata-exclusion.md),
+    [DT-015](TECHNICAL-DEBT-TRACKER.md#dt-015-the-packaged-windows-client-logs-gdextension-load-errors-at-boot),
+    #100.
+    Validation: pre-fix fresh export proved `.godot/extension_list.cfg` was in
+    the pack save list; fixed fresh export contains no `gdsqlite` /
+    `godot-sqlite` references, and a fresh packaged `Project0.exe --headless`
+    boot produced zero SQLite log lines. The export also exposed a separate
+    Windows ZIP fallback issue (Python unavailable when `zip` was absent),
+    retained as a follow-on rather than mixed into DT-015.
   - Date: 2026-09-18
     What changed: Delivered the seventh F-037 slice (Slice 150) — the **trusted
     release key and one-command signing**, closing the hole Slice 147 left open
