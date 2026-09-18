@@ -2,7 +2,7 @@
 
 GitHub issue: #100 (Goal: client-auto-update); also #182 (unified-launcher)
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 16 (Client delivery experience)
 
@@ -25,7 +25,7 @@ writable from the enrollment container, or enabling directory listings.
 
 ## Public seam and invariant
 
-- `https://enroll.valentin.vip/patches/downloads/` serves the generated page.
+- `https://enroll.valentin.vip/patches/downloads/index.html` serves the generated page.
 - The launcher and ZIP are copied into `/patches/downloads/<version>/`.
 - The enrollment container remains read-only over the published directory.
 - Only strict `MAJOR.MINOR.PATCH` versions are published.
@@ -41,5 +41,7 @@ the signed `/patches/manifest.json`, signature, and pack remain untouched.
 - `bash -n scripts/publish_client_downloads.sh` passes.
 - Invalid versions fail closed with exit 2.
 - Enrollment pytest suite: 122 passed.
-- Tagged release workflow must publish the artifact and verify the public page
+- Tagged release workflow publishes the artifact and verifies the public page
   and both client download links after deployment.
+- Live v0.7.0 verification: page HTTP 200 (448 bytes), launcher HTTP 200
+  (101,516,800 bytes), ZIP HTTP 200 (34,435,134 bytes).

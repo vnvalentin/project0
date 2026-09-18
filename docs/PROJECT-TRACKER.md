@@ -452,7 +452,7 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
-- **Slice:** [156 — Phase 16 (F-037): release pipeline publishes Windows client downloads](slices/156-release-client-downloads.md) — **in-progress; tagged releases now download the CI client artifact, publish the launcher and ZIP under `/patches/downloads/<version>/`, and generate the public download page. Public URL and release evidence remain pending.** Prior: [155](slices/155-outdated-client-launcher-handoff.md).
+- **Slice:** [156 — Phase 16 (F-037): release pipeline publishes Windows client downloads](slices/156-release-client-downloads.md) — **delivered; tagged releases download the CI client artifact, publish the launcher and ZIP under `/patches/downloads/<version>/`, generate the public download page, and verify all three public URLs. v0.7.0 live verification passed.** Prior: [155](slices/155-outdated-client-launcher-handoff.md).
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
 
