@@ -162,7 +162,7 @@ def create_app(
             "A shared world for friends.",
             """
             <a class="primary" href="/downloads/">Download the client</a>
-            <a href="/game">Game connection</a>
+            <p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p>
             <a href="/telemetry">Service status</a>
             <a href="/dashboard">Dashboard</a>
             """,
