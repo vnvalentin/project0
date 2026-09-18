@@ -312,7 +312,8 @@ Progress: **40%** (2 of 5 items done)
 Progress: **in-progress** (P-016-A foundation delivered; subsystems underway)
 
 - Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
-- Current slice: [138 — Phase 15 (P-016-E): Biological Burnout](slices/138-phase15-biological-burnout.md) — **delivered; burnout tuning namespace + `BurnoutInstance` (temporary pathway-scoped Control flatten on authoritative ticks, auto-restore, normative lifecycle validator); new `test_burnout_instance` 7/7; full GUT suite 500/500 across 73/73, exit 0 on the Linux host**. Prior: Slices 132-134 (P-016-A foundation), 135 (friction), 136 (kinetic), 137 (meridian). Next: magic (P-016-F) and the server progression service.
+- Current slice: [139 — Phase 15 (P-016-F): Magic equilibrium](slices/139-phase15-magic-equilibrium.md) — **delivered; magic tuning namespace + `MagicEquilibrium` (bulk insulation grounds magic; CHANNELED / FIZZLE / BACKLASH / REJECTED with bounded reason; higher tiers demand leaning out); new `test_magic_equilibrium` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. All five embodiment subsystems (friction/kinetic/meridian/burnout/magic) are delivered on the P-016-A read-model. Prior: Slices 132-138. Next (final Phase 15 piece): the server progression service wiring vessel + subsystems into live replication.
+- Tech debt: none yet.
 - Tech debt: none yet.
 
 **Phase 11 — Public game access**
@@ -407,6 +408,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 15 — Biological progression and kinetic systems
 
+- **Slice:** [139 — Phase 15 (P-016-F): Magic equilibrium](slices/139-phase15-magic-equilibrium.md) — **delivered; the magic tuning namespace on `server/embodiment_tuning.gd` + `shared/magic_equilibrium.gd` — bulk (STR+CON) insulation grounds magic; `resolve` yields CHANNELED/FIZZLE/BACKLASH/REJECTED with a bounded reason, higher tiers demand leaning out, every attempt explicit; new `test_magic_equilibrium` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host. All five embodiment subsystems now delivered on the P-016-A read-model**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+  - **GitHub issue:** #219 (design source: SYSTEMS-SPECIFICATION.md Magic Equilibrium)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 - **Slice:** [138 — Phase 15 (P-016-E): Biological Burnout](slices/138-phase15-biological-burnout.md) — **delivered; the burnout tuning namespace on `server/embodiment_tuning.gd` + `shared/burnout_instance.gd` — a temporary modifier (authoritative start/end tick, pathway, source action, tuning version) flattening the affected pathway's effective Control while active + auto-restore + the normative lifecycle transition validator; new `test_burnout_instance` 7/7; full GUT suite 500/500 across 73/73, exit 0 on the Linux host**
   - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **GitHub issue:** #219 (design source: SYSTEMS-SPECIFICATION.md Biological Burnout)

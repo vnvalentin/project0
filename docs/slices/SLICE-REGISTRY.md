@@ -154,8 +154,9 @@ contended range and everything after it is tracked explicitly:
 | 136 | Phase 15 P-016-C: Kinetic Flow layer (Volume/Control/Output) (#219, P-016) | interactive |
 | 137 | Phase 15 P-016-D: Meridian pathways (dedup cross-training evidence, idempotent unlock) (#219, P-016) | interactive |
 | 138 | Phase 15 P-016-E: Biological Burnout (Overload Surge, temporary pathway flatten, lifecycle) (#219, P-016) | interactive |
+| 139 | Phase 15 P-016-F: Magic equilibrium (bulk insulation, fizzle/backlash) (#219, P-016) | interactive |
 
-Next free slice: **139** (verify against `docs/slices/` before reserving).
+Next free slice: **140** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

@@ -68,6 +68,16 @@ const _MERIDIAN_UNLOCK_THRESHOLD: float = 100.0
 ## Control/DEX are flattened. Frozen tuning; expiry is on the server clock.
 const _BURNOUT_DURATION_TICKS: int = 180
 
+## Magic namespace (Slice 139, P-016-F): physical bulk (STR + CON) acts as an
+## electrical insulator that grounds magical currents; higher spell tiers demand
+## a leaner vessel. Insulation at/under a tier's ceiling channels; within the
+## fizzle margin above it fizzles; beyond that it backlashes. Frozen tuning.
+const _MAGIC_INSULATION_COEFFICIENT: float = 1.0
+const _MAGIC_BASE_CHANNEL_CEILING: float = 40.0
+const _MAGIC_CEILING_STEP_PER_TIER: float = 8.0
+const _MAGIC_FIZZLE_MARGIN: float = 12.0
+const _MAGIC_MAX_TIER: int = 5
+
 var schema_version: int
 var tuning_version: String
 var budget: float
@@ -156,6 +166,18 @@ func meridian() -> Dictionary:
 func burnout() -> Dictionary:
 	return {
 		"duration_ticks": _BURNOUT_DURATION_TICKS,
+	}
+
+
+## The Magic-equilibrium subsystem's frozen tuning: insulation coefficient, the
+## per-tier channel ceiling, the fizzle margin, and the max tier (P-016-F).
+func magic() -> Dictionary:
+	return {
+		"insulation_coefficient": _MAGIC_INSULATION_COEFFICIENT,
+		"base_channel_ceiling": _MAGIC_BASE_CHANNEL_CEILING,
+		"ceiling_step_per_tier": _MAGIC_CEILING_STEP_PER_TIER,
+		"fizzle_margin": _MAGIC_FIZZLE_MARGIN,
+		"max_tier": _MAGIC_MAX_TIER,
 	}
 
 
