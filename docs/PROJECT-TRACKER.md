@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [125 — Phase 14 integration: Player HP on shared CombatHealth](slices/125-phase14-player-health-integration.md) — **delivered; migrated the live Player HP pool to `shared/combat_health.gd`, retired provisional `PlayerVitals`; behaviour-preserving (regression net + integration runtime evidence green), full suite 488/488 across 72/72 on the Linux host**. Prior: Slices 116-124 (the Phase 14 shared-contract set).
-- Tech debt: none identified; Slice 125 removes a provisional placeholder in favour of the tested shared contract.
+- Current slice: [126 — Phase 14 integration: Monster HP on shared CombatHealth](slices/126-phase14-monster-health-integration.md) — **delivered; migrated the live Monster HP pool to `shared/combat_health.gd`, retired provisional `MonsterCombatState`; behaviour-preserving (regression net + integration runtime evidence green), full suite 489/489 across 72/72 on the Linux host. Player and monster HP now share one contract**. Prior: Slices 116-124 (shared-contract set), 125 (Player HP integration).
+- Tech debt: none identified; Slices 125-126 remove provisional placeholders in favour of the tested shared contract.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [126 — Phase 14 integration: Monster HP on shared CombatHealth](slices/126-phase14-monster-health-integration.md) — **delivered; migrated the live Monster HP pool from provisional `MonsterCombatState` to the shared `CombatHealth` contract (behaviour-preserving `ServerMonsterState` seam + one-death/respawn semantics); regression net `test_server_monster_state` 10/10 + `test_server_monster_manager` 19/19 + integration `test_authoritative_melee_strike` 9/9 (real-node runtime evidence) unchanged; full GUT suite 489/489 across 72/72, exit 0 on the Linux host. Player and monster HP now share one contract**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #231)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [125 — Phase 14 integration: Player HP on shared CombatHealth](slices/125-phase14-player-health-integration.md) — **delivered; migrated the live Player HP pool from provisional `PlayerVitals` to the shared `CombatHealth` contract (behaviour-preserving public seam + defeat/respawn semantics); regression net `test_server_player_state_damage` 5/5 + integration `test_monster_damages_player` 2/2 (real node/signal runtime evidence) unchanged; full GUT suite 488/488 across 72/72, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #231)

@@ -17,6 +17,7 @@ class_name MonsterContracts
 ## a death still has an attacker, target, position, and tick.
 
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
 
 ## Fixed full health of the one baseline monster. A single constant, not a
 ## per-archetype table, since only one monster archetype exists in this map's
@@ -73,35 +74,16 @@ const PHASE_RECOVERY: String = "RECOVERY"
 const PHASE_DEAD: String = "DEAD"
 
 
-## A monster's flat, server-owned health. `target_id` mirrors the id a
-## CombatEvent's target_id resolves against (as client/target_dummy.gd already
-## uses), so hit resolution keys the same way for monsters as for the dummy.
-class MonsterCombatState:
-	var target_id: String
-	var max_hp: int
-	var current_hp: int
-
-	func _init(p_target_id: String, p_max_hp: int) -> void:
-		target_id = p_target_id
-		max_hp = p_max_hp
-		current_hp = p_max_hp
-
-	## Applies bounded damage, clamping current_hp at 0 (never negative).
-	## Returns true only on the transition to 0 — the tick this hit defeats a
-	## still-living monster — so the caller emits exactly one death event and
-	## never a second for an already-dead monster.
-	func apply_damage(amount: int) -> bool:
-		var was_alive: bool = current_hp > 0
-		current_hp = maxi(0, current_hp - amount)
-		return was_alive and current_hp == 0
-
-	func is_dead() -> bool:
-		return current_hp <= 0
+## A monster's flat, server-owned health is now the shared CombatHealth contract
+## (Slice 126 retired the provisional MonsterCombatState inner class; its
+## damage/defeat behaviour is owned and tested by shared/combat_health.gd). The
+## monster's target_id lives on server/server_monster_state.gd, not the pool.
 
 
-## Factory for a fresh, full-HP baseline monster at MAX_HP.
-static func default_monster(target_id: String) -> Object:
-	return MonsterCombatState.new(target_id, MAX_HP)
+## Factory for a fresh, full-HP baseline monster pool on the shared CombatHealth
+## contract, seeded at MAX_HP.
+static func default_monster() -> Object:
+	return CombatHealthScript.new(float(MAX_HP), float(MAX_HP))
 
 
 ## The bounded weapon archetype used ONLY for the monster's reach/arc hit test

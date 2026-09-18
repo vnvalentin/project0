@@ -44,11 +44,11 @@ var _combat: Object
 func _init(p_target_id: String, spawn_position: Vector3) -> void:
 	target_id = p_target_id
 	position = spawn_position
-	_combat = MonsterContractsScript.default_monster(p_target_id)
+	_combat = MonsterContractsScript.default_monster()
 
 
 func current_hp() -> int:
-	return _combat.current_hp
+	return int(round(_combat.current_health))
 
 
 func is_dead() -> bool:
@@ -84,7 +84,11 @@ func advance(player_position: Vector3, delta: float, server_tick: int) -> void:
 func receive_damage(amount: int, attacker_peer_id: int, server_tick: int) -> void:
 	if phase == MonsterContractsScript.PHASE_DEAD:
 		return
-	if _combat.apply_damage(amount):
+	# Preserve the retired MonsterCombatState death semantics exactly: emit one
+	# death only on the tick a still-living monster is reduced to 0.
+	var was_alive: bool = not _combat.is_now_defeated()
+	_combat.take_damage(float(amount))
+	if was_alive and _combat.is_now_defeated():
 		_set_phase(MonsterContractsScript.PHASE_DEAD, server_tick)
 		died.emit(target_id, attacker_peer_id, position, server_tick)
 
