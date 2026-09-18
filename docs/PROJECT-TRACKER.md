@@ -312,7 +312,7 @@ Progress: **40%** (2 of 5 items done)
 Progress: **in-progress** (P-016-A foundation underway)
 
 - Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
-- Current slice: [133 — Phase 15 (P-016-A): vessel progression state + fixed-budget redistribution](slices/133-phase15-vessel-progression.md) — **delivered; `VesselProgressionState` — durable earned six-node vessel + ADR-0006 redistribution (weighted compression, floor clamp + re-spread, atomic reject-at-capacity); new `test_vessel_progression_state` 11/11; full GUT suite 504/504 across 73/73, exit 0 on the Linux host**. Prior: Slice 132 (tuning seam). Next: effective snapshot (134), then P-016-B…F.
+- Current slice: [134 — Phase 15 (P-016-A): effective mechanics snapshot](slices/134-phase15-effective-mechanics-snapshot.md) — **delivered; `EffectiveMechanicsSnapshot` — deterministic derivation of effective nodes from the vessel under current tuning + a presentation-safe normalized graph (no raw numbers) + fail-closed `from_presentation_wire`; new `test_effective_mechanics_snapshot` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. Prior: Slices 132 (tuning), 133 (vessel). The L1+L2 data contracts are complete; next: the server progression service + headless assertion, then P-016-B…F.
 - Tech debt: none yet.
 
 **Phase 11 — Public game access**
@@ -407,6 +407,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 15 — Biological progression and kinetic systems
 
+- **Slice:** [134 — Phase 15 (P-016-A): effective mechanics snapshot](slices/134-phase15-effective-mechanics-snapshot.md) — **delivered; `shared/effective_mechanics_snapshot.gd` — deterministic derivation of effective nodes from the durable vessel under the current tuning + a presentation-safe normalized graph (never raw numbers) + fail-closed `from_presentation_wire`; new `test_effective_mechanics_snapshot` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+  - **GitHub issue:** #219 (design source #224)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 - **Slice:** [133 — Phase 15 (P-016-A): vessel progression state + fixed-budget redistribution](slices/133-phase15-vessel-progression.md) — **delivered; `shared/vessel_progression_state.gd` — durable earned six-node vessel pinned to a `tuning_version` + the ADR-0006 fixed-budget redistribution on `train` (weighted opposition compression, floor clamp + deterministic re-spread, atomic reject-at-capacity); new `test_vessel_progression_state` 11/11; full GUT suite 504/504 across 73/73, exit 0 on the Linux host**
   - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **GitHub issue:** #219 (design source #223)

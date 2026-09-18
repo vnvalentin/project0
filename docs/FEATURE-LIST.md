@@ -693,8 +693,25 @@ feature so future drift is easier to detect.
   [ADR 0002](adr/0002-authoritative-mechanics-and-progression.md)
 - Implementation slices: [Slice 132](slices/132-phase15-embodiment-tuning.md)
   (P-016-A foundation, part 1), [Slice 133](slices/133-phase15-vessel-progression.md)
-  (P-016-A foundation, part 2).
+  (P-016-A foundation, part 2), [Slice 134](slices/134-phase15-effective-mechanics-snapshot.md)
+  (P-016-A foundation, part 3).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the third P-016 slice (Slice 134, P-016-A part 3) —
+    `shared/effective_mechanics_snapshot.gd` (`EffectiveMechanicsSnapshot`): the
+    derived, replicated read-model. The server derives effective node values from
+    the durable vessel under the CURRENT tuning (foundation: effective = earned
+    base, no modifiers yet) and replicates only a presentation-safe view
+    (normalized graph proportions + tuning provenance + a `derived` map), never
+    raw numbers. Deterministic derivation; fail-closed `from_presentation_wire`.
+    Why: The presentation-safe read-model the whole progression layer replicates
+    through — balance is transparent and universal, never a raw-stat leak.
+    Related work: [Slice 134](slices/134-phase15-effective-mechanics-snapshot.md),
+    #219, #224.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 501 tests /
+    501 passing, exit 0; new `test_effective_mechanics_snapshot` 8/8. Feature
+    stays `In Progress`: the server progression service + headless assertion and
+    P-016-B…F remain.
   - Date: 2026-09-17
     What changed: Delivered the second P-016 slice (Slice 133, P-016-A part 2) —
     `shared/vessel_progression_state.gd` (`VesselProgressionState`): the durable
