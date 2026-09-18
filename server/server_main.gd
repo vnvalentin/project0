@@ -434,6 +434,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	player_state.character_bound.connect(_on_player_state_character_bound)
 	player_state.health_changed.connect(_on_player_state_health_changed)
 	player_state.character_snapshot_ready.connect(_on_player_state_character_snapshot_ready)
+	player_state.effective_mechanics_ready.connect(_on_player_state_effective_mechanics_ready)
 	player_state.player_defeated.connect(_on_player_state_player_defeated)
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
@@ -513,6 +514,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.character_bound.disconnect(_on_player_state_character_bound)
 		player_state.health_changed.disconnect(_on_player_state_health_changed)
 		player_state.character_snapshot_ready.disconnect(_on_player_state_character_snapshot_ready)
+		player_state.effective_mechanics_ready.disconnect(_on_player_state_effective_mechanics_ready)
 		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
@@ -865,6 +867,18 @@ func _on_player_state_character_snapshot_ready(peer_id: int, snapshot: Dictionar
 	if network_client == null:
 		return
 	network_client.rpc_id(peer_id, "receive_character_snapshot", snapshot)
+
+
+## Slice 142 (Phase 15 follow-on): replicates a Player's presentation-safe
+## EffectiveMechanicsSnapshot to the owning client only (peer-scoped, exactly like
+## the Character snapshot channel above) at world entry, so its HUD can show the
+## mechanics readout. Derived graph + subsystem-safe summaries only — the raw
+## effective numbers and tuning tables stay server-side.
+func _on_player_state_effective_mechanics_ready(peer_id: int, snapshot: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_effective_mechanics", snapshot)
 
 
 ## Slice 094: tells the owning client its Player was defeated (then provisionally

@@ -86,6 +86,12 @@ signal player_health_changed(current_hp: int, max_hp: int)
 ## show the vessel readout. Presentation only — derived graph state, no raw stats.
 signal character_snapshot_changed(snapshot: Dictionary)
 
+## Slice 142 (Phase 15 follow-on): emitted when the server replicates the local
+## Player's presentation-safe EffectiveMechanicsSnapshot at world entry, so a HUD
+## element can show the mechanics readout. Presentation only — normalized graph
+## axes + subsystem-safe derived summaries, never raw effective numbers.
+signal effective_mechanics_changed(snapshot: Dictionary)
+
 ## Slice 094: emitted on the owning client the tick its Player was defeated
 ## (and provisionally respawned at full HP), so a HUD element can flash a cue.
 signal player_defeated_received()
@@ -139,6 +145,7 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
+const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 
 ## Slice 069: server-owned validity window for an assertion minted on request.
 ## The login process supplies the clock and this bound; the client supplies
@@ -208,6 +215,10 @@ var latest_max_hp: int = PlayerCombatContractsScript.PLAYER_MAX_HP
 ## Slice 127: latest replicated presentation-safe Character snapshot, retained so
 ## a HUD element created after it first arrives still reads the current value.
 var latest_character_snapshot: Dictionary = {}
+
+## Slice 142: latest replicated presentation-safe EffectiveMechanicsSnapshot,
+## retained so a HUD element created after it first arrives still reads it.
+var latest_effective_mechanics: Dictionary = {}
 
 
 func _ready() -> void:
@@ -830,6 +841,23 @@ func receive_health_update(current_hp: int, max_hp: int) -> void:
 func receive_character_snapshot(snapshot: Dictionary) -> void:
 	latest_character_snapshot = snapshot
 	character_snapshot_changed.emit(snapshot)
+
+
+## RPC target (Slice 142): called by the server on the owning client with its
+## Player's presentation-safe EffectiveMechanicsSnapshot. Fail-closed: the
+## untrusted wire is validated with
+## EffectiveMechanicsSnapshot.from_presentation_wire, and a malformed,
+## unsupported-version, or out-of-bounds payload is dropped (never stored or
+## relayed). A valid snapshot is retained in latest_effective_mechanics so a HUD
+## created after it first arrives still reads it, and relayed via a signal so the
+## HUD decides how to render it — this autoload never derives mechanics state.
+@rpc("authority", "call_remote", "reliable")
+func receive_effective_mechanics(snapshot: Dictionary) -> void:
+	var validated: Dictionary = EffectiveMechanicsSnapshotScript.from_presentation_wire(snapshot)
+	if validated["outcome"] != EffectiveMechanicsSnapshotScript.OUTCOME_OK:
+		return
+	latest_effective_mechanics = validated["snapshot"]
+	effective_mechanics_changed.emit(latest_effective_mechanics)
 
 
 ## RPC target (Slice 094): called by the server on the owning client the tick

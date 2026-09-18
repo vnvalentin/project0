@@ -41,6 +41,13 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
 const CharacterFoundationScript: Script = preload("res://shared/character_foundation.gd")
+const EmbodimentProgressionServiceScript: Script = preload("res://server/embodiment_progression_service.gd")
+const EmbodimentTuningScript: Script = preload("res://server/embodiment_tuning.gd")
+
+## Slice 142: the stable key this Player's single durable vessel is registered
+## under inside its own per-Player progression service instance. There is exactly
+## one vessel here, so a constant key suffices (the service keys by character id).
+const MECHANICS_CHARACTER_KEY: String = "self"
 
 ## Emitted every physics tick after this peer's authoritative position is
 ## computed, so server_main.gd can broadcast it to every other connected
@@ -91,6 +98,13 @@ signal player_defeated(peer_id: int, server_tick: int)
 ## for a vessel readout without this node knowing about networking itself.
 signal character_snapshot_ready(peer_id: int, snapshot: Dictionary)
 
+## Slice 142 (Phase 15 follow-on, P-016): emitted at world entry with this
+## Player's presentation-safe EffectiveMechanicsSnapshot (normalized graph axes +
+## subsystem-safe derived summaries only, never raw effective numbers), so
+## server_main.gd can replicate it to the owning client for a mechanics readout —
+## the same peer-scoped channel proven for the Character snapshot in Phase 14.
+signal effective_mechanics_ready(peer_id: int, snapshot: Dictionary)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
 ## Slice 094: the spawn anchor this Player is returned to on the provisional
@@ -111,6 +125,13 @@ var _health: Object = CombatHealthScript.new(
 ## the same CharacterFoundation contract NPCs use. Server-authoritative; only a
 ## presentation-safe snapshot (never the raw nodes) crosses to the client.
 var _character: Object
+
+## Slice 142: the Player's server-owned embodiment progression service (holding
+## its single durable vessel) and the current tuning used to derive the effective
+## mechanics. Server-authoritative; only a presentation-safe snapshot ever
+## crosses to the client. Created at world entry alongside _character.
+var _embodiment: Object = null
+var _embodiment_tuning: Object = null
 ## Forward-facing direction used for the melee arc check; defaults to -Z
 ## (Godot's forward) and is updated from non-zero movement input, since this
 ## slice has no independent look/aim input.
@@ -188,6 +209,10 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 		CharacterFoundationScript.CONTROLLER_PLAYER, CharacterFoundationScript.KIND_HUMANOID
 	)["character"]
 	character_snapshot_ready.emit(owning_peer_id, character_snapshot())
+	_embodiment_tuning = _resolve_default_tuning()
+	_embodiment = EmbodimentProgressionServiceScript.new()
+	_embodiment.create_character(MECHANICS_CHARACTER_KEY, _embodiment_tuning)
+	effective_mechanics_ready.emit(owning_peer_id, effective_mechanics_snapshot())
 
 
 ## Public seam: called by server_main.gd to register the server-owned target
@@ -225,6 +250,28 @@ func max_hp() -> int:
 ## renders the vessel shape without learning the values.
 func character_snapshot() -> Dictionary:
 	return _character.to_presentation_snapshot()
+
+
+## Slice 142: resolves the default (currently only) embodiment tuning through the
+## sole fail-closed EmbodimentTuning.resolve seam. The default version always
+## resolves, so the returned tuning object is non-null here.
+func _resolve_default_tuning() -> Object:
+	var resolved: Dictionary = EmbodimentTuningScript.resolve(EmbodimentTuningScript.DEFAULT_TUNING_VERSION)
+	return resolved["tuning"]
+
+
+## Slice 142: the Player's presentation-safe EffectiveMechanicsSnapshot (normalized
+## graph axes + subsystem-safe derived summaries only, never the raw effective
+## numbers). Composed from the durable vessel + all five subsystems under the
+## current tuning at the world-entry baseline tick (0). The client renders the
+## mechanics readout without learning the values. Empty before world entry.
+func effective_mechanics_snapshot() -> Dictionary:
+	if _embodiment == null:
+		return {}
+	var snapshot: Object = _embodiment.effective_snapshot(MECHANICS_CHARACTER_KEY, _embodiment_tuning, 0)
+	if snapshot == null:
+		return {}
+	return snapshot.to_presentation_snapshot()
 
 
 ## Public seam (Slice 094): applies a monster's authoritative, telegraph-fair
