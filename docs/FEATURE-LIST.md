@@ -674,7 +674,7 @@ feature so future drift is easier to detect.
 
 ### P-016: Biological progression and kinetic combat systems
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Players develop a fixed-budget six-attribute biological vessel,
   derived kinetic capabilities, permanent Meridian pathways, temporary
   Burnout, and equilibrium-bound magic through server-validated play.
@@ -699,8 +699,26 @@ feature so future drift is easier to detect.
   (P-016-C Kinetic Flow), [Slice 137](slices/137-phase15-meridian-pathways.md)
   (P-016-D Meridian pathways), [Slice 138](slices/138-phase15-biological-burnout.md)
   (P-016-E Biological Burnout), [Slice 139](slices/139-phase15-magic-equilibrium.md)
-  (P-016-F Magic equilibrium).
+  (P-016-F Magic equilibrium), [Slice 140](slices/140-phase15-embodiment-progression-service.md)
+  (P-016-A/G server progression service; closes the exit gate).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the ninth P-016 slice (Slice 140) — the
+    server-authoritative `EmbodimentProgressionService`, which **closes the Phase
+    15 exit gate**. It owns the vessels/Meridians/Burnouts, accepts deduplicated
+    training/cross-training evidence, resolves magic, and composes the vessel +
+    all five subsystems (friction, kinetic, meridian, burnout, magic) into one
+    deterministic, presentation-safe `EffectiveMechanicsSnapshot` — hidden numeric
+    state stays server-side. Feature status moves `In Progress` → `Implemented`.
+    Why: Prove the whole Phase 15 layer works end-to-end under server authority —
+    the ADR-0006 P-016-A acceptance/derivation payoff.
+    Related work: [Slice 140](slices/140-phase15-embodiment-progression-service.md),
+    #219, #224.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 503 tests /
+    503 passing, exit 0; new `test_embodiment_progression_service` 10/10 (the
+    end-to-end exit-gate assertion). The live RPC replication (the proven Phase 14
+    channel pattern) and vessel persistence are explicit follow-on wiring, not
+    gate blockers.
   - Date: 2026-09-17
     What changed: Delivered the eighth P-016 slice (Slice 139, P-016-F) — Magic
     equilibrium, the last embodiment subsystem. Added the magic tuning namespace
