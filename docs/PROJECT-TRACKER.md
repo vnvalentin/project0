@@ -374,7 +374,12 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   — version identity delivered (Slice 144); handshake/gate, signed manifest,
   updater/rollback, launcher, and onboarding remain. The controller placeholder
   is a separate low-risk slice, not yet allocated a feature.
-- Current slice: [144 — Phase 16 (F-037): client build version identity + export-time stamp](slices/144-client-build-version-stamp.md) — **delivered; the packaged client now knows its own build version at runtime via the in-pack `ClientBuildVersion` contract, stamped into the pack by `scripts/stamp_client_build_version.sh` before the Godot export. Full GUT suite 734/734 across 101/101, exit 0 on the Linux host**.
+- Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+  — version identity (Slice 144) and the pre-auth handshake contract (Slice 145)
+  delivered; live gate enforcement, signed manifest, updater/rollback, launcher,
+  and onboarding remain. The controller placeholder is a separate low-risk slice,
+  not yet allocated a feature.
+- Current slice: [145 — Phase 16 (F-037): pre-auth version handshake contract + required-version resolution](slices/145-version-handshake-contract.md) — **delivered; `shared/version_handshake.gd` decides `ACCEPTED` / `CLIENT_OUTDATED` / `MALFORMED` / `SERVER_MISCONFIGURED` from a client's declared build version against the server-owned requirement, by exact equality, handing a rejected client its required version and HTTPS manifest URL. Full GUT suite 747/747 across 102/102, exit 0 on the Linux host**. Prior: [Slice 144](slices/144-client-build-version-stamp.md) (version identity).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -418,6 +423,11 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [145 — Phase 16 (F-037): pre-auth version handshake contract and required-version resolution](slices/145-version-handshake-contract.md) — **delivered; `shared/version_handshake.gd` (`VersionHandshake`) is the decision the mandatory gate will enforce: it builds the client's first message from `ClientBuildVersion.current()`, resolves the server-owned requirement from `PROJECT0_REQUIRED_CLIENT_VERSION` (defaulting to this build, `""` when the override is malformed so callers fail closed) and an HTTPS-only manifest URL, and evaluates them into `ACCEPTED` / `CLIENT_OUTDATED` / `MALFORMED` / `SERVER_MISCONFIGURED` (reserved `UNSUPPORTED`). Exact-equality comparison — older and newer clients are refused identically — and a rejected client is handed its required version and where to patch. `SERVER_MISCONFIGURED` keeps an operator's bad config from being reported as the player's client being outdated. New `test_version_handshake` 13/13; full GUT suite 747/747 across 102/102, exit 0 on the Linux host. Live enforcement deliberately deferred: the connect lifecycle is a declared shared hot-spot**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (second slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decision 2
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 - **Slice:** [144 — Phase 16 (F-037): client build version identity and export-time stamp](slices/144-client-build-version-stamp.md) — **delivered; the first implementation slice of the accepted Phase 16 handoff and the root dependency of every later slice in it. `shared/client_build_version.gd` (`ClientBuildVersion.current()` + fail-closed `is_valid()` semver validation) gives the running client its own build identity from inside the `.pck`, and `scripts/stamp_client_build_version.sh` — run by `export_windows_client.sh` before the Godot export and restored afterward — writes the released version into it, replacing a version that existed only in the ZIP name. Deterministic, idempotent, and fail-closed: six malformed inputs each exit non-zero leaving the contract untouched. New `test_client_build_version` 5/5; full GUT suite 734/734 across 101/101, exit 0 on the Linux host. Validation caught a real CRLF anchoring bug in the stamp guard before merge**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (first slice; feature `In Progress`)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
