@@ -65,7 +65,9 @@ feature so future drift is easier to detect.
   [Slice 147](slices/147-signed-update-manifest.md) (signed update-manifest
   verifier + patch hash/size verification),
   [Slice 148](slices/148-https-update-staging.md) (HTTPS update staging; verified
-  patch staged under `user://`, staging destroyed on any failure).
+  patch staged under `user://`, staging destroyed on any failure),
+  [Slice 149](slices/149-updater-transaction.md) (updater transaction: atomic
+  pack swap, interrupted-swap recovery, rollback, bounded retries).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -75,6 +77,27 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the sixth F-037 slice (Slice 149) — the **updater
+    transaction**. `native/windows_launcher/updater.go` installs a verified staged
+    pack through an ordering where every interruption point is recoverable (copy
+    to the install volume → verify digest → mark `swap_started` → rename current to
+    `.bak` → rename incoming into place → close the transaction), recovers on
+    startup from an interrupted swap, rolls back on a failed readiness check, and
+    stops retrying a version after two attempts.
+    Why: The updater must not depend on the artifact it replaces — a Godot-hosted
+    updater would ship inside `Project0.pck` and could be broken by the very patch
+    it is applying, which is exactly the situation recovery exists for. Hence the
+    Go launcher, a separate binary that still runs when the pack is corrupt.
+    Related work: [Slice 149](slices/149-updater-transaction.md),
+    [Slice 148](slices/148-https-update-staging.md), #100, #182.
+    Validation: `go vet ./...` clean and `go test ./...` ok in
+    `native/windows_launcher`; 11/11 new updater tests pass individually, with
+    interruptions simulated against real on-disk states rather than mocks. Full
+    GUT suite unchanged (no GDScript touched). record-sync exit 0. **No claim is
+    made that end-to-end self-update works**: the process orchestration (launch
+    detached, quit, relaunch, readiness check) and the embedded production key
+    land next, with packaged-Windows runtime evidence.
   - Date: 2026-09-18
     What changed: Delivered the fifth F-037 slice (Slice 148) — **HTTPS update
     staging**. `client/update_stager.gd` derives the manifest/signature URLs from

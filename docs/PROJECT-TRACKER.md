@@ -381,11 +381,11 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   not yet allocated a feature.
 - Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   — version identity (144), handshake contract (145), live gate enforcement
-  (146), signed-manifest verifier (147), and HTTPS staging (148) delivered;
-  the detached updater/rollback, the embedded production key, launcher, and
-  onboarding remain. The controller placeholder is a separate low-risk slice,
-  not yet allocated a feature.
-- Current slice: [148 — Phase 16 (F-037): HTTPS update staging](slices/148-https-update-staging.md) — **delivered; `client/update_stager.gd` fetches the manifest, signature, and patch over bounded HTTPS and stages the patch under `user://` only after it verifies, destroying the staging directory on every failure path. Full GUT suite 770/770 across 105/105, exit 0. Known gap: the HTTPS transport itself is not automatically tested (no HTTPS fixture), which is why packaged runtime evidence stays required**. Prior: [147](slices/147-signed-update-manifest.md) (verifier), [146](slices/146-version-gate-enforcement.md) (live gate), [145](slices/145-version-handshake-contract.md), [144](slices/144-client-build-version-stamp.md).
+  (146), signed-manifest verifier (147), HTTPS staging (148), and the updater
+  transaction (149) delivered; the updater's process orchestration, the embedded
+  production key, launcher LAN/WAN, and onboarding remain. The controller
+  placeholder is a separate low-risk slice, not yet allocated a feature.
+- Current slice: [149 — Phase 16 (F-037): updater transaction](slices/149-updater-transaction.md) — **delivered; `native/windows_launcher/updater.go` performs the atomic pack swap retaining one known-good `.bak`, recovers on startup from an interrupted swap, rolls back on a failed readiness check, and stops retrying a version after two attempts. Go vet clean, `go test ./...` ok, 11/11 new updater tests; GUT suite unchanged (no GDScript touched)**. Prior: [148](slices/148-https-update-staging.md) (staging), [147](slices/147-signed-update-manifest.md) (verifier), [146](slices/146-version-gate-enforcement.md) (live gate).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -429,6 +429,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [149 — Phase 16 (F-037): updater transaction — atomic swap, recovery, and rollback](slices/149-updater-transaction.md) — **delivered; the part that actually replaces the pack, and the part that has to survive being killed halfway through. `native/windows_launcher/updater.go` orders the swap so every interruption point is recoverable (copy staged onto the install volume so the rename is atomic → verify the copy's digest → mark `swap_started` → rename current to `.bak` → rename incoming into place → close the transaction), then recovers on startup: a swap that actually completed is kept, an incomplete one restores the known-good pack, and no-pack-no-backup reports `repair_required`. A corrupt marker reads as absent rather than stranding the tester. Two attempts per version, then `ErrRepairRequired`; a newer version gets a fresh budget. **Hosted in the Go launcher on purpose — the updater must not depend on the artifact it replaces**, since a Godot-hosted updater ships inside the very pack it is patching. `go vet` clean, `go test ./...` ok, 11/11 new tests with interruptions simulated against real on-disk states; GUT suite unchanged (no GDScript touched)**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (sixth slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decisions 4–5
+  - **Not yet claimed:** end-to-end self-update. The process orchestration (launch detached, quit, relaunch, post-patch readiness check) and the embedded production key land next, with packaged-Windows runtime evidence
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 - **Slice:** [148 — Phase 16 (F-037): HTTPS update staging](slices/148-https-update-staging.md) — **delivered; `client/update_stager.gd` derives the manifest/signature URLs from an HTTPS base (a plaintext base returns `""` and cannot even be addressed, so no downgrade is attempted-then-caught), fetches manifest + detached signature + patch over bounded HTTPS, and stages the patch under `user://` only after it verifies through `UpdateManifest` — re-checking the bytes that actually landed on disk, not the buffer in memory. **Every failure path ends in `discard_staging`**, because the staging directory is the handoff to the updater and anything left in it is something the updater might later treat as ready. New `test_update_stager` 8/8 (real RSA-3072 keys, real files, asserting the staging directory is absent after every refusal); full GUT suite 770/770 across 105/105, exit 0**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (fifth slice; feature `In Progress`)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
