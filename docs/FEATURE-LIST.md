@@ -695,8 +695,22 @@ feature so future drift is easier to detect.
   (P-016-A foundation, part 1), [Slice 133](slices/133-phase15-vessel-progression.md)
   (P-016-A foundation, part 2), [Slice 134](slices/134-phase15-effective-mechanics-snapshot.md)
   (P-016-A foundation, part 3), [Slice 135](slices/135-phase15-friction-modifier.md)
-  (P-016-B inverse friction).
+  (P-016-B inverse friction), [Slice 136](slices/136-phase15-kinetic-flow.md)
+  (P-016-C Kinetic Flow).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the fifth P-016 slice (Slice 136, P-016-C) — the
+    Kinetic Flow layer. Added the kinetic tuning namespace on
+    `server/embodiment_tuning.gd` + `shared/kinetic_flow.gd`: the pure derivation
+    of Volume (←CON), Control (←DEX), and Output (←STR), where low Control
+    relative to Volume sloshes energy and inflates action cost, per the spec's
+    Kinetic Flow Layer.
+    Why: Turn raw attributes into kinetic capability with an opportunity cost for
+    reservoir-without-finesse builds, on the P-016-A seam.
+    Related work: [Slice 136](slices/136-phase15-kinetic-flow.md), #219.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 499 tests /
+    499 passing, exit 0; new `test_kinetic_flow` 6/6. Feature stays `In Progress`:
+    meridian/burnout/magic (P-016-D…F) and the server progression service remain.
   - Date: 2026-09-17
     What changed: Delivered the fourth P-016 slice (Slice 135, P-016-B) — the
     first subsystem atop the read-model. Added the friction tuning namespace on

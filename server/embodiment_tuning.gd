@@ -48,6 +48,16 @@ const _BULK_WINDUP_RECOVERY_FACTOR: float = 1.5
 const _FRAGILE_STAMINA_REGEN_FACTOR: float = 3.0
 const _FRAGILE_STAGGER_RESISTANCE_FACTOR: float = 0.0
 
+## Kinetic namespace (Slice 136, P-016-C): the three Kinetic Flow nodes are
+## derived from their backing vessel nodes (Volume<-CON, Control<-DEX,
+## Output<-STR); low Control relative to Volume makes energy slosh and inflates
+## action energy cost. Coefficients + slosh penalty are frozen tuning; the
+## qualitative behaviour comes from docs/SYSTEMS-SPECIFICATION.md.
+const _KINETIC_VOLUME_COEFFICIENT: float = 1.0
+const _KINETIC_CONTROL_COEFFICIENT: float = 1.0
+const _KINETIC_OUTPUT_COEFFICIENT: float = 1.0
+const _KINETIC_SLOSH_PENALTY: float = 1.0
+
 var schema_version: int
 var tuning_version: String
 var budget: float
@@ -109,6 +119,17 @@ func friction() -> Dictionary:
 		"bulk_windup_recovery_factor": _BULK_WINDUP_RECOVERY_FACTOR,
 		"fragile_stamina_regen_factor": _FRAGILE_STAMINA_REGEN_FACTOR,
 		"fragile_stagger_resistance_factor": _FRAGILE_STAGGER_RESISTANCE_FACTOR,
+	}
+
+
+## The Kinetic Flow subsystem's frozen tuning: node coefficients + slosh penalty
+## (P-016-C).
+func kinetic() -> Dictionary:
+	return {
+		"volume_coefficient": _KINETIC_VOLUME_COEFFICIENT,
+		"control_coefficient": _KINETIC_CONTROL_COEFFICIENT,
+		"output_coefficient": _KINETIC_OUTPUT_COEFFICIENT,
+		"slosh_penalty": _KINETIC_SLOSH_PENALTY,
 	}
 
 
