@@ -674,7 +674,7 @@ feature so future drift is easier to detect.
 
 ### P-016: Biological progression and kinetic combat systems
 
-- Status: `Planned`
+- Status: `In Progress`
 - Feature: Players develop a fixed-budget six-attribute biological vessel,
   derived kinetic capabilities, permanent Meridian pathways, temporary
   Burnout, and equilibrium-bound magic through server-validated play.
@@ -691,6 +691,23 @@ feature so future drift is easier to detect.
 - Related work: [Slice 010](slices/010-core-mechanics-architecture.md),
   [Slice 011](slices/011-mind-tool-architecture-refinement.md),
   [ADR 0002](adr/0002-authoritative-mechanics-and-progression.md)
+- Implementation slices: [Slice 132](slices/132-phase15-embodiment-tuning.md)
+  (P-016-A foundation, part 1).
+- Change history:
+  - Date: 2026-09-17
+    What changed: Started Phase 15 (P-016). Delivered the first slice (Slice 132,
+    P-016-A part 1) — the versioned, server-owned embodiment tuning resolve seam:
+    `shared/embodiment_tuning_schema.gd` (shape/bounds/helpers) +
+    `server/embodiment_tuning.gd` (frozen `const` tables behind the sole,
+    fail-closed `resolve(tuning_version)`). Subsystems never read tables directly;
+    unknown versions fail closed with no fallback.
+    Why: The reproducible tuning foundation all six embodiment subsystems build
+    on, per ADR 0006.
+    Related work: [Slice 132](slices/132-phase15-embodiment-tuning.md), #219, #220.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 501 tests /
+    501 passing, exit 0; new `test_embodiment_tuning` 8/8. Feature stays
+    `In Progress`: vessel state (133), effective snapshot (134), and the
+    friction/kinetic/meridian/burnout/magic subsystems (P-016-B…F) remain.
 
 The remaining scope of server-authoritative networked
 multiplayer (movement synchronization, prediction, and world-state
