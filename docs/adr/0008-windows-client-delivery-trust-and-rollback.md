@@ -12,6 +12,15 @@ client is `Project0.exe` plus a separate `Project0.pck`. A running Godot process
 cannot safely replace or hot-reload its active pack, so update behavior is remote
 code delivery and must be fail-closed.
 
+**Correction (2026-09-18, measured).** The original wording implied the operating
+system would prevent replacing a live pack. It does not. A probe against the real
+packaged Windows client found rename, open-for-write, and delete all succeed
+while the client is running. The decision below is unchanged, but its
+justification is: Godot cannot hot-reload running scripts/scenes/autoloads; lazy
+resource loads after a mid-run swap would mix new content with old code; and
+since nothing at the OS level protects a live client, the updater's ordering and
+transaction marker are the *only* protection against a half-applied swap.
+
 The consolidated handoff is [.scratch/client-auto-update/spec.md](../../.scratch/client-auto-update/spec.md).
 
 Governing issues: [#100](https://github.com/vnvalentin/project0/issues/100),
