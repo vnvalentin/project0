@@ -156,7 +156,7 @@ def create_app(
 
     # Public by design: an outdated client cannot authenticate before it patches.
     if patches_dir:
-        app.mount("/patches", StaticFiles(directory=patches_dir, html=False), name="patches")
+        app.mount("/patches", StaticFiles(directory=patches_dir, html=True), name="patches")
 
     def _rate_limited(detail: str = "public_auth_rate_limited") -> HTTPException:
         return HTTPException(status_code=429, detail=detail)
