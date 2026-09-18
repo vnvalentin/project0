@@ -155,8 +155,9 @@ contended range and everything after it is tracked explicitly:
 | 137 | Phase 15 P-016-D: Meridian pathways (dedup cross-training evidence, idempotent unlock) (#219, P-016) | interactive |
 | 138 | Phase 15 P-016-E: Biological Burnout (Overload Surge, temporary pathway flatten, lifecycle) (#219, P-016) | interactive |
 | 139 | Phase 15 P-016-F: Magic equilibrium (bulk insulation, fizzle/backlash) (#219, P-016) | interactive |
+| 140 | Phase 15 P-016-A/G: server progression service composing vessel + subsystems (closes exit gate) (#219, #224, P-016) | interactive |
 
-Next free slice: **140** (verify against `docs/slices/` before reserving).
+Next free slice: **141** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

@@ -135,7 +135,7 @@ their previous numbers — see the change note under "Delivery order".)
 | 12. Authoritative runtime and action input | in-progress | Production deployment mutation and rollback evidence are recorded, login and game images have an explicit release boundary, and the server resolves a bounded action set authoritatively beyond the first melee seam. |
 | 13. Delivery workflow capabilities | in-progress | Agent orchestration and CI/dashboard foundations remain synchronized; Remote-SSH and asset quarantine are either delivered with evidence or explicitly retained as planned non-blockers. |
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
-| 15. Biological progression and kinetic systems | in-progress | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. |
+| 15. Biological progression and kinetic systems | done | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. **Exit gate met (Slice 140):** the versioned tuning + vessel redistribution + effective-snapshot foundation (P-016-A) and all five subsystems (P-016-B…F) are composed by a server-authoritative `EmbodimentProgressionService` into a deterministic, presentation-safe snapshot, proven end-to-end by 503/503 GUT tests. |
 | 16. Client delivery experience | queued (design) | A converged Windows client-delivery contract specifies LAN/WAN mode selection, mandatory pre-auth version gating, signed manifest and patch trust, atomic restart/rollback, repair/offline behavior, onboarding, and a separate named-action controller slice. |
 | 17. Fleet operations console | queued (design) | A capstone spec resolves the versioned ops snapshot, telemetry content, registry, operator-token control seam, bounded actions, audit, and standalone LAN console surface before implementation slices are allocated. |
 | 18. Horizontal scale and zone sharding | queued (research-first) | A researched ownership and cross-shard handoff model plus ADR exists before any implementation feature or slice is created; until then this phase has no validated exit gate. |
@@ -309,12 +309,11 @@ Progress: **40%** (2 of 5 items done)
 
 **Phase 15 — Biological progression and kinetic systems**
 
-Progress: **in-progress** (P-016-A foundation delivered; subsystems underway)
+Progress: **done** (P-016 Implemented; exit gate met at Slice 140)
 
-- Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
-- Current slice: [139 — Phase 15 (P-016-F): Magic equilibrium](slices/139-phase15-magic-equilibrium.md) — **delivered; magic tuning namespace + `MagicEquilibrium` (bulk insulation grounds magic; CHANNELED / FIZZLE / BACKLASH / REJECTED with bounded reason; higher tiers demand leaning out); new `test_magic_equilibrium` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. All five embodiment subsystems (friction/kinetic/meridian/burnout/magic) are delivered on the P-016-A read-model. Prior: Slices 132-138. Next (final Phase 15 piece): the server progression service wiring vessel + subsystems into live replication.
-- Tech debt: none yet.
-- Tech debt: none yet.
+- Features: `Implemented` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
+- Current slice: [140 — Phase 15 (P-016-A/G): server progression service composing vessel + subsystems](slices/140-phase15-embodiment-progression-service.md) — **delivered; **CLOSES THE PHASE 15 EXIT GATE**. `EmbodimentProgressionService` owns vessels/Meridians/Burnouts, accepts deduplicated evidence, resolves magic, and composes the vessel + all five subsystems into one deterministic, presentation-safe snapshot; new `test_embodiment_progression_service` 10/10 (end-to-end); full GUT suite 503/503 across 73/73, exit 0 on the Linux host**. Prior: Slices 132-134 (P-016-A foundation), 135-139 (subsystems B–F).
+- Tech debt: none.
 
 **Phase 11 — Public game access**
 
@@ -408,6 +407,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 15 — Biological progression and kinetic systems
 
+- **Slice:** [140 — Phase 15 (P-016-A/G): server progression service composing vessel + subsystems](slices/140-phase15-embodiment-progression-service.md) — **delivered; **closes the Phase 15 exit gate**. `server/embodiment_progression_service.gd` (`EmbodimentProgressionService`) owns vessels/Meridians/Burnouts, accepts deduplicated training/cross-training evidence, resolves magic, and composes the vessel + all five subsystems into one deterministic, presentation-safe `EffectiveMechanicsSnapshot` (hidden numeric state server-side); new `test_embodiment_progression_service` 10/10 (end-to-end); full GUT suite 503/503 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (now `Implemented`)
+  - **GitHub issue:** #219 (design sources #224, ADR 0006, SYSTEMS-SPECIFICATION.md)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 - **Slice:** [139 — Phase 15 (P-016-F): Magic equilibrium](slices/139-phase15-magic-equilibrium.md) — **delivered; the magic tuning namespace on `server/embodiment_tuning.gd` + `shared/magic_equilibrium.gd` — bulk (STR+CON) insulation grounds magic; `resolve` yields CHANNELED/FIZZLE/BACKLASH/REJECTED with a bounded reason, higher tiers demand leaning out, every attempt explicit; new `test_magic_equilibrium` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host. All five embodiment subsystems now delivered on the P-016-A read-model**
   - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **GitHub issue:** #219 (design source: SYSTEMS-SPECIFICATION.md Magic Equilibrium)
