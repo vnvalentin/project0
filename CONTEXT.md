@@ -92,9 +92,10 @@ server-authoritative, generated, canon-persisted content`.
   concept), canon town (it is not Canon in the persisted-and-frozen sense
   until Phase 9 exists).
 - **Monster**: A server-authoritative, non-player combat target with a flat,
-  explicitly provisional HP pool (`MonsterCombatState` in
-  `shared/monster_contracts.gd`), distinct from `TargetDummy` (which has no
-  HP/death at all). Provisional — decided by
+  explicitly provisional HP pool (the shared `CombatHealth` contract in
+  `shared/combat_health.gd`, seeded at `MonsterContracts.MAX_HP`; Slice 126
+  retired the provisional `MonsterCombatState`), distinct from `TargetDummy`
+  (which has no HP/death at all). Provisional — decided by
   [Basic Monsters map](.scratch/basic-monsters/map.md) ticket 01; the HP
   model here is a placeholder for the future six-node vessel-derived health
   formula (Phase 12, 0% built).

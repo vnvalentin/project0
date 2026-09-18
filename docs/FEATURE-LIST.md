@@ -59,6 +59,25 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the eleventh F-036 slice (Slice 126) — migrated the
+    MONSTER's server-owned HP pool from the provisional `MonsterCombatState`
+    (Slice 020) to the shared `CombatHealth` contract, seeded at
+    `MonsterContracts.MAX_HP`; retired the `MonsterCombatState` class and its
+    now-redundant tests. Behaviour-preserving — `ServerMonsterState`'s
+    `current_hp`/`is_dead`/`receive_damage` seam and the one-death-per-transition
+    + respawn semantics are unchanged. Player and monster HP now share one
+    contract.
+    Why: Unify both combatants on one health contract, extending the Slice 125
+    pattern to the monster.
+    Related work: [Slice 126](slices/126-phase14-monster-health-integration.md),
+    #227, #231.
+    Validation: full GUT suite on Linux host `okami` — 72 scripts / 489 tests /
+    489 passing, exit 0; the unchanged regression net passed
+    (`test_server_monster_state` 10/10, `test_server_monster_manager` 19/19,
+    integration `test_authoritative_melee_strike` 9/9 — real-node runtime
+    evidence), and the rewritten `test_monster_contracts` 2/2. Feature stays
+    `In Progress`: wiring `CharacterFoundation` server-side remains.
+  - Date: 2026-09-17
     What changed: Delivered the tenth F-036 slice (Slice 125) — the FIRST
     integration of a Phase 14 contract into the live server. Migrated the
     Player's server-owned HP pool in `server/server_player_state.gd` from the
