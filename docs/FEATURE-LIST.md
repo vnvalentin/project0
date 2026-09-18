@@ -73,7 +73,9 @@ feature so future drift is easier to detect.
   [Slice 151](slices/151-client-export-metadata-exclusion.md) (DT-015: exclude
   editor/import metadata from the packaged client),
   [Slice 152](slices/152-enrollment-patch-hosting.md) (public HTTPS `/patches`
-  hosting with a read-only release volume).
+  hosting with a read-only release volume),
+  [Slice 153](slices/153-launcher-updater-orchestration.md) (persistent launcher
+  payload, detached apply helper, startup recovery, and relaunch hook).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -83,6 +85,22 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the ninth F-037 slice (Slice 153) — launcher updater
+    orchestration. The Go launcher now owns a persistent AppData payload instead
+    of extracting to a disposable temp directory, runs `RecoverInterrupted` before
+    launch, exposes a detached `--project0-update-helper` mode that applies a
+    staged pack through Slice 149's transaction, and relaunches the client so its
+    next pre-auth version handshake is the readiness check.
+    Why: The previous temp extraction made `.bak` and the transaction marker
+    impossible to recover across launcher runs; persistent AppData ownership is
+    the rollback boundary.
+    Related work: [Slice 153](slices/153-launcher-updater-orchestration.md),
+    [Slice 149](slices/149-updater-transaction.md), #100, #182.
+    Validation: Go vet clean and `go test ./...` passed in
+    `native/windows_launcher`; full GUT remains unchanged because no GDScript
+    behavior changed. record-sync exit 0. Packaged Windows end-to-end evidence
+    remains a follow-on.
   - Date: 2026-09-18
     What changed: Delivered the eighth F-037 slice (Slice 152) — public HTTPS
     patch hosting on the existing FastAPI enrollment service. `/patches` serves
