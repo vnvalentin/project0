@@ -149,8 +149,9 @@ contended range and everything after it is tracked explicitly:
 | 131 | Phase 14 integration: town NPCs live in server_main + client replication/rendering (closes exit gate) (#227, #229, #232, F-036) | interactive |
 | 132 | Phase 15 P-016-A: versioned embodiment tuning resolve seam (#219, #220, P-016) | interactive |
 | 133 | Phase 15 P-016-A: vessel progression state + fixed-budget redistribution (#219, #223, P-016) | interactive |
+| 134 | Phase 15 P-016-A: effective mechanics snapshot (derived, presentation-safe read-model) (#219, #224, P-016) | interactive |
 
-Next free slice: **134** (verify against `docs/slices/` before reserving).
+Next free slice: **135** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
