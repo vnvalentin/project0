@@ -10,6 +10,7 @@ Slice 088 (docs/slices/088-auth-gated-onboarding-login-delegation.md).
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from .config import EnrollmentConfig, load_config
@@ -141,6 +142,7 @@ def create_app(
     login_authority_client: LoginAuthorityClient,
     character_client: CharacterClient | None = None,
     public_auth_limiter: PublicAuthRateLimiter | None = None,
+    patches_dir: str | None = None,
 ) -> FastAPI:
     """Build a FastAPI app bound to the given (already-configured) service and clients.
 
@@ -151,6 +153,10 @@ def create_app(
     """
     app = FastAPI(title="Project0 WireGuard Enrollment Service")
     public_auth_limiter = public_auth_limiter or PublicAuthRateLimiter()
+
+    # Public by design: an outdated client cannot authenticate before it patches.
+    if patches_dir:
+        app.mount("/patches", StaticFiles(directory=patches_dir, html=False), name="patches")
 
     def _rate_limited(detail: str = "public_auth_rate_limited") -> HTTPException:
         return HTTPException(status_code=429, detail=detail)
