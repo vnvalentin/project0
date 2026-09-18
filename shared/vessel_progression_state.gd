@@ -51,6 +51,18 @@ static func create_baseline(tuning: Object) -> VesselProgressionState:
 	return VesselProgressionState.new(tuning.tuning_version, base)
 
 
+## Slice 143: the durable persistence form of this vessel — the exact inverse of
+## from_wire_dict. Pure value (schema version + pinned tuning + a copy of the
+## earned base nodes); no derived/effective state, no secrets. The server-only
+## VesselRepository stores this as JSON and reloads it through from_wire_dict.
+func to_wire_dict() -> Dictionary:
+	return {
+		"schema_version": schema_version,
+		"tuning_version": tuning_version,
+		"base_nodes": base_nodes.duplicate(),
+	}
+
+
 ## Apply a training gain to one node, compressing its opposers to preserve the
 ## fixed budget. Atomic: on any non-ok outcome nothing changes. Uses the pinned
 ## tuning (the supplied tuning must match this vessel's version). Returns

@@ -703,8 +703,32 @@ feature so future drift is easier to detect.
   (P-016-A/G server progression service; closes the exit gate),
   [Slice 142](slices/142-effective-mechanics-replication.md) (post-exit-gate
   follow-on: live RPC replication of the EffectiveMechanicsSnapshot to the owning
-  client at world entry).
+  client at world entry),
+  [Slice 143](slices/143-vessel-persistence.md) (post-exit-gate follow-on:
+  durable vessel persistence — `VesselRepository` over `SqliteStore` + serializer).
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the second and last of Slice 140's documented
+    follow-ons (Slice 143) — **durable vessel persistence**. Added
+    `VesselProgressionState.to_wire_dict()` (the inverse of the existing
+    `from_wire_dict`) and a server-only `server/vessel_repository.gd`
+    (`VesselRepository`) over the shared `SqliteStore` engine seam, mirroring
+    `CanonRepository`: `ensure_schema`, an idempotent `save_vessel` upsert by
+    `character_id`, and a `load_vessel` that revalidates the stored row fail-closed
+    against the current tuning (schema/structure/bounds/budget) or returns
+    not-found. A Character's earned vessel now survives a server restart. Feature
+    stays `Implemented`.
+    Why: Close the last Phase 15 persistence follow-on — earned progression must
+    not vanish on process stop.
+    Related work: [Slice 143](slices/143-vessel-persistence.md),
+    [Slice 140](slices/140-phase15-embodiment-progression-service.md), #219, #223.
+    Validation: full GUT suite on Linux host `okami` (working-tree overlay) —
+    100 scripts / 729 tests / 729 passing, 2325 asserts, exit 0 (+1 script, +6
+    tests over the prior follow-on); new `test_vessel_repository` 6/6 over a real
+    temporary `user://` SQLite database (save→restart→identical recovery, trained
+    round-trip, upsert, corrupt-row fail-closed, empty-id refusal). Live wiring
+    into the world-entry/progression-service path remains (gated on the
+    shared-vs-per-Player service-ownership decision noted in the slice record).
   - Date: 2026-09-18
     What changed: Delivered the post-exit-gate follow-on (Slice 142) that Slice
     140 explicitly deferred — the **live RPC replication of the
