@@ -41,6 +41,13 @@ compose_file="$(pwd)/deploy/compose.yml"
 [[ -f "${compose_file}" ]] || { echo "ERROR: missing ${compose_file}" >&2; exit 1; }
 
 [[ -n "${TAG}" ]] || TAG="main"
+# Release tags use the same semver identity as the packaged client. Keep the
+# mutable `main` deployment on the server's embedded-version default.
+if [[ "${TAG}" == v* ]]; then
+	PROJECT0_REQUIRED_CLIENT_VERSION="${TAG#v}"
+fi
+export PROJECT0_REQUIRED_CLIENT_VERSION
+export PROJECT0_UPDATE_MANIFEST_BASE_URL="${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://enroll.valentin.vip/patches}"
 state_file="/var/lib/project0/deployed-tag"
 
 log() { printf '\n== %s\n' "$*"; }
