@@ -380,12 +380,12 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   and onboarding remain. The controller placeholder is a separate low-risk slice,
   not yet allocated a feature.
 - Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
-  — version identity (Slice 144), the handshake contract (Slice 145), live gate
-  enforcement (Slice 146), and the signed-manifest verifier (Slice 147)
-  delivered; HTTPS patch staging, updater/rollback, launcher, and onboarding
-  remain. The controller placeholder is a separate low-risk slice, not yet
-  allocated a feature.
-- Current slice: [147 — Phase 16 (F-037): signed update-manifest verifier](slices/147-signed-update-manifest.md) — **delivered; `shared/update_manifest.gd` verifies a detached RSA signature over the RAW manifest bytes before parsing them, validates fields fail-closed, and verifies a downloaded patch against the signed size + streamed SHA-256. Full GUT suite 762/762 across 104/104, exit 0, with real RSA-3072 keys generated in-test**. Prior: [Slice 146](slices/146-version-gate-enforcement.md) (live gate), [Slice 145](slices/145-version-handshake-contract.md) (contract), [Slice 144](slices/144-client-build-version-stamp.md) (identity).
+  — version identity (144), handshake contract (145), live gate enforcement
+  (146), signed-manifest verifier (147), and HTTPS staging (148) delivered;
+  the detached updater/rollback, the embedded production key, launcher, and
+  onboarding remain. The controller placeholder is a separate low-risk slice,
+  not yet allocated a feature.
+- Current slice: [148 — Phase 16 (F-037): HTTPS update staging](slices/148-https-update-staging.md) — **delivered; `client/update_stager.gd` fetches the manifest, signature, and patch over bounded HTTPS and stages the patch under `user://` only after it verifies, destroying the staging directory on every failure path. Full GUT suite 770/770 across 105/105, exit 0. Known gap: the HTTPS transport itself is not automatically tested (no HTTPS fixture), which is why packaged runtime evidence stays required**. Prior: [147](slices/147-signed-update-manifest.md) (verifier), [146](slices/146-version-gate-enforcement.md) (live gate), [145](slices/145-version-handshake-contract.md), [144](slices/144-client-build-version-stamp.md).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -429,6 +429,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [148 — Phase 16 (F-037): HTTPS update staging](slices/148-https-update-staging.md) — **delivered; `client/update_stager.gd` derives the manifest/signature URLs from an HTTPS base (a plaintext base returns `""` and cannot even be addressed, so no downgrade is attempted-then-caught), fetches manifest + detached signature + patch over bounded HTTPS, and stages the patch under `user://` only after it verifies through `UpdateManifest` — re-checking the bytes that actually landed on disk, not the buffer in memory. **Every failure path ends in `discard_staging`**, because the staging directory is the handoff to the updater and anything left in it is something the updater might later treat as ready. New `test_update_stager` 8/8 (real RSA-3072 keys, real files, asserting the staging directory is absent after every refusal); full GUT suite 770/770 across 105/105, exit 0**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (fifth slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decision 4
+  - **Known coverage gap:** the HTTPS transport itself is not automatically tested (no HTTPS fixture in the suite); all trust decisions live in the tested static functions it delegates to, and packaged-client runtime evidence remains required before F-037 can be `Implemented`
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 - **Slice:** [147 — Phase 16 (F-037): signed update-manifest verifier](slices/147-signed-update-manifest.md) — **delivered; the trust anchor for remote code delivery. `shared/update_manifest.gd` verifies a detached RSA signature over the **raw manifest bytes before parsing them** — verifying a re-serialized copy is a classic signature bypass, since two byte strings can parse to the same object — then validates the fields fail-closed (schema, semver, lowercase 64-hex digest, HTTPS-only URL, positive size) and verifies a downloaded patch against the signed size and a streamed SHA-256 (size first to bound the work; equal-length/wrong-content is explicitly refused). `manifest` is `null` on every non-ok outcome so an unverified document can never be read from, and `key_unusable` is distinct from `unverified` so an operator's broken key is not reported as an attack. New `test_update_manifest` 11/11 using **real RSA-3072 keypairs generated in-test** (genuine tampered-document and foreign-key refusals); full GUT suite 762/762 across 104/104, exit 0. Deliberately not wired to a trusted key yet — a placeholder key would look functional while trusting nothing real**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (fourth slice; feature `In Progress`)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
