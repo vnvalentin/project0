@@ -10,6 +10,7 @@ Slice 088 (docs/slices/088-auth-gated-onboarding-login-delegation.md).
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
@@ -154,6 +155,51 @@ def create_app(
     app = FastAPI(title="Project0 WireGuard Enrollment Service")
     public_auth_limiter = public_auth_limiter or PublicAuthRateLimiter()
 
+    @app.get("/", response_class=HTMLResponse)
+    def landing_page() -> str:
+        return _public_page(
+            "Project0",
+            "A shared world for friends.",
+            """
+            <a class="primary" href="/downloads/">Download the client</a>
+            <a href="/game">Game connection</a>
+            <a href="/telemetry">Service status</a>
+            <a href="/dashboard">Dashboard</a>
+            """,
+        )
+
+    @app.get("/downloads/", response_class=HTMLResponse)
+    def downloads_page() -> str:
+        return _public_page(
+            "Downloads",
+            "Get the latest Windows client and launcher.",
+            '<a class="primary" href="/patches/downloads/">Open downloads</a><a href="/">Back to Project0</a>',
+        )
+
+    @app.get("/telemetry", response_class=HTMLResponse)
+    def telemetry_page() -> str:
+        return _public_page(
+            "Telemetry",
+            "Public service status.",
+            '<p class="status">Enrollment service: online</p><a href="/healthz">Health check</a><a href="/">Back to Project0</a>',
+        )
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    def dashboard_page() -> str:
+        return _public_page(
+            "Dashboard",
+            "Operator dashboard access is available on the private network.",
+            '<a href="/telemetry">Service status</a><a href="/">Back to Project0</a>',
+        )
+
+    @app.get("/game", response_class=HTMLResponse)
+    def game_page() -> str:
+        return _public_page(
+            "Game connection",
+            "Connect the latest launcher to the Project0 world.",
+            '<p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p><a class="primary" href="/downloads/">Get the launcher</a><a href="/">Back to Project0</a>',
+        )
+
     # Public by design: an outdated client cannot authenticate before it patches.
     if patches_dir:
         app.mount("/patches", StaticFiles(directory=patches_dir, html=True), name="patches")
@@ -267,6 +313,14 @@ def create_app(
         return CharacterAssertionResponse(assertion=assertion)
 
     return app
+
+
+def _public_page(title: str, subtitle: str, body: str) -> str:
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title} | Project0</title>
+<style>body{{margin:0;background:#101820;color:#edf4f2;font:16px system-ui,sans-serif}}main{{max-width:760px;margin:12vh auto;padding:32px}}h1{{font-size:clamp(2.5rem,8vw,5rem);margin:0 0 12px;color:#f7c873}}p{{color:#b8c9c5;line-height:1.6}}a{{display:inline-block;margin:18px 18px 0 0;color:#8ed8c7;text-decoration:none;border-bottom:1px solid #8ed8c7;padding-bottom:4px}}a.primary{{background:#f7c873;color:#101820;border:0;padding:12px 16px;border-radius:4px;font-weight:700}}.status,.endpoint{{border-left:3px solid #8ed8c7;padding:12px 16px;color:#edf4f2}}.endpoint{{font:700 1.4rem ui-monospace,monospace}}small{{font:14px system-ui,sans-serif;color:#b8c9c5}}</style></head>
+<body><main><p>PROJECT0 / {title.upper()}</p><h1>{title}</h1><p>{subtitle}</p>{body}</main></body></html>"""
 
 
 def build_production_service(config: EnrollmentConfig | None = None) -> EnrollmentService:
