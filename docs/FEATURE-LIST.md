@@ -697,8 +697,24 @@ feature so future drift is easier to detect.
   (P-016-A foundation, part 3), [Slice 135](slices/135-phase15-friction-modifier.md)
   (P-016-B inverse friction), [Slice 136](slices/136-phase15-kinetic-flow.md)
   (P-016-C Kinetic Flow), [Slice 137](slices/137-phase15-meridian-pathways.md)
-  (P-016-D Meridian pathways).
+  (P-016-D Meridian pathways), [Slice 138](slices/138-phase15-biological-burnout.md)
+  (P-016-E Biological Burnout).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the seventh P-016 slice (Slice 138, P-016-E) —
+    Biological Burnout. Added the burnout tuning namespace on
+    `server/embodiment_tuning.gd` + `shared/burnout_instance.gd`: a temporary
+    modifier (authoritative start/end tick, pathway, source action, tuning
+    version) that flattens the affected pathway's effective Control to zero while
+    active and restores at its end tick without touching base state, plus the
+    normative lifecycle transition validator (READY→SURGE_VALIDATING→ACTIVE_SURGE
+    →BURNED_OUT→RECOVERED→READY, REJECTED branch).
+    Why: An Overload Surge has a real, temporary cost that never erases earned
+    state and survives reconnects (server-owned clock).
+    Related work: [Slice 138](slices/138-phase15-biological-burnout.md), #219.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 500 tests /
+    500 passing, exit 0; new `test_burnout_instance` 7/7. Feature stays
+    `In Progress`: magic (P-016-F) and the server progression service remain.
   - Date: 2026-09-17
     What changed: Delivered the sixth P-016 slice (Slice 137, P-016-D) — Meridian
     pathways. Added the meridian tuning namespace on `server/embodiment_tuning.gd`
