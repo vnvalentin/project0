@@ -698,8 +698,25 @@ feature so future drift is easier to detect.
   (P-016-B inverse friction), [Slice 136](slices/136-phase15-kinetic-flow.md)
   (P-016-C Kinetic Flow), [Slice 137](slices/137-phase15-meridian-pathways.md)
   (P-016-D Meridian pathways), [Slice 138](slices/138-phase15-biological-burnout.md)
-  (P-016-E Biological Burnout).
+  (P-016-E Biological Burnout), [Slice 139](slices/139-phase15-magic-equilibrium.md)
+  (P-016-F Magic equilibrium).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the eighth P-016 slice (Slice 139, P-016-F) — Magic
+    equilibrium, the last embodiment subsystem. Added the magic tuning namespace
+    on `server/embodiment_tuning.gd` + `shared/magic_equilibrium.gd`: physical
+    bulk (STR + CON) insulates and grounds magic, so `resolve(effective_nodes,
+    spell_tier, tuning)` yields CHANNELED / FIZZLE / BACKLASH / REJECTED with a
+    bounded reason — higher tiers demand a leaner vessel, and every attempt has an
+    explicit outcome (never a client success, never silently consumed). All five
+    Phase 15 subsystems (friction, kinetic, meridian, burnout, magic) are now
+    delivered on the P-016-A read-model.
+    Why: Magic's embodied opportunity cost — lean out or ground the current.
+    Related work: [Slice 139](slices/139-phase15-magic-equilibrium.md), #219.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 501 tests /
+    501 passing, exit 0; new `test_magic_equilibrium` 8/8. Feature stays
+    `In Progress`: the server progression service that wires the vessel +
+    subsystems into live replication remains.
   - Date: 2026-09-17
     What changed: Delivered the seventh P-016 slice (Slice 138, P-016-E) —
     Biological Burnout. Added the burnout tuning namespace on
