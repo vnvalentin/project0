@@ -111,7 +111,7 @@ jobs:
       - name: Verify public client downloads
         run: |
           version="${GITHUB_REF_NAME#v}"
-          base="https://enroll.valentin.vip/patches/downloads"
+          base="https://project0.valentin.vip/patches/downloads"
           curl --fail --silent --show-error "${base}/index.html" >/dev/null
           curl --fail --silent --show-error "${base}/${version}/Project0-WAN-${version}.exe" -o /dev/null
           curl --fail --silent --show-error "${base}/${version}/Project0-WAN-${version}.zip" -o /dev/null

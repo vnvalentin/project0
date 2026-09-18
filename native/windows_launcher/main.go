@@ -18,6 +18,9 @@ import (
 const (
 	updateRequiredExitCode = 20
 	launcherClientVersion  = "0.6.0"
+	directWANEnvVar        = "PROJECT0_DIRECT_WAN"
+	directWANHost          = "project0.valentin.vip"
+	directWANEnrollmentURL = "https://project0.valentin.vip"
 )
 
 func main() {
@@ -28,9 +31,15 @@ func main() {
 		return
 	}
 
-	config, privateKey, err := ensurePeerConfig()
-	if err != nil {
-		fail(err)
+	directWAN := directWANEnabled()
+	var config peerConfig
+	var privateKey []byte
+	var err error
+	if !directWAN {
+		config, privateKey, err = ensurePeerConfig()
+		if err != nil {
+			fail(err)
+		}
 	}
 	payloadDirectory, err := payloadDirectory()
 	if err != nil {
@@ -48,25 +57,34 @@ func main() {
 		fail(err)
 	}
 
-	keyPath, err := privateKeyFile(privateKey)
-	if err != nil {
-		fail(err)
-	}
-	defer os.Remove(keyPath)
 	rejectionPath := filepath.Join(payloadDirectory, "update-rejection.json")
 	_ = os.Remove(rejectionPath)
 	command := exec.Command(filepath.Join(payloadDirectory, "Project0.exe"), forwardedArgs(os.Args[1:])...)
 	command.Dir = payloadDirectory
-	clientEnv := append(filteredEnvironment(),
-		"PROJECT0_TUNNEL=1",
-		"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
-		"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
-		"PROJECT0_TUNNEL_GAME_HOST="+strings.TrimSuffix(config.AllowedIPs, "/32")+":9999",
-		"PROJECT0_TUNNEL_CLIENT_ADDRESS="+config.AssignedAddress,
-		"PROJECT0_TUNNEL_KEY_PATH="+keyPath,
-		"PROJECT0_TUNNEL_KEEPALIVE="+fmt.Sprint(config.Keepalive),
-		"PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath,
-	)
+	clientEnv := filteredEnvironment()
+	if directWAN {
+		clientEnv = append(clientEnv,
+			"PROJECT0_CLIENT_HTTPS_LOGIN=1",
+			"PROJECT0_ENROLLMENT_URL="+directWANEnrollmentURL,
+			"PROJECT0_SERVER_HOST="+directWANHost,
+		)
+	} else {
+		keyPath, keyErr := privateKeyFile(privateKey)
+		if keyErr != nil {
+			fail(keyErr)
+		}
+		defer os.Remove(keyPath)
+		clientEnv = append(clientEnv,
+			"PROJECT0_TUNNEL=1",
+			"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
+			"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
+			"PROJECT0_TUNNEL_GAME_HOST="+strings.TrimSuffix(config.AllowedIPs, "/32")+":9999",
+			"PROJECT0_TUNNEL_CLIENT_ADDRESS="+config.AssignedAddress,
+			"PROJECT0_TUNNEL_KEY_PATH="+keyPath,
+			"PROJECT0_TUNNEL_KEEPALIVE="+fmt.Sprint(config.Keepalive),
+		)
+	}
+	clientEnv = append(clientEnv, "PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath)
 	command.Env = clientEnv
 	command.Stdout = nil
 	command.Stderr = nil
@@ -84,6 +102,10 @@ func main() {
 		}
 		fail(err)
 	}
+}
+
+func directWANEnabled() bool {
+	return os.Getenv(directWANEnvVar) != "0"
 }
 
 func hasArg(args []string, wanted string) bool {

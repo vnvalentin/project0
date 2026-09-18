@@ -221,13 +221,13 @@ func decodePeerConfig(responseBody []byte, err error) (peerConfig, error) {
 }
 
 // enrollmentBaseURL resolves the public enrollment service base URL from
-// PROJECT0_ENROLLMENT_URL (default https://enroll.valentin.vip), tolerating a
+// PROJECT0_ENROLLMENT_URL (default https://project0.valentin.vip), tolerating a
 // value that already includes a trailing "/redeem" or slash so both /login and
 // /redeem resolve correctly.
 func enrollmentBaseURL() string {
 	raw := strings.TrimRight(strings.TrimSpace(os.Getenv("PROJECT0_ENROLLMENT_URL")), "/")
 	if raw == "" {
-		return "https://enroll.valentin.vip"
+		return "https://project0.valentin.vip"
 	}
 	raw = strings.TrimSuffix(raw, "/redeem")
 	return strings.TrimRight(raw, "/")

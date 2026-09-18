@@ -36,7 +36,7 @@ services:
       PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
       PROJECT0_HEALTH_FILE: "/data/health.json"
       PROJECT0_REQUIRED_CLIENT_VERSION: "${PROJECT0_REQUIRED_CLIENT_VERSION:-}"
-      PROJECT0_UPDATE_MANIFEST_BASE_URL: "${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://enroll.valentin.vip/patches}"
+      PROJECT0_UPDATE_MANIFEST_BASE_URL: "${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://project0.valentin.vip/patches}"
       # Ollama runs on the HOST. The server's default of 127.0.0.1 resolves to
       # the container's own loopback, which silently disabled JIT sector
       # generation. Use the host's LAN address rather than

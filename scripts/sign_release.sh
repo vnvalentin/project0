@@ -13,7 +13,7 @@
 #   scripts/sign_release.sh <version> <path/to/Project0.pck> <base-url> [out-dir]
 #
 # Example:
-#   scripts/sign_release.sh 0.7.0 dist/Project0.pck https://enroll.valentin.vip/patches
+#   scripts/sign_release.sh 0.7.0 dist/Project0.pck https://project0.valentin.vip/patches
 #
 # The private key path comes from PROJECT0_SIGNING_KEY (default:
 # ~/project0-signing/project0-release-private.pem) so the path never has to be
