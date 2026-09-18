@@ -136,7 +136,7 @@ their previous numbers — see the change note under "Delivery order".)
 | 13. Delivery workflow capabilities | in-progress | Agent orchestration and CI/dashboard foundations remain synchronized; Remote-SSH and asset quarantine are either delivered with evidence or explicitly retained as planned non-blockers. |
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
 | 15. Biological progression and kinetic systems | done | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. **Exit gate met (Slice 140):** the versioned tuning + vessel redistribution + effective-snapshot foundation (P-016-A) and all five subsystems (P-016-B…F) are composed by a server-authoritative `EmbodimentProgressionService` into a deterministic, presentation-safe snapshot, proven end-to-end by 503/503 GUT tests. |
-| 16. Client delivery experience | queued (implementation planning) | Design converged in the Phase 16 handoff spec and ADR: explicit LAN/WAN launcher modes, mandatory pre-auth version gating, RSA-signed manifest and full-pack trust, atomic restart/rollback, repair behavior, onboarding, and a separate XInput named-action controller slice. No delivery slice has started. |
+| 16. Client delivery experience | in-progress | Design converged in the Phase 16 handoff spec and ADR: explicit LAN/WAN launcher modes, mandatory pre-auth version gating, RSA-signed manifest and full-pack trust, atomic restart/rollback, repair behavior, onboarding, and a separate XInput named-action controller slice. Implementation started — the client build version identity is delivered (Slice 144); the gate, signed patching, updater, launcher, and controller slices remain. |
 | 17. Fleet operations console | queued (design) | A capstone spec resolves the versioned ops snapshot, telemetry content, registry, operator-token control seam, bounded actions, audit, and standalone LAN console surface before implementation slices are allocated. |
 | 18. Horizontal scale and zone sharding | queued (research-first) | A researched ownership and cross-shard handoff model plus ADR exists before any implementation feature or slice is created; until then this phase has no validated exit gate. |
 
@@ -358,7 +358,7 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
-Progress: **design complete; 0% implementation** (handoff ready; no delivery items allocated yet)
+Progress: **design complete; implementation started** (F-037 `in-progress`; first slice delivered)
 
 - Source goals: [unified-launcher map](../.scratch/unified-launcher/map.md),
   [client-auto-update map](../.scratch/client-auto-update/map.md),
@@ -370,6 +370,12 @@ Progress: **design complete; 0% implementation** (handoff ready; no delivery ite
   Keyboard/mouse behavior unchanged.
 - Handoff: [Windows client delivery contract](../.scratch/client-auto-update/spec.md)
   and [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md).
+- Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+  — version identity delivered (Slice 144); handshake/gate, signed manifest,
+  updater/rollback, launcher, and onboarding remain. The controller placeholder
+  is a separate low-risk slice, not yet allocated a feature.
+- Current slice: [144 — Phase 16 (F-037): client build version identity + export-time stamp](slices/144-client-build-version-stamp.md) — **delivered; the packaged client now knows its own build version at runtime via the in-pack `ClientBuildVersion` contract, stamped into the pack by `scripts/stamp_client_build_version.sh` before the Godot export. Full GUT suite 734/734 across 101/101, exit 0 on the Linux host**.
+- Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
   [#117](https://github.com/vnvalentin/project0/issues/117).
@@ -409,6 +415,14 @@ for delivery ownership, even when its linked work advances another phase.
 Slice completion is based on its own SDD, BDD, TDD, ADR/no-ADR rationale,
 validation, and review evidence. Phase completion is based on progress toward
 the phase exit gate; it is not a count of completed slices.
+
+#### Phase 16 — Client delivery experience
+
+- **Slice:** [144 — Phase 16 (F-037): client build version identity and export-time stamp](slices/144-client-build-version-stamp.md) — **delivered; the first implementation slice of the accepted Phase 16 handoff and the root dependency of every later slice in it. `shared/client_build_version.gd` (`ClientBuildVersion.current()` + fail-closed `is_valid()` semver validation) gives the running client its own build identity from inside the `.pck`, and `scripts/stamp_client_build_version.sh` — run by `export_windows_client.sh` before the Godot export and restored afterward — writes the released version into it, replacing a version that existed only in the ZIP name. Deterministic, idempotent, and fail-closed: six malformed inputs each exit non-zero leaving the contract untouched. New `test_client_build_version` 5/5; full GUT suite 734/734 across 101/101, exit 0 on the Linux host. Validation caught a real CRLF anchoring bug in the stamp guard before merge**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (first slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decision 1
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 
 #### Phase 15 — Biological progression and kinetic systems
 

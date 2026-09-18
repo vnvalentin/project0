@@ -29,6 +29,19 @@ ZIP_PATH="dist/${PACKAGE_NAME}.zip"
 rm -rf "${STAGE_DIR}" "${PACKAGE_DIR}" "${ZIP_PATH}"
 mkdir -p "${STAGE_DIR}"
 
+# Slice 144: stamp the version INTO the pack before exporting, so the running
+# client can report its own build version to the server-owned pre-auth gate
+# instead of the version existing only in this package's name. Restored on exit
+# so an export never leaves the working tree re-versioned.
+VERSION_CONTRACT="shared/client_build_version.gd"
+VERSION_CONTRACT_BACKUP="$(mktemp)"
+cp "${VERSION_CONTRACT}" "${VERSION_CONTRACT_BACKUP}"
+restore_version_contract() {
+	mv -f "${VERSION_CONTRACT_BACKUP}" "${VERSION_CONTRACT}"
+}
+trap restore_version_contract EXIT
+scripts/stamp_client_build_version.sh "${VERSION}"
+
 echo "Exporting Windows Desktop preset (version ${VERSION})..."
 godot --headless --path . --export-release "Windows Desktop" "${STAGE_DIR}/Project0.exe"
 

@@ -41,6 +41,48 @@ feature so future drift is easier to detect.
 
 ## Planned Features
 
+### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
+
+- Status: `In Progress`
+- Feature: A packaged Windows client carries a server-comparable build version,
+  is refused before authentication when out of date, and updates itself through
+  an offline-signed, integrity-verified, atomically applied, rollback-safe full
+  `Project0.pck` replacement served over HTTPS.
+- Problem solved: Testers currently update by hand and the server cannot tell
+  which client build connected, so a stale client can reach authentication and
+  fail in undefined ways — while any self-update path is remote code delivery
+  that must never execute unverified bytes.
+- Phase: 16. Client delivery experience
+- Public seam: The generated in-pack `ClientBuildVersion` contract, the pre-auth
+  version-handshake contract enforced by the server, and the launcher/updater's
+  signed-manifest verification, atomic swap, and rollback boundary.
+- Implementation slices: [Slice 144](slices/144-client-build-version-stamp.md)
+  (version identity + export-time stamp).
+- Validation: Each slice must add public-seam GUT coverage and full-suite
+  telemetry; the update and rollback behavior additionally requires executable
+  packaged-client runtime evidence before this feature can become `Implemented`.
+  No update or rollback claim is accepted without that runtime evidence.
+- Related work: [Windows client delivery contract](../.scratch/client-auto-update/spec.md),
+  [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md),
+  [#100](https://github.com/vnvalentin/project0/issues/100),
+  [#182](https://github.com/vnvalentin/project0/issues/182)
+- Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the first F-037 slice (Slice 144) — the client build
+    version identity. Added the checked-in, generated `shared/client_build_version.gd`
+    (`ClientBuildVersion.current()` + fail-closed `is_valid()` semver validation)
+    so a running client can read its own build version from inside the `.pck`,
+    and `scripts/stamp_client_build_version.sh`, which `export_windows_client.sh`
+    now runs before the Godot export so the packaged pack carries the exact
+    released version instead of encoding it only in the ZIP name. The stamp is
+    deterministic, idempotent, refuses a malformed version, and restores the
+    working tree afterward.
+    Why: Every later Phase 16 slice (handshake, manifest, updater) compares or
+    binds this version, so it is the root dependency of the whole contract.
+    Related work: [Slice 144](slices/144-client-build-version-stamp.md),
+    [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), #100, #182.
+    Validation: see the slice record for the executed commands and evidence.
+
 ### F-036: Phase 14 unified Character and NPC generalization
 
 - Status: `Implemented`
