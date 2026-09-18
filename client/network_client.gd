@@ -92,6 +92,16 @@ signal character_snapshot_changed(snapshot: Dictionary)
 ## axes + subsystem-safe derived summaries, never raw effective numbers.
 signal effective_mechanics_changed(snapshot: Dictionary)
 
+## Slice 146: emitted on the SERVER when a connecting peer submits its version
+## handshake, so server_main.gd owns the decision without this node knowing the
+## gate's rules. Carries the sender peer id, exactly like the other client→server
+## intent signals here.
+signal version_handshake_received(peer_id: int, handshake: Dictionary)
+
+## Slice 146: emitted on a CLIENT the server refused at the version gate, so the
+## UI can tell the tester which version is required and where to get it.
+signal version_handshake_rejected(rejection: Dictionary)
+
 ## Slice 094: emitted on the owning client the tick its Player was defeated
 ## (and provisionally respawned at full HP), so a HUD element can flash a cue.
 signal player_defeated_received()
@@ -146,6 +156,7 @@ const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
+const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 
 ## Slice 069: server-owned validity window for an assertion minted on request.
 ## The login process supplies the clock and this bound; the client supplies
@@ -219,6 +230,10 @@ var latest_character_snapshot: Dictionary = {}
 ## Slice 142: latest replicated presentation-safe EffectiveMechanicsSnapshot,
 ## retained so a HUD element created after it first arrives still reads it.
 var latest_effective_mechanics: Dictionary = {}
+
+## Slice 146: the server's version-gate rejection, if this client was refused.
+## Retained so UI created after the refusal still knows why.
+var latest_version_rejection: Dictionary = {}
 
 
 func _ready() -> void:
@@ -319,6 +334,9 @@ func _maybe_start_tunnel() -> int:
 
 func _on_connected_to_server() -> void:
 	_set_status("connected")
+	# Slice 146: the version handshake is the FIRST thing a client says. The server
+	# admits nothing until it accepts this, so it must precede every other RPC.
+	rpc_id(1, "receive_version_handshake_on_server", VersionHandshakeScript.request())
 
 
 func _on_connection_failed() -> void:
@@ -858,6 +876,24 @@ func receive_effective_mechanics(snapshot: Dictionary) -> void:
 		return
 	latest_effective_mechanics = validated["snapshot"]
 	effective_mechanics_changed.emit(latest_effective_mechanics)
+
+
+## RPC target (Slice 146): runs only on the server, called by a connecting client
+## with its declared build version. Emits the sender peer id so server_main.gd
+## decides the gate — this node never judges a version itself.
+@rpc("any_peer", "call_remote", "reliable")
+func receive_version_handshake_on_server(handshake: Dictionary) -> void:
+	version_handshake_received.emit(multiplayer.get_remote_sender_id(), handshake)
+
+
+## RPC target (Slice 146): called by the server on a client it refused at the
+## version gate, just before disconnecting it. Retained and relayed so the UI can
+## show which version is required and where to get it.
+@rpc("authority", "call_remote", "reliable")
+func receive_version_handshake_rejected(rejection: Dictionary) -> void:
+	latest_version_rejection = rejection
+	_set_status("refused: %s" % String(rejection.get("outcome", "UNKNOWN")))
+	version_handshake_rejected.emit(rejection)
 
 
 ## RPC target (Slice 094): called by the server on the owning client the tick
