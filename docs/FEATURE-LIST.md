@@ -57,7 +57,9 @@ feature so future drift is easier to detect.
   version-handshake contract enforced by the server, and the launcher/updater's
   signed-manifest verification, atomic swap, and rollback boundary.
 - Implementation slices: [Slice 144](slices/144-client-build-version-stamp.md)
-  (version identity + export-time stamp).
+  (version identity + export-time stamp),
+  [Slice 145](slices/145-version-handshake-contract.md) (pre-auth version
+  handshake contract + server-owned required-version resolution).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -67,6 +69,26 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the second F-037 slice (Slice 145) — the **pre-auth
+    version handshake contract**. `shared/version_handshake.gd`
+    (`VersionHandshake`) defines the request a client sends first, resolves the
+    server-owned required version from `PROJECT0_REQUIRED_CLIENT_VERSION`
+    (defaulting to this build's own version) and the HTTPS-only manifest base URL
+    from `PROJECT0_UPDATE_MANIFEST_BASE_URL`, and evaluates one against the other
+    into `ACCEPTED` / `CLIENT_OUTDATED` / `MALFORMED` / `SERVER_MISCONFIGURED`
+    (plus the reserved `UNSUPPORTED`). Comparison is exact equality, and a
+    rejected client is handed the required version and where to patch. Pure and
+    fully tested; live enforcement is deliberately the next slice, because the
+    connect lifecycle in `server_main.gd` / `network_client.gd` is a declared
+    shared hot-spot.
+    Why: This is the decision the mandatory gate enforces, and proving it in
+    isolation keeps the hot-spot edit small and reviewable.
+    Related work: [Slice 145](slices/145-version-handshake-contract.md),
+    [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), #100.
+    Validation: full GUT suite on the Linux host (working-tree overlay) —
+    102 scripts / 747 tests / 747 passing, 2387 asserts, exit 0 (+1 script,
+    +13 tests); new `test_version_handshake` 13/13. record-sync exit 0.
   - Date: 2026-09-18
     What changed: Delivered the first F-037 slice (Slice 144) — the client build
     version identity. Added the checked-in, generated `shared/client_build_version.gd`
