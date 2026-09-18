@@ -168,8 +168,9 @@ contended range and everything after it is tracked explicitly:
 | 150 | Phase 16 F-037: embed the trusted release public key + one-command release signing (#100, F-037) | interactive |
 | 151 | Phase 16 DT-015: exclude editor import metadata from packaged client to remove server-only GDExtension boot noise (#100, F-037, DT-015) | interactive |
 | 152 | Phase 16 F-037: enrollment HTTPS /patches static hosting and read-only release volume (#100, #182, F-037) | interactive |
+| 153 | Phase 16 F-037: launcher updater orchestration — persistent payload, detached apply helper, relaunch/readiness hook (#100, #182, F-037) | interactive |
 
-Next free slice: **153** (verify against `docs/slices/` before reserving).
+Next free slice: **154** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
