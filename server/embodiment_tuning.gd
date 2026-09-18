@@ -58,6 +58,11 @@ const _KINETIC_CONTROL_COEFFICIENT: float = 1.0
 const _KINETIC_OUTPUT_COEFFICIENT: float = 1.0
 const _KINETIC_SLOSH_PENALTY: float = 1.0
 
+## Meridian namespace (Slice 137, P-016-D): the deduplicated cross-training
+## evidence a pathway must accumulate before it permanently unlocks. One frozen
+## threshold for the baseline set; per-pathway thresholds are a later revision.
+const _MERIDIAN_UNLOCK_THRESHOLD: float = 100.0
+
 var schema_version: int
 var tuning_version: String
 var budget: float
@@ -130,6 +135,14 @@ func kinetic() -> Dictionary:
 		"control_coefficient": _KINETIC_CONTROL_COEFFICIENT,
 		"output_coefficient": _KINETIC_OUTPUT_COEFFICIENT,
 		"slosh_penalty": _KINETIC_SLOSH_PENALTY,
+	}
+
+
+## The Meridian subsystem's frozen tuning: the deduplicated cross-training
+## evidence threshold a pathway unlocks at (P-016-D).
+func meridian() -> Dictionary:
+	return {
+		"unlock_threshold": _MERIDIAN_UNLOCK_THRESHOLD,
 	}
 
 

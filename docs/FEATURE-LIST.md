@@ -696,8 +696,23 @@ feature so future drift is easier to detect.
   (P-016-A foundation, part 2), [Slice 134](slices/134-phase15-effective-mechanics-snapshot.md)
   (P-016-A foundation, part 3), [Slice 135](slices/135-phase15-friction-modifier.md)
   (P-016-B inverse friction), [Slice 136](slices/136-phase15-kinetic-flow.md)
-  (P-016-C Kinetic Flow).
+  (P-016-C Kinetic Flow), [Slice 137](slices/137-phase15-meridian-pathways.md)
+  (P-016-D Meridian pathways).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the sixth P-016 slice (Slice 137, P-016-D) — Meridian
+    pathways. Added the meridian tuning namespace on `server/embodiment_tuning.gd`
+    + `shared/meridian_state.gd`: per-pathway (Impact STR+CON / Flow DEX+WIS /
+    Spark STR+DEX) progress driven by DEDUPLICATED cross-training evidence, with a
+    deterministic, idempotent, durable threshold unlock — a replayed evidence id
+    can neither progress nor re-unlock, per the spec.
+    Why: Permanent earned pathways that cannot be farmed or double-counted across
+    reconnects/replays.
+    Related work: [Slice 137](slices/137-phase15-meridian-pathways.md), #219.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 501 tests /
+    501 passing, exit 0; new `test_meridian_state` 8/8. Feature stays
+    `In Progress`: burnout/magic (P-016-E…F) and the server progression service
+    remain.
   - Date: 2026-09-17
     What changed: Delivered the fifth P-016 slice (Slice 136, P-016-C) — the
     Kinetic Flow layer. Added the kinetic tuning namespace on

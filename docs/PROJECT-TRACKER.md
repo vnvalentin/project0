@@ -312,8 +312,7 @@ Progress: **40%** (2 of 5 items done)
 Progress: **in-progress** (P-016-A foundation delivered; subsystems underway)
 
 - Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
-- Current slice: [136 — Phase 15 (P-016-C): Kinetic Flow layer](slices/136-phase15-kinetic-flow.md) — **delivered; kinetic tuning namespace + `KineticFlow` (Volume←CON / Control←DEX / Output←STR + slosh-based energy-cost inflation); new `test_kinetic_flow` 6/6; full GUT suite 499/499 across 73/73, exit 0 on the Linux host**. Prior: Slices 132-134 (P-016-A foundation), 135 (friction). Next: meridian (P-016-D), burnout (E), magic (F), and the server progression service.
-- Tech debt: none yet.
+- Current slice: [137 — Phase 15 (P-016-D): Meridian pathways](slices/137-phase15-meridian-pathways.md) — **delivered; meridian tuning namespace + `MeridianState` (Impact/Flow/Spark pathways, deduplicated cross-training evidence, idempotent + durable threshold unlock); new `test_meridian_state` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. Prior: Slices 132-134 (P-016-A foundation), 135 (friction), 136 (kinetic). Next: burnout (P-016-E), magic (F), and the server progression service.
 - Tech debt: none yet.
 
 **Phase 11 — Public game access**
@@ -408,6 +407,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 15 — Biological progression and kinetic systems
 
+- **Slice:** [137 — Phase 15 (P-016-D): Meridian pathways](slices/137-phase15-meridian-pathways.md) — **delivered; the meridian tuning namespace on `server/embodiment_tuning.gd` + `shared/meridian_state.gd` — per-pathway (Impact/Flow/Spark) progress from deduplicated cross-training evidence with a deterministic, idempotent, durable threshold unlock; new `test_meridian_state` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+  - **GitHub issue:** #219 (design source: SYSTEMS-SPECIFICATION.md Meridian Pathways)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 - **Slice:** [136 — Phase 15 (P-016-C): Kinetic Flow layer](slices/136-phase15-kinetic-flow.md) — **delivered; the kinetic tuning namespace on `server/embodiment_tuning.gd` + `shared/kinetic_flow.gd` — pure derivation of Volume(←CON)/Control(←DEX)/Output(←STR) + energy-cost inflation from Control/Volume slosh; new `test_kinetic_flow` 6/6; full GUT suite 499/499 across 73/73, exit 0 on the Linux host**
   - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **GitHub issue:** #219 (design source: SYSTEMS-SPECIFICATION.md Kinetic Flow Layer)
