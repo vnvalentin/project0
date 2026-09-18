@@ -380,11 +380,12 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   and onboarding remain. The controller placeholder is a separate low-risk slice,
   not yet allocated a feature.
 - Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
-  — version identity (Slice 144), the handshake contract (Slice 145), and live
-  gate enforcement (Slice 146) delivered; signed manifest, updater/rollback,
-  launcher, and onboarding remain. The controller placeholder is a separate
-  low-risk slice, not yet allocated a feature.
-- Current slice: [146 — Phase 16 (F-037): live version-gate enforcement](slices/146-version-gate-enforcement.md) — **delivered; the mandatory gate is live. Peer admission is deferred until a handshake is accepted, a mismatched client is refused with its required version + manifest URL and disconnected, and a server with an unusable requirement refuses to start. Full GUT suite 751/751 across 103/103, exit 0, E2E harnesses unchanged; runtime-proven in both directions on real processes**. Prior: [Slice 145](slices/145-version-handshake-contract.md) (contract), [Slice 144](slices/144-client-build-version-stamp.md) (identity).
+  — version identity (Slice 144), the handshake contract (Slice 145), live gate
+  enforcement (Slice 146), and the signed-manifest verifier (Slice 147)
+  delivered; HTTPS patch staging, updater/rollback, launcher, and onboarding
+  remain. The controller placeholder is a separate low-risk slice, not yet
+  allocated a feature.
+- Current slice: [147 — Phase 16 (F-037): signed update-manifest verifier](slices/147-signed-update-manifest.md) — **delivered; `shared/update_manifest.gd` verifies a detached RSA signature over the RAW manifest bytes before parsing them, validates fields fail-closed, and verifies a downloaded patch against the signed size + streamed SHA-256. Full GUT suite 762/762 across 104/104, exit 0, with real RSA-3072 keys generated in-test**. Prior: [Slice 146](slices/146-version-gate-enforcement.md) (live gate), [Slice 145](slices/145-version-handshake-contract.md) (contract), [Slice 144](slices/144-client-build-version-stamp.md) (identity).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -428,6 +429,11 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [147 — Phase 16 (F-037): signed update-manifest verifier](slices/147-signed-update-manifest.md) — **delivered; the trust anchor for remote code delivery. `shared/update_manifest.gd` verifies a detached RSA signature over the **raw manifest bytes before parsing them** — verifying a re-serialized copy is a classic signature bypass, since two byte strings can parse to the same object — then validates the fields fail-closed (schema, semver, lowercase 64-hex digest, HTTPS-only URL, positive size) and verifies a downloaded patch against the signed size and a streamed SHA-256 (size first to bound the work; equal-length/wrong-content is explicitly refused). `manifest` is `null` on every non-ok outcome so an unverified document can never be read from, and `key_unusable` is distinct from `unverified` so an operator's broken key is not reported as an attack. New `test_update_manifest` 11/11 using **real RSA-3072 keypairs generated in-test** (genuine tampered-document and foreign-key refusals); full GUT suite 762/762 across 104/104, exit 0. Deliberately not wired to a trusted key yet — a placeholder key would look functional while trusting nothing real**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (fourth slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decision 3
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 - **Slice:** [146 — Phase 16 (F-037): live version-gate enforcement](slices/146-version-gate-enforcement.md) — **delivered; **the mandatory pre-auth version gate is now live**. `client/network_client.gd` sends `VersionHandshake.request()` as its first post-connect message; `server/server_main.gd` defers *all* peer admission — town replication, Player spawn, house allocation, and peer cross-replication moved into a new `_admit_peer` — until a handshake is accepted, so a refused client never receives world state at all. A mismatched client gets `CLIENT_OUTDATED` with its required version and manifest URL before a graceful disconnect (so the reliable rejection flushes), a resent handshake cannot re-roll the gate, and a server whose `PROJECT0_REQUIRED_CLIENT_VERSION` is unusable refuses to start instead of rejecting everyone. New `test_version_gate_client_seam` 4/4; full GUT suite 751/751 across 103/103, exit 0, with the socket E2E harnesses unchanged. Runtime-proven on real processes both ways: matching server → exit 0, "passed the version gate", ALL PASS; server requiring 9.9.9 → exit 1, "Refusing peer …: CLIENT_OUTDATED", no Player spawned; malformed requirement → exit 1, never bound**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (third slice; feature `In Progress`)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
