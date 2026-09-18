@@ -151,8 +151,9 @@ contended range and everything after it is tracked explicitly:
 | 133 | Phase 15 P-016-A: vessel progression state + fixed-budget redistribution (#219, #223, P-016) | interactive |
 | 134 | Phase 15 P-016-A: effective mechanics snapshot (derived, presentation-safe read-model) (#219, #224, P-016) | interactive |
 | 135 | Phase 15 P-016-B: inverse friction modifier (Massive Bulk / Fragile Agility) (#219, P-016) | interactive |
+| 136 | Phase 15 P-016-C: Kinetic Flow layer (Volume/Control/Output) (#219, P-016) | interactive |
 
-Next free slice: **136** (verify against `docs/slices/` before reserving).
+Next free slice: **137** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
