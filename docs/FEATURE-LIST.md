@@ -692,8 +692,23 @@ feature so future drift is easier to detect.
   [Slice 011](slices/011-mind-tool-architecture-refinement.md),
   [ADR 0002](adr/0002-authoritative-mechanics-and-progression.md)
 - Implementation slices: [Slice 132](slices/132-phase15-embodiment-tuning.md)
-  (P-016-A foundation, part 1).
+  (P-016-A foundation, part 1), [Slice 133](slices/133-phase15-vessel-progression.md)
+  (P-016-A foundation, part 2).
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the second P-016 slice (Slice 133, P-016-A part 2) —
+    `shared/vessel_progression_state.gd` (`VesselProgressionState`): the durable
+    earned six-node vessel pinned to a `tuning_version`, plus the ADR-0006
+    fixed-budget redistribution on `train` (weighted opposition compression,
+    floor clamp + deterministic re-spread, atomic reject-at-capacity). Every gain
+    preserves the budget; no node drops below its floor; a rejected/mismatched
+    train changes nothing.
+    Why: The core progression mechanic — you keep exactly the graph you earn, and
+    a gain that would breach the body's floors is refused cleanly.
+    Related work: [Slice 133](slices/133-phase15-vessel-progression.md), #219, #223.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 504 tests /
+    504 passing, exit 0; new `test_vessel_progression_state` 11/11. Feature stays
+    `In Progress`: effective snapshot (134) and P-016-B…F remain.
   - Date: 2026-09-17
     What changed: Started Phase 15 (P-016). Delivered the first slice (Slice 132,
     P-016-A part 1) — the versioned, server-owned embodiment tuning resolve seam:

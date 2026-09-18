@@ -148,8 +148,9 @@ contended range and everything after it is tracked explicitly:
 | 130 | Phase 14 integration: live town-NPC population manager (SpawnAnchor pressure/replacement/significance) (#227, #232, F-036) | interactive |
 | 131 | Phase 14 integration: town NPCs live in server_main + client replication/rendering (closes exit gate) (#227, #229, #232, F-036) | interactive |
 | 132 | Phase 15 P-016-A: versioned embodiment tuning resolve seam (#219, #220, P-016) | interactive |
+| 133 | Phase 15 P-016-A: vessel progression state + fixed-budget redistribution (#219, #223, P-016) | interactive |
 
-Next free slice: **133** (verify against `docs/slices/` before reserving).
+Next free slice: **134** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

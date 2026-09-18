@@ -312,7 +312,7 @@ Progress: **40%** (2 of 5 items done)
 Progress: **in-progress** (P-016-A foundation underway)
 
 - Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
-- Current slice: [132 — Phase 15 (P-016-A): versioned embodiment tuning resolve seam](slices/132-phase15-embodiment-tuning.md) — **delivered; `EmbodimentTuning.resolve(tuning_version)` fail-closed seam + `EmbodimentTuningSchema` shape; new `test_embodiment_tuning` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. Next: vessel progression state (133), effective snapshot (134).
+- Current slice: [133 — Phase 15 (P-016-A): vessel progression state + fixed-budget redistribution](slices/133-phase15-vessel-progression.md) — **delivered; `VesselProgressionState` — durable earned six-node vessel + ADR-0006 redistribution (weighted compression, floor clamp + re-spread, atomic reject-at-capacity); new `test_vessel_progression_state` 11/11; full GUT suite 504/504 across 73/73, exit 0 on the Linux host**. Prior: Slice 132 (tuning seam). Next: effective snapshot (134), then P-016-B…F.
 - Tech debt: none yet.
 
 **Phase 11 — Public game access**
@@ -407,6 +407,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 15 — Biological progression and kinetic systems
 
+- **Slice:** [133 — Phase 15 (P-016-A): vessel progression state + fixed-budget redistribution](slices/133-phase15-vessel-progression.md) — **delivered; `shared/vessel_progression_state.gd` — durable earned six-node vessel pinned to a `tuning_version` + the ADR-0006 fixed-budget redistribution on `train` (weighted opposition compression, floor clamp + deterministic re-spread, atomic reject-at-capacity); new `test_vessel_progression_state` 11/11; full GUT suite 504/504 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+  - **GitHub issue:** #219 (design source #223)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 - **Slice:** [132 — Phase 15 (P-016-A): versioned embodiment tuning resolve seam](slices/132-phase15-embodiment-tuning.md) — **delivered; `shared/embodiment_tuning_schema.gd` (shape/bounds/helpers) + `server/embodiment_tuning.gd` (frozen tables behind the sole, fail-closed `resolve(tuning_version)`); subsystems never read tables directly, unknown versions fail closed; new `test_embodiment_tuning` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**
   - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **GitHub issue:** #219 (design source #220)
