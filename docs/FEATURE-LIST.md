@@ -700,8 +700,34 @@ feature so future drift is easier to detect.
   (P-016-D Meridian pathways), [Slice 138](slices/138-phase15-biological-burnout.md)
   (P-016-E Biological Burnout), [Slice 139](slices/139-phase15-magic-equilibrium.md)
   (P-016-F Magic equilibrium), [Slice 140](slices/140-phase15-embodiment-progression-service.md)
-  (P-016-A/G server progression service; closes the exit gate).
+  (P-016-A/G server progression service; closes the exit gate),
+  [Slice 142](slices/142-effective-mechanics-replication.md) (post-exit-gate
+  follow-on: live RPC replication of the EffectiveMechanicsSnapshot to the owning
+  client at world entry).
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the post-exit-gate follow-on (Slice 142) that Slice
+    140 explicitly deferred — the **live RPC replication of the
+    `EffectiveMechanicsSnapshot` to the owning client at world entry**, over the
+    same peer-scoped channel proven for the Character snapshot in Phase 14.
+    `server/server_player_state.gd` now creates a durable vessel (via its own
+    `EmbodimentProgressionService` + resolved default tuning) and emits
+    `effective_mechanics_ready`; `server/server_main.gd` replicates it peer-scoped;
+    `client/network_client.gd` validates the untrusted wire fail-closed, retains
+    it, and re-emits it; `client/effective_mechanics_label.gd` renders a HUD
+    readout. Presentation-safe only — raw effective/base numbers and tuning tables
+    never cross. Feature stays `Implemented` (this is wiring on top of the closed
+    gate).
+    Why: Make the Phase 15 server-authoritative embodiment actually observable on
+    the client, closing the first of Slice 140's two documented follow-ons.
+    Related work: [Slice 142](slices/142-effective-mechanics-replication.md),
+    [Slice 140](slices/140-phase15-embodiment-progression-service.md), #219, #224.
+    Validation: full GUT suite on Linux host `okami` (working-tree overlay) —
+    99 scripts / 723 tests / 723 passing, 2304 asserts, exit 0 (+2 scripts, +11
+    tests over main); new `test_effective_mechanics_replication` 7/7 and
+    `test_effective_mechanics_label` 5/5, Phase 14 Character-snapshot channel
+    unchanged. Vessel persistence to SQLite remains the outstanding Slice 140
+    follow-on.
   - Date: 2026-09-17
     What changed: Delivered the ninth P-016 slice (Slice 140) — the
     server-authoritative `EmbodimentProgressionService`, which **closes the Phase

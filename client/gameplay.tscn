@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://b0gameplay0001"]
+[gd_scene load_steps=17 format=3 uid="uid://b0gameplay0001"]
 
 [ext_resource type="Script" path="res://client/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://client/connection_status.gd" id="2_constatus"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://client/gameplay_logout.gd" id="7_logout"]
 [ext_resource type="Script" path="res://client/health_label.gd" id="8_health"]
 [ext_resource type="Script" path="res://client/character_vessel_label.gd" id="9_vessel"]
+[ext_resource type="Script" path="res://client/effective_mechanics_label.gd" id="10_mechanics"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_plane"]
 size = Vector3(100, 0.2, 100)
@@ -156,6 +157,18 @@ theme_override_constants/shadow_offset_x = 1
 theme_override_constants/shadow_offset_y = 1
 text = "Vessel: —"
 script = ExtResource("9_vessel")
+
+[node name="MechanicsLabel" type="Label" parent="UI"]
+offset_left = 12.0
+offset_top = 250.0
+offset_right = 420.0
+offset_bottom = 280.0
+theme_override_font_sizes/font_size = 22
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+text = "Mechanics: —"
+script = ExtResource("10_mechanics")
 
 [node name="Legend" type="VBoxContainer" parent="UI"]
 anchors_preset = 3
