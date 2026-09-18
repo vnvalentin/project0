@@ -392,11 +392,12 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   not yet allocated a feature.
 - Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   — version identity (144), handshake contract (145), live gate enforcement
-  (146), signed-manifest verifier (147), HTTPS staging (148), and the updater
-  transaction (149) delivered; the updater's process orchestration, the embedded
-  production key, launcher LAN/WAN, and onboarding remain. The controller
-  placeholder is a separate low-risk slice, not yet allocated a feature.
-- Current slice: [149 — Phase 16 (F-037): updater transaction](slices/149-updater-transaction.md) — **delivered; `native/windows_launcher/updater.go` performs the atomic pack swap retaining one known-good `.bak`, recovers on startup from an interrupted swap, rolls back on a failed readiness check, and stops retrying a version after two attempts. Go vet clean, `go test ./...` ok, 11/11 new updater tests; GUT suite unchanged (no GDScript touched)**. Prior: [148](slices/148-https-update-staging.md) (staging), [147](slices/147-signed-update-manifest.md) (verifier), [146](slices/146-version-gate-enforcement.md) (live gate).
+  (146), signed-manifest verifier (147), HTTPS staging (148), updater
+  transaction (149), and the trusted signing key + release signing (150)
+  delivered; the updater's process orchestration, the enrollment `/patches`
+  route, launcher LAN/WAN, and onboarding remain. The controller placeholder is
+  a separate low-risk slice, not yet allocated a feature.
+- Current slice: [150 — Phase 16 (F-037): trusted release key and one-command signing](slices/150-trusted-signing-key.md) — **delivered; `shared/client_signing_key.gd` embeds the RSA-3072 public key (fingerprint `69db4c67…77a232`) with a fail-closed `is_configured()`, and `scripts/sign_release.sh` signs a release in one command. Private key generated on the operator workstation and held offline — deliberately not on `okami`, which serves the downloads the signature must outlive. Full trust chain proven with the real key and script; GUT 774/774 across 106/106, exit 0**. Prior: [149](slices/149-updater-transaction.md), [148](slices/148-https-update-staging.md), [147](slices/147-signed-update-manifest.md).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -440,6 +441,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [150 — Phase 16 (F-037): trusted release key and one-command signing](slices/150-trusted-signing-key.md) — **delivered; closes the hole Slice 147 left open deliberately. `shared/client_signing_key.gd` embeds the RSA-3072 public key (fingerprint `69db4c67…77a232`) plus a fail-closed `is_configured()` so a keyless build refuses to self-update rather than falling back to trusting its download, and `scripts/sign_release.sh` emits a signed `manifest.json` + detached `manifest.sig` in one command (refusing a malformed version, missing pack, missing key, or plaintext URL). The private key was generated on the operator workstation and stays offline — deliberately NOT on `okami`, which serves the very downloads the signature must be able to outlive. Anti-swap property: the next pack's manifest is verified with the key in the currently installed pack, so an attacker who can substitute a download cannot substitute the key that judges it. **Full trust chain executed with the real offline key and the real script**: `verify_and_parse: ok`, `verify_patch_file: ok`, tampered pack → `hash_mismatch`. GUT 774/774 across 106/106, exit 0; new `test_client_signing_key` 4/4**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (seventh slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decision 3
+  - **Operator note:** private-key backup is an operator responsibility; the key exists on one disk and losing it forces a fresh trusted re-release to every tester
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 - **Slice:** [149 — Phase 16 (F-037): updater transaction — atomic swap, recovery, and rollback](slices/149-updater-transaction.md) — **delivered; the part that actually replaces the pack, and the part that has to survive being killed halfway through. `native/windows_launcher/updater.go` orders the swap so every interruption point is recoverable (copy staged onto the install volume so the rename is atomic → verify the copy's digest → mark `swap_started` → rename current to `.bak` → rename incoming into place → close the transaction), then recovers on startup: a swap that actually completed is kept, an incomplete one restores the known-good pack, and no-pack-no-backup reports `repair_required`. A corrupt marker reads as absent rather than stranding the tester. Two attempts per version, then `ErrRepairRequired`; a newer version gets a fresh budget. **Hosted in the Go launcher on purpose — the updater must not depend on the artifact it replaces**, since a Godot-hosted updater ships inside the very pack it is patching. `go vet` clean, `go test ./...` ok, 11/11 new tests with interruptions simulated against real on-disk states; GUT suite unchanged (no GDScript touched)**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (sixth slice; feature `In Progress`)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))

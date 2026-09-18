@@ -67,7 +67,9 @@ feature so future drift is easier to detect.
   [Slice 148](slices/148-https-update-staging.md) (HTTPS update staging; verified
   patch staged under `user://`, staging destroyed on any failure),
   [Slice 149](slices/149-updater-transaction.md) (updater transaction: atomic
-  pack swap, interrupted-swap recovery, rollback, bounded retries).
+  pack swap, interrupted-swap recovery, rollback, bounded retries),
+  [Slice 150](slices/150-trusted-signing-key.md) (embedded trusted release key +
+  one-command release signing).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -77,6 +79,28 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the seventh F-037 slice (Slice 150) — the **trusted
+    release key and one-command signing**, closing the hole Slice 147 left open
+    deliberately. `shared/client_signing_key.gd` embeds the RSA-3072 public key
+    (fingerprint `69db4c67…77a232`) with an `is_configured()` check so a keyless
+    build fails closed instead of trusting its download, and
+    `scripts/sign_release.sh` produces a signed `manifest.json` + `manifest.sig`
+    from a pack. The private key was generated on the operator workstation and
+    stays offline — deliberately not on `okami`, which serves the very downloads
+    the signature must be able to outlive.
+    Why: The verifier from Slice 147 had nothing to verify against; without an
+    embedded key the feature could not be trusted at all.
+    Related work: [Slice 150](slices/150-trusted-signing-key.md),
+    [Slice 147](slices/147-signed-update-manifest.md),
+    [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), #100.
+    Validation: the **full trust chain executed with the real offline key and the
+    real script** — signed on the workstation, verified by the shipped verifier
+    and embedded key on the Linux host (`verify_and_parse: ok`,
+    `verify_patch_file: ok`, tampered pack → `hash_mismatch`); all four
+    `sign_release.sh` refusal paths exit non-zero; full GUT suite 106 scripts /
+    774 tests / 774 passing, exit 0; new `test_client_signing_key` 4/4.
+    record-sync exit 0.
   - Date: 2026-09-18
     What changed: Delivered the sixth F-037 slice (Slice 149) — the **updater
     transaction**. `native/windows_launcher/updater.go` installs a verified staged
