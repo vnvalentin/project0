@@ -11,17 +11,17 @@ Phase 14 foundation for the later Phase 15 biological subsystems.
 
 ## What Good Looks Like
 
-- [ ] Player and NPC share one Character state model; controller type is
+- [x] Player and NPC share one Character state model; controller type is
       separate from alignment and decision-time disposition.
-- [ ] A humanoid player starts from the same fixed balanced six-node baseline
+- [x] A humanoid player starts from the same fixed balanced six-node baseline
       as every Character, with uncapped organic development layered above it.
-- [ ] Practice, techniques, equipment, and status effects use explicit,
+- [x] Practice, techniques, equipment, and status effects use explicit,
       server-authoritative contracts without exposing hidden numeric stats.
-- [ ] NPC activities, off-screen simulation, relevance transitions, and
+- [x] NPC activities, off-screen simulation, relevance transitions, and
       route-consistent arrivals preserve Character continuity.
-- [ ] Hostile NPC combat uses the same damage, health, defeat, and recovery
+- [x] Hostile NPC combat uses the same damage, health, defeat, and recovery
       rules as player combat; no generic injury subsystem is introduced.
-- [ ] Fixed anchors, population pressure, delayed replacement, and emergent
+- [x] Fixed anchors, population pressure, delayed replacement, and emergent
       NPC significance produce a persistent-feeling world without recycling
       identities silently.
 

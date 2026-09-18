@@ -161,6 +161,11 @@ const MONSTER_SCENE_PATH: String = "res://client/monster.tscn"
 ## monster's cosmetic representation, kept separate so
 ## FlatPlane/Player/camera/UI/RemotePlayers/SectorGeometry are never disturbed.
 const MONSTERS_CONTAINER_NAME: String = "Monsters"
+## Slice 131: town NPC cosmetic representation. A script (not a scene) built
+## procedurally, and a dedicated Gameplay-root child holding every live town NPC,
+## kept separate like the Monsters container.
+const TOWN_NPC_SCRIPT_PATH: String = "res://client/town_npc.gd"
+const TOWN_NPCS_CONTAINER_NAME: String = "TownNpcs"
 ## Slice 017: dedicated child of the Gameplay root holding the rendered
 ## starting-town geometry, kept separate so FlatPlane/Player/camera/UI are
 ## never disturbed by a received blueprint.
@@ -176,6 +181,11 @@ var _pending_monster_spawns: Dictionary = {}
 var _pending_monster_positions: Dictionary = {}
 var _latest_monster_spawns: Dictionary = {}
 var _latest_monster_positions: Dictionary = {}
+## Slice 131: town NPC replication state, mirroring the monster dictionaries.
+var _pending_town_npc_spawns: Dictionary = {}
+var _pending_town_npc_positions: Dictionary = {}
+var _latest_town_npc_spawns: Dictionary = {}
+var _latest_town_npc_positions: Dictionary = {}
 ## Slice 086: latest replicated Character identity per remote peer id, kept so a
 ## RemotePlayer node spawned after (or slightly before) its identity RPC still
 ## gets labeled. Cleared per peer on despawn.
@@ -490,6 +500,61 @@ func render_pending_monsters() -> void:
 	_pending_monster_positions.clear()
 
 
+## RPC target (Slice 131): spawns a town NPC representation, mirroring
+## receive_monster_spawn. Retained in _latest_town_npc_spawns so a scene-entry
+## race defers to render_pending_town_npcs().
+@rpc("authority", "call_remote", "reliable")
+func receive_town_npc_spawn(npc_id: String, start_position: Vector3) -> void:
+	_latest_town_npc_spawns[npc_id] = start_position
+	_latest_town_npc_positions[npc_id] = start_position
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		_pending_town_npc_spawns[npc_id] = start_position
+		_pending_town_npc_positions[npc_id] = start_position
+		return
+	spawn_town_npc_representation(npc_id, start_position, _get_or_create_town_npcs_container(gameplay_root))
+
+
+## RPC target (Slice 131): forwards a town NPC's authoritative position each tick,
+## mirroring receive_monster_position.
+@rpc("authority", "call_remote", "unreliable")
+func receive_town_npc_position(npc_id: String, position: Vector3) -> void:
+	_latest_town_npc_positions[npc_id] = position
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		return
+	apply_town_npc_position(npc_id, position, _get_or_create_town_npcs_container(gameplay_root))
+
+
+## RPC target (Slice 131): removes a town NPC representation when the server
+## reports it left the world (delayed replacement / promotion).
+@rpc("authority", "call_remote", "reliable")
+func receive_town_npc_despawn(npc_id: String) -> void:
+	_latest_town_npc_spawns.erase(npc_id)
+	_latest_town_npc_positions.erase(npc_id)
+	_pending_town_npc_spawns.erase(npc_id)
+	_pending_town_npc_positions.erase(npc_id)
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		return
+	despawn_town_npc_representation(npc_id, _get_or_create_town_npcs_container(gameplay_root))
+
+
+## Flushes town NPC spawns/positions received before the gameplay scene existed,
+## mirroring render_pending_monsters (called from connection_status.gd).
+func render_pending_town_npcs() -> void:
+	var gameplay_root: Node = get_tree().current_scene
+	if not gameplay_root is Node3D:
+		return
+	var container: Node3D = _get_or_create_town_npcs_container(gameplay_root)
+	for npc_id: String in _latest_town_npc_spawns:
+		spawn_town_npc_representation(npc_id, _latest_town_npc_spawns[npc_id], container)
+	for npc_id: String in _latest_town_npc_positions:
+		apply_town_npc_position(npc_id, _latest_town_npc_positions[npc_id], container)
+	_pending_town_npc_spawns.clear()
+	_pending_town_npc_positions.clear()
+
+
 ## Public seam (static, testable): idempotently creates one node per
 ## target_id under `parent`, named by monster_node_name(), seeded at
 ## start_position. A duplicate spawn for an already-represented target_id is a
@@ -532,6 +597,48 @@ static func despawn_monster_representation(target_id: String, parent: Node3D) ->
 
 static func monster_node_name(target_id: String) -> String:
 	return "Monster_%s" % target_id
+
+
+## Public seam (static, testable): idempotently spawns one town NPC node per
+## npc_id under `parent`, mirroring spawn_monster_representation.
+static func spawn_town_npc_representation(npc_id: String, start_position: Vector3, parent: Node3D) -> void:
+	var node_name: String = town_npc_node_name(npc_id)
+	if parent.get_node_or_null(node_name) != null:
+		return
+	var npc: Node3D = load(TOWN_NPC_SCRIPT_PATH).new()
+	npc.name = node_name
+	npc.position = start_position
+	parent.add_child(npc)
+	npc.call("set_npc_id", npc_id)
+
+
+## Public seam (static, testable): forwards a position update to the existing
+## town NPC node, or a no-op if none exists.
+static func apply_town_npc_position(npc_id: String, position: Vector3, parent: Node3D) -> void:
+	var npc: Node = parent.get_node_or_null(town_npc_node_name(npc_id))
+	if npc == null:
+		return
+	npc.call("set_target_position", position)
+
+
+## Public seam (static, testable): removes a town NPC node, or a no-op if gone.
+static func despawn_town_npc_representation(npc_id: String, parent: Node3D) -> void:
+	var npc: Node = parent.get_node_or_null(town_npc_node_name(npc_id))
+	if npc != null:
+		npc.queue_free()
+
+
+static func town_npc_node_name(npc_id: String) -> String:
+	return "TownNpc_%s" % npc_id
+
+
+func _get_or_create_town_npcs_container(gameplay_root: Node) -> Node3D:
+	var container: Node3D = gameplay_root.get_node_or_null(TOWN_NPCS_CONTAINER_NAME) as Node3D
+	if container == null:
+		container = Node3D.new()
+		container.name = TOWN_NPCS_CONTAINER_NAME
+		gameplay_root.add_child(container)
+	return container
 
 
 func _get_or_create_monsters_container(gameplay_root: Node) -> Node3D:
