@@ -71,7 +71,9 @@ feature so future drift is easier to detect.
   [Slice 150](slices/150-trusted-signing-key.md) (embedded trusted release key +
   one-command release signing),
   [Slice 151](slices/151-client-export-metadata-exclusion.md) (DT-015: exclude
-  editor/import metadata from the packaged client).
+  editor/import metadata from the packaged client),
+  [Slice 152](slices/152-enrollment-patch-hosting.md) (public HTTPS `/patches`
+  hosting with a read-only release volume).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -81,6 +83,19 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the eighth F-037 slice (Slice 152) — public HTTPS
+    patch hosting on the existing FastAPI enrollment service. `/patches` serves
+    operator-published `manifest.json`, `manifest.sig`, and versioned
+    `Project0.pck` files without authentication, while `deploy/compose.yml`
+    mounts the host release directory read-only at `/var/lib/project0/patches`.
+    Why: An outdated client must retrieve its patch before authentication; the
+    RSA signature, not the URL or TLS alone, remains the trust anchor.
+    Related work: [Slice 152](slices/152-enrollment-patch-hosting.md),
+    [Slice 150](slices/150-trusted-signing-key.md), #100, #182.
+    Validation: enrollment pytest **122/122 passed**; compose config validated
+    on okami with exit 0; record-sync exit 0. Local Docker was unavailable,
+    so compose validation used the Linux host.
   - Date: 2026-09-18
     What changed: Delivered Slice 151, closing DT-015. The Windows preset already
     excluded the server-only `addons/godot-sqlite/**`, but `all_resources` still
