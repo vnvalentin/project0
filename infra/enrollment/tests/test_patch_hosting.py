@@ -40,3 +40,19 @@ def test_patches_are_not_mounted_when_unconfigured():
         assert client.get("/patches/manifest.json").status_code == 404
     finally:
         store.close()
+
+
+def test_public_navigation_pages_are_available_without_auth():
+    store = EnrollmentStore(":memory:")
+    try:
+        service = EnrollmentService(make_config(), store, FakeOpnsenseWireguardClient())
+        client = TestClient(create_app(service, FakeLoginAuthorityClient()))
+
+        assert client.get("/").status_code == 200
+        assert "/downloads/" in client.get("/").text
+        assert client.get("/downloads/").status_code == 200
+        assert client.get("/telemetry").status_code == 200
+        assert client.get("/dashboard").status_code == 200
+        assert "project0.valentin.vip:9999" in client.get("/game").text
+    finally:
+        store.close()
