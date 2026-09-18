@@ -59,6 +59,23 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the fifteenth F-036 slice (Slice 130) — the second of
+    three slices bringing live town-NPC behaviour. Added `ServerTownNpcManager`:
+    staffs a town's fixed anchors with live `ServerTownNpcState` NPCs and runs
+    population on the `SpawnAnchor` contract — anchors start staffed, a lost
+    occupant is refilled only after a pressure-scaled delay (nearby players
+    shorten it; never an instant clone), sourcing a silent promotion of an
+    ambient NPC or a freshly generated, uniquely-identified newcomer, never a
+    resurrection.
+    Why: Make the map's "What Good Looks Like" item 6 (fixed anchors, population
+    pressure, delayed replacement, emergent significance) live, reusing the
+    shared SpawnAnchor seam.
+    Related work: [Slice 130](slices/130-phase14-town-npc-manager.md), #227, #232.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 500 tests /
+    500 passing, exit 0; new `test_server_town_npc_manager` 7/7. Feature stays
+    `In Progress`: the `server_main` wiring + client replication (131) remains
+    before the exit gate closes.
+  - Date: 2026-09-17
     What changed: Delivered the fourteenth F-036 slice (Slice 129) — the first of
     three slices bringing live town-NPC behaviour to close the exit gate. Added
     `ServerTownNpcState`: a server-owned town NPC that is a Character (shared

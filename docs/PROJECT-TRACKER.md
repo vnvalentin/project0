@@ -351,9 +351,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   baseline, uncapped organic development, multidimensional techniques,
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
-- Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [129 — Phase 14 integration: live town-NPC state (Character + ActivityRoutine)](slices/129-phase14-town-npc-state.md) — **delivered; `ServerTownNpcState` — an AI "villager" Character living to an `ActivityRoutine`, position a pure function of ticks (off-screen simulation + route-consistent arrival), interruptible; full suite 502/502 across 73/73 on the Linux host**. Prior: Slices 116-124 (shared-contract set), 125-126 (HP integration), 127-128 (Player/NPC Character parity). Closing the exit gate: item 4 (movement) in progress; 130 (spawning) + 131 (replication) remain.
-- Tech debt: none identified; Slices 125-126 removed provisional placeholders; Slices 127-129 add no debt.
+- Current slice: [130 — Phase 14 integration: live town-NPC population manager (SpawnAnchor)](slices/130-phase14-town-npc-manager.md) — **delivered; `ServerTownNpcManager` staffs fixed anchors with live town NPCs and runs population on `SpawnAnchor` (deficit, pressure-scaled delayed replacement, promote-ambient-or-generate-identity, never resurrect); full suite 500/500 across 73/73 on the Linux host**. Prior: Slices 116-128, 129 (town-NPC state). Closing the exit gate: items 4 (movement) + 6 (spawning) now live in the server; 131 (`server_main` wiring + client replication) remains.
+- Tech debt: none identified; Slices 125-126 removed provisional placeholders; Slices 127-130 add no debt.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +405,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [130 — Phase 14 integration: live town-NPC population manager (SpawnAnchor)](slices/130-phase14-town-npc-manager.md) — **delivered; `ServerTownNpcManager` staffs a town's fixed anchors with live `ServerTownNpcState` NPCs and runs population on the `SpawnAnchor` contract — anchors start staffed, a lost occupant is refilled only after a pressure-scaled delay (never an instant clone), sourcing a silent promotion of an ambient NPC or a freshly generated unique identity, never a resurrection; new `test_server_town_npc_manager` 7/7; full GUT suite 500/500 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #232)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [129 — Phase 14 integration: live town-NPC state (Character + ActivityRoutine)](slices/129-phase14-town-npc-state.md) — **delivered; `ServerTownNpcState` — a server-owned town NPC that is an AI "villager" Character (shared `CharacterFoundation`) living to an `ActivityRoutine`, its world position a pure function of elapsed ticks (travels between activity locations, free off-screen simulation, route-consistent arrival), interruptible with position freezing, presentation-safe snapshot; new `test_server_town_npc_state` 9/9; full GUT suite 502/502 across 73/73, exit 0 on the Linux host**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #229)
