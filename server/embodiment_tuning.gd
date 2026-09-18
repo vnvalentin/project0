@@ -63,6 +63,11 @@ const _KINETIC_SLOSH_PENALTY: float = 1.0
 ## threshold for the baseline set; per-pathway thresholds are a later revision.
 const _MERIDIAN_UNLOCK_THRESHOLD: float = 100.0
 
+## Burnout namespace (Slice 138, P-016-E): how many authoritative ticks a pathway
+## stays burned out after an accepted Overload Surge, during which its effective
+## Control/DEX are flattened. Frozen tuning; expiry is on the server clock.
+const _BURNOUT_DURATION_TICKS: int = 180
+
 var schema_version: int
 var tuning_version: String
 var budget: float
@@ -143,6 +148,14 @@ func kinetic() -> Dictionary:
 func meridian() -> Dictionary:
 	return {
 		"unlock_threshold": _MERIDIAN_UNLOCK_THRESHOLD,
+	}
+
+
+## The Burnout subsystem's frozen tuning: the cooldown duration in ticks
+## (P-016-E).
+func burnout() -> Dictionary:
+	return {
+		"duration_ticks": _BURNOUT_DURATION_TICKS,
 	}
 
 
