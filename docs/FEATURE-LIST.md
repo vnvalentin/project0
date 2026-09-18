@@ -59,6 +59,22 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the thirteenth F-036 slice (Slice 128) — gave the
+    monster (`ServerMonsterState`) a server-owned baseline `CharacterFoundation`
+    (controller AI, kind "monster") + a presentation-safe `character_snapshot()`,
+    so the NPC is literally the same unified Character the Player carries,
+    differing only in controller type. No parallel monster stat model; the
+    monster's combat behaviour is unchanged.
+    Why: The keystone Phase 14 parity — "NPC == Player Character, without
+    duplicating Monster logic" — the F-036 exit-gate evidence.
+    Related work: [Slice 128](slices/128-phase14-npc-character-foundation.md), #227.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 493 tests /
+    493 passing, exit 0; new `test_shared_character_player_npc_parity` 4/4 (real
+    Player + monster nodes prove one shared vessel, differing only in controller)
+    with the monster combat regression net unchanged (`test_server_monster_state`
+    10/10, `test_server_monster_manager` 19/19). Feature stays `In Progress`
+    pending the exit-gate assessment.
+  - Date: 2026-09-17
     What changed: Delivered the twelfth F-036 slice (Slice 127) — wired the
     unified `CharacterFoundation` into the live server. `ServerPlayerState` now
     creates a baseline humanoid Character at world entry and exposes a

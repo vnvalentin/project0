@@ -22,6 +22,11 @@ class_name ServerMonsterState
 
 const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const CharacterFoundationScript: Script = preload("res://shared/character_foundation.gd")
+
+## Slice 128: the monster is an AI-controlled Character of this kind — the same
+## unified CharacterFoundation the Player uses, differing only in controller type.
+const CHARACTER_KIND: String = "monster"
 
 ## Telemetry: emitted on every phase transition, every attack resolution, and
 ## on death. The server runtime forwards these to its telemetry sink/logs.
@@ -39,16 +44,29 @@ var phase: String = MonsterContractsScript.PHASE_IDLE
 
 var _ticks_in_phase: int = 0
 var _combat: Object
+## Slice 128: the monster's server-owned unified Character (AI baseline), the same
+## CharacterFoundation contract the Player carries. Server-authoritative.
+var _character: Object
 
 
 func _init(p_target_id: String, spawn_position: Vector3) -> void:
 	target_id = p_target_id
 	position = spawn_position
 	_combat = MonsterContractsScript.default_monster()
+	_character = CharacterFoundationScript.create_baseline(
+		CharacterFoundationScript.CONTROLLER_AI, CHARACTER_KIND
+	)["character"]
 
 
 func current_hp() -> int:
 	return int(round(_combat.current_health))
+
+
+## Slice 128: the monster's presentation-safe Character snapshot (controller/kind
+## context + normalized graph axes only, never the raw stat numbers) — the same
+## shape the Player replicates.
+func character_snapshot() -> Dictionary:
+	return _character.to_presentation_snapshot()
 
 
 func is_dead() -> bool:
