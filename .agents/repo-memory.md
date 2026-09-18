@@ -38,6 +38,22 @@ quick-reference and seed, not a replacement for them.
   Tooling: `gh` (authenticated). `gh pr create --base main ...`;
   `gh pr merge <n> --merge --delete-branch`.
 
+## Implementation ownership (canonical in AGENTS.md)
+
+- Default: Claude CLI owns application-code, test-code, and
+  implementation-facing delivery-record edits; Copilot orchestrates, hands off,
+  validates, and reviews.
+- **Standing authorization (user, 2026-09-18):** when Claude CLI is
+  unavailable, interactive-only, rate-limited, or times out, Copilot implements
+  directly rather than stopping. The delivery gate is unchanged — records-first,
+  issue traceability, public-seam tests, validation evidence, record sync,
+  branch/PR/merge. Note the fallback trigger in the slice record.
+- Windows gotcha: `claude` and `claude -p` both open a full-screen TUI here, so
+  VS Code reports "the command opened the alternate buffer" and returns no
+  output; the `Claude:` VS Code tasks also fail on an unresolved
+  `${relativeFile}`. A launched session wedges the persistent shell — recover by
+  opening a NEW terminal, not by retrying the wedged one.
+
 ## Validation / build quick-reference
 
 - Full suite: `scripts/run_gut_validation.sh` — writes `build/validation/gut.xml`
@@ -66,4 +82,5 @@ quick-reference and seed, not a replacement for them.
 
 - Reserve the number in [docs/slices/SLICE-REGISTRY.md](../docs/slices/SLICE-REGISTRY.md)
   **before** creating `docs/slices/NNN-*.md`.
-- Next free slice: **054** (verify against `docs/slices/` before reserving).
+- The registry's own "Next free slice" line is the single source of truth; this
+  file does not duplicate it (a stale copy here caused a near-collision).

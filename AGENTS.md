@@ -90,9 +90,14 @@ Do not create implementation slices or product code while this gate is open.
 - Implementation ownership: Copilot performs orchestration, bounded handoffs,
   validation coordination, and review. Claude CLI owns application-code,
   test-code, and implementation-facing delivery-record edits unless the user
-  explicitly authorizes Copilot to edit directly. If Claude CLI is unavailable
-  or times out, stop and report the blocker; do not silently implement the
-  change with Copilot tools.
+  explicitly authorizes Copilot to edit directly. **Standing authorization
+  (user, 2026-09-18): if Claude CLI is unavailable, interactive-only,
+  rate-limited, or times out, Copilot is authorized to implement directly
+  rather than stopping.** The fallback changes who edits, never what the
+  delivery gate requires: records-first, GitHub issue traceability,
+  public-seam tests, real validation evidence, and record sync still apply in
+  full. Note the fallback trigger in the slice record so the ownership
+  deviation stays auditable.
 - Delivery gate: Claude must create or update the slice record, planning
   ticket, and synchronized tracker entries before implementation begins. Code
   and tests passing is insufficient to mark a slice complete unless the

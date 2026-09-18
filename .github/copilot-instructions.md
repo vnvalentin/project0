@@ -31,9 +31,15 @@ coordinate validation, and review Claude's resulting diff and evidence.
 
 Claude CLI owns application-code, test-code, and implementation-facing
 delivery-record edits. Every handoff must name the target slice, public seam,
-non-goals, validation command, and required evidence. If Claude CLI is
-unavailable or the handoff times out, stop and report the blocker rather than
-silently taking over implementation.
+non-goals, validation command, and required evidence.
+
+**Standing authorization (user, 2026-09-18):** if Claude CLI is unavailable,
+interactive-only, rate-limited, or the handoff times out, Copilot is authorized
+to implement the slice directly instead of stopping. This changes only who
+edits. Every delivery gate below still applies in full — records-first, GitHub
+issue traceability, public-seam tests, real validation evidence, record sync,
+and branch/PR/merge. Record the fallback trigger in the slice record so the
+ownership deviation stays auditable.
 
 ## Claude delivery gates
 
