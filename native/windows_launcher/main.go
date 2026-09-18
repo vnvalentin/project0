@@ -4,9 +4,11 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,9 +20,14 @@ import (
 //go:embed payload/**
 var payload embed.FS
 
+const (
+	updateRequiredExitCode = 20
+	launcherClientVersion  = "0.6.0"
+)
+
 func main() {
 	if hasArg(os.Args[1:], "--project0-update-helper") {
-		if err := runUpdaterHelper(os.Args[1:]); err != nil {
+		if err := runUpdaterHelperWithEnv(os.Args[1:], os.Environ()); err != nil {
 			fail(err)
 		}
 		return
@@ -48,9 +55,11 @@ func main() {
 		fail(err)
 	}
 	defer os.Remove(keyPath)
+	rejectionPath := filepath.Join(payloadDirectory, "update-rejection.json")
+	_ = os.Remove(rejectionPath)
 	command := exec.Command(filepath.Join(payloadDirectory, "Project0.exe"), forwardedArgs(os.Args[1:])...)
 	command.Dir = payloadDirectory
-	command.Env = append(filteredEnvironment(),
+	clientEnv := append(filteredEnvironment(),
 		"PROJECT0_TUNNEL=1",
 		"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
 		"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
@@ -58,13 +67,21 @@ func main() {
 		"PROJECT0_TUNNEL_CLIENT_ADDRESS="+config.AssignedAddress,
 		"PROJECT0_TUNNEL_KEY_PATH="+keyPath,
 		"PROJECT0_TUNNEL_KEEPALIVE="+fmt.Sprint(config.Keepalive),
+		"PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath,
 	)
+	command.Env = clientEnv
 	command.Stdout = nil
 	command.Stderr = nil
 	command.Stdin = nil
 
 	if err := command.Run(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
+			if exitError.ExitCode() == updateRequiredExitCode {
+				if updateErr := runUpdateFromRejection(rejectionPath, payloadDirectory, clientEnv); updateErr != nil {
+					fail(updateErr)
+				}
+				return
+			}
 			os.Exit(exitError.ExitCode())
 		}
 		fail(err)
@@ -93,6 +110,10 @@ func payloadDirectory() (string, error) {
 }
 
 func runUpdaterHelper(args []string) error {
+	return runUpdaterHelperWithEnv(args, os.Environ())
+}
+
+func runUpdaterHelperWithEnv(args []string, clientEnv []string) error {
 	values := parseUpdaterArgs(args)
 	for _, required := range []string{"staged-pack", "pending-version", "previous-version", "expected-sha256", "payload-dir"} {
 		if values[required] == "" {
@@ -111,6 +132,7 @@ func runUpdaterHelper(args []string) error {
 
 	client := exec.Command(filepath.Join(values["payload-dir"], "Project0.exe"), "--project0-run-client")
 	client.Dir = values["payload-dir"]
+	client.Env = clientEnv
 	if err := client.Run(); err != nil {
 		if rollbackErr := Rollback(values["payload-dir"]); rollbackErr != nil {
 			return fmt.Errorf("client readiness failed: %v; rollback failed: %w", err, rollbackErr)
@@ -118,6 +140,37 @@ func runUpdaterHelper(args []string) error {
 		return fmt.Errorf("client readiness failed; update rolled back: %w", err)
 	}
 	return nil
+}
+
+func runUpdateFromRejection(rejectionPath, payloadDir string, clientEnv []string) error {
+	raw, err := os.ReadFile(rejectionPath)
+	if err != nil {
+		return fmt.Errorf("read update rejection: %w", err)
+	}
+	_ = os.Remove(rejectionPath)
+	var rejection struct {
+		RequiredVersion string `json:"required_version"`
+		ManifestBaseURL string `json:"manifest_base_url"`
+		Outcome         string `json:"outcome"`
+	}
+	if err := json.Unmarshal(raw, &rejection); err != nil {
+		return fmt.Errorf("parse update rejection: %w", err)
+	}
+	if rejection.Outcome != "CLIENT_OUTDATED" || rejection.RequiredVersion == "" || rejection.ManifestBaseURL == "" {
+		return fmt.Errorf("update rejection is not actionable: %s", rejection.Outcome)
+	}
+	result := DownloadAndStageUpdate(http.DefaultClient, rejection.ManifestBaseURL, launcherClientVersion, payloadDir)
+	if result.Outcome != UpdateOutcomeOK {
+		return fmt.Errorf("download update: %s: %s", result.Outcome, result.Detail)
+	}
+	return runUpdaterHelperWithEnv([]string{
+		"--project0-update-helper",
+		"--project0-staged-pack=" + result.StagedPath,
+		"--project0-pending-version=" + result.Manifest.RequiredClientVersion,
+		"--project0-previous-version=" + launcherClientVersion,
+		"--project0-expected-sha256=" + result.Manifest.PCKSHA256,
+		"--project0-payload-dir=" + payloadDir,
+	}, clientEnv)
 }
 
 func parseUpdaterArgs(args []string) map[string]string {
