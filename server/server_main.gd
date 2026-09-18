@@ -36,6 +36,7 @@ const ServerPlayerStateScript: Script = preload("res://server/server_player_stat
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const HouseAllocatorScript: Script = preload("res://server/house_allocator.gd")
 const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
+const ServerTownNpcManagerScript: Script = preload("res://server/server_town_npc_manager.gd")
 const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
@@ -139,6 +140,11 @@ var _house_allocator: Object = null
 ## against connected players, and respawns defeated monsters after a cooldown.
 var _monster_manager: Object = null
 var _monster_tick: int = 0
+
+## Slice 131: the live town-NPC population runtime (server_town_npc_manager.gd),
+## staffing the town's fixed anchors and driven each physics frame like monsters.
+var _town_npc_manager: Object = null
+var _town_npc_tick: int = 0
 
 ## Slice 040: the shared server-owned SQLite handle and the Account/Character
 ## repository/auth dispatch built on top of it. Opened/wired during
@@ -251,6 +257,14 @@ func _start_server() -> void:
 	_monster_manager.player_hit.connect(_on_monster_player_hit)
 	physics_frame.connect(_on_physics_frame)
 	print("Spawned %d monsters outside the town." % _monster_manager.monster_count())
+
+	# Slice 131: staff the town's fixed anchors with live town NPCs, driven each
+	# physics frame. Anchors are a first-cut fixed set inside the town center; a
+	# later slice can derive them from the town blueprint's structures.
+	_town_npc_manager = ServerTownNpcManagerScript.new(_default_town_anchor_defs(), int(Time.get_ticks_usec()))
+	_town_npc_manager.npc_spawned.connect(_on_town_npc_spawned)
+	_town_npc_manager.npc_removed.connect(_on_town_npc_removed)
+	print("Staffed %d town NPCs across %d anchors." % [_town_npc_manager.npc_count(), _town_npc_manager.anchor_count()])
 
 	# Slice 040: open the shared accounts/characters SQLite store and ensure its
 	# schema before opening a socket. This is the first runtime consumer of the
@@ -468,6 +482,11 @@ func _on_peer_connected(peer_id: int) -> void:
 			var monster: Object = living[target_id]
 			network_client.rpc_id(peer_id, "receive_monster_spawn", target_id, monster.position)
 
+	# Slice 131: replicate every live town NPC to the newly-connected peer only.
+	if _town_npc_manager != null:
+		for npc: Variant in _town_npc_manager.all_npcs():
+			network_client.rpc_id(peer_id, "receive_town_npc_spawn", (npc as Object).npc_id, (npc as Object).position_at(_town_npc_tick))
+
 
 ## Called whenever a client peer disconnects. Removes that peer's
 ## ServerPlayerState entirely (Slice 007: no longer just unbinds a shared
@@ -657,6 +676,10 @@ func _on_physics_frame() -> void:
 	_monster_manager.advance_all(player_positions, _monster_tick_delta, _monster_tick, player_peer_ids)
 	_monster_tick += 1
 	_broadcast_monster_positions()
+	if _town_npc_manager != null:
+		_town_npc_manager.advance(player_positions, 1, _town_npc_tick)
+		_town_npc_tick += 1
+		_broadcast_town_npc_positions()
 
 
 ## Slice 067: builds an authoritative ServerHealth snapshot from current runtime
@@ -708,6 +731,67 @@ func _broadcast_monster_positions() -> void:
 		var monster: Object = living[target_id]
 		for receiving_peer_id: int in _player_states.keys():
 			network_client.rpc_id(receiving_peer_id, "receive_monster_position", target_id, monster.position)
+
+
+## Slice 131: a first-cut fixed set of in-town anchors for the live town NPCs.
+## Positions are inside the town center (players spawn near origin, monsters are
+## excluded outside the walls). A later slice can derive anchors from the town
+## blueprint's structures. Each NPC strolls a short daily route between stations.
+func _default_town_anchor_defs() -> Array:
+	return [
+		{
+			"anchor_id": "town_forge", "role": "smith", "home_position": Vector3(6, 1, 4),
+			"desired_capacity": 1, "replacement_delay_ticks": 600,
+			"routine_steps": [
+				{"activity_id": "forge", "duration_ticks": 300},
+				{"activity_id": "market", "duration_ticks": 300},
+			],
+			"activity_locations": {"forge": Vector3(6, 1, 4), "market": Vector3(-4, 1, 6)},
+		},
+		{
+			"anchor_id": "town_market", "role": "vendor", "home_position": Vector3(-4, 1, 6),
+			"desired_capacity": 1, "replacement_delay_ticks": 600,
+			"routine_steps": [
+				{"activity_id": "market", "duration_ticks": 240},
+				{"activity_id": "tavern", "duration_ticks": 360},
+			],
+			"activity_locations": {"market": Vector3(-4, 1, 6), "tavern": Vector3(2, 1, -6)},
+		},
+	]
+
+
+## Slice 131: broadcasts every live town NPC's authoritative route position to
+## every connected peer each tick, mirroring _broadcast_monster_positions.
+func _broadcast_town_npc_positions() -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for npc: Variant in _town_npc_manager.all_npcs():
+		var position: Vector3 = (npc as Object).position_at(_town_npc_tick)
+		for receiving_peer_id: int in _player_states.keys():
+			network_client.rpc_id(receiving_peer_id, "receive_town_npc_position", (npc as Object).npc_id, position)
+
+
+## Slice 131: replicates a newly-staffed town NPC (initial fill is silent; this
+## fires on a delayed replacement/promotion) to every connected peer.
+func _on_town_npc_spawned(npc_id: String, _anchor_id: String, _source: String, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null or _town_npc_manager == null:
+		return
+	var npc: Object = _town_npc_manager.find_npc(npc_id)
+	if npc == null:
+		return
+	for receiving_peer_id: int in _player_states.keys():
+		network_client.rpc_id(receiving_peer_id, "receive_town_npc_spawn", npc_id, npc.position_at(_town_npc_tick))
+
+
+## Slice 131: tells every connected peer to despawn a town NPC that left the world.
+func _on_town_npc_removed(npc_id: String, _anchor_id: String, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for receiving_peer_id: int in _player_states.keys():
+		network_client.rpc_id(receiving_peer_id, "receive_town_npc_despawn", npc_id)
 
 
 func _on_monster_died(spawn_id: String, server_tick: int) -> void:

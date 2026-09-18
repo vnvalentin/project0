@@ -43,7 +43,7 @@ feature so future drift is easier to detect.
 
 ### F-036: Phase 14 unified Character and NPC generalization
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Players and NPCs share one server-authoritative Character model with
   a fixed balanced six-node baseline, uncapped organic development, shared
   techniques, equipment, movement, combat, disposition, and spawning contracts.
@@ -58,6 +58,25 @@ feature so future drift is easier to detect.
   and authority/hidden-state review before this feature becomes Implemented.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
+  - Date: 2026-09-17
+    What changed: Delivered the sixteenth F-036 slice (Slice 131) — the third of
+    three live town-NPC slices, which **closes the Phase 14 exit gate**. Wired
+    `ServerTownNpcManager` into the running `server_main` (fixed in-town anchors,
+    driven each physics frame) and replicated town NPCs to clients
+    (spawn/position/despawn RPCs + a cosmetic `client/town_npc.gd`), mirroring the
+    monster channel. Town NPCs now actually appear and walk route-consistently in
+    the live game. Feature status moves `In Progress` → `Implemented`.
+    Why: Make the map's "What Good Looks Like" items 4 and 6 live and visible
+    end-to-end, completing the unified-Character seam for Player, Monster, and
+    town NPC without duplicating Monster logic.
+    Related work: [Slice 131](slices/131-phase14-town-npc-live-replication.md),
+    #227, #229, #232.
+    Validation: full cumulative Phase 14 tree (main + this slice) on Linux host
+    `okami` (consistent temp tree) — 87 scripts / 632 tests / 632 passing, exit 0,
+    including the socket E2E harnesses (real `server_main` + `gameplay.tscn`) with
+    the live town-NPC manager running; new `test_town_npc_replication` 7/7.
+    record-sync exit 0. (Deploy-tree drift required temp-tree validation — see the
+    slice's root-cause learning.)
   - Date: 2026-09-17
     What changed: Delivered the fifteenth F-036 slice (Slice 130) — the second of
     three slices bringing live town-NPC behaviour. Added `ServerTownNpcManager`:

@@ -82,6 +82,24 @@ func npcs_at(index: int) -> Array:
 	return _slots[index]["npcs"]
 
 
+## Every live town NPC across all anchors, for the server runtime to replicate.
+func all_npcs() -> Array:
+	var all: Array = []
+	for slot: Dictionary in _slots:
+		all.append_array(slot["npcs"] as Array)
+	return all
+
+
+## The live NPC with this id, or null if none — for targeted replication.
+func find_npc(npc_id: String) -> Object:
+	for slot: Dictionary in _slots:
+		for npc: Variant in (slot["npcs"] as Array):
+			if (npc as Object).npc_id == npc_id:
+				return npc
+	return null
+
+
+
 func anchor_deficit(index: int) -> int:
 	if index < 0 or index >= _slots.size():
 		return 0
