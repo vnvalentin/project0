@@ -53,6 +53,38 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
+### DT-015: The packaged Windows client logs GDExtension load errors at boot
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Quality`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-18
+- Benefit or reason: Accepted tradeoff. `export_presets.cfg` excludes
+  `addons/godot-sqlite/**` from the client package on purpose — SQLite is
+  server-only per the ownership rules, and the client must never link it. The
+  project still declares the extension, so the exported client tries to load an
+  entry that was deliberately left out.
+- Impact: Every packaged-client boot logs three errors before the engine banner:
+  `Error loading GDExtension configuration file:
+  res://addons/godot-sqlite/gdsqlite.gdextension`, a matching
+  `Failed loading resource`, and `Error loading extension`. Gameplay is
+  unaffected, but this is the same false-alarm pattern DT-014 fixed on the
+  server: persistent expected errors at startup train testers to ignore the
+  client log, and they will mask a real failure — including, now, an update or
+  rollback failure, which is exactly where a tester's log is the only evidence.
+- Remediation plan: Make the `.gdextension` declaration conditional so a client
+  build does not declare a library it never loads, or stop excluding the addon
+  and ship a client-side stub. Prefer the former; the exclusion itself is
+  correct and must not be reversed just to silence the log.
+- Status: `open`
+- Discovery evidence: Observed while running the real packaged client during the
+  Slice 149 pack-lock probe (`Project0.exe --headless` from
+  `native/windows_launcher/payload`). Not previously recorded.
+- Related work: [Slice 149](slices/149-updater-transaction.md),
+  [DT-014](#dt-014-container-images-ship-without-the-wgnetstack-gdextension)
+  (same defect class, server side, resolved),
+  [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+
 ### DT-012: Login authority shares the game server's image and codebase
 
 - Classification: `Strategic Technical Debt`

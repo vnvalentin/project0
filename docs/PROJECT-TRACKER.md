@@ -370,6 +370,17 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   Keyboard/mouse behavior unchanged.
 - Handoff: [Windows client delivery contract](../.scratch/client-auto-update/spec.md)
   and [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md).
+- Tech debt: `open` [DT-015](TECHNICAL-DEBT-TRACKER.md#dt-015-the-packaged-windows-client-logs-gdextension-load-errors-at-boot)
+  — the packaged client logs three expected GDExtension errors at every boot,
+  the same false-alarm pattern DT-014 fixed server-side; it will mask a real
+  update or rollback failure, where the tester's log is the only evidence.
+- **Measured correction (2026-09-18):** a probe against the real packaged client
+  disproved the "the running pack is file-locked" justification carried by
+  ADR 0008 and the spec. Windows permits rename, open-for-write, and delete
+  against a live client. Quit-then-swap is still required — Godot cannot
+  hot-reload running scripts/autoloads, and lazy loads would mix new content
+  with old code — but the OS provides no protection, so the updater's ordering
+  and transaction marker are the only safeguard. Records corrected.
 - Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   — version identity delivered (Slice 144); handshake/gate, signed manifest,
   updater/rollback, launcher, and onboarding remain. The controller placeholder

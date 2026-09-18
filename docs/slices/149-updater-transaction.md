@@ -145,6 +145,47 @@ script that fails to preload" trap already recorded in the shared agent notes.
 Countermeasure applied here: the per-test `--- PASS` list was read and counted
 rather than trusting the package-level `ok`.
 
+### Post-merge correction (2026-09-18): the pack is not file-locked
+
+A follow-up probe against the **real packaged Windows client** disproved a
+justification this slice and ADR 0008 relied on.
+
+- **Symptom / prior belief:** the records stated a running Godot process "cannot
+  safely replace its active `.pck`" because the running exe/pck are file-locked.
+  The Go tests could not detect this either way, because they ran against
+  `t.TempDir()` with no process holding the files.
+- **Falsifiable hypothesis:** Windows refuses `os.Rename` on `Project0.pck` while
+  `Project0.exe` holds it open.
+- **Discriminating check:** launch the packaged client, then attempt rename,
+  open-for-write, and delete against the live process.
+- **Confounder ruled out first:** the exe genuinely depends on the separate pack
+  — removing it yields `Couldn't load project data at path "."` — so the probe
+  measured the real artifact and not an embedded copy.
+- **Result:** all three operations **succeeded** against a live client. The pack
+  is not locked.
+- **Why this matters:** the OS provides *no* protection here, so the updater's
+  ordering and transaction marker are the only thing standing between a live
+  client and a half-applied swap. The conclusion (quit, then swap) is unchanged,
+  but it now rests on the hot-reload limitation and on lazy resource loads
+  otherwise mixing new content with old code — not on a lock that does not exist.
+- **Records corrected:** ADR 0008, `.scratch/client-auto-update/spec.md`, and the
+  auto-update map now carry the measured correction.
+
+Two process lessons from the probe itself, both of which produced a *confidently
+wrong* first verdict:
+
+1. The first probe leaked an `O_TRUNC` handle on the file under test, so later
+   steps were blocked by the probe rather than by the client — and it reported
+   the opposite of the truth. Restore state between checks and close every
+   handle.
+2. Its liveness check read `cmd.ProcessState` before `Wait()`, which is always
+   `nil`, so "client still running" was meaningless. Track liveness with a
+   goroutine on `Wait()`.
+
+The tell was an internally contradictory result (an operation refused *after* the
+process exited but permitted while it ran). A self-contradictory measurement is
+evidence about the instrument, not the system.
+
 ## Follow-on
 
 The process orchestration (launch detached, quit, relaunch, post-patch readiness

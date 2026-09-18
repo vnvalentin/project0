@@ -97,6 +97,9 @@ version gate must order against.
   relaunch); `--main-pack` or the same-name-pck-next-to-exe picks the boot pack,
   and the swap must run on native paths after exit because `res://` and the
   running exe/pck are file-locked.
+  **Corrected 2026-09-18 by measurement:** the pack is NOT file-locked on Windows
+  (rename/open-for-write/delete all succeed against a live client). The relaunch
+  requirement stands on the hot-reload limitation alone; see `spec.md`.
 - [Research — Godot integrity & signing primitives](issues/03-research-godot-integrity-signing-primitives.md):
   Godot 4.3 natively (mbedTLS) has **RSA `Crypto.sign`/`verify` + streaming
   SHA-256**, and `verify()` accepts a **public-only** key — so ship only a trusted

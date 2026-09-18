@@ -92,6 +92,16 @@ deleted from staging, and never applied.
 
 A detached external updater owns file replacement because a running Godot process
 cannot safely replace its active `.pck` or hot-reload its scripts and autoloads.
+
+**Corrected 2026-09-18 by measurement.** A probe against the real packaged
+Windows client (Godot 4.3, `Project0.exe` + separate `Project0.pck`, confirmed
+dependent on that pack) found that Windows does **not** lock the pack while the
+client runs: rename, open-for-write, and even delete all succeeded against a live
+client. The quit-then-swap ordering is still required, but for different reasons:
+Godot cannot hot-reload the running scripts, scenes, and autoloads; resources
+loaded lazily afterwards would come from the *new* pack while the *old* code is
+still running; and because the OS offers no protection here, the updater's own
+discipline is the only thing preventing a half-applied swap under a live client.
 The flow is:
 
 1. Fetch manifest and detached signature to a temporary directory.
