@@ -32,6 +32,13 @@ GDEXT_DIR="native/wgnetstack/gdext"
 STAGE="build/client-package/stage"
 PAYLOAD="native/windows_launcher/payload"
 SCONS_JOBS="${SCONS_JOBS:-$(nproc 2>/dev/null || echo 2)}"
+VERSION_CONTRACT="shared/client_build_version.gd"
+VERSION_CONTRACT_BACKUP="$(mktemp)"
+
+restore_version_contract() {
+	mv -f "${VERSION_CONTRACT_BACKUP}" "${VERSION_CONTRACT}"
+}
+trap restore_version_contract EXIT
 
 log() { printf '\n== %s\n' "$*"; }
 
@@ -111,6 +118,7 @@ host_so="${GDEXT_DIR}/build/libwgnetstack_gdext.linux.template_debug.x86_64.so"
 log "Exporting Godot Windows client"
 rm -rf "${STAGE}"
 mkdir -p "${STAGE}"
+scripts/stamp_client_build_version.sh "${VERSION}"
 godot --headless --import >/dev/null 2>&1 || true
 # The headless export emits GDExtension load warnings for the Windows-only DLL
 # and can exit nonzero while still writing complete artifacts, so the artifacts
