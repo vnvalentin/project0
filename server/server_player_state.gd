@@ -301,7 +301,7 @@ func apply_action_intent(sender_id: int, intent: Object) -> Object:
 		action_resolved.emit(owning_peer_id, resolution)
 		return resolution
 
-	if intent.action_kind != CombatContractsScript.ACTION_KIND_MELEE_STRIKE:
+	if not CombatContractsScript.is_supported_action_kind(intent.action_kind):
 		var resolution: Object = _make_resolution(sequence, false, CombatContractsScript.REJECTED_INVALID_STATE)
 		_last_processed_action_sequence = sequence
 		_last_action_resolution = resolution
@@ -319,6 +319,9 @@ func apply_action_intent(sender_id: int, intent: Object) -> Object:
 	if intent.aim_direction.length_squared() > 0.0:
 		facing = intent.aim_direction.normalized()
 
+	# Slice 141: the accepted action kind selects its archetype for this swing;
+	# the rest of the state machine and reach/arc test read it uniformly.
+	_archetype = CombatContractsScript.archetype_for_action(intent.action_kind)
 	_phase = CombatContractsScript.PHASE_WINDUP
 	_phase_ticks_remaining = _archetype.windup_ticks
 	_hit_target_ids_this_swing.clear()

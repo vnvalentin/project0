@@ -21,6 +21,15 @@ const SCHEMA_VERSION: int = 1
 ## RPC/telemetry without a separate lookup step.
 const ACTION_KIND_MELEE_STRIKE: String = "MELEE_STRIKE"
 
+## Slice 141: a second authoritative action kind — a slower, wider, longer-reach
+## heavy melee strike. It reuses the entire action machine, reach/arc test, and
+## resolution/telegraph contract; only its archetype data differs, per the
+## data-driven-archetype design (.scratch/melee-combat/issues/03).
+const ACTION_KIND_HEAVY_STRIKE: String = "HEAVY_STRIKE"
+
+## The authoritative action kinds the server resolves.
+const SUPPORTED_ACTION_KINDS: PackedStringArray = ["MELEE_STRIKE", "HEAVY_STRIKE"]
+
 ## `ActionResolution.result` values.
 const RESULT_ACCEPTED: String = "ACCEPTED"
 const RESULT_REJECTED: String = "REJECTED"
@@ -161,6 +170,39 @@ static func generic_sword_archetype() -> MeleeWeaponArchetype:
 		0.8,
 		1
 	)
+
+
+## Slice 141: the Heavy Strike archetype — a slower, more readable telegraph
+## (windup 12 >= the sword's 6, per the Combat Reading fairness rule), a wider
+## 120° sweep with longer 3.0 yd reach that can catch up to three targets, and
+## heavier locomotion throttling. Provisional constants, shaped like the sword's.
+static func heavy_strike_archetype() -> MeleeWeaponArchetype:
+	return MeleeWeaponArchetype.new(
+		"HEAVY_GREATSWORD",
+		12,
+		4,
+		16,
+		3.0,
+		120.0,
+		0.3,
+		0.6,
+		3
+	)
+
+
+## Whether the server resolves this action kind.
+static func is_supported_action_kind(action_kind: String) -> bool:
+	return SUPPORTED_ACTION_KINDS.has(action_kind)
+
+
+## The weapon archetype an accepted action kind swings with. Returns null for an
+## unsupported kind (the caller rejects it before reaching the state machine).
+static func archetype_for_action(action_kind: String) -> MeleeWeaponArchetype:
+	if action_kind == ACTION_KIND_HEAVY_STRIKE:
+		return heavy_strike_archetype()
+	if action_kind == ACTION_KIND_MELEE_STRIKE:
+		return generic_sword_archetype()
+	return null
 
 
 ## Public seam: deterministic vector reach/arc hit test, pure and
