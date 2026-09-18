@@ -59,6 +59,23 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the fourteenth F-036 slice (Slice 129) — the first of
+    three slices bringing live town-NPC behaviour to close the exit gate. Added
+    `ServerTownNpcState`: a server-owned town NPC that is a Character (shared
+    `CharacterFoundation`, AI-controlled "villager") living to an
+    `ActivityRoutine`, with its world position a PURE function of elapsed ticks
+    (travels between activity locations, free off-screen simulation,
+    route-consistent arrival), interruptible with position freezing, and a
+    presentation-safe snapshot.
+    Why: Make the map's "What Good Looks Like" item 4 (NPC activities, off-screen
+    simulation, route-consistent arrivals) live, reusing the shared Character +
+    ActivityRoutine seams.
+    Related work: [Slice 129](slices/129-phase14-town-npc-state.md), #227, #229.
+    Validation: full GUT suite on Linux host `okami` — 73 scripts / 502 tests /
+    502 passing, exit 0; new `test_server_town_npc_state` 9/9. Feature stays
+    `In Progress`: the population manager (130) and client replication (131)
+    remain before the exit gate closes.
+  - Date: 2026-09-17
     What changed: Delivered the thirteenth F-036 slice (Slice 128) — gave the
     monster (`ServerMonsterState`) a server-owned baseline `CharacterFoundation`
     (controller AI, kind "monster") + a presentation-safe `character_snapshot()`,

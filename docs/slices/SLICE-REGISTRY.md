@@ -144,8 +144,9 @@ contended range and everything after it is tracked explicitly:
 | 126 | Phase 14 integration: Monster HP on the shared CombatHealth contract (#227, #231, F-036) | interactive |
 | 127 | Phase 14 integration: server-owned Character foundation + presentation-snapshot replication (#227, #230, F-036) | interactive |
 | 128 | Phase 14 integration: NPC/monster carries the shared CharacterFoundation (Player/NPC parity) (#227, F-036) | interactive |
+| 129 | Phase 14 integration: live town-NPC state (Character + ActivityRoutine, route-consistent position) (#227, #229, F-036) | interactive |
 
-Next free slice: **129** (verify against `docs/slices/` before reserving).
+Next free slice: **130** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
