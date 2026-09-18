@@ -1848,11 +1848,28 @@ for a developer to pick up. No implementation has started.
 - Problem solved: Action gameplay must remain responsive without allowing clients to decide combat outcomes.
 - How it solves the problem so far: Slice 012 adds the first authoritative action: a bounded melee `ActionIntent`/`ActionResolution`/`CombatEvent` contract (`shared/combat_contracts.gd`), a per-peer fixed-60Hz-tick `WINDUP -> ACTIVE -> RECOVERY -> IDLE` state machine with monotonic sequence validation, idempotent replay, and bounded rejection codes (`server/server_player_state.gd`), authoritative locomotion throttling during WINDUP/RECOVERY, and a deterministic vector reach/arc hit test against a server-owned stationary `TargetDummy` that broadcasts a replicated `CombatEvent.HIT` (`server/server_main.gd`). The client captures attack input, predicts the disposable windup/recovery locomotion slowdown, and reconciles on rejection (`client/player.gd`); a client-side target dummy renders a flash/wobble reaction to the authoritative hit (`client/target_dummy.gd`). Slice 013 adds a purely cosmetic strike-line telegraph (`client/melee_strike_visual.gd`): the attacker's own client shows it during its disposable predicted `ACTIVE` window (hiding immediately on rejection), and a new server-broadcast `melee_swing_started` signal (`server/server_player_state.gd`, relayed by `server/server_main.gd`) lets every other connected peer's `RemotePlayer` mirror an equivalent timed line, all without any client asserting a hit or altering reach/arc truth. Only melee strikes against one stationary dummy exist so far — no damage/HP, other action kinds, moving targets, or PvP — so the feature remains `In Progress` rather than `Implemented`.
 - Phase: 12. Authoritative runtime and action input
-- Implementation slices: [Slice 012](slices/012-authoritative-melee-strike.md), [Slice 013](slices/013-melee-strike-visual-indicator.md)
+- Implementation slices: [Slice 012](slices/012-authoritative-melee-strike.md), [Slice 013](slices/013-melee-strike-visual-indicator.md), [Slice 141](slices/141-heavy-strike-action.md)
 - Public seam: `shared/combat_contracts.gd`, `server/server_player_state.gd` (`apply_action_intent`, `set_target_dummies`, `action_resolved`, `combat_event_emitted`, `melee_swing_started`), `server/server_main.gd` (target dummy spawn and RPC relay, `melee_swing_started` relay), `client/network_client.gd` (`submit_action_intent`, `receive_action_resolution`, `receive_combat_event`, `receive_melee_swing_started`), `client/player.gd`, `client/target_dummy.gd`, `client/remote_player.gd`, `client/melee_strike_visual.gd`.
 - Validation: See [Slice 012](slices/012-authoritative-melee-strike.md) and [Slice 013](slices/013-melee-strike-visual-indicator.md) for exact commands and results (Slice 012: 21/21 focused unit tests, 4/4 focused integration tests, a real two-process ENet smoke test, and 48/48 full suite, exit 0; Slice 013: 9/9 focused unit tests, 23 assertions, and 57/57 full suite, 161 assertions, exit 0).
 - Related work: [Project Tracker](PROJECT-TRACKER.md#phase-work-index), [melee-combat map](../.scratch/melee-combat/map.md), [issue 01](../.scratch/melee-combat/issues/01-define-first-melee-exchange.md), [issue 02](../.scratch/melee-combat/issues/02-set-melee-action-authority-and-lifetime.md), [issue 03](../.scratch/melee-combat/issues/03-model-melee-weapon-archetypes.md), [issue 04](../.scratch/melee-combat/issues/04-choose-first-target-and-hit-rule.md), [issue 05](../.scratch/melee-combat/issues/05-set-first-melee-slice-boundary-and-evidence.md)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered Slice 141 — a SECOND authoritative action kind,
+    `HEAVY_STRIKE`, advancing the Phase 12 exit gate's "server resolves a bounded
+    action set beyond the first melee seam". `shared/combat_contracts.gd` adds the
+    kind, a data-driven `HEAVY_GREATSWORD` archetype (windup 12, reach 3.0 yd, arc
+    120°, heavier locomotion, 3 targets), and `is_supported_action_kind` /
+    `archetype_for_action`; `server/server_player_state.gd` accepts any supported
+    kind and selects its archetype per swing, so the whole existing machine +
+    reach/arc test resolves both kinds. Melee behaviour is unchanged.
+    Why: Prove the action-resolution seam generalizes beyond one kind, via the
+    charted data-driven-archetype extension (melee issue 03).
+    Related work: [Slice 141](slices/141-heavy-strike-action.md), melee-combat map.
+    Validation: full cumulative GUT tree on Linux host `okami` (temp-tree) — 97
+    scripts / 712 tests / 712 passing, exit 0; new `test_heavy_strike_action` 7/7
+    with the melee regression unchanged (`test_melee_combat_contracts` 21/21,
+    integration `test_authoritative_melee_strike` 9/9). IP-015 stays `In Progress`:
+    client input binding, damage differentiation, and PvP remain.
   - Date: 2026-09-12
     What changed: Implemented Slice 012 — the first authoritative melee-strike action, its shared contracts, server state machine, client prediction/reconciliation, and target dummy. Renamed from `P-015` to `IP-015` because a live, validated public seam now exists, even though only one action kind and one stationary target exist so far.
     Why: Close the melee-combat decision map's (`.scratch/melee-combat/`) first implementation slice before any damage, progression, or additional action kinds.
