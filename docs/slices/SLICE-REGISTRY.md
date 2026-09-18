@@ -140,8 +140,9 @@ contended range and everything after it is tracked explicitly:
 | 122 | Phase 14 status-effect (resistible/removable) contract (#227, #231, F-036) | interactive |
 | 123 | Phase 14 activity-routine (idle/patrol fallback, off-screen simulation) contract (#227, #229, F-036) | interactive |
 | 124 | Phase 14 spawn-anchor (pressure-delayed replacement, promote/generate) contract (#227, #232, F-036) | interactive |
+| 125 | Phase 14 integration: Player HP on the shared CombatHealth contract (#227, #231, F-036) | interactive |
 
-Next free slice: **125** (verify against `docs/slices/` before reserving).
+Next free slice: **126** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

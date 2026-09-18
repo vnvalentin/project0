@@ -39,6 +39,7 @@ extends Node
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
+const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
 
 ## Emitted every physics tick after this peer's authoritative position is
 ## computed, so server_main.gd can broadcast it to every other connected
@@ -89,10 +90,15 @@ var position: Vector3 = Vector3.ZERO
 ## defeat->respawn (ticket 05). Captured in start_for_peer from the peer's
 ## assigned start position; no separate respawn-point system exists yet.
 var _spawn_position: Vector3 = Vector3.ZERO
-## Slice 094: the Player's flat, server-owned HP pool (a Phase-12 vessel
-## placeholder). Server-authoritative — the client only ever displays the
-## replicated value, never sets it.
-var _vitals: Object = PlayerCombatContractsScript.PlayerVitals.new()
+## Slice 125 (Phase 14): the Player's server-owned HP pool, now the shared
+## CombatHealth contract (retiring the provisional PlayerVitals). Seeded at the
+## shared PLAYER_MAX_HP default so Player and monster still start equally
+## durable. Server-authoritative — the client only ever displays the replicated
+## value, never sets it. current_hp()/max_hp() expose it as ints for the
+## existing HUD replication.
+var _health: Object = CombatHealthScript.new(
+	float(PlayerCombatContractsScript.PLAYER_MAX_HP), float(PlayerCombatContractsScript.PLAYER_MAX_HP)
+)
 ## Forward-facing direction used for the melee arc check; defaults to -Z
 ## (Godot's forward) and is updated from non-zero movement input, since this
 ## slice has no independent look/aim input.
@@ -158,7 +164,7 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	owning_peer_id = peer_id
 	position = start_position
 	_spawn_position = start_position
-	_vitals.reset()
+	_health.current_health = _health.max_health
 	_input_intent = Vector2.ZERO
 	_last_processed_sequence = -1
 	_phase = CombatContractsScript.PHASE_IDLE
@@ -187,14 +193,15 @@ func set_monster_manager(monster_manager: Object) -> void:
 	_monster_manager = monster_manager
 
 
-## Slice 094: the Player's current authoritative HP (read-only view of _vitals).
+## Slice 094/125: the Player's current authoritative HP (read-only view of the
+## shared CombatHealth pool), rounded to an int for HUD replication.
 func current_hp() -> int:
-	return _vitals.current_hp
+	return int(round(_health.current_health))
 
 
-## Slice 094: the Player's maximum authoritative HP.
+## Slice 094/125: the Player's maximum authoritative HP.
 func max_hp() -> int:
-	return _vitals.max_hp
+	return int(round(_health.max_health))
 
 
 ## Public seam (Slice 094): applies a monster's authoritative, telegraph-fair
@@ -209,15 +216,20 @@ func max_hp() -> int:
 func receive_monster_damage(amount: int, server_tick: int) -> void:
 	if owning_peer_id == -1:
 		return
-	var defeated: bool = _vitals.apply_damage(amount)
+	# Preserve the retired PlayerVitals defeat semantics exactly: report defeat
+	# only on the tick a still-living Player is reduced to 0. CombatHealth floors
+	# damage at 0, so a non-positive amount is a no-op.
+	var was_alive: bool = not _health.is_now_defeated()
+	_health.take_damage(float(amount))
+	var defeated: bool = was_alive and _health.is_now_defeated()
 	if defeated:
 		player_defeated.emit(owning_peer_id, server_tick)
-		_vitals.reset()
+		_health.current_health = _health.max_health
 		position = _spawn_position
 		_phase = CombatContractsScript.PHASE_IDLE
 		_phase_ticks_remaining = 0
 		_hit_target_ids_this_swing.clear()
-	health_changed.emit(owning_peer_id, _vitals.current_hp, _vitals.max_hp, server_tick)
+	health_changed.emit(owning_peer_id, current_hp(), max_hp(), server_tick)
 
 
 ## Public seam: called (as a plain in-process call, not an RPC — this node

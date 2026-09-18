@@ -59,6 +59,25 @@ feature so future drift is easier to detect.
 - Related work: [Phase 14 map](../.scratch/npcs/map.md), [ADR 0007](adr/0007-unified-character-and-npc-generalization.md), [#227](https://github.com/vnvalentin/project0/issues/227), [#228](https://github.com/vnvalentin/project0/issues/228), [#229](https://github.com/vnvalentin/project0/issues/229), [#230](https://github.com/vnvalentin/project0/issues/230), [#231](https://github.com/vnvalentin/project0/issues/231), [#232](https://github.com/vnvalentin/project0/issues/232), [#233](https://github.com/vnvalentin/project0/issues/233), [#234](https://github.com/vnvalentin/project0/issues/234), [#235](https://github.com/vnvalentin/project0/issues/235)
 - Change history:
   - Date: 2026-09-17
+    What changed: Delivered the tenth F-036 slice (Slice 125) — the FIRST
+    integration of a Phase 14 contract into the live server. Migrated the
+    Player's server-owned HP pool in `server/server_player_state.gd` from the
+    provisional `PlayerVitals` (Slice 094) to the shared `CombatHealth` contract,
+    seeded at the shared `PLAYER_MAX_HP`; retired the `PlayerVitals` class and its
+    now-redundant tests. Behaviour-preserving — the public seam
+    (`current_hp`/`max_hp`/`receive_monster_damage`/`health_changed`) and the
+    defeat-transition/respawn semantics are byte-for-byte unchanged.
+    Why: Start wiring the validated Phase 14 contracts into the running server,
+    beginning with the pool `CombatHealth` was designed to replace.
+    Related work: [Slice 125](slices/125-phase14-player-health-integration.md),
+    #227, #231.
+    Validation: full GUT suite on Linux host `okami` — 72 scripts / 488 tests /
+    488 passing, exit 0; the unchanged regression net passed
+    (`test_server_player_state_damage` 5/5, integration
+    `test_monster_damages_player` 2/2 — real node/signal runtime evidence), and
+    the rewritten `test_player_combat_contracts` 2/2. Feature stays `In Progress`:
+    monster-HP migration and further contract wiring remain.
+  - Date: 2026-09-17
     What changed: Delivered the ninth F-036 slice (Slice 124) — the `SpawnAnchor`
     contract (`shared/spawn_anchor.gd`): fixed-anchor NPC population staffing.
     Deficit + a pressure-scaled replacement DELAY (busy places refill faster;
