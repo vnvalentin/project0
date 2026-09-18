@@ -406,6 +406,7 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
 - Current slice: [151 — Phase 16 (DT-015): packaged-client export metadata exclusion](slices/151-client-export-metadata-exclusion.md) — **delivered; `export_presets.cfg` now excludes `.godot/**`, removing the stale `extension_list.cfg` that made the packaged client try to load the intentionally excluded server-only SQLite extension. DT-015 is closed; fresh export/package-content and boot evidence remain the final check.** Prior: [150](slices/150-trusted-signing-key.md).
 - Current slice: [152 — Phase 16 (F-037): enrollment HTTPS `/patches` hosting](slices/152-enrollment-patch-hosting.md) — **delivered; the existing FastAPI enrollment service serves public release artifacts under `/patches`, and compose mounts the host patch directory read-only. Enrollment pytest 122/122 passed; compose config validated on okami**. Prior: [151](slices/151-client-export-metadata-exclusion.md).
 - Current slice: [153 — Phase 16 (F-037): launcher updater orchestration](slices/153-launcher-updater-orchestration.md) — **delivered; the Go launcher now owns a persistent AppData payload, runs startup recovery, exposes a detached apply helper, and relaunches the client through the launcher-owned payload. Go vet clean, `go test ./...` passed; packaged Windows end-to-end evidence remains the follow-on**. Prior: [152](slices/152-enrollment-patch-hosting.md).
+- Current slice: [154 — Phase 16 (F-037): launcher signed-update download and staging](slices/154-launcher-signed-update-download.md) — **delivered; native Go now fetches and verifies raw signed manifest bytes over HTTPS, follows only the signed pack URL, checks size/SHA-256, and stages the pack for the detached helper. `go vet` clean and `go test ./...` passed with HTTPS-fixture coverage; live `CLIENT_OUTDATED` wiring and packaged Windows evidence remain**. Prior: [153](slices/153-launcher-updater-orchestration.md).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -448,6 +449,12 @@ validation, and review evidence. Phase completion is based on progress toward
 the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
+
+- **Slice:** [154 — Phase 16 (F-037): launcher signed-update download and staging](slices/154-launcher-signed-update-download.md) — **delivered; native Go implements the launcher-side trust boundary: raw manifest bytes verified with the embedded RSA-3072 key before JSON parsing, signed pack URL followed only after verification, size and streamed SHA-256 checked, temporary artifacts removed on failure, and the verified pack staged for Slice 153's helper. `go vet ./...` clean; `go test ./...` ok with a real in-process HTTPS fixture covering success, tamper, plaintext URL, up-to-date, and refusal cleanup. Live `CLIENT_OUTDATED` response wiring and packaged Windows runtime evidence remain**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md)
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 
 - **Slice:** [153 — Phase 16 (F-037): launcher updater orchestration](slices/153-launcher-updater-orchestration.md) — **delivered; replaces disposable temp extraction with a persistent AppData payload, recovers interrupted transactions before launch, adds `--project0-update-helper` for detached apply, and uses client process exit as the current relaunch/readiness hook so the next pre-auth version handshake remains authoritative. Go vet clean, `go test ./...` ok; packaged Windows end-to-end evidence remains required**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
