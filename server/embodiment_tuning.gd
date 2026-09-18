@@ -36,6 +36,18 @@ const _GAIN_PER_EVIDENCE: float = 1.0
 ## later tuning revision behind this same seam (ADR 0006).
 const _UNIFORM_WEIGHT: float = 1.0
 
+## Friction namespace (Slice 135, P-016-B): inverse-friction profile thresholds
+## and modifier factors. Massive Bulk (high STR + high CON) and Fragile Agility
+## (high DEX + low CON) are derived from the effective nodes. Values are frozen
+## tuning; the qualitative effects come from docs/SYSTEMS-SPECIFICATION.md.
+const _MASSIVE_BULK_THRESHOLD: float = 16.0
+const _FRAGILE_DEX_THRESHOLD: float = 16.0
+const _FRAGILE_CON_CEILING: float = 6.0
+const _BULK_DODGE_FACTOR: float = 0.5
+const _BULK_WINDUP_RECOVERY_FACTOR: float = 1.5
+const _FRAGILE_STAMINA_REGEN_FACTOR: float = 3.0
+const _FRAGILE_STAGGER_RESISTANCE_FACTOR: float = 0.0
+
 var schema_version: int
 var tuning_version: String
 var budget: float
@@ -84,6 +96,20 @@ func opposition_weights_for(node: String) -> Dictionary:
 	for other: String in SchemaScript.other_nodes(node):
 		row[other] = _UNIFORM_WEIGHT
 	return row
+
+
+## The friction subsystem's frozen tuning: profile thresholds and the modifier
+## factors each profile applies (P-016-B).
+func friction() -> Dictionary:
+	return {
+		"massive_bulk_threshold": _MASSIVE_BULK_THRESHOLD,
+		"fragile_dex_threshold": _FRAGILE_DEX_THRESHOLD,
+		"fragile_con_ceiling": _FRAGILE_CON_CEILING,
+		"bulk_dodge_factor": _BULK_DODGE_FACTOR,
+		"bulk_windup_recovery_factor": _BULK_WINDUP_RECOVERY_FACTOR,
+		"fragile_stamina_regen_factor": _FRAGILE_STAMINA_REGEN_FACTOR,
+		"fragile_stagger_resistance_factor": _FRAGILE_STAGGER_RESISTANCE_FACTOR,
+	}
 
 
 static func _validate_default_tables() -> String:
