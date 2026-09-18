@@ -3,11 +3,9 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,12 +15,12 @@ import (
 	"unsafe"
 )
 
-//go:embed payload/**
-var payload embed.FS
-
 const (
 	updateRequiredExitCode = 20
 	launcherClientVersion  = "0.6.0"
+	directWANEnvVar        = "PROJECT0_DIRECT_WAN"
+	directWANHost          = "project0.valentin.vip"
+	directWANEnrollmentURL = "https://project0.valentin.vip"
 )
 
 func main() {
@@ -33,9 +31,15 @@ func main() {
 		return
 	}
 
-	config, privateKey, err := ensurePeerConfig()
-	if err != nil {
-		fail(err)
+	directWAN := directWANEnabled()
+	var config peerConfig
+	var privateKey []byte
+	var err error
+	if !directWAN {
+		config, privateKey, err = ensurePeerConfig()
+		if err != nil {
+			fail(err)
+		}
 	}
 	payloadDirectory, err := payloadDirectory()
 	if err != nil {
@@ -46,29 +50,41 @@ func main() {
 	} else if outcome == "repair_required" {
 		fail(ErrRepairRequired)
 	}
-	if err := extractPayloadIfMissing(payloadDirectory); err != nil {
+	if !payloadInstalled(payloadDirectory) && !confirmInstallation() {
+		fail(errors.New("installation declined"))
+	}
+	if err := seedPayloadFromPackage(payloadDirectory); err != nil {
 		fail(err)
 	}
 
-	keyPath, err := privateKeyFile(privateKey)
-	if err != nil {
-		fail(err)
-	}
-	defer os.Remove(keyPath)
 	rejectionPath := filepath.Join(payloadDirectory, "update-rejection.json")
 	_ = os.Remove(rejectionPath)
 	command := exec.Command(filepath.Join(payloadDirectory, "Project0.exe"), forwardedArgs(os.Args[1:])...)
 	command.Dir = payloadDirectory
-	clientEnv := append(filteredEnvironment(),
-		"PROJECT0_TUNNEL=1",
-		"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
-		"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
-		"PROJECT0_TUNNEL_GAME_HOST="+strings.TrimSuffix(config.AllowedIPs, "/32")+":9999",
-		"PROJECT0_TUNNEL_CLIENT_ADDRESS="+config.AssignedAddress,
-		"PROJECT0_TUNNEL_KEY_PATH="+keyPath,
-		"PROJECT0_TUNNEL_KEEPALIVE="+fmt.Sprint(config.Keepalive),
-		"PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath,
-	)
+	clientEnv := filteredEnvironment()
+	if directWAN {
+		clientEnv = append(clientEnv,
+			"PROJECT0_CLIENT_HTTPS_LOGIN=1",
+			"PROJECT0_ENROLLMENT_URL="+directWANEnrollmentURL,
+			"PROJECT0_SERVER_HOST="+directWANHost,
+		)
+	} else {
+		keyPath, keyErr := privateKeyFile(privateKey)
+		if keyErr != nil {
+			fail(keyErr)
+		}
+		defer os.Remove(keyPath)
+		clientEnv = append(clientEnv,
+			"PROJECT0_TUNNEL=1",
+			"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
+			"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
+			"PROJECT0_TUNNEL_GAME_HOST="+strings.TrimSuffix(config.AllowedIPs, "/32")+":9999",
+			"PROJECT0_TUNNEL_CLIENT_ADDRESS="+config.AssignedAddress,
+			"PROJECT0_TUNNEL_KEY_PATH="+keyPath,
+			"PROJECT0_TUNNEL_KEEPALIVE="+fmt.Sprint(config.Keepalive),
+		)
+	}
+	clientEnv = append(clientEnv, "PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath)
 	command.Env = clientEnv
 	command.Stdout = nil
 	command.Stderr = nil
@@ -86,6 +102,10 @@ func main() {
 		}
 		fail(err)
 	}
+}
+
+func directWANEnabled() bool {
+	return os.Getenv(directWANEnvVar) != "0"
 }
 
 func hasArg(args []string, wanted string) bool {
@@ -159,6 +179,9 @@ func runUpdateFromRejection(rejectionPath, payloadDir string, clientEnv []string
 	if rejection.Outcome != "CLIENT_OUTDATED" || rejection.RequiredVersion == "" || rejection.ManifestBaseURL == "" {
 		return fmt.Errorf("update rejection is not actionable: %s", rejection.Outcome)
 	}
+	if !confirmUpdate(rejection.RequiredVersion) {
+		return errors.New("update declined")
+	}
 	result := DownloadAndStageUpdate(http.DefaultClient, rejection.ManifestBaseURL, launcherClientVersion, payloadDir)
 	if result.Outcome != UpdateOutcomeOK {
 		return fmt.Errorf("download update: %s: %s", result.Outcome, result.Detail)
@@ -171,6 +194,63 @@ func runUpdateFromRejection(rejectionPath, payloadDir string, clientEnv []string
 		"--project0-expected-sha256=" + result.Manifest.PCKSHA256,
 		"--project0-payload-dir=" + payloadDir,
 	}, clientEnv)
+}
+
+func seedPayloadFromPackage(destination string) error {
+	if payloadInstalled(destination) {
+		return nil
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("find launcher package: %w", err)
+	}
+	sourceDir := filepath.Dir(executable)
+	files := []string{
+		"Project0.exe",
+		"Project0.pck",
+		"libwgnetstack_gdext.windows.template_release.x86_64.dll",
+		filepath.Join("native", "wgnetstack", "gdext", "build", "libwgnetstack_gdext.windows.template_release.x86_64.dll"),
+	}
+	for _, name := range files {
+		contents, readErr := os.ReadFile(filepath.Join(sourceDir, name))
+		if readErr != nil {
+			return fmt.Errorf("read packaged %s: %w", name, readErr)
+		}
+		target := filepath.Join(destination, name)
+		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
+			return fmt.Errorf("create package directory for %s: %w", name, err)
+		}
+		if err := os.WriteFile(target, contents, 0600); err != nil {
+			return fmt.Errorf("install packaged %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func payloadInstalled(directory string) bool {
+	for _, name := range []string{"Project0.exe", "Project0.pck", "libwgnetstack_gdext.windows.template_release.x86_64.dll"} {
+		if _, err := os.Stat(filepath.Join(directory, name)); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func confirmInstallation() bool {
+	return confirmMessage("Install Project0 into %LOCALAPPDATA%\\Project0?", "Project0 installation")
+}
+
+func confirmUpdate(requiredVersion string) bool {
+	return confirmMessage(fmt.Sprintf("Project0 %s is required. Download and install it now?", requiredVersion), "Project0 update available")
+}
+
+func confirmMessage(text, title string) bool {
+	message := syscall.StringToUTF16Ptr(text)
+	titlePtr := syscall.StringToUTF16Ptr(title)
+	user32 := syscall.NewLazyDLL("user32.dll")
+	messageBox := user32.NewProc("MessageBoxW")
+	result, _, _ := messageBox.Call(0, uintptr(unsafe.Pointer(message)), uintptr(unsafe.Pointer(titlePtr)), 0x24)
+	return result == 6
 }
 
 func parseUpdaterArgs(args []string) map[string]string {
@@ -207,59 +287,6 @@ func filteredEnvironment() []string {
 		filtered = append(filtered, entry)
 	}
 	return filtered
-}
-
-func extractPayload(destination string) error {
-	return fs.WalkDir(payload, "payload", func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if path == "payload" {
-			return nil
-		}
-		relativePath := strings.TrimPrefix(path, "payload/")
-		target := filepath.Join(destination, filepath.FromSlash(relativePath))
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o700)
-		}
-		contents, err := fs.ReadFile(payload, path)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-			return err
-		}
-		return os.WriteFile(target, contents, 0o600)
-	})
-}
-
-func extractPayloadIfMissing(destination string) error {
-	return fs.WalkDir(payload, "payload", func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if path == "payload" {
-			return nil
-		}
-		relativePath := strings.TrimPrefix(path, "payload/")
-		target := filepath.Join(destination, filepath.FromSlash(relativePath))
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0700)
-		}
-		if _, err := os.Stat(target); err == nil {
-			return nil
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		contents, err := fs.ReadFile(payload, path)
-		if err != nil {
-			return err
-		}
-		if err := os.MkdirAll(filepath.Dir(target), 0700); err != nil {
-			return err
-		}
-		return os.WriteFile(target, contents, 0600)
-	})
 }
 
 func fail(err error) {

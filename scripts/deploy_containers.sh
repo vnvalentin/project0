@@ -47,7 +47,7 @@ if [[ "${TAG}" == v* ]]; then
 	PROJECT0_REQUIRED_CLIENT_VERSION="${TAG#v}"
 fi
 export PROJECT0_REQUIRED_CLIENT_VERSION
-export PROJECT0_UPDATE_MANIFEST_BASE_URL="${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://enroll.valentin.vip/patches}"
+export PROJECT0_UPDATE_MANIFEST_BASE_URL="${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://project0.valentin.vip/patches}"
 state_file="/var/lib/project0/deployed-tag"
 
 log() { printf '\n== %s\n' "$*"; }

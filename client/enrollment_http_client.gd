@@ -12,7 +12,7 @@ class_name EnrollmentHttpClient
 ## Client-only per CLAUDE.md: this talks to the public HTTPS surface, never to
 ## the login authority's loopback endpoint or the ENet login server directly.
 
-const DEFAULT_BASE_URL: String = "https://enroll.valentin.vip"
+const DEFAULT_BASE_URL: String = "https://project0.valentin.vip"
 const ENV_BASE_URL: String = "PROJECT0_ENROLLMENT_URL"
 const DEFAULT_TIMEOUT_SEC: float = 10.0
 

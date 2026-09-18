@@ -14,38 +14,20 @@ if [[ ! "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; 
 fi
 
 launcher="${SOURCE_DIR}/Project0-WAN-${VERSION}.exe"
+launcher_archive="${SOURCE_DIR}/Project0-WAN-${VERSION}.zip"
 archive="${SOURCE_DIR}/Project0-client-windows-x64-${VERSION}.zip"
 manifest="${SOURCE_DIR}/deployment-manifest.json"
-for artifact in "${launcher}" "${archive}" "${manifest}"; do
+for artifact in "${launcher}" "${launcher_archive}" "${archive}" "${manifest}"; do
 	[[ -s "${artifact}" ]] || {
 		echo "publish: missing artifact: ${artifact}" >&2
 		exit 1
 	}
 done
 
-launcher_archive="${SOURCE_DIR}/Project0-WAN-${VERSION}.zip"
-launcher_archive_path="$(cd "$(dirname "${launcher_archive}")" && pwd)/$(basename "${launcher_archive}")"
-launcher_stage="$(mktemp -d)"
-trap 'rm -rf "${launcher_stage}"' EXIT
-cp "${launcher}" "${launcher_stage}/"
-if command -v zip >/dev/null 2>&1; then
-	(cd "${launcher_stage}" && zip -q -X "${launcher_archive_path}" "$(basename "${launcher}")")
-else
-	python3 - "${launcher_stage}" "${launcher_archive_path}" "$(basename "${launcher}")" <<'PY'
-import pathlib
-import sys
-import zipfile
-
-stage, output, name = sys.argv[1:]
-with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-    archive.write(pathlib.Path(stage) / name, arcname=name)
-PY
-fi
-
 download_dir="${PATCHES_DIR}/downloads/${VERSION}"
 sudo -n install -d -m 0755 "${download_dir}"
 sudo -n install -m 0644 "${launcher}" "${download_dir}/"
-sudo -n install -m 0644 "${launcher_archive_path}" "${download_dir}/"
+sudo -n install -m 0644 "${launcher_archive}" "${download_dir}/"
 sudo -n install -m 0644 "${archive}" "${download_dir}/"
 sudo -n install -m 0644 "${manifest}" "${download_dir}/"
 

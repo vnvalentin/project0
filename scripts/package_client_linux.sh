@@ -30,7 +30,6 @@ GODOT_CPP_REF="${PROJECT0_GODOT_CPP_REF:-d5cc777a89d899665fb61f1650ef0dc0cf6488c
 DLL_NAME="libwgnetstack_gdext.windows.template_release.x86_64.dll"
 GDEXT_DIR="native/wgnetstack/gdext"
 STAGE="build/client-package/stage"
-PAYLOAD="native/windows_launcher/payload"
 SCONS_JOBS="${SCONS_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 VERSION_CONTRACT="shared/client_build_version.gd"
 VERSION_CONTRACT_BACKUP="$(mktemp)"
@@ -137,15 +136,20 @@ fi
 cp "${dll_built}" "${STAGE}/${DLL_NAME}"
 
 log "Building WAN launcher for Windows"
-rm -rf "${PAYLOAD}"
-mkdir -p "${PAYLOAD}/native/wgnetstack/gdext/build"
-cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${STAGE}/${DLL_NAME}" "${PAYLOAD}/"
-cp "${STAGE}/${DLL_NAME}" "${PAYLOAD}/native/wgnetstack/gdext/build/"
-
 mkdir -p "${OUT_DIR}"
 launcher_out="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.exe"
 (cd native/windows_launcher && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H=windowsgui" -o "${launcher_out}" .)
 [[ -s "${launcher_out}" ]] || { echo "ERROR: launcher build produced no output" >&2; exit 1; }
+
+wan_package="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}"
+rm -rf "${wan_package}"
+mkdir -p "${wan_package}/native/wgnetstack/gdext/build"
+cp "${launcher_out}" "${wan_package}/Project0-WAN-${VERSION}.exe"
+cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${STAGE}/${DLL_NAME}" "${wan_package}/"
+cp "${STAGE}/${DLL_NAME}" "${wan_package}/native/wgnetstack/gdext/build/"
+wan_zip="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.zip"
+rm -f "${wan_zip}"
+(cd "${OUT_DIR}" && zip -q -r -X "$(basename "${wan_zip}")" "$(basename "${wan_package}")")
 
 log "Packaging portable ZIP"
 package_name="Project0-client-windows-x64-${VERSION}"
@@ -169,7 +173,7 @@ tree_dirty=false
 	printf '  "godot_cpp_ref": "%s",\n' "${GODOT_CPP_REF}"
 	printf '  "artifacts": [\n'
 	first=true
-	for artifact in "${zip_path}" "${launcher_out}"; do
+	for artifact in "${zip_path}" "${launcher_out}" "${wan_zip}"; do
 		[[ "${first}" == true ]] || printf ',\n'
 		first=false
 		printf '    { "name": "%s", "bytes": %s, "sha256": "%s" }' \

@@ -227,7 +227,7 @@ func TestEnrollmentBaseURLToleratesRedeemSuffix(t *testing.T) {
 		t.Fatalf("unexpected base URL: %q", got)
 	}
 	t.Setenv("PROJECT0_ENROLLMENT_URL", "")
-	if got := enrollmentBaseURL(); got != "https://enroll.valentin.vip" {
+	if got := enrollmentBaseURL(); got != "https://project0.valentin.vip" {
 		t.Fatalf("unexpected default base URL: %q", got)
 	}
 }
