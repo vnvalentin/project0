@@ -135,7 +135,7 @@ their previous numbers — see the change note under "Delivery order".)
 | 12. Authoritative runtime and action input | in-progress | Production deployment mutation and rollback evidence are recorded, login and game images have an explicit release boundary, and the server resolves a bounded action set authoritatively beyond the first melee seam. |
 | 13. Delivery workflow capabilities | in-progress | Agent orchestration and CI/dashboard foundations remain synchronized; Remote-SSH and asset quarantine are either delivered with evidence or explicitly retained as planned non-blockers. |
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
-| 15. Biological progression and kinetic systems | queued | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. |
+| 15. Biological progression and kinetic systems | in-progress | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. |
 | 16. Client delivery experience | queued (design) | A converged Windows client-delivery contract specifies LAN/WAN mode selection, mandatory pre-auth version gating, signed manifest and patch trust, atomic restart/rollback, repair/offline behavior, onboarding, and a separate named-action controller slice. |
 | 17. Fleet operations console | queued (design) | A capstone spec resolves the versioned ops snapshot, telemetry content, registry, operator-token control seam, bounded actions, audit, and standalone LAN console surface before implementation slices are allocated. |
 | 18. Horizontal scale and zone sharding | queued (research-first) | A researched ownership and cross-shard handoff model plus ADR exists before any implementation feature or slice is created; until then this phase has no validated exit gate. |
@@ -309,9 +309,10 @@ Progress: **40%** (2 of 5 items done)
 
 **Phase 15 — Biological progression and kinetic systems**
 
-Progress: **0%** (0 of 1 items done)
+Progress: **in-progress** (P-016-A foundation underway)
 
-- Features: `queued` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
+- Features: `in-progress` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
+- Current slice: [132 — Phase 15 (P-016-A): versioned embodiment tuning resolve seam](slices/132-phase15-embodiment-tuning.md) — **delivered; `EmbodimentTuning.resolve(tuning_version)` fail-closed seam + `EmbodimentTuningSchema` shape; new `test_embodiment_tuning` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**. Next: vessel progression state (133), effective snapshot (134).
 - Tech debt: none yet.
 
 **Phase 11 — Public game access**
@@ -403,6 +404,13 @@ for delivery ownership, even when its linked work advances another phase.
 Slice completion is based on its own SDD, BDD, TDD, ADR/no-ADR rationale,
 validation, and review evidence. Phase completion is based on progress toward
 the phase exit gate; it is not a count of completed slices.
+
+#### Phase 15 — Biological progression and kinetic systems
+
+- **Slice:** [132 — Phase 15 (P-016-A): versioned embodiment tuning resolve seam](slices/132-phase15-embodiment-tuning.md) — **delivered; `shared/embodiment_tuning_schema.gd` (shape/bounds/helpers) + `server/embodiment_tuning.gd` (frozen tables behind the sole, fail-closed `resolve(tuning_version)`); subsystems never read tables directly, unknown versions fail closed; new `test_embodiment_tuning` 8/8; full GUT suite 501/501 across 73/73, exit 0 on the Linux host**
+  - **Feature:** [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
+  - **GitHub issue:** #219 (design source #220)
+  - **Architecture:** [ADR 0006](adr/0006-versioned-embodiment-mechanics-architecture.md)
 
 #### Phase 14 — NPC generalization and shared Character
 
