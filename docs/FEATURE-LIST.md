@@ -77,7 +77,9 @@ feature so future drift is easier to detect.
   [Slice 153](slices/153-launcher-updater-orchestration.md) (persistent launcher
   payload, detached apply helper, startup recovery, and relaunch hook),
   [Slice 154](slices/154-launcher-signed-update-download.md) (native Go signed
-  update download and staging integration).
+  update download and staging integration),
+  [Slice 155](slices/155-outdated-client-launcher-handoff.md) (live
+  `CLIENT_OUTDATED` handoff from packaged client to launcher update loop).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -87,6 +89,36 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the eleventh F-037 slice (Slice 155) — the live
+    `CLIENT_OUTDATED` handoff. A packaged client with
+    `PROJECT0_UPDATE_REJECTION_PATH` writes the bounded server rejection and
+    exits code 20; the Go launcher reads/removes it, validates the outcome,
+    downloads/stages through Slice 154, and invokes Slice 153's helper with the
+    existing tunnel environment.
+    Why: The client cannot own the process that replaces its pack; the launcher
+    must receive the server-supplied HTTPS pointer without trusting the handoff
+    file itself.
+    Related work: [Slice 155](slices/155-outdated-client-launcher-handoff.md),
+    [Slice 154](slices/154-launcher-signed-update-download.md), #100, #182.
+    Validation: Go vet/test passed; full GUT 106 scripts / 774 tests / 774
+    passing, 2451 asserts, exit 0; record-sync exit 0. Packaged Windows
+    end-to-end evidence remains the final proof.
+  - Date: 2026-09-18
+    What changed: Delivered the eleventh F-037 slice (Slice 155) — live outdated
+    client handoff. A packaged client with `PROJECT0_UPDATE_REJECTION_PATH` now
+    writes the bounded server rejection and exits with code 20; the Go launcher
+    reads and removes that transient file, validates the `CLIENT_OUTDATED`
+    fields, downloads/stages through Slice 154, and invokes Slice 153's helper
+    with the existing tunnel environment.
+    Why: The client cannot own the process that replaces its pack; the launcher
+    must receive the server-supplied HTTPS pointer without trusting the handoff
+    file itself.
+    Related work: [Slice 155](slices/155-outdated-client-launcher-handoff.md),
+    [Slice 154](slices/154-launcher-signed-update-download.md), #100, #182.
+    Validation: Go vet clean and `go test ./...` passed; full GUT regression
+    required because the client rejection path changed; record-sync exit 0.
+    Packaged Windows end-to-end evidence remains the final proof.
   - Date: 2026-09-18
     What changed: Delivered the tenth F-037 slice (Slice 154) — the native Go
     launcher download boundary. `update_download.go` fetches manifest bytes and

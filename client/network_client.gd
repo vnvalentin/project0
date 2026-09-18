@@ -158,6 +158,9 @@ const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geom
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 
+const UPDATE_REJECTION_PATH_ENV_VAR: String = "PROJECT0_UPDATE_REJECTION_PATH"
+const UPDATE_REQUIRED_EXIT_CODE: int = 20
+
 ## Slice 069: server-owned validity window for an assertion minted on request.
 ## The login process supplies the clock and this bound; the client supplies
 ## neither.
@@ -894,6 +897,17 @@ func receive_version_handshake_rejected(rejection: Dictionary) -> void:
 	latest_version_rejection = rejection
 	_set_status("refused: %s" % String(rejection.get("outcome", "UNKNOWN")))
 	version_handshake_rejected.emit(rejection)
+	var handoff_path: String = OS.get_environment(UPDATE_REJECTION_PATH_ENV_VAR).strip_edges()
+	if handoff_path.is_empty():
+		return
+	var temporary_path: String = handoff_path + ".tmp"
+	var file := FileAccess.open(temporary_path, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify(rejection))
+	file.close()
+	DirAccess.rename_absolute(temporary_path, handoff_path)
+	get_tree().quit(UPDATE_REQUIRED_EXIT_CODE)
 
 
 ## RPC target (Slice 094): called by the server on the owning client the tick
