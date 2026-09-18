@@ -452,6 +452,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in-progress; launcher payloads are now external visible package files, installed under stable LocalAppData, and signed updates require explicit confirmation. Release and packaged-Windows runtime evidence remain pending.** Prior: [156](slices/156-release-client-downloads.md).
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
+
 - **Slice:** [156 — Phase 16 (F-037): release pipeline publishes Windows client downloads](slices/156-release-client-downloads.md) — **delivered; tagged releases download the CI client artifact, publish the launcher and ZIP under `/patches/downloads/<version>/`, generate the public download page, and verify all three public URLs. v0.7.0 live verification passed.** Prior: [155](slices/155-outdated-client-launcher-handoff.md).
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
