@@ -63,7 +63,9 @@ feature so future drift is easier to detect.
   [Slice 146](slices/146-version-gate-enforcement.md) (live version-gate
   enforcement: deferred peer admission, client handshake/rejection),
   [Slice 147](slices/147-signed-update-manifest.md) (signed update-manifest
-  verifier + patch hash/size verification).
+  verifier + patch hash/size verification),
+  [Slice 148](slices/148-https-update-staging.md) (HTTPS update staging; verified
+  patch staged under `user://`, staging destroyed on any failure).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -73,6 +75,25 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the fifth F-037 slice (Slice 148) — **HTTPS update
+    staging**. `client/update_stager.gd` derives the manifest/signature URLs from
+    an HTTPS base (a plaintext base cannot even be addressed), fetches the
+    manifest, its detached signature, and the patch over bounded HTTPS, and stages
+    the patch under `user://` only after it verifies through `UpdateManifest`.
+    Every failure path destroys the staging directory, so a refused or interrupted
+    download cannot leave a half-written pack for the updater to find.
+    Why: The staging directory is the handoff to the updater, so anything left in
+    it is something the updater might later treat as ready.
+    Related work: [Slice 148](slices/148-https-update-staging.md),
+    [Slice 147](slices/147-signed-update-manifest.md), #100.
+    Validation: full GUT suite on the Linux host — 105 scripts / 770 tests / 770
+    passing, exit 0; new `test_update_stager` 8/8 with real RSA-3072 keys and real
+    files, asserting the staging directory is absent after every refusal.
+    **Known coverage gap (recorded, not papered over):** the HTTPS transport
+    itself is not automatically tested — the suite has no HTTPS fixture — which is
+    precisely why packaged-client runtime evidence remains required before F-037
+    can become `Implemented`. record-sync exit 0.
   - Date: 2026-09-18
     What changed: Delivered the fourth F-037 slice (Slice 147) — the **signed
     update-manifest verifier**, the trust anchor for remote code delivery.
