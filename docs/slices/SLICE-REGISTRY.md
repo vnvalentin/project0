@@ -171,8 +171,9 @@ contended range and everything after it is tracked explicitly:
 | 153 | Phase 16 F-037: launcher updater orchestration — persistent payload, detached apply helper, relaunch/readiness hook (#100, #182, F-037) | interactive |
 | 154 | Phase 16 F-037: launcher signed-update download, RSA verification, and staging integration (#100, #182, F-037) | interactive |
 | 155 | Phase 16 F-037: CLIENT_OUTDATED handoff from packaged client to launcher update loop (#100, #182, F-037) | interactive |
+| 156 | Phase 16 F-037: release pipeline publishes Windows client downloads (#100, #182, F-037) | interactive |
 
-Next free slice: **156** (verify against `docs/slices/` before reserving).
+Next free slice: **157** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

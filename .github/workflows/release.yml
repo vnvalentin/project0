@@ -68,7 +68,7 @@ jobs:
       - name: Upload client artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: project0-client-${{ steps.version.outputs.value }}
+          name: project0-client-${{ github.ref_name }}
           path: |
             dist/current/*.zip
             dist/current/*.exe
@@ -93,8 +93,25 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download Windows client artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: project0-client-${{ github.ref_name }}
+          path: dist/current
+
+      - name: Publish Windows client downloads
+        run: scripts/publish_client_downloads.sh "${GITHUB_REF_NAME#v}"
+
       - name: Show deploy plan
         run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}" --dry-run
 
       - name: Deploy the container stack
         run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}"
+
+      - name: Verify public client downloads
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          base="https://enroll.valentin.vip/patches/downloads"
+          curl --fail --silent --show-error "${base}/index.html" >/dev/null
+          curl --fail --silent --show-error "${base}/${version}/Project0-WAN-${version}.exe" -o /dev/null
+          curl --fail --silent --show-error "${base}/${version}/Project0-client-windows-x64-${version}.zip" -o /dev/null

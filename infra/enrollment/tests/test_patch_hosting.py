@@ -12,6 +12,8 @@ from infra.enrollment.store import EnrollmentStore
 def test_patches_are_publicly_served_without_auth(tmp_path):
     patches = tmp_path / "patches"
     (patches / "0.7.0").mkdir(parents=True)
+    (patches / "downloads").mkdir()
+    (patches / "downloads" / "index.html").write_text("<h1>downloads</h1>")
     (patches / "manifest.json").write_bytes(b'{"schema_version":1}')
     (patches / "manifest.sig").write_bytes(b"signature")
     (patches / "0.7.0" / "Project0.pck").write_bytes(b"pack")
@@ -24,6 +26,7 @@ def test_patches_are_publicly_served_without_auth(tmp_path):
         assert client.get("/patches/manifest.json").status_code == 200
         assert client.get("/patches/manifest.sig").content == b"signature"
         assert client.get("/patches/0.7.0/Project0.pck").content == b"pack"
+        assert client.get("/patches/downloads/").text == "<h1>downloads</h1>"
         assert client.get("/patches/missing.pck").status_code == 404
     finally:
         store.close()
