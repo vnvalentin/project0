@@ -23,9 +23,29 @@ for artifact in "${launcher}" "${archive}" "${manifest}"; do
 	}
 done
 
+launcher_archive="${SOURCE_DIR}/Project0-WAN-${VERSION}.zip"
+launcher_archive_path="$(cd "$(dirname "${launcher_archive}")" && pwd)/$(basename "${launcher_archive}")"
+launcher_stage="$(mktemp -d)"
+trap 'rm -rf "${launcher_stage}"' EXIT
+cp "${launcher}" "${launcher_stage}/"
+if command -v zip >/dev/null 2>&1; then
+	(cd "${launcher_stage}" && zip -q -X "${launcher_archive_path}" "$(basename "${launcher}")")
+else
+	python3 - "${launcher_stage}" "${launcher_archive_path}" "$(basename "${launcher}")" <<'PY'
+import pathlib
+import sys
+import zipfile
+
+stage, output, name = sys.argv[1:]
+with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    archive.write(pathlib.Path(stage) / name, arcname=name)
+PY
+fi
+
 download_dir="${PATCHES_DIR}/downloads/${VERSION}"
 sudo -n install -d -m 0755 "${download_dir}"
 sudo -n install -m 0644 "${launcher}" "${download_dir}/"
+sudo -n install -m 0644 "${launcher_archive_path}" "${download_dir}/"
 sudo -n install -m 0644 "${archive}" "${download_dir}/"
 sudo -n install -m 0644 "${manifest}" "${download_dir}/"
 
@@ -41,6 +61,7 @@ cat >"${tmp_page}" <<EOF
 <p>Windows client ${VERSION}</p>
 <ul>
 <li><a href="${VERSION}/Project0-WAN-${VERSION}.exe">Download Windows launcher</a></li>
+<li><a href="${VERSION}/Project0-WAN-${VERSION}.zip">Download launcher ZIP</a></li>
 <li><a href="${VERSION}/Project0-client-windows-x64-${VERSION}.zip">Download portable client ZIP</a></li>
 </ul>
 </main>
