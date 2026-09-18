@@ -419,6 +419,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	player_state.melee_swing_started.connect(_on_player_state_melee_swing_started)
 	player_state.character_bound.connect(_on_player_state_character_bound)
 	player_state.health_changed.connect(_on_player_state_health_changed)
+	player_state.character_snapshot_ready.connect(_on_player_state_character_snapshot_ready)
 	player_state.player_defeated.connect(_on_player_state_player_defeated)
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
@@ -492,6 +493,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.melee_swing_started.disconnect(_on_player_state_melee_swing_started)
 		player_state.character_bound.disconnect(_on_player_state_character_bound)
 		player_state.health_changed.disconnect(_on_player_state_health_changed)
+		player_state.character_snapshot_ready.disconnect(_on_player_state_character_snapshot_ready)
 		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
@@ -768,6 +770,17 @@ func _on_player_state_health_changed(peer_id: int, current_hp: int, max_hp: int,
 	if network_client == null:
 		return
 	network_client.rpc_id(peer_id, "receive_health_update", current_hp, max_hp)
+
+
+## Slice 127: replicates a Player's presentation-safe Character snapshot to the
+## owning client only (peer-scoped like the HP channel above) at world entry, so
+## its HUD can show the vessel readout. Derived graph state only — never the raw
+## stat numbers, which stay server-side.
+func _on_player_state_character_snapshot_ready(peer_id: int, snapshot: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_character_snapshot", snapshot)
 
 
 ## Slice 094: tells the owning client its Player was defeated (then provisionally

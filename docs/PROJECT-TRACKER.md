@@ -352,8 +352,8 @@ Progress: **0%** (0 of 1 items done; design charted, implementation not started)
   equipment, activity-driven movement, shared combat/status, and role-based NPC
   spawning/significance. Bridges combat into Phase 15.
 - Feature: `in-progress` [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).
-- Current slice: [126 — Phase 14 integration: Monster HP on shared CombatHealth](slices/126-phase14-monster-health-integration.md) — **delivered; migrated the live Monster HP pool to `shared/combat_health.gd`, retired provisional `MonsterCombatState`; behaviour-preserving (regression net + integration runtime evidence green), full suite 489/489 across 72/72 on the Linux host. Player and monster HP now share one contract**. Prior: Slices 116-124 (shared-contract set), 125 (Player HP integration).
-- Tech debt: none identified; Slices 125-126 remove provisional placeholders in favour of the tested shared contract.
+- Current slice: [127 — Phase 14 integration: server-owned Character foundation + snapshot replication](slices/127-phase14-character-foundation-server.md) — **delivered; live Player carries a baseline `CharacterFoundation`, presentation-safe snapshot replicated to the client (new peer-scoped RPC mirroring HP) + HUD `VesselLabel`; full suite 502/502 across 74/74 on the Linux host, incl. the no-raw-numbers invariant and real-scene tests**. Prior: Slices 116-124 (shared-contract set), 125 (Player HP), 126 (Monster HP).
+- Tech debt: none identified; Slices 125-126 removed provisional placeholders; Slice 127 adds no debt.
 
 **Phase 16 — Client experience: controller, launcher, and auto-update**
 
@@ -406,6 +406,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [127 — Phase 14 integration: server-owned Character foundation + snapshot replication](slices/127-phase14-character-foundation-server.md) — **delivered; `ServerPlayerState` creates a baseline humanoid `CharacterFoundation` at world entry, exposes a presentation-safe `character_snapshot()` + `character_snapshot_ready` signal; `server_main` replicates it to the owning client (new peer-scoped RPC mirroring HP); `NetworkClient` store + HUD `VesselLabel`; full GUT suite 502/502 across 74/74, exit 0 on the Linux host — `test_character_foundation_replication` 4/4 (incl. no-raw-numbers invariant, real node) + `test_character_vessel_label` 5/5 + real-scene `test_identity_gate_and_movement` 4/4 + `test_melee_strike_visual_indicator` 9/9**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** #227 (design source #230)
+  - **Architecture:** [ADR 0007](adr/0007-unified-character-and-npc-generalization.md)
 - **Slice:** [126 — Phase 14 integration: Monster HP on shared CombatHealth](slices/126-phase14-monster-health-integration.md) — **delivered; migrated the live Monster HP pool from provisional `MonsterCombatState` to the shared `CombatHealth` contract (behaviour-preserving `ServerMonsterState` seam + one-death/respawn semantics); regression net `test_server_monster_state` 10/10 + `test_server_monster_manager` 19/19 + integration `test_authoritative_melee_strike` 9/9 (real-node runtime evidence) unchanged; full GUT suite 489/489 across 72/72, exit 0 on the Linux host. Player and monster HP now share one contract**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
   - **GitHub issue:** #227 (design source #231)
