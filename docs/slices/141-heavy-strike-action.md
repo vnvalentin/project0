@@ -1,5 +1,5 @@
 # Slice 141 - Phase 12 (IP-015): second authoritative action kind — Heavy Strike
-GitHub issue: (none — IP-015 melee-combat continuation; create if formalized)
+GitHub issue: #69 (IP-015: Expand authoritative action input beyond the first melee seam); design source melee-combat issue 03 (#143)
 
 Status: **delivered**
 
