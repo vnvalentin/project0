@@ -75,7 +75,9 @@ feature so future drift is easier to detect.
   [Slice 152](slices/152-enrollment-patch-hosting.md) (public HTTPS `/patches`
   hosting with a read-only release volume),
   [Slice 153](slices/153-launcher-updater-orchestration.md) (persistent launcher
-  payload, detached apply helper, startup recovery, and relaunch hook).
+  payload, detached apply helper, startup recovery, and relaunch hook),
+  [Slice 154](slices/154-launcher-signed-update-download.md) (native Go signed
+  update download and staging integration).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -85,6 +87,22 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the tenth F-037 slice (Slice 154) — the native Go
+    launcher download boundary. `update_download.go` fetches manifest bytes and
+    detached signature over HTTPS, verifies the raw bytes with the embedded
+    RSA-3072 public key, follows only the signed pack URL, checks size and
+    SHA-256, and stages the pack for the Slice 153 helper. Temporary artifacts
+    are removed on failure.
+    Why: The launcher cannot reuse the GDScript verifier inside the pack it may
+    need to replace; it needs a native verifier that remains alive while the
+    client artifact is corrupt or being updated.
+    Related work: [Slice 154](slices/154-launcher-signed-update-download.md),
+    [Slice 153](slices/153-launcher-updater-orchestration.md), #100, #182.
+    Validation: `go vet ./...` clean and `go test ./...` passed with real HTTPS
+    fixture coverage for valid staging, tampered manifest, plaintext URL,
+    up-to-date manifest, and cleanup/refusal paths. Full GUT remains unchanged;
+    record-sync exit 0. Live `CLIENT_OUTDATED` wiring remains the next slice.
   - Date: 2026-09-18
     What changed: Delivered the ninth F-037 slice (Slice 153) — launcher updater
     orchestration. The Go launcher now owns a persistent AppData payload instead
