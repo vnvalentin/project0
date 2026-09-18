@@ -40,6 +40,7 @@ const ServerTownNpcManagerScript: Script = preload("res://server/server_town_npc
 const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const AccountCharacterRepositoryScript: Script = preload("res://server/account_character_repository.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
@@ -112,6 +113,16 @@ const START_POSITIONS: Array[Vector3] = [
 ## so two peers never share mutable position/input-sequence state.
 var _player_states: Dictionary = {}
 var _peer: ENetMultiplayerPeer
+
+## Slice 146: peers that have connected but not yet passed the version gate,
+## keyed by peer id. They hold an ENet slot and nothing else — no world, no
+## Player, no replication — until their handshake is accepted.
+var _pending_version_gate: Dictionary = {}
+
+## Slice 146: the server-owned version gate, resolved once before the socket
+## binds. The server refuses to start when the requirement is unusable.
+var _required_client_version: String = ""
+var _update_manifest_base_url: String = ""
 
 ## Slice 012: keyed by target_id to the server-owned Node3D each
 ## ServerPlayerState's melee hit test checks against. Populated once in
@@ -372,6 +383,20 @@ func _start_server() -> void:
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
 	var server_port: int = NetworkConfigScript.resolve_server_port()
 
+	# Slice 146: resolve the version gate BEFORE binding. An unusable requirement
+	# is an operator fault, and a server that cannot say what it serves must not
+	# serve at all rather than refuse every client as "outdated".
+	_required_client_version = VersionHandshakeScript.resolve_required_version()
+	_update_manifest_base_url = VersionHandshakeScript.resolve_manifest_base_url()
+	if _required_client_version.is_empty():
+		push_error(
+			"Refusing to start: %s is set to a malformed client build version."
+			% VersionHandshakeScript.REQUIRED_VERSION_ENV_VAR
+		)
+		quit(1)
+		return
+	print("Version gate: requiring client build version %s." % _required_client_version)
+
 	_peer = ENetMultiplayerPeer.new()
 	# set_bind_ip() must be called before create_server(); Godot 4.3's
 	# create_server() itself takes no address argument and binds all
@@ -390,6 +415,7 @@ func _start_server() -> void:
 	var mutation_network_client: Node = root.get_node_or_null("NetworkClient")
 	if mutation_network_client != null:
 		mutation_network_client.canon_mutation_intent_received.connect(_on_canon_mutation_intent)
+		mutation_network_client.version_handshake_received.connect(_on_version_handshake_received)
 	_spawn_target_dummies()
 	print("Server listening on %s:%d" % [bind_address, server_port])
 	# Slice 067: the tick loop is up and the socket is bound — report healthy.
@@ -408,7 +434,39 @@ func _start_server() -> void:
 ## rejects a third concurrent connection outright, since this slice's proof
 ## is scoped to exactly two peers.
 func _on_peer_connected(peer_id: int) -> void:
-	print("Peer connected: %d" % peer_id)
+	# Slice 146: connecting no longer admits. The peer gets no world, no Player,
+	# and no replication until it passes the server-owned version gate.
+	print("Peer connected: %d (awaiting version handshake)" % peer_id)
+	_pending_version_gate[peer_id] = true
+
+
+## Slice 146: decides one peer's version handshake, the first message a client
+## sends and the gate every later RPC depends on. Fail-closed: only an ACCEPTED
+## outcome admits, and a rejected peer is told why (so it can self-patch) and
+## then disconnected. The disconnect is graceful so the reliable rejection is
+## flushed before the socket closes.
+func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void:
+	if not _pending_version_gate.has(peer_id):
+		# Already admitted (or already refused): a resent handshake changes nothing.
+		return
+	var result: Dictionary = VersionHandshakeScript.evaluate(
+		handshake, _required_client_version, _update_manifest_base_url
+	)
+	_pending_version_gate.erase(peer_id)
+	if result["outcome"] != VersionHandshakeScript.OUTCOME_ACCEPTED:
+		print("Refusing peer %d: %s (%s)" % [peer_id, result["outcome"], result["detail"]])
+		var network_client: Node = root.get_node_or_null("NetworkClient")
+		if network_client != null:
+			network_client.rpc_id(peer_id, "receive_version_handshake_rejected", result)
+		root.multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
+	print("Peer %d passed the version gate." % peer_id)
+	_admit_peer(peer_id)
+
+
+## Admits a peer that passed the version gate: replicates the world to it and
+## gives it an authoritative Player. Previously the body of _on_peer_connected.
+func _admit_peer(peer_id: int) -> void:
 	var network_client: Node = root.get_node("NetworkClient")
 
 	if _player_states.size() >= MAX_REPLICATED_PEERS:
@@ -495,6 +553,8 @@ func _on_peer_connected(peer_id: int) -> void:
 ## peer to despawn that departed peer's remote representation.
 func _on_peer_disconnected(peer_id: int) -> void:
 	print("Peer disconnected: %d" % peer_id)
+	# A peer can drop while still awaiting the version gate; it owns nothing else.
+	_pending_version_gate.erase(peer_id)
 	# Slice 040: clear this peer's in-memory session, if any. Sessions are
 	# never persisted, so a reconnecting peer always finds no session and must
 	# fully re-authenticate — see server/session_registry.gd.

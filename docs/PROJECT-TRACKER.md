@@ -379,7 +379,12 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   delivered; live gate enforcement, signed manifest, updater/rollback, launcher,
   and onboarding remain. The controller placeholder is a separate low-risk slice,
   not yet allocated a feature.
-- Current slice: [145 — Phase 16 (F-037): pre-auth version handshake contract + required-version resolution](slices/145-version-handshake-contract.md) — **delivered; `shared/version_handshake.gd` decides `ACCEPTED` / `CLIENT_OUTDATED` / `MALFORMED` / `SERVER_MISCONFIGURED` from a client's declared build version against the server-owned requirement, by exact equality, handing a rejected client its required version and HTTPS manifest URL. Full GUT suite 747/747 across 102/102, exit 0 on the Linux host**. Prior: [Slice 144](slices/144-client-build-version-stamp.md) (version identity).
+- Features: `in-progress` [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+  — version identity (Slice 144), the handshake contract (Slice 145), and live
+  gate enforcement (Slice 146) delivered; signed manifest, updater/rollback,
+  launcher, and onboarding remain. The controller placeholder is a separate
+  low-risk slice, not yet allocated a feature.
+- Current slice: [146 — Phase 16 (F-037): live version-gate enforcement](slices/146-version-gate-enforcement.md) — **delivered; the mandatory gate is live. Peer admission is deferred until a handshake is accepted, a mismatched client is refused with its required version + manifest URL and disconnected, and a server with an unusable requirement refuses to start. Full GUT suite 751/751 across 103/103, exit 0, E2E harnesses unchanged; runtime-proven in both directions on real processes**. Prior: [Slice 145](slices/145-version-handshake-contract.md) (contract), [Slice 144](slices/144-client-build-version-stamp.md) (identity).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -423,6 +428,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [146 — Phase 16 (F-037): live version-gate enforcement](slices/146-version-gate-enforcement.md) — **delivered; **the mandatory pre-auth version gate is now live**. `client/network_client.gd` sends `VersionHandshake.request()` as its first post-connect message; `server/server_main.gd` defers *all* peer admission — town replication, Player spawn, house allocation, and peer cross-replication moved into a new `_admit_peer` — until a handshake is accepted, so a refused client never receives world state at all. A mismatched client gets `CLIENT_OUTDATED` with its required version and manifest URL before a graceful disconnect (so the reliable rejection flushes), a resent handshake cannot re-roll the gate, and a server whose `PROJECT0_REQUIRED_CLIENT_VERSION` is unusable refuses to start instead of rejecting everyone. New `test_version_gate_client_seam` 4/4; full GUT suite 751/751 across 103/103, exit 0, with the socket E2E harnesses unchanged. Runtime-proven on real processes both ways: matching server → exit 0, "passed the version gate", ALL PASS; server requiring 9.9.9 → exit 1, "Refusing peer …: CLIENT_OUTDATED", no Player spawned; malformed requirement → exit 1, never bound**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (third slice; feature `In Progress`)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
+  - **Architecture:** [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), decision 2
+  - **Known limitation:** a peer that never handshakes holds an idle ENet slot; a pending-handshake timeout is a follow-on
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 - **Slice:** [145 — Phase 16 (F-037): pre-auth version handshake contract and required-version resolution](slices/145-version-handshake-contract.md) — **delivered; `shared/version_handshake.gd` (`VersionHandshake`) is the decision the mandatory gate will enforce: it builds the client's first message from `ClientBuildVersion.current()`, resolves the server-owned requirement from `PROJECT0_REQUIRED_CLIENT_VERSION` (defaulting to this build, `""` when the override is malformed so callers fail closed) and an HTTPS-only manifest URL, and evaluates them into `ACCEPTED` / `CLIENT_OUTDATED` / `MALFORMED` / `SERVER_MISCONFIGURED` (reserved `UNSUPPORTED`). Exact-equality comparison — older and newer clients are refused identically — and a rejected client is handed its required version and where to patch. `SERVER_MISCONFIGURED` keeps an operator's bad config from being reported as the player's client being outdated. New `test_version_handshake` 13/13; full GUT suite 747/747 across 102/102, exit 0 on the Linux host. Live enforcement deliberately deferred: the connect lifecycle is a declared shared hot-spot**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (second slice; feature `In Progress`)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)

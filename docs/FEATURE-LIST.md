@@ -59,7 +59,9 @@ feature so future drift is easier to detect.
 - Implementation slices: [Slice 144](slices/144-client-build-version-stamp.md)
   (version identity + export-time stamp),
   [Slice 145](slices/145-version-handshake-contract.md) (pre-auth version
-  handshake contract + server-owned required-version resolution).
+  handshake contract + server-owned required-version resolution),
+  [Slice 146](slices/146-version-gate-enforcement.md) (live version-gate
+  enforcement: deferred peer admission, client handshake/rejection).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -69,6 +71,26 @@ feature so future drift is easier to detect.
   [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182)
 - Change history:
+  - Date: 2026-09-18
+    What changed: Delivered the third F-037 slice (Slice 146) — **the mandatory
+    version gate is now live**. The client sends `VersionHandshake.request()` as
+    its first post-connect message; `server_main.gd` defers *all* peer admission
+    (town replication, Player spawn, house allocation, and peer
+    cross-replication moved into a new `_admit_peer`) until it accepts a
+    handshake, refuses a mismatched client with its required version and manifest
+    URL before a graceful disconnect, and refuses to start at all when
+    `PROJECT0_REQUIRED_CLIENT_VERSION` is unusable.
+    Why: A gate that filtered after handing out the world would leak exactly what
+    it exists to withhold, so admission itself had to move behind the gate.
+    Related work: [Slice 146](slices/146-version-gate-enforcement.md),
+    [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md), #100.
+    Validation: full GUT suite on the Linux host — 103 scripts / 751 tests / 751
+    passing, exit 0; the socket E2E harnesses pass unchanged. Runtime evidence in
+    both directions: the real multi-peer orchestrator exits 0 with "passed the
+    version gate" + ALL PASS against a matching server, and exits 1 with
+    "Refusing peer …: CLIENT_OUTDATED" and no Player spawned against a server
+    requiring 9.9.9; a malformed requirement exits 1 without ever binding.
+    record-sync exit 0.
   - Date: 2026-09-18
     What changed: Delivered the second F-037 slice (Slice 145) — the **pre-auth
     version handshake contract**. `shared/version_handshake.gd`
