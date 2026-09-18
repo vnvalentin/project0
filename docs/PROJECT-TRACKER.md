@@ -374,6 +374,11 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   — the packaged client logs three expected GDExtension errors at every boot,
   the same false-alarm pattern DT-014 fixed server-side; it will mask a real
   update or rollback failure, where the tester's log is the only evidence.
+- **Slice 151:** the export exclusion now removes `.godot/**` editor/import
+  metadata, closing DT-015 without shipping the server-only SQLite addon.
+  Fresh fixed export contains no SQLite references, and a fresh packaged-client
+  boot produced zero SQLite log lines. A separate packaging-tooling follow-on
+  remains because the Windows ZIP fallback found Python unavailable.
 - **Measured correction (2026-09-18):** a probe against the real packaged client
   disproved the "the running pack is file-locked" justification carried by
   ADR 0008 and the spec. Windows permits rename, open-for-write, and delete
@@ -398,6 +403,7 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
   route, launcher LAN/WAN, and onboarding remain. The controller placeholder is
   a separate low-risk slice, not yet allocated a feature.
 - Current slice: [150 — Phase 16 (F-037): trusted release key and one-command signing](slices/150-trusted-signing-key.md) — **delivered; `shared/client_signing_key.gd` embeds the RSA-3072 public key (fingerprint `69db4c67…77a232`) with a fail-closed `is_configured()`, and `scripts/sign_release.sh` signs a release in one command. Private key generated on the operator workstation and held offline — deliberately not on `okami`, which serves the downloads the signature must outlive. Full trust chain proven with the real key and script; GUT 774/774 across 106/106, exit 0**. Prior: [149](slices/149-updater-transaction.md), [148](slices/148-https-update-staging.md), [147](slices/147-signed-update-manifest.md).
+- Current slice: [151 — Phase 16 (DT-015): packaged-client export metadata exclusion](slices/151-client-export-metadata-exclusion.md) — **delivered; `export_presets.cfg` now excludes `.godot/**`, removing the stale `extension_list.cfg` that made the packaged client try to load the intentionally excluded server-only SQLite extension. DT-015 is closed; fresh export/package-content and boot evidence remain the final check.** Prior: [150](slices/150-trusted-signing-key.md).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -440,6 +446,12 @@ validation, and review evidence. Phase completion is based on progress toward
 the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
+
+- **Slice:** [151 — Phase 16 (DT-015): packaged-client export metadata exclusion](slices/151-client-export-metadata-exclusion.md) — **delivered; adds `.godot/**` to the Windows export exclusion. The source project retains server-only SQLite and the client still excludes `addons/godot-sqlite/**`; the package no longer carries `.godot/extension_list.cfg`, the stale declaration that produced three SQLite GDExtension boot errors. Fresh export evidence identified the cause; a separate Windows ZIP fallback issue (Python unavailable when `zip` was absent) remains outside this slice**
+  - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+  - **Tech debt:** closes [DT-015](TECHNICAL-DEBT-TRACKER.md#dt-015-the-packaged-windows-client-logs-gdextension-load-errors-at-boot)
+  - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100)
+  - **Ownership:** implemented by Copilot under the standing Claude-unavailable authorization (trigger recorded in the slice record)
 
 - **Slice:** [150 — Phase 16 (F-037): trusted release key and one-command signing](slices/150-trusted-signing-key.md) — **delivered; closes the hole Slice 147 left open deliberately. `shared/client_signing_key.gd` embeds the RSA-3072 public key (fingerprint `69db4c67…77a232`) plus a fail-closed `is_configured()` so a keyless build refuses to self-update rather than falling back to trusting its download, and `scripts/sign_release.sh` emits a signed `manifest.json` + detached `manifest.sig` in one command (refusing a malformed version, missing pack, missing key, or plaintext URL). The private key was generated on the operator workstation and stays offline — deliberately NOT on `okami`, which serves the very downloads the signature must be able to outlive. Anti-swap property: the next pack's manifest is verified with the key in the currently installed pack, so an attacker who can substitute a download cannot substitute the key that judges it. **Full trust chain executed with the real offline key and the real script**: `verify_and_parse: ok`, `verify_patch_file: ok`, tampered pack → `hash_mismatch`. GUT 774/774 across 106/106, exit 0; new `test_client_signing_key` 4/4**
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching) (seventh slice; feature `In Progress`)
