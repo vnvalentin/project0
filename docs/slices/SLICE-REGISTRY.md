@@ -159,8 +159,9 @@ contended range and everything after it is tracked explicitly:
 | 141 | Phase 12 IP-015: second authoritative action kind — Heavy Strike (bounded action set beyond melee) (IP-015) | interactive |
 | 142 | Phase 15 follow-on (P-016): live RPC replication of the EffectiveMechanicsSnapshot to the owning client at world entry (#219, #224, P-016) | interactive |
 | 143 | Phase 15 follow-on (P-016): durable vessel persistence — VesselRepository over SqliteStore + serializer (#219, #223, P-016) | interactive |
+| 144 | Phase 16 F-037: client build version identity + export-time stamp (#100, #182, F-037) | interactive |
 
-Next free slice: **144** (verify against `docs/slices/` before reserving).
+Next free slice: **145** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
