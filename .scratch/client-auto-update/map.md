@@ -23,10 +23,10 @@ version gate must order against.
 
 ## What Good Looks Like
 
-- [ ] The packaged Windows tester client has a server-owned client build version handshake before authentication/world entry.
-- [ ] An out-of-date client is refused with a bounded reason and a mandatory update path.
-- [ ] Patch units, transport, integrity verification, apply/restart, and rollback are specified with fail-closed behavior.
-- [ ] The update flow is handoff-ready as bounded implementation slices with validation and telemetry expectations.
+- [x] The packaged Windows tester client has a server-owned client build version handshake before authentication/world entry.
+- [x] An out-of-date client is refused with a bounded reason and a mandatory update path.
+- [x] Patch units, transport, integrity verification, apply/restart, and rollback are specified with fail-closed behavior.
+- [x] The update flow is handoff-ready as bounded implementation slices with validation and telemetry expectations.
 
 ## Notes
 
@@ -80,7 +80,7 @@ version gate must order against.
 
 ## Decisions so far
 
-> **Status: charting.** Round 1 (destination) is settled and recorded in Notes
+> **Status: handoff-ready.** Rounds 1–6 are settled and recorded in Notes
 > above. The two `research` tickets are **resolved** (findings under `research/`).
 > Their answers are inputs to the decision tickets, not decisions themselves, so
 > no fog has graduated. With research done, the frontier is a single takeable
@@ -109,8 +109,8 @@ version gate must order against.
 
 <!-- in-scope fog, too dim to ticket yet; graduates as the frontier advances -->
 
-- The update-event **telemetry** shape (graduates once the version handshake and
-  the apply mechanism are decided; reuses CLAUDE.md's Andon seam).
+- Release hosting operations and launch-time repair UX remain implementation
+  slices, not unresolved contract decisions.
 - **Bandwidth / delta** optimization beyond whatever patch unit is chosen
   (revisit after the patch-unit decision).
 - How the server operator **publishes / hosts** a new client build (the

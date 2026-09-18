@@ -24,10 +24,10 @@ well enough to create implementation slices without guessing.
 
 ## What Good Looks Like
 
-- [ ] The launcher mode-selection contract makes LAN and WAN explicit and safe for the tester.
-- [ ] Client payload versioning, patch manifest, delivery, integrity verification, and rollback are specified.
-- [ ] First-run onboarding covers account login/enrollment and the WAN registration decision without weakening public-route safety.
-- [ ] Packaging/build and launcher state-machine slices are clear enough to implement without guessing.
+- [x] The launcher mode-selection contract makes LAN and WAN explicit and safe for the tester.
+- [x] Client payload versioning, patch manifest, delivery, integrity verification, and rollback are specified.
+- [x] First-run onboarding covers account login/enrollment and the WAN registration decision without weakening public-route safety.
+- [x] Packaging/build and launcher state-machine slices are clear enough to implement without guessing.
 
 ## Notes
 
@@ -72,6 +72,9 @@ well enough to create implementation slices without guessing.
   records.
 
 ## Decisions so far
+
+The consolidated handoff is [the Windows client delivery contract](../client-auto-update/spec.md)
+with [ADR 0008](../../docs/adr/0008-windows-client-delivery-trust-and-rollback.md).
 
 <!-- one line per closed ticket: gist of the answer, then the link for detail -->
 
