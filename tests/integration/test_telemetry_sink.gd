@@ -33,9 +33,10 @@ func after_each() -> void:
 			DirAccess.remove_absolute(path)
 
 
-func _event(payload: Dictionary = {}, emitted_at_unix: int = 1758000000) -> Dictionary:
+func _event(payload: Dictionary = {}, emitted_at_unix: int = -1) -> Dictionary:
+	var timestamp: int = emitted_at_unix if emitted_at_unix >= 0 else int(Time.get_unix_time_from_system())
 	return TelemetryEventScript.build(
-		"connection.peer_connected", 1, emitted_at_unix, 42, 7, payload, "acct-1", "char-1", "sess-1"
+		"connection.peer_connected", 1, timestamp, 42, 7, payload, "acct-1", "char-1", "sess-1"
 	)
 
 
@@ -86,13 +87,16 @@ func test_events_older_than_retention_window_are_deleted_on_next_emit() -> void:
 
 func test_row_ceiling_trims_oldest_rows_first() -> void:
 	# A small injected ceiling exercises the trim path without inserting
-	# millions of rows in a unit-scoped integration test.
+	# millions of rows in a unit-scoped integration test. Timestamps stay
+	# well within the retention window so only the ceiling trim (not the
+	# retention sweep) removes rows.
+	var now: int = int(Time.get_unix_time_from_system())
 	var tight_sink: TelemetrySink = TelemetrySinkScript.new(_store, 2)
-	tight_sink.emit(_event({}, 1000))
-	tight_sink.emit(_event({}, 1001))
-	tight_sink.emit(_event({}, 1002))
+	tight_sink.emit(_event({}, now - 2))
+	tight_sink.emit(_event({}, now - 1))
+	tight_sink.emit(_event({}, now))
 
 	var rows: Dictionary = _store.query("SELECT emitted_at_unix FROM events ORDER BY emitted_at_unix ASC;")
 	assert_eq(rows["rows"].size(), 2, "trimmed down to the injected ceiling")
-	assert_eq(int(rows["rows"][0]["emitted_at_unix"]), 1001, "the oldest row (1000) was trimmed first")
-	assert_eq(int(rows["rows"][1]["emitted_at_unix"]), 1002)
+	assert_eq(int(rows["rows"][0]["emitted_at_unix"]), now - 1, "the oldest row was trimmed first")
+	assert_eq(int(rows["rows"][1]["emitted_at_unix"]), now)
