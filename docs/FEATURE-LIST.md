@@ -62,8 +62,10 @@ feature so future drift is easier to detect.
   (envelope shape, per-event `schema_version`, size cap, and mechanical
   privacy denylist), [Slice 160](slices/160-telemetry-sink-database.md)
   (dedicated `telemetry.db` sink, schema, retention, and row-ceiling
-  enforcement). Transport, connection/combat emission, and the dashboard page
-  are tracked but not yet allocated slice numbers — see
+  enforcement), [Slice 161](slices/161-telemetry-transport-contracts.md)
+  (client batching queue + server per-peer rate limiter contracts).
+  Connection/combat emission and the dashboard page are tracked but not yet
+  allocated slice numbers — see
   [issue #328](https://github.com/vnvalentin/project0/issues/328).
 - Related work: planning charted via the telemetry wayfinder map
   ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
@@ -108,6 +110,28 @@ feature so future drift is easier to detect.
     in the slice record for two test-fixture bugs (stale hardcoded
     timestamps colliding with the real-time retention sweep) found and fixed
     during validation.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 161 — `client/telemetry_batch_queue.gd`
+    (a ~250ms client-side flush cadence: accumulate, report should_flush(),
+    drain via take_batch()) and `server/telemetry_rate_limiter.gd` (a
+    per-peer token-bucket rate limiter: try_consume() admits or rejects a
+    whole batch atomically, refills over real elapsed time capped at
+    capacity, and forget_peer() resets state on disconnect). Both are pure
+    contracts with no RPC or scene-tree wiring yet, mirroring the
+    version-handshake contract-then-enforcement precedent (Slices
+    145/146), and deliberately avoid touching
+    `client/network_client.gd`/`server/server_main.gd` since those carry
+    unrelated in-progress work.
+    Why: The telemetry map (#282) decided the transport shape (#284) before
+    any live RPC wiring can exist; keeping the contract and its wiring in
+    separate slices follows this repo's established pattern and avoids a
+    shared-hot-spot-file conflict with unrelated concurrent work.
+    Validation evidence: neither new file depends on the `SQLite`
+    GDExtension, so both were fully validated on Windows (6/6 and 8/8
+    focused tests). Full suite on the Linux host: `bash
+    scripts/run_gut_validation.sh` — 110 scripts, 805/805 tests passing,
+    exit 0. `bash scripts/check_record_sync.sh` — 0 errors (6 pre-existing
+    unrelated warnings).
 
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 
