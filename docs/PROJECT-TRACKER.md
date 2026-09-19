@@ -216,7 +216,11 @@ Progress: **63%** (5 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [160 — Telemetry sink + dedicated database](slices/160-telemetry-sink-database.md) — **delivered; server/telemetry_sink.gd schema+emit+retention, 108 scripts/791/791 tests on Linux, record-sync 0 errors**
+- **Current slice:** [161 — Telemetry transport contracts](slices/161-telemetry-transport-contracts.md) — **delivered; client batch queue + server rate limiter, 14/14 focused tests on Windows, full suite 805/805 on Linux, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #334
+
+- Prior slice: [160 — Telemetry sink + dedicated database](slices/160-telemetry-sink-database.md) — **delivered; server/telemetry_sink.gd schema+emit+retention, 108 scripts/791/791 tests on Linux, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #332
 
@@ -820,6 +824,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [161 — Telemetry transport contracts](slices/161-telemetry-transport-contracts.md) — **delivered; client batch queue + server rate limiter, 14/14 focused tests on Windows, full suite 805/805 on Linux, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#284](https://github.com/vnvalentin/project0/issues/284)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; mirrors the version-handshake contract-then-enforcement precedent (Slices 145/146)
+
 - **Slice:** [160 — Telemetry sink + dedicated database](slices/160-telemetry-sink-database.md) — **delivered; server/telemetry_sink.gd schema+emit+retention, 108 scripts/791/791 tests on Linux, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -1189,11 +1199,18 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   `server/telemetry_sink.gd` provides the `telemetry.db` schema, validated
   writes, and retention/row-ceiling enforcement per decisions
   [#287](https://github.com/vnvalentin/project0/issues/287)/[#288](https://github.com/vnvalentin/project0/issues/288).
-- [ ] Queued — Telemetry transport, connection- and combat-outcome emission,
-  and the dashboard `/telemetry` page (Phase 13, F-038); design decided in
-  the telemetry map
-  ([#284](https://github.com/vnvalentin/project0/issues/284),
-  [#285](https://github.com/vnvalentin/project0/issues/285),
+- [x] Delivered — Telemetry transport contracts (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 161](slices/161-telemetry-transport-contracts.md),
+  [#334](https://github.com/vnvalentin/project0/issues/334)):
+  `client/telemetry_batch_queue.gd` + `server/telemetry_rate_limiter.gd`
+  implement the batching/rate-limiting shape decided in
+  [#284](https://github.com/vnvalentin/project0/issues/284); RPC/scene-tree
+  wiring is a follow-up slice.
+- [ ] Queued — Telemetry RPC wiring, connection- and combat-outcome
+  emission, and the dashboard `/telemetry` page (Phase 13, F-038); design
+  decided in the telemetry map
+  ([#285](https://github.com/vnvalentin/project0/issues/285),
   [#286](https://github.com/vnvalentin/project0/issues/286),
   [#290](https://github.com/vnvalentin/project0/issues/290)), slice route
   tracked in [#328](https://github.com/vnvalentin/project0/issues/328); not

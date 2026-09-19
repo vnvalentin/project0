@@ -175,6 +175,7 @@ contended range and everything after it is tracked explicitly:
 | 157 | Phase 16 F-037: visible WAN package and opt-in stable-directory updates (#100, #182, F-037) | interactive |
 | 159 | Telemetry envelope + validation (F-038, #282, #283, #329) | interactive |
 | 160 | Telemetry sink + dedicated database (F-038, #282, #287, #288, #332) | interactive |
+| 161 | Telemetry transport contracts: client batch queue + server rate limiter (F-038, #282, #284, #334) | interactive |
 
 Next free slice: **158** (verify against `docs/slices/` before reserving).
 
