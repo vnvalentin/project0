@@ -43,6 +43,7 @@ const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
 const CharacterFoundationScript: Script = preload("res://shared/character_foundation.gd")
 const EmbodimentProgressionServiceScript: Script = preload("res://server/embodiment_progression_service.gd")
 const EmbodimentTuningScript: Script = preload("res://server/embodiment_tuning.gd")
+const LocomotionContractScript: Script = preload("res://shared/locomotion_contract.gd")
 
 ## Slice 142: the stable key this Player's single durable vessel is registered
 ## under inside its own per-Player progression service instance. There is exactly
@@ -137,6 +138,13 @@ var _embodiment_tuning: Object = null
 ## slice has no independent look/aim input.
 var facing: Vector3 = Vector3(0.0, 0.0, -1.0)
 var _input_intent: Vector2 = Vector2.ZERO
+var _locomotion_mode: String = LocomotionContractScript.MODE_NONE
+var _vertical_velocity: float = 0.0
+var _dodge_ticks_remaining: int = 0
+var _dodge_direction: Vector3 = Vector3.ZERO
+var _slide_ticks_remaining: int = 0
+var _floor_height: float = 0.0
+var _posture: String = LocomotionContractScript.MODE_NONE
 var _last_processed_sequence: int = -1
 
 ## Slice 043: the selected Character this Player was instantiated as, bound on
@@ -197,6 +205,12 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	owning_peer_id = peer_id
 	position = start_position
 	_spawn_position = start_position
+	_floor_height = start_position.y
+	_vertical_velocity = 0.0
+	_dodge_ticks_remaining = 0
+	_slide_ticks_remaining = 0
+	_locomotion_mode = LocomotionContractScript.MODE_NONE
+	_posture = LocomotionContractScript.MODE_NONE
 	_health.current_health = _health.max_health
 	_input_intent = Vector2.ZERO
 	_last_processed_sequence = -1
@@ -286,6 +300,8 @@ func effective_mechanics_snapshot() -> Dictionary:
 func receive_monster_damage(amount: int, server_tick: int) -> void:
 	if owning_peer_id == -1:
 		return
+	if is_dodge_invulnerable():
+		return
 	# Preserve the retired PlayerVitals defeat semantics exactly: report defeat
 	# only on the tick a still-living Player is reduced to 0. CombatHealth floors
 	# damage at 0, so a non-positive amount is a no-op.
@@ -302,6 +318,15 @@ func receive_monster_damage(amount: int, server_tick: int) -> void:
 	health_changed.emit(owning_peer_id, current_hp(), max_hp(), server_tick)
 
 
+## Public seam: damage systems query the server-owned dodge protection window.
+func is_dodge_invulnerable() -> bool:
+	return _locomotion_mode == LocomotionContractScript.MODE_DODGE or _dodge_ticks_remaining > 0
+
+
+func posture() -> String:
+	return _posture
+
+
 ## Public seam: called (as a plain in-process call, not an RPC — this node
 ## exists only server-side, so it is never reached over the network directly;
 ## see client/network_client.gd's submit_input_intent for the RPC entry
@@ -313,16 +338,26 @@ func receive_monster_damage(amount: int, server_tick: int) -> void:
 ## sample is only applied if its sequence is not older than the last one
 ## already processed, so a late-arriving stale sample cannot overwrite a
 ## newer one.
-func apply_input_intent(sender_id: int, intent: Vector2, sequence: int) -> void:
+func apply_input_intent(sender_id: int, intent: Variant, sequence: int) -> void:
 	if sender_id != owning_peer_id:
 		return
 	if sequence <= _last_processed_sequence:
 		return
-	_input_intent = intent
+	var direction: Vector2 = intent if intent is Vector2 else intent.get("direction", Vector2.ZERO)
+	var requested_mode: String = intent.get("mode", LocomotionContractScript.MODE_NONE) if intent is Dictionary else LocomotionContractScript.MODE_NONE
+	if not LocomotionContractScript.valid_mode(requested_mode):
+		return
+	_input_intent = direction
+	_locomotion_mode = requested_mode
+	if requested_mode == LocomotionContractScript.MODE_DUCK or requested_mode == LocomotionContractScript.MODE_SLIDE:
+		_posture = requested_mode
+	elif requested_mode == LocomotionContractScript.MODE_NONE and _slide_ticks_remaining == 0:
+		if _collision_map == null or not _collision_map.has_method("can_stand_at") or _collision_map.can_stand_at(position, LocomotionContractScript.STANDING_HEIGHT):
+			_posture = LocomotionContractScript.MODE_NONE
 	_last_processed_sequence = sequence
 
-	if intent.length_squared() > 0.0:
-		facing = Vector3(intent.x, 0.0, intent.y).normalized()
+	if direction.length_squared() > 0.0:
+		facing = Vector3(direction.x, 0.0, direction.y).normalized()
 
 
 ## Public seam: called (plain in-process call, same pattern as
@@ -398,7 +433,40 @@ func _physics_process(delta: float) -> void:
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
 
-	var desired_position: Vector3 = position + direction * NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor * delta
+	if _locomotion_mode == LocomotionContractScript.MODE_JUMP and _vertical_velocity == 0.0 and is_equal_approx(position.y, _floor_height):
+		_vertical_velocity = LocomotionContractScript.JUMP_SPEED
+	if _locomotion_mode == LocomotionContractScript.MODE_DODGE and _dodge_ticks_remaining == 0 and direction.length_squared() > 0.0:
+		_dodge_ticks_remaining = LocomotionContractScript.DODGE_TICKS
+		_dodge_direction = direction.normalized()
+	if _locomotion_mode == LocomotionContractScript.MODE_SLIDE and _slide_ticks_remaining == 0 and direction.length_squared() > 0.0:
+		_slide_ticks_remaining = LocomotionContractScript.SLIDE_TICKS
+
+	var horizontal_speed: float = NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor
+	if _dodge_ticks_remaining > 0:
+		direction = _dodge_direction
+		horizontal_speed = LocomotionContractScript.DODGE_SPEED
+		_dodge_ticks_remaining -= 1
+		if _dodge_ticks_remaining == 0:
+			_locomotion_mode = LocomotionContractScript.MODE_NONE
+	if _slide_ticks_remaining > 0:
+		horizontal_speed *= 1.35
+		_slide_ticks_remaining -= 1
+		if _slide_ticks_remaining == 0:
+			_locomotion_mode = LocomotionContractScript.MODE_NONE
+			_posture = LocomotionContractScript.MODE_NONE
+	var desired_position: Vector3 = position + direction * horizontal_speed * delta
+	if _vertical_velocity != 0.0 or position.y > _floor_height:
+		_vertical_velocity += LocomotionContractScript.GRAVITY * delta
+		desired_position.y = position.y + _vertical_velocity * delta
+		var support_height: float = _floor_height
+		if _collision_map != null and _collision_map.has_method("ground_height_at"):
+			support_height = _collision_map.ground_height_at(desired_position, maxf(position.y, desired_position.y), _spawn_position.y)
+		if desired_position.y <= support_height:
+			desired_position.y = support_height
+			_floor_height = support_height
+			_vertical_velocity = 0.0
+			if _locomotion_mode == LocomotionContractScript.MODE_JUMP:
+				_locomotion_mode = LocomotionContractScript.MODE_NONE
 	position = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
 
 	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")

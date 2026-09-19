@@ -38,6 +38,7 @@ extends CharacterBody3D
 
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const LocomotionContractScript: Script = preload("res://shared/locomotion_contract.gd")
 const MeleeStrikeVisualScene: PackedScene = preload("res://client/melee_strike_visual.tscn")
 
 ## Disposable local prediction of the attack lifecycle's locomotion slowdown
@@ -55,11 +56,13 @@ var _pending_action_sequence: int = -1
 class PendingInput:
 	var sequence: int
 	var intent: Vector2
+	var mode: String
 	var delta: float
 
-	func _init(p_sequence: int, p_intent: Vector2, p_delta: float) -> void:
+	func _init(p_sequence: int, p_intent: Vector2, p_mode: String, p_delta: float) -> void:
 		sequence = p_sequence
 		intent = p_intent
+		mode = p_mode
 		delta = p_delta
 
 var _pending_inputs: Array[PendingInput] = []
@@ -67,6 +70,8 @@ var _pending_inputs: Array[PendingInput] = []
 ## Slice 013: cosmetic child node showing the strike line during the
 ## predicted ACTIVE phase. Never influences hit resolution or movement.
 var _strike_visual: Node3D = null
+var _player_shape: CapsuleShape3D
+var _player_mesh: Node3D
 
 
 func _ready() -> void:
@@ -74,6 +79,9 @@ func _ready() -> void:
 	NetworkClient.action_resolution_received.connect(_on_action_resolution_received)
 	_strike_visual = MeleeStrikeVisualScene.instantiate()
 	add_child(_strike_visual)
+	_player_shape = get_node("CollisionShape3D").shape.duplicate()
+	get_node("CollisionShape3D").shape = _player_shape
+	_player_mesh = get_node("MeshInstance3D")
 
 
 func _physics_process(delta: float) -> void:
@@ -81,14 +89,16 @@ func _physics_process(delta: float) -> void:
 		_start_predicted_attack()
 
 	var planar_input: Vector2 = get_planar_input()
+	var locomotion_mode: String = get_locomotion_mode(planar_input)
+	_apply_posture(locomotion_mode)
 	_face_movement_direction(planar_input, delta)
 	var speed_factor: float = CombatContractsScript.locomotion_speed_factor_for_phase(_predicted_phase, _predicted_archetype)
-	_apply_intent(planar_input * speed_factor, delta)
+	_apply_intent(planar_input * speed_factor, locomotion_mode, delta)
 	move_and_slide()
 	_advance_predicted_phase()
 
 	var sequence: int = NetworkClient.next_input_sequence()
-	_pending_inputs.append(PendingInput.new(sequence, planar_input, delta))
+	_pending_inputs.append(PendingInput.new(sequence, planar_input, locomotion_mode, delta))
 	NetworkClient.submit_input_intent(planar_input, sequence)
 
 
@@ -179,17 +189,52 @@ func get_planar_input() -> Vector2:
 	return input_vector
 
 
+## Public seam: maps named actions to one bounded locomotion mode. Pressed
+## actions have priority over held postures so a jump/dodge cannot be replaced
+## by duck or slide on the same tick.
+func get_locomotion_mode(planar_input: Vector2) -> String:
+	if Input.is_action_just_pressed("jump"):
+		return LocomotionContractScript.MODE_JUMP
+	if Input.is_action_just_pressed("dodge"):
+		return LocomotionContractScript.MODE_DODGE
+	if Input.is_action_pressed("slide") and planar_input.length_squared() > 0.0:
+		return LocomotionContractScript.MODE_SLIDE
+	if Input.is_action_pressed("duck"):
+		return LocomotionContractScript.MODE_DUCK
+	return LocomotionContractScript.MODE_NONE
+
+
+func _apply_posture(mode: String) -> void:
+	var height: float = LocomotionContractScript.STANDING_HEIGHT
+	if mode == LocomotionContractScript.MODE_DUCK:
+		height = LocomotionContractScript.DUCKING_HEIGHT
+	elif mode == LocomotionContractScript.MODE_SLIDE:
+		height = LocomotionContractScript.SLIDING_HEIGHT
+	_player_shape.height = height
+	_player_mesh.scale.y = height / LocomotionContractScript.STANDING_HEIGHT
+
+
 ## Moves this node the same way the server integrates ServerPlayerState, so a
 ## replayed sample reproduces the server's own math exactly (same speed,
 ## same normalization rule, same per-sample delta).
-func _apply_intent(planar_input: Vector2, delta: float) -> void:
+func _apply_intent(planar_input: Vector2, mode: String, delta: float) -> void:
 	var direction: Vector3 = Vector3(planar_input.x, 0.0, planar_input.y)
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
 
-	velocity.x = direction.x * move_speed
-	velocity.z = direction.z * move_speed
-	velocity.y = 0.0
+	var horizontal_speed: float = move_speed
+	if mode == LocomotionContractScript.MODE_DODGE:
+		horizontal_speed = LocomotionContractScript.DODGE_SPEED
+	elif mode == LocomotionContractScript.MODE_SLIDE:
+		horizontal_speed *= 1.35
+	velocity.x = direction.x * horizontal_speed
+	velocity.z = direction.z * horizontal_speed
+	if mode == LocomotionContractScript.MODE_JUMP and is_on_floor():
+		velocity.y = LocomotionContractScript.JUMP_SPEED
+	elif not is_on_floor() or velocity.y > 0.0:
+		velocity.y += LocomotionContractScript.GRAVITY * delta
+	else:
+		velocity.y = 0.0
 
 
 ## Reconciliation: called whenever the server's authoritative snapshot for
@@ -210,5 +255,5 @@ func _on_authoritative_position_received(authoritative_position: Vector3, last_p
 	velocity = Vector3.ZERO
 
 	for pending_input: PendingInput in _pending_inputs:
-		_apply_intent(pending_input.intent, pending_input.delta)
+		_apply_intent(pending_input.intent, pending_input.mode, pending_input.delta)
 		move_and_slide()

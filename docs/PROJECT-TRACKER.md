@@ -617,6 +617,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 14 — NPC generalization and shared Character
 
+- **Slice:** [158 — Player traversal locomotion baseline](slices/158-player-traversal-locomotion.md) — **delivered; jump, dodge, duck, and slide run through the ordered server-authoritative movement seam, with raised-platform landing, low-ceiling posture checks, and dodge damage protection validated on Linux.**
+  - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization)
+  - **GitHub issue:** [#229](https://github.com/vnvalentin/project0/issues/229)
+
 - **Slice:** [131 — Phase 14 integration: town NPCs live in server_main + client replication](slices/131-phase14-town-npc-live-replication.md) — **delivered; **closes the Phase 14 exit gate**. `ServerTownNpcManager` instantiated and driven in the running `server_main` (fixed in-town anchors) with town-NPC spawn/position/despawn replication mirroring the monster channel + a cosmetic `client/town_npc.gd`; town NPCs appear and walk route-consistently for connected players. Full cumulative Phase 14 tree (main + slice) 632/632 across 87/87, exit 0 on the Linux host, including the socket E2E harnesses (real `server_main` + `gameplay.tscn`); new `test_town_npc_replication` 7/7**
   - **Feature:** [F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization) (now `Implemented`)
   - **GitHub issue:** #227 (design sources #229, #232)
