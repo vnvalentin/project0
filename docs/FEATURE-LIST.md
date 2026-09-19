@@ -68,7 +68,9 @@ feature so future drift is easier to detect.
   identity-bound gameplay input/state/presence/error envelopes for a future
   Nakama socket adapter), [Slice 171]
   (slices/171-nakama-shared-world-routing.md) (default shared-world routing and
-  server-authored presence).
+  server-authored presence), [Slice 173]
+  (slices/173-nakama-session-validation.md) (server-side Nakama session
+  validation and safe CharacterService binding).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -167,6 +169,16 @@ feature so future drift is easier to detect.
     #354, #361.
     Validation evidence: static smoke/compile/fail-closed checks passed; SSH-on-
     okami full validation passed 116 scripts / 844 tests / 2633 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 173 with server-side Nakama account validation
+    over the authenticated `/v2/account` endpoint and safe CharacterService
+    binding from validator output only.
+    Why: The Nakama client flow cannot safely pass user IDs directly into
+    Character/world-entry RPCs; the server needs a real validation boundary.
+    Related work: [Slice 173](slices/173-nakama-session-validation.md), #354,
+    #381.
+    Validation evidence: local record sync passed with 0 errors; SSH-on-okami
+    full validation passed 117 scripts / 849 tests / 2645 asserts.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 

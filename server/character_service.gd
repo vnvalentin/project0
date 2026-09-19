@@ -55,6 +55,18 @@ func bind_nakama_account_session(peer_id: int, nakama_user_id: Variant, username
 	return {"outcome": OUTCOME_OK, "account_id": account.account_id, "username": session_username}
 
 
+## Public seam (Slice 173). Accepts only the bounded result returned by the
+## server-side NakamaSessionValidator; clients never supply this Dictionary.
+func bind_validated_nakama_session(peer_id: int, validated: Dictionary) -> Dictionary:
+	if validated.get("outcome", "") != OUTCOME_OK:
+		return {"outcome": String(validated.get("outcome", "validation_failed"))}
+	return bind_nakama_account_session(
+		peer_id,
+		String(validated.get("nakama_user_id", "")),
+		String(validated.get("username", ""))
+	)
+
+
 ## Public seam. Lists `peer_id`'s own session account's live Characters as
 ## CharacterRecord DTOs. Returns:
 ##   {"outcome": OUTCOME_OK, "characters": CharacterRecord[]}
