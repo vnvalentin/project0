@@ -60,7 +60,9 @@ feature so future drift is easier to detect.
   host-side secrets, backup-before-migration runbook, and static validation),
   [Slice 167](slices/167-nakama-godot-auth-session-entry.md) (Godot Nakama
   auth/session client, account-gate entry path, and in-memory Nakama identity
-  state).
+  state), [Slice 168](slices/168-nakama-character-service.md) (Project0
+  Character service Account materialization and session binding keyed by Nakama
+  user ID).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -100,6 +102,20 @@ feature so future drift is easier to detect.
     Validation evidence: SSH-on-okami validation with native addon artifacts
     overlaid passed record sync with 0 errors and full GUT with 826/826 tests
     and 2558 asserts passing.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 168 to key the Project0 Character service by
+    Nakama user ID: `AccountCharacterRepository.ensure_nakama_account()`
+    materializes an idempotent Project0 Account row with `account_id` equal to
+    the Nakama user id and non-login PBKDF sentinels, while
+    `CharacterService.bind_nakama_account_session()` binds the existing
+    session-derived Character CRUD service to that Account key.
+    Why: The next v1 milestone after Nakama login is Project0 Character CRUD
+    under Nakama Account identity, before world-entry tickets or gameplay bridge
+    work.
+    Related work: [Slice 168](slices/168-nakama-character-service.md), #354,
+    #357.
+    Validation evidence: local record sync passed with 0 errors; SSH-on-okami
+    full validation passed 831 tests / 2585 asserts.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 

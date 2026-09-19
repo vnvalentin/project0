@@ -275,3 +275,29 @@ func test_select_character_updates_last_played_at() -> void:
 	var listed: Dictionary = _repo.list_characters(account_id)
 	var listed_record: CharacterRecord = listed["characters"][0]
 	assert_eq(listed_record.last_played_at, selected_record.last_played_at, "the persisted row reflects the same last_played_at select_character returned")
+
+
+func test_ensure_nakama_account_uses_nakama_user_id_as_account_key_and_is_idempotent() -> void:
+	var first: Dictionary = _repo.ensure_nakama_account("nakama-user-1", "hero@example.test")
+	assert_eq(first["outcome"], "ok", "first materialization succeeds: %s" % first.get("detail", ""))
+	assert_eq(first["account"].account_id, "nakama-user-1")
+	assert_eq(first["account"].username, "nakama:nakama-user-1")
+
+	var second: Dictionary = _repo.ensure_nakama_account("nakama-user-1", "renamed@example.test")
+	assert_eq(second["outcome"], "ok", "second materialization is idempotent")
+	assert_eq(second["account"].account_id, "nakama-user-1")
+	assert_eq(second["account"].username, "nakama:nakama-user-1")
+
+	var lookup: Dictionary = _repo.find_account_by_username("nakama:nakama-user-1")
+	assert_eq(lookup["outcome"], "ok")
+	assert_eq(lookup["account_id"], "nakama-user-1")
+	assert_eq(lookup["pbkdf2_salt"], AccountCharacterRepositoryScript.NAKAMA_CREDENTIAL_SENTINEL_SALT)
+	assert_eq(lookup["pbkdf2_hash"], AccountCharacterRepositoryScript.NAKAMA_CREDENTIAL_SENTINEL_HASH)
+	assert_eq(lookup["pbkdf2_iterations"], AccountCharacterRepositoryScript.NAKAMA_CREDENTIAL_SENTINEL_ITERATIONS)
+
+
+func test_ensure_nakama_account_rejects_malformed_user_id_without_side_effect() -> void:
+	var result: Dictionary = _repo.ensure_nakama_account("", "hero@example.test")
+	assert_eq(result["outcome"], CharacterRecordScript.REJECT_MALFORMED)
+	var lookup: Dictionary = _repo.find_account_by_username("nakama:")
+	assert_eq(lookup["outcome"], "NO_SUCH_ACCOUNT")

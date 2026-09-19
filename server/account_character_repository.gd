@@ -26,6 +26,10 @@ const CharacterRecordScript: Script = preload("res://shared/character_record.gd"
 const AccountHandleScript: Script = preload("res://shared/account_handle.gd")
 
 const OUTCOME_OK: String = "ok"
+const NAKAMA_ACCOUNT_USERNAME_PREFIX: String = "nakama:"
+const NAKAMA_CREDENTIAL_SENTINEL_SALT: String = "00000000000000000000000000000000"
+const NAKAMA_CREDENTIAL_SENTINEL_HASH: String = "0000000000000000000000000000000000000000000000000000000000000000"
+const NAKAMA_CREDENTIAL_SENTINEL_ITERATIONS: int = 1
 
 var _store: SqliteStore = null
 var _id_sequence: int = 0
@@ -158,6 +162,41 @@ func find_account_by_username(username: Variant) -> Dictionary:
 		"pbkdf2_hash": row["pbkdf2_hash"],
 		"pbkdf2_iterations": int(row["pbkdf2_iterations"]),
 	}
+
+
+## Public seam (Slice 168). Materializes a Project0 Account row for a Nakama
+## user id without making Project0 the password authority. The account_id is the
+## Nakama user id; username is an internal deterministic storage key; PBKDF2
+## fields are sentinel values that cannot satisfy Project0 password login.
+## Idempotent: calling it repeatedly for the same Nakama user returns the same
+## AccountHandle and does not create duplicate rows.
+func ensure_nakama_account(nakama_user_id: Variant, username: Variant = "") -> Dictionary:
+	if not _store.is_open():
+		return _result(SqliteStore.OUTCOME_NOT_OPEN, "Store is not open.")
+	if not (nakama_user_id is String) or (nakama_user_id as String).strip_edges().is_empty():
+		return _result(CharacterRecordScript.REJECT_MALFORMED, "nakama_user_id must be a non-empty string.")
+	if not (username is String):
+		return _result(CharacterRecordScript.REJECT_MALFORMED, "username must be a string.")
+
+	var account_id: String = (nakama_user_id as String).strip_edges()
+	var existing: Dictionary = _find_account_by_id(account_id)
+	if existing["outcome"] == OUTCOME_OK:
+		return {"outcome": OUTCOME_OK, "account": AccountHandleScript.new(existing["account_id"], existing["username"])}
+
+	var storage_username: String = "%s%s" % [NAKAMA_ACCOUNT_USERNAME_PREFIX, account_id]
+	var created_at: int = _now()
+	var txn_result: Dictionary = _store.transaction(func() -> bool:
+		var insert: Dictionary = _store.query_with_bindings(
+			"INSERT INTO accounts (account_id, username, pbkdf2_salt, pbkdf2_hash, pbkdf2_iterations, created_at, schema_version) VALUES (?, ?, ?, ?, ?, ?, ?);",
+			[account_id, storage_username, NAKAMA_CREDENTIAL_SENTINEL_SALT, NAKAMA_CREDENTIAL_SENTINEL_HASH, NAKAMA_CREDENTIAL_SENTINEL_ITERATIONS, created_at, CharacterRecordScript.SCHEMA_VERSION]
+		)
+		return insert["outcome"] == SqliteStore.OUTCOME_OK
+	)
+
+	if txn_result["outcome"] != SqliteStore.OUTCOME_OK:
+		return _result(SqliteStore.OUTCOME_TRANSACTION_FAILED, txn_result.get("detail", "Failed to materialize Nakama account."))
+
+	return {"outcome": OUTCOME_OK, "account": AccountHandleScript.new(account_id, storage_username)}
 
 
 ## Public seam. Creates a Character under `account_id`. Validates the
@@ -303,6 +342,19 @@ func _account_exists(account_id: String) -> bool:
 		"SELECT account_id FROM accounts WHERE account_id = ?;", [account_id]
 	)
 	return result["outcome"] == SqliteStore.OUTCOME_OK and not (result["rows"] as Array).is_empty()
+
+
+func _find_account_by_id(account_id: String) -> Dictionary:
+	var result: Dictionary = _store.query_with_bindings(
+		"SELECT account_id, username FROM accounts WHERE account_id = ?;", [account_id]
+	)
+	if result["outcome"] != SqliteStore.OUTCOME_OK:
+		return _result(SqliteStore.OUTCOME_QUERY_FAILED, result["detail"])
+	var rows: Array = result["rows"]
+	if rows.is_empty():
+		return _result("NO_SUCH_ACCOUNT", "No account with account_id '%s'." % account_id)
+	var row: Dictionary = rows[0]
+	return {"outcome": OUTCOME_OK, "account_id": row["account_id"], "username": row["username"]}
 
 
 func _count_live_characters(account_id: String) -> int:
