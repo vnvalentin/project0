@@ -63,9 +63,11 @@ feature so future drift is easier to detect.
   privacy denylist), [Slice 160](slices/160-telemetry-sink-database.md)
   (dedicated `telemetry.db` sink, schema, retention, and row-ceiling
   enforcement), [Slice 161](slices/161-telemetry-transport-contracts.md)
-  (client batching queue + server per-peer rate limiter contracts).
-  Connection/combat emission and the dashboard page are tracked but not yet
-  allocated slice numbers — see
+  (client batching queue + server per-peer rate limiter contracts),
+  [Slice 162](slices/162-telemetry-rpc-wiring.md) (live RPC wiring: the send
+  path, the RPC itself, boot-wired sink/limiter, and the server-side
+  untrusted-input-safe ingest orchestration). Connection/combat emission and
+  the dashboard page are tracked but not yet allocated slice numbers — see
   [issue #328](https://github.com/vnvalentin/project0/issues/328).
 - Related work: planning charted via the telemetry wayfinder map
   ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
@@ -132,6 +134,31 @@ feature so future drift is easier to detect.
     scripts/run_gut_validation.sh` — 110 scripts, 805/805 tests passing,
     exit 0. `bash scripts/check_record_sync.sh` — 0 errors (6 pre-existing
     unrelated warnings).
+  - Date: 2026-09-19
+    What changed: Delivered Slice 162 — the live client-to-server telemetry
+    RPC. `client/network_client.gd` gains `queue_telemetry_event()`, a
+    per-frame flush loop draining `TelemetryBatchQueue`, and the
+    `receive_client_telemetry_batch_on_server` RPC (unreliable, any_peer).
+    `server/server_main.gd` boot-wires a `TelemetrySink` (best-effort,
+    non-fatal on open failure) and a `TelemetryRateLimiter`, and forwards
+    accepted batches to a new `server/telemetry_ingest_service.gd`, which
+    owns rate limiting, envelope construction, and the write. Every
+    trust-sensitive field (peer_id, character_id, emitted_at_unix,
+    server_tick) is resolved server-side; a client that stuffs those key
+    names into its raw event payload is ignored.
+    Why: The transport contracts from Slice 161 needed a live RPC to be
+    useful; keeping the orchestration in its own class (rather than inline
+    in server_main.gd) keeps the untrusted-input boundary directly testable,
+    matching server/character_service.gd's established pattern.
+    Validation evidence: depends on the `SQLite` GDExtension (via
+    TelemetrySink), so full validation ran on a fresh Linux-host clone with
+    compiled native binaries copied in: `bash scripts/run_gut_validation.sh`
+    — 111 scripts, 811/811 tests passing, exit 0 (includes the existing e2e
+    harnesses booting a real server with this slice's boot wiring live).
+    `bash scripts/check_record_sync.sh` — 0 errors (6 pre-existing unrelated
+    warnings). `client/network_client.gd` and
+    `server/telemetry_ingest_service.gd` additionally parse-checked cleanly
+    on Windows.
 
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 

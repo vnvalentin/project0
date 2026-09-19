@@ -216,7 +216,11 @@ Progress: **63%** (5 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [161 — Telemetry transport contracts](slices/161-telemetry-transport-contracts.md) — **delivered; client batch queue + server rate limiter, 14/14 focused tests on Windows, full suite 805/805 on Linux, record-sync 0 errors**
+- **Current slice:** [162 — Live telemetry RPC wiring](slices/162-telemetry-rpc-wiring.md) — **delivered; live RPC + boot-wired sink/limiter + ingest service, 111 scripts/811/811 tests on Linux, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #345
+
+- Prior slice: [161 — Telemetry transport contracts](slices/161-telemetry-transport-contracts.md) — **delivered; client batch queue + server rate limiter, 14/14 focused tests on Windows, full suite 805/805 on Linux, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #334
 
@@ -824,6 +828,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [162 — Live telemetry RPC wiring](slices/162-telemetry-rpc-wiring.md) — **delivered; live RPC + boot-wired sink/limiter + ingest service, 111 scripts/811/811 tests on Linux, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#284](https://github.com/vnvalentin/project0/issues/284)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; wires Slice 161's contracts into the live client/server RPC path
+
 - **Slice:** [161 — Telemetry transport contracts](slices/161-telemetry-transport-contracts.md) — **delivered; client batch queue + server rate limiter, 14/14 focused tests on Windows, full suite 805/805 on Linux, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -1207,9 +1217,16 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   implement the batching/rate-limiting shape decided in
   [#284](https://github.com/vnvalentin/project0/issues/284); RPC/scene-tree
   wiring is a follow-up slice.
-- [ ] Queued — Telemetry RPC wiring, connection- and combat-outcome
-  emission, and the dashboard `/telemetry` page (Phase 13, F-038); design
-  decided in the telemetry map
+- [x] Delivered — Live telemetry RPC wiring (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 162](slices/162-telemetry-rpc-wiring.md),
+  [#345](https://github.com/vnvalentin/project0/issues/345)): the live
+  `receive_client_telemetry_batch_on_server` RPC, boot-wired sink/rate
+  limiter, and `server/telemetry_ingest_service.gd`'s untrusted-input-safe
+  ingest orchestration.
+- [ ] Queued — Connection- and combat-outcome emission call sites, and the
+  dashboard `/telemetry` page (Phase 13, F-038); design decided in the
+  telemetry map
   ([#285](https://github.com/vnvalentin/project0/issues/285),
   [#286](https://github.com/vnvalentin/project0/issues/286),
   [#290](https://github.com/vnvalentin/project0/issues/290)), slice route
