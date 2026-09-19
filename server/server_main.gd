@@ -475,7 +475,7 @@ func _start_server() -> void:
 func _on_peer_connected(peer_id: int) -> void:
 	# Slice 146: connecting no longer admits. The peer gets no world, no Player,
 	# and no replication until it passes the server-owned version gate.
-	_emit_connection_telemetry("connection.peer_connected", peer_id, {})
+	_emit_server_telemetry("connection.peer_connected", peer_id, {})
 	_pending_version_gate[peer_id] = true
 
 
@@ -493,7 +493,7 @@ func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void
 	)
 	_pending_version_gate.erase(peer_id)
 	if result["outcome"] != VersionHandshakeScript.OUTCOME_ACCEPTED:
-		_emit_connection_telemetry("connection.version_gate_rejected", peer_id, {
+		_emit_server_telemetry("connection.version_gate_rejected", peer_id, {
 			"outcome": String(result["outcome"]),
 			"detail": String(result["detail"]),
 			"client_version": String(handshake.get("client_build_version", "")),
@@ -503,7 +503,7 @@ func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void
 			network_client.rpc_id(peer_id, "receive_version_handshake_rejected", result)
 		root.multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
-	_emit_connection_telemetry("connection.version_gate_passed", peer_id, {"client_version": String(handshake.get("client_build_version", ""))})
+	_emit_server_telemetry("connection.version_gate_passed", peer_id, {"client_version": String(handshake.get("client_build_version", ""))})
 	_admit_peer(peer_id)
 
 
@@ -556,9 +556,9 @@ func _admit_peer(peer_id: int) -> void:
 	var house_id: String = _house_allocator.assign(peer_id)
 	if house_id.is_empty():
 		push_error("Peer %d connected but no house slot is available (pool exhausted)." % peer_id)
-		_emit_connection_telemetry("connection.house_unavailable", peer_id, {"houses_free": _house_allocator.available_count()})
+		_emit_server_telemetry("connection.house_unavailable", peer_id, {"houses_free": _house_allocator.available_count()})
 	else:
-		_emit_connection_telemetry("connection.house_assigned", peer_id, {"house_id": house_id, "houses_free_after": _house_allocator.available_count()})
+		_emit_server_telemetry("connection.house_assigned", peer_id, {"house_id": house_id, "houses_free_after": _house_allocator.available_count()})
 		network_client.rpc_id(peer_id, "receive_assigned_house", house_id)
 
 	# Replicate existing peers to the new peer, and the new peer to existing
@@ -609,7 +609,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	if _house_allocator != null:
 		had_house = not _house_allocator.assigned_house(peer_id).is_empty()
 		_house_allocator.release(peer_id)
-	_emit_connection_telemetry("connection.peer_disconnected", peer_id, {
+	_emit_server_telemetry("connection.peer_disconnected", peer_id, {
 		"had_house": had_house,
 		"houses_free_after": _house_allocator.available_count() if _house_allocator != null else 0,
 	})
@@ -730,14 +730,14 @@ func _current_server_tick() -> int:
 	return _monster_tick
 
 
-## Slice 163 (telemetry map #282, decision #285): direct server-authored
-## emission for events the server itself observes (connection lifecycle),
-## as opposed to TelemetryIngestService's untrusted-client-batch path. No
-## rate limiting applies here — the server controls its own emission volume
-## deterministically, once per real event. A telemetry-unavailable server
-## (see boot wiring) makes this a silent no-op, never a crash or a blocked
-## game loop.
-func _emit_connection_telemetry(event_type: String, peer_id: int, payload: Dictionary) -> void:
+## Slice 163 (telemetry map #282, decisions #285/#286): direct server-
+## authored emission for events the server itself observes (connection
+## lifecycle, combat outcomes), as opposed to TelemetryIngestService's
+## untrusted-client-batch path. No rate limiting applies here — the server
+## controls its own emission volume deterministically, once per real event.
+## A telemetry-unavailable server (see boot wiring) makes this a silent
+## no-op, never a crash or a blocked game loop.
+func _emit_server_telemetry(event_type: String, peer_id: int, payload: Dictionary) -> void:
 	if _telemetry_sink == null:
 		return
 	var character_id: String = ""
@@ -942,8 +942,13 @@ func _on_town_npc_removed(npc_id: String, _anchor_id: String, _server_tick: int)
 		network_client.rpc_id(receiving_peer_id, "receive_town_npc_despawn", npc_id)
 
 
-func _on_monster_died(spawn_id: String, server_tick: int) -> void:
-	print("Monster %s defeated at tick %d." % [spawn_id, server_tick])
+func _on_monster_died(_spawn_id: String, _server_tick: int) -> void:
+	# Slice 164: no telemetry emit here — this signal is a direct consequence
+	# of _on_player_state_combat_event_emitted's own receive_player_hit()
+	# call below, which already emits combat.monster_defeated with the
+	# attacker's peer_id. Emitting here too would double-write the same
+	# death as two rows, one lacking attacker context.
+	pass
 
 
 ## Slice 094: routes a monster's landed, telegraph-fair attack (surfaced by
@@ -957,7 +962,7 @@ func _on_monster_player_hit(victim_peer_id: int, spawn_id: String, server_tick: 
 	if player_state == null:
 		return
 	player_state.receive_monster_damage(MonsterContractsScript.DAMAGE_TO_PLAYER, server_tick)
-	print("Monster %s hit peer %d for %d at tick %d." % [spawn_id, victim_peer_id, MonsterContractsScript.DAMAGE_TO_PLAYER, server_tick])
+	_emit_server_telemetry("combat.monster_hit_player", victim_peer_id, {"spawn_id": spawn_id, "damage": MonsterContractsScript.DAMAGE_TO_PLAYER})
 
 
 ## Slice 033: in addition to existing telemetry, tells every connected peer to
@@ -968,7 +973,7 @@ func _on_monster_player_hit(victim_peer_id: int, spawn_id: String, server_tick: 
 ## (_on_player_state_combat_event_emitted), which client/monster.gd reacts to
 ## directly, so no separate "monster removed" RPC is added here.
 func _on_monster_respawned(spawn_id: String, position: Vector3, server_tick: int) -> void:
-	print("Monster %s respawned at %s (tick %d)." % [spawn_id, position, server_tick])
+	_emit_server_telemetry("combat.monster_respawned", -1, {"spawn_id": spawn_id, "position_x": position.x, "position_y": position.y, "position_z": position.z})
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
@@ -1034,7 +1039,7 @@ func _on_player_state_player_defeated(peer_id: int, _server_tick: int) -> void:
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
-	print("Peer %d defeated; respawned at full HP." % peer_id)
+	_emit_server_telemetry("combat.player_defeated", peer_id, {})
 	network_client.rpc_id(peer_id, "receive_player_defeated")
 
 
@@ -1053,6 +1058,7 @@ func _on_player_state_combat_event_emitted(_peer_id: int, combat_event: Object) 
 
 	if combat_event.kind != CombatContractsScript.COMBAT_EVENT_HIT or _monster_manager == null:
 		return
+	_emit_server_telemetry("combat.hit", combat_event.attacker_peer_id, {"target_id": combat_event.target_id})
 
 	var died: bool = _monster_manager.receive_player_hit(combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick)
 	if died:
@@ -1063,7 +1069,7 @@ func _on_player_state_combat_event_emitted(_peer_id: int, combat_event: Object) 
 			combat_event.impact_position,
 			combat_event.server_tick
 		)
-		print("Monster %s defeated by peer %d at tick %d." % [combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick])
+		_emit_server_telemetry("combat.monster_defeated", combat_event.attacker_peer_id, {"target_id": combat_event.target_id})
 		_broadcast_combat_event(death_event)
 
 
@@ -1094,6 +1100,7 @@ func _broadcast_combat_event(combat_event: Object) -> void:
 ## sees, without granting any peer a trusted hit outcome — that remains
 ## exclusively _on_player_state_combat_event_emitted's job.
 func _on_player_state_melee_swing_started(peer_id: int, windup_ticks: int, active_ticks: int, facing: Vector3) -> void:
+	_emit_server_telemetry("combat.melee_swing_started", peer_id, {"windup_ticks": windup_ticks, "active_ticks": active_ticks})
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
