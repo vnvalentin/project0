@@ -22,12 +22,23 @@ var display_name: String = ""
 var account_assertion: String = ""
 var character_assertion: String = ""
 
+## Slice 167: Nakama auth/session identity for the new v1 path. The Nakama user
+## id is also copied into account_id so existing Account-term readers continue
+## to treat the authenticated account root as one opaque id. Tokens are in-memory
+## only and are never persisted by this autoload.
+var nakama_user_id: String = ""
+var nakama_auth_token: String = ""
+var nakama_refresh_token: String = ""
+
 
 func clear_session() -> void:
 	account_id = ""
 	username = ""
 	account_assertion = ""
 	character_assertion = ""
+	nakama_user_id = ""
+	nakama_auth_token = ""
+	nakama_refresh_token = ""
 	clear_selected_character()
 
 

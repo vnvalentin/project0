@@ -318,6 +318,10 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #355
 
+- **Current slice:** [167 — Nakama Godot auth and session entry](slices/167-nakama-godot-auth-session-entry.md) — **delivered; adds the feature-flagged Godot Nakama HTTP auth/session seam, account-gate login/register path, NetworkConfig endpoint/key controls, and in-memory Nakama Account identity state; Linux record-sync 0 errors and full GUT 826/826 tests passed**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** #356
+
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 - **Current tooling slice:** [110 — Ship the Linux wgnetstack GDExtension in the server image](slices/110-ship-wgnetstack-extension.md) — **delivered; a cached image stage builds the extension and copies it in before the import cache is baked. Boot-log occurrences of `GDExtension dynamic library not found` / `Error loading extension` went from four at every boot to **0**, so a real startup failure is now visible. Resolves DT-014**
@@ -952,6 +956,12 @@ the phase exit gate; it is not a count of completed slices.
   - **GitHub issue:** [#355](https://github.com/vnvalentin/project0/issues/355)
   - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
   - **Decision:** no new ADR; implements the deployment posture decided in [#343](https://github.com/vnvalentin/project0/issues/343) without changing auth, Character, gameplay, or Canon authority.
+
+- **Slice:** [167 — Nakama Godot auth and session entry](slices/167-nakama-godot-auth-session-entry.md) — **delivered; feature-flagged Godot Nakama HTTP auth/session seam, account-gate login/register path, NetworkConfig endpoint/key controls, and in-memory Nakama Account identity state; Linux record-sync 0 errors and full GUT 826/826 tests passed**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#356](https://github.com/vnvalentin/project0/issues/356)
+  - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
+  - **Decision:** no new ADR; implements the auth/session entry decided in [#340](https://github.com/vnvalentin/project0/issues/340) without moving Character, gameplay, or Canon authority.
 
 - **Slice:** [141 — Phase 12 (IP-015): second authoritative action kind — Heavy Strike](slices/141-heavy-strike-action.md) — **delivered; `shared/combat_contracts.gd` adds `ACTION_KIND_HEAVY_STRIKE` + a data-driven `HEAVY_GREATSWORD` archetype (windup 12, reach 3.0 yd, arc 120°, heavier locomotion, 3 targets) + `is_supported_action_kind`/`archetype_for_action`; `server/server_player_state.gd` accepts any supported kind and selects its archetype per swing, so the whole existing action machine + reach/arc test resolves both kinds — the server now resolves a bounded action set beyond the first melee seam. New `test_heavy_strike_action` 7/7; melee regression `test_melee_combat_contracts` 21/21 + integration `test_authoritative_melee_strike` 9/9 unchanged; full cumulative tree 712/712 across 97/97, exit 0 on the Linux host**
   - **Feature:** [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input)
