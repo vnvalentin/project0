@@ -43,7 +43,7 @@ feature so future drift is easier to detect.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Client and server subsystems emit structured, bounded, privacy-safe
   telemetry events (connection lifecycle, combat outcomes, and future
   families) into a dedicated server-owned database, queryable through a new
@@ -55,9 +55,10 @@ feature so future drift is easier to detect.
   structured data to work from.
 - Phase: 13. Delivery workflow capabilities
 - Public seam: `shared/telemetry_event.gd` (`TelemetryEvent.build`/`validate`),
-  a future `server/telemetry_sink.gd` writer over a dedicated `telemetry.db`
-  (`SqliteStore`), a client-to-server telemetry RPC, and a new `/telemetry`
-  page in `dashboard/app.py`.
+  `server/telemetry_sink.gd` + `server/telemetry_ingest_service.gd` (writer
+  over a dedicated `telemetry.db`), the `receive_client_telemetry_batch_on_server`
+  RPC, `server/telemetry_rate_limiter.gd` + `client/telemetry_batch_queue.gd`
+  (transport), and the `/telemetry` page in `dashboard/app.py`.
 - Implementation slices: [Slice 159](slices/159-telemetry-envelope-validation.md)
   (envelope shape, per-event `schema_version`, size cap, and mechanical
   privacy denylist), [Slice 160](slices/160-telemetry-sink-database.md)
@@ -69,9 +70,8 @@ feature so future drift is easier to detect.
   untrusted-input-safe ingest orchestration), [Slice 163](slices/163-connection-lifecycle-telemetry.md)
   (the 6-event connection-lifecycle family live in `server_main.gd`),
   [Slice 164](slices/164-combat-outcome-telemetry.md) (the 6-event
-  combat-outcome family live in `server_main.gd`). The dashboard page is
-  tracked but not yet allocated a slice number — see
-  [issue #328](https://github.com/vnvalentin/project0/issues/328).
+  combat-outcome family live in `server_main.gd`), [Slice 165](slices/165-dashboard-telemetry-page.md)
+  (the `/telemetry` dashboard page, closing out the original route).
 - Related work: planning charted via the telemetry wayfinder map
   ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
   [#283](https://github.com/vnvalentin/project0/issues/283)-[#290](https://github.com/vnvalentin/project0/issues/290)),
@@ -200,6 +200,26 @@ feature so future drift is easier to detect.
     data. A manual dump of the suite run's own `telemetry.db` confirmed
     real `combat.melee_swing_started`/`combat.hit` rows with correct
     peer_id and payload shape.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 165 — the dashboard `/telemetry` page,
+    closing out the telemetry pipeline's original route. `dashboard/app.py`
+    gains `telemetry_model()` (read-only query layer: total/per-type counts,
+    row-ceiling percentage, a filterable raw-event page) and
+    `render_telemetry()`, wired to a new `GET /telemetry` route with
+    `event_type`/`account_id`/`peer_id` filters. `event_type` options are
+    discovered via `SELECT DISTINCT`, never hardcoded. `deploy/compose.yml`'s
+    dashboard service gains a new read-only mount of the game server's data
+    directory so the container can reach `telemetry.db`.
+    Why: The taxonomy, sink, and emission slices (159-164) needed a
+    consumption surface to be useful for either engineering diagnosis or
+    player-behavior understanding.
+    Validation evidence: `python -m py_compile dashboard/app.py` — no syntax
+    errors. Manual end-to-end check: ran the dashboard locally against a real
+    sample `telemetry.db` (same schema as `server/telemetry_sink.gd`) and
+    fetched both the unfiltered and `event_type`-filtered page over real
+    HTTP — correct counters, per-type pills, and exact single-row filter
+    result. `bash scripts/check_record_sync.sh` — 0 errors (6 pre-existing
+    unrelated warnings).
 
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 

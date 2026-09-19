@@ -179,6 +179,7 @@ contended range and everything after it is tracked explicitly:
 | 162 | Live telemetry RPC wiring (F-038, #282, #284, #345) | interactive |
 | 163 | Connection-lifecycle telemetry emission (F-038, #282, #285, #347) | interactive |
 | 164 | Combat-outcome telemetry emission (F-038, #282, #286, #351) | interactive |
+| 165 | Dashboard telemetry page (F-038, #282, #290, #353) | interactive |
 
 Next free slice: **158** (verify against `docs/slices/` before reserving).
 
