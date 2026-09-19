@@ -62,7 +62,8 @@ feature so future drift is easier to detect.
   auth/session client, account-gate entry path, and in-memory Nakama identity
   state), [Slice 168](slices/168-nakama-character-service.md) (Project0
   Character service Account materialization and session binding keyed by Nakama
-  user ID).
+  user ID), [Slice 169](slices/169-nakama-world-entry-ticket.md) (server-only
+  world-entry ticket issue/consume contract for Nakama sessions).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -116,6 +117,20 @@ feature so future drift is easier to detect.
     #357.
     Validation evidence: local record sync passed with 0 errors; SSH-on-okami
     full validation passed 831 tests / 2585 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 169 for the Project0 world-entry ticket
+    contract on top of Nakama-bound Account/Character sessions: a server-only
+    `WorldEntryTicketService` issues selected-Character tickets using the
+    existing signed assertion contract, consumes them once into game-server
+    session state, rejects replay/expiry/wrong-audience failures, and supports
+    explicit invalidation.
+    Why: The v1 path needs a short-lived, server-validated handoff from Nakama
+    identity + selected Character into the authoritative game-server world-entry
+    session before socket gameplay routing can be built.
+    Related work: [Slice 169](slices/169-nakama-world-entry-ticket.md), #354,
+    #358.
+    Validation evidence: local record sync passed with 0 errors; SSH-on-okami
+    full validation passed 114 scripts / 836 tests / 2617 asserts.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 

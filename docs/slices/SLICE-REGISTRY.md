@@ -184,8 +184,9 @@ contended range and everything after it is tracked explicitly:
 | 166 | Nakama v1 deployment foundation (F-039, #354, #355) | interactive |
 | 167 | Nakama Godot auth and session entry (F-039, #354, #356) | interactive |
 | 168 | Project0 Character service keyed by Nakama user ID (F-039, #354, #357) | interactive |
+| 169 | Project0 world-entry ticket contract for Nakama sessions (F-039, #354, #358) | interactive |
 
-Next free slice: **169** (verify against `docs/slices/` before reserving).
+Next free slice: **170** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
