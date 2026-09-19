@@ -42,6 +42,10 @@ signal connection_status_changed(status: String)
 signal authoritative_position_received(position: Vector3, last_processed_sequence: int)
 signal remote_player_position_received(peer_id: int, position: Vector3)
 
+## Slice 171: server-authored population snapshot for the single shared v1
+## playtest world. The client caches and relays it; it never edits membership.
+signal presence_snapshot_received(snapshot: Dictionary)
+
 ## Slice 086: emitted on this client when the server replicates another peer's
 ## bound Character identity (display name + cosmetic) at that peer's world entry,
 ## so client/remote_player.gd can label its remote representation. Presentation
@@ -166,6 +170,7 @@ const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geom
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 const TelemetryBatchQueueScript: Script = preload("res://client/telemetry_batch_queue.gd")
+const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
 
 const UPDATE_REJECTION_PATH_ENV_VAR: String = "PROJECT0_UPDATE_REJECTION_PATH"
 const UPDATE_REQUIRED_EXIT_CODE: int = 20
@@ -246,6 +251,10 @@ var latest_effective_mechanics: Dictionary = {}
 ## Slice 146: the server's version-gate rejection, if this client was refused.
 ## Retained so UI created after the refusal still knows why.
 var latest_version_rejection: Dictionary = {}
+
+## Slice 171: latest server-authored shared-world presence, retained so UI or a
+## later Nakama socket adapter can read the current population after scene load.
+var latest_presence_snapshot: Dictionary = {}
 
 ## Slice 162: this client's outgoing telemetry batching queue and its own
 ## client-local batch sequence counter (for server-side dedup/ordering
@@ -393,6 +402,18 @@ func _on_connection_failed() -> void:
 
 func _on_server_disconnected() -> void:
 	_set_status("disconnected")
+
+
+## Slice 171: accepts only a valid server-authored snapshot. Invalid payloads
+## are ignored at the client boundary and never become cached presence state.
+@rpc("authority", "call_remote", "reliable")
+func receive_presence_snapshot(snapshot: Dictionary) -> void:
+	var validation: Dictionary = NakamaPresenceScript.validate(snapshot)
+	if validation["outcome"] != NakamaPresenceScript.OUTCOME_OK:
+		push_warning("NetworkClient: rejected presence snapshot (%s)." % validation["outcome"])
+		return
+	latest_presence_snapshot = snapshot.duplicate(true)
+	presence_snapshot_received.emit(latest_presence_snapshot)
 
 
 func _set_status(new_status: String) -> void:

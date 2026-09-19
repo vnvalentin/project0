@@ -66,7 +66,9 @@ feature so future drift is easier to detect.
   world-entry ticket issue/consume contract for Nakama sessions), [Slice 170]
   (slices/170-nakama-gameplay-bridge-protocol.md) (transport-neutral
   identity-bound gameplay input/state/presence/error envelopes for a future
-  Nakama socket adapter).
+  Nakama socket adapter), [Slice 171]
+  (slices/171-nakama-shared-world-routing.md) (default shared-world routing and
+  server-authored presence).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -144,6 +146,16 @@ feature so future drift is easier to detect.
     #354, #359.
     Validation evidence: local record sync passed with 0 errors; SSH-on-okami
     full validation passed 115 scripts / 841 tests / 2633 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 171 for default shared-world routing and
+    server-authored presence over the existing reliable RPC seam, including
+    validated snapshots, admission/disconnect broadcasts, and client caching.
+    Why: The first playtester route needs one shared world and visible connected
+    population before automatic matchmaking or richer social features.
+    Related work: [Slice 171](slices/171-nakama-shared-world-routing.md),
+    #354, #360.
+    Validation evidence: local record sync passed with 0 errors; SSH-on-okami
+    full validation passed 844 tests / 2633 asserts.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 
