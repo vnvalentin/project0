@@ -44,6 +44,22 @@ server-authoritative, generated, canon-persisted content`.
   Player, distinct from Party membership. Connection loss or movement between
   Sectors changes presence without itself expressing consent to leave.
   _Avoid_: membership status, online membership.
+- **Encounter**: A bounded, server-owned attempt to resolve a hostile or world
+  objective. It begins and ends with authoritative objective state, may involve
+  Party and non-Party Characters, and retains its own participation history
+  independently of later roster changes.
+  _Avoid_: fight (not every Encounter is combat), Party event, client session.
+- **Participation evidence**: Authoritative facts that a Character performed
+  meaningful, relevant actions during an Encounter. Party membership,
+  proximity, presence, or another Character's actions are context, never
+  participation evidence by themselves.
+  _Avoid_: contribution score (evidence is not one universal public number),
+  shared experience, attendance.
+- **Encounter credit**: The terminal, personal fact that a Character qualified
+  for successful Encounter completion. Matching quest objectives or loot
+  allocation may consume this fact, but it is not conventional experience,
+  an item, or another Character's embodied training evidence.
+  _Avoid_: shared XP, Party reward, duplicated loot.
 - **Flat plane**: The minimal placeholder ground scene used to prove movement
   without committing to any generated or hand-built map. Authoritative as the
   current slice's only world geometry.
