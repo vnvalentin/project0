@@ -38,6 +38,23 @@ func _init(repository: AccountCharacterRepository, sessions: SessionRegistry) ->
 	_sessions = sessions
 
 
+## Public seam (Slice 168). Binds a server-validated Nakama user identity into
+## the existing session-derived Character service. The Nakama user id becomes
+## the Project0 Account key; the client never supplies account_id to CRUD calls.
+func bind_nakama_account_session(peer_id: int, nakama_user_id: Variant, username: Variant) -> Dictionary:
+	if _sessions.is_authenticated(peer_id):
+		return {"outcome": CharacterRecordScript.REJECT_ALREADY_AUTHENTICATED, "detail": "Peer %d already holds a session." % peer_id}
+	var ensure: Dictionary = _repository.ensure_nakama_account(nakama_user_id, username)
+	if ensure["outcome"] != OUTCOME_OK:
+		return ensure
+	var account: AccountHandle = ensure["account"]
+	var session_username: String = String(username).strip_edges()
+	if session_username.is_empty():
+		session_username = account.username
+	_sessions.bind(peer_id, account.account_id, session_username)
+	return {"outcome": OUTCOME_OK, "account_id": account.account_id, "username": session_username}
+
+
 ## Public seam. Lists `peer_id`'s own session account's live Characters as
 ## CharacterRecord DTOs. Returns:
 ##   {"outcome": OUTCOME_OK, "characters": CharacterRecord[]}

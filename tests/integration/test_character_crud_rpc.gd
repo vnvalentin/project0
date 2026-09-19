@@ -68,6 +68,12 @@ func _bind_account(peer_id: int, username: String) -> String:
 	return account_id
 
 
+func _bind_nakama_account(peer_id: int, user_id: String, username: String) -> String:
+	var result: Dictionary = _service.bind_nakama_account_session(peer_id, user_id, username)
+	assert_eq(result["outcome"], "ok", "Nakama bind succeeds: %s" % result.get("detail", ""))
+	return result["account_id"]
+
+
 # Scenario 1: unauthenticated peer -> NOT_AUTHENTICATED on every op, no side effect.
 func test_unauthenticated_peer_is_rejected_on_every_operation_with_no_side_effect() -> void:
 	var list_result: Dictionary = _service.list_characters(1)
@@ -235,3 +241,46 @@ func test_get_selected_character_requires_auth_and_a_selection() -> void:
 	var selected: Dictionary = _service.get_selected_character(1)
 	assert_eq(selected["outcome"], "ok", "a selected Character resolves for world entry: %s" % selected.get("detail", ""))
 	assert_eq((selected["character"] as CharacterRecord).character_id, character_id)
+
+
+func test_nakama_bound_session_uses_nakama_user_id_for_character_crud() -> void:
+	var account_id: String = _bind_nakama_account(1, "nakama-user-1", "hero@example.test")
+	assert_eq(account_id, "nakama-user-1")
+
+	var create_result: Dictionary = _service.create_character(1, "NakamaHero", {"hair": "silver"})
+	assert_eq(create_result["outcome"], "ok", "create succeeds under Nakama identity: %s" % create_result.get("detail", ""))
+	var character: CharacterRecord = create_result["character"]
+	assert_eq(character.account_id, "nakama-user-1")
+
+	var list_result: Dictionary = _service.list_characters(1)
+	assert_eq(list_result["outcome"], "ok")
+	assert_eq((list_result["characters"] as Array).size(), 1)
+
+	var select_result: Dictionary = _service.select_character(1, character.character_id)
+	assert_eq(select_result["outcome"], "ok")
+	assert_eq(_sessions.get_selected_character(1), character.character_id)
+
+
+func test_nakama_bound_sessions_preserve_cross_account_isolation() -> void:
+	_bind_nakama_account(1, "nakama-user-a", "a@example.test")
+	_bind_nakama_account(2, "nakama-user-b", "b@example.test")
+	var b_create: Dictionary = _service.create_character(2, "Bryn", {})
+	var b_character_id: String = (b_create["character"] as CharacterRecord).character_id
+
+	var a_select_b: Dictionary = _service.select_character(1, b_character_id)
+	assert_true(
+		a_select_b["outcome"] == CharacterRecordScript.REJECT_NOT_OWNER or a_select_b["outcome"] == CharacterRecordScript.REJECT_NO_SUCH_CHARACTER,
+		"Nakama user A cannot select B's Character: got %s" % a_select_b["outcome"]
+	)
+
+	var a_delete_b: Dictionary = _service.delete_character(1, b_character_id)
+	assert_true(
+		a_delete_b["outcome"] == CharacterRecordScript.REJECT_NOT_OWNER or a_delete_b["outcome"] == CharacterRecordScript.REJECT_NO_SUCH_CHARACTER,
+		"Nakama user A cannot delete B's Character: got %s" % a_delete_b["outcome"]
+	)
+
+
+func test_nakama_bind_rejects_malformed_user_id_and_does_not_authenticate() -> void:
+	var result: Dictionary = _service.bind_nakama_account_session(1, "", "hero@example.test")
+	assert_eq(result["outcome"], CharacterRecordScript.REJECT_MALFORMED)
+	assert_false(_sessions.is_authenticated(1))
