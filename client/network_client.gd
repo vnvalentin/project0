@@ -98,6 +98,14 @@ signal effective_mechanics_changed(snapshot: Dictionary)
 ## intent signals here.
 signal version_handshake_received(peer_id: int, handshake: Dictionary)
 
+## Slice 162 (telemetry map #282): emitted on the SERVER when a client's
+## batched telemetry arrives, carrying the sender peer id exactly like the
+## other client→server intent signals here. `events` are UNTRUSTED
+## `{event_type, schema_version, payload}` Dictionaries — server_main.gd
+## resolves every correlation/timing field itself before anything reaches the
+## telemetry sink.
+signal client_telemetry_batch_received(sender_peer_id: int, events: Array, client_sequence: int)
+
 ## Slice 146: emitted on a CLIENT the server refused at the version gate, so the
 ## UI can tell the tester which version is required and where to get it.
 signal version_handshake_rejected(rejection: Dictionary)
@@ -157,6 +165,7 @@ const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_bluepri
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
+const TelemetryBatchQueueScript: Script = preload("res://client/telemetry_batch_queue.gd")
 
 const UPDATE_REJECTION_PATH_ENV_VAR: String = "PROJECT0_UPDATE_REJECTION_PATH"
 const UPDATE_REQUIRED_EXIT_CODE: int = 20
@@ -238,11 +247,47 @@ var latest_effective_mechanics: Dictionary = {}
 ## Retained so UI created after the refusal still knows why.
 var latest_version_rejection: Dictionary = {}
 
+## Slice 162: this client's outgoing telemetry batching queue and its own
+## client-local batch sequence counter (for server-side dedup/ordering
+## diagnostics only — never a trust boundary).
+var _telemetry_queue: TelemetryBatchQueue = null
+var _telemetry_sequence: int = 0
+
 
 func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
+	_telemetry_queue = TelemetryBatchQueueScript.new(Time.get_ticks_msec())
+
+
+## Slice 162: enqueues one telemetry event for the next periodic flush. No-op
+## before this autoload has initialized its queue (should never happen once
+## _ready() has run). Callers supply only `event_type`/`schema_version`/
+## `payload` — every trust-sensitive field (peer id, character id, timestamp)
+## is resolved server-side, never here.
+func queue_telemetry_event(event_type: String, schema_version: int, payload: Dictionary) -> void:
+	if _telemetry_queue == null:
+		return
+	_telemetry_queue.enqueue({"event_type": event_type, "schema_version": schema_version, "payload": payload})
+
+
+## Flushes the pending telemetry batch to the server once the queue's flush
+## interval has elapsed. A no-op while disconnected (nothing to send to) or
+## while nothing is pending. This autoload runs on both client and server (the
+## server's own NetworkClient node never connects, so `status` never begins
+## with "connected" there and this is always a cheap no-op on that side).
+func _process(_delta: float) -> void:
+	if _telemetry_queue == null or not status.begins_with("connected"):
+		return
+	var now_msec: int = Time.get_ticks_msec()
+	if not _telemetry_queue.should_flush(now_msec):
+		return
+	var batch: Array[Dictionary] = _telemetry_queue.take_batch(now_msec)
+	if batch.is_empty():
+		return
+	_telemetry_sequence += 1
+	rpc_id(1, "receive_client_telemetry_batch_on_server", batch, _telemetry_sequence)
 
 
 ## Slice 034: holds the in-process wgnetstack WireGuard tunnel (a WgNetstack
@@ -823,6 +868,19 @@ func submit_canon_mutation_intent(intent: Dictionary) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func receive_canon_mutation_intent_on_server(intent: Dictionary) -> void:
 	canon_mutation_intent_received.emit(multiplayer.get_remote_sender_id(), intent)
+
+
+## RPC target: runs only on the server, called by a connected client via the
+## `_process()` flush loop above (~250ms cadence). `events` are UNTRUSTED
+## `{event_type, schema_version, payload}` Dictionaries; every correlation/
+## timing field is resolved server-side (see server_main.gd's
+## client_telemetry_batch_received handler) — this autoload only relays the
+## sender peer id, exactly like the other client→server intent RPCs here.
+## Unreliable per decision #284: telemetry is diagnostic, dropped packets are
+## acceptable.
+@rpc("any_peer", "call_remote", "unreliable")
+func receive_client_telemetry_batch_on_server(events: Array, client_sequence: int) -> void:
+	client_telemetry_batch_received.emit(multiplayer.get_remote_sender_id(), events, client_sequence)
 
 
 ## RPC target: called by the server on the submitting client only, with the
