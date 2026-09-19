@@ -156,6 +156,17 @@ feature so future drift is easier to detect.
     #354, #360.
     Validation evidence: local record sync passed with 0 errors; SSH-on-okami
     full validation passed 844 tests / 2633 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 172 with a manifest-backed Nakama v1 smoke and
+    operations gate supporting safe static validation and explicit bounded live
+    health/API probing.
+    Why: The completed foundation and player-flow contracts need a repeatable
+    operator gate that distinguishes deployment readiness from future feature
+    readiness without exposing secrets or claiming unwired behavior.
+    Related work: [Slice 172](slices/172-nakama-v1-smoke-ops-gate.md),
+    #354, #361.
+    Validation evidence: static smoke/compile/fail-closed checks passed; SSH-on-
+    okami full validation passed 116 scripts / 844 tests / 2633 asserts.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 

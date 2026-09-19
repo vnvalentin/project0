@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "live_probe": {
+    "method": "GET",
+    "path": "/healthcheck",
+    "timeout_seconds": 3
+  },
+  "required_stages": [
+    "container_health",
+    "nakama_api_health",
+    "nakama_login_session",
+    "project0_character_crud",
+    "project0_world_entry_ticket",
+    "gameplay_bridge_presence",
+    "private_admin_surface",
+    "backup_before_migration"
+  ]
+}
