@@ -354,6 +354,7 @@ Progress: **100%** (3 of 3 items done)
 - Features: `done` [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard) — the tunnel, Windows package, enrollment service, HTTPS login/character flow, assertion-gated peer provisioning, client/launcher seams, and real off-LAN Windows validation are delivered.
 - Tech debt: `done` [DT-009](TECHNICAL-DEBT-TRACKER.md#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration), `done` [DT-010](TECHNICAL-DEBT-TRACKER.md#dt-010-no-public-https-account-registration-surface-for-the-wan-client).
 - **Latest delivered validation:** [054 — Secure Windows tunnel enrollment and credential storage](slices/054-secure-windows-tunnel-enrollment.md) — all six real-WAN checks user-confirmed passed on 2026-09-16.
+- **Deferred improvement:** automatic trusted device enrollment/approval may replace manual invite copying in a future F-035 follow-up; the manual single-use invite remains the secure fallback.
 - Prior slice: [091 — Auth-gated onboarding C-client-seam: Godot `EnrollmentHttpClient`](slices/091-client-https-auth-character-seam.md) — **delivered; GUT 432/432 across 63/63 scripts, exit 0**
   - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 - Prior slice: [089 — Auth-gated onboarding B: `/redeem` signed-assertion + idempotent per-account peer lifecycle](slices/089-auth-gated-onboarding-peer-provisioning.md) — **delivered; GUT 420/420, enrollment pytest 96/96 on the Linux host**
