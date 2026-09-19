@@ -53,6 +53,9 @@ const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_gen
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+const TelemetrySinkScript: Script = preload("res://server/telemetry_sink.gd")
+const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
+const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ingest_service.gd")
 
 ## Slice 067: the app schema version reported in the runtime health snapshot.
 const APP_SCHEMA_VERSION: int = 1
@@ -174,6 +177,17 @@ var _canon_store: SqliteStore = null
 var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
+
+## Slice 162 (telemetry map #282): the dedicated telemetry database and its
+## per-peer rate limiter. Best-effort, non-fatal: unlike accounts/Canon,
+## telemetry is diagnostic infrastructure and must never block the core game
+## server from booting or running. A DB-open failure logs an operator-facing
+## error and leaves `_telemetry_sink` null; every subsequent emit attempt is
+## then a silent no-op rather than a crash.
+var _telemetry_store: SqliteStore = null
+var _telemetry_sink: Object = null
+var _telemetry_rate_limiter: Object = null
+var _telemetry_ingest: Object = null
 
 ## Fixed simulation delta used to drive monster chase movement each physics
 ## frame (the SceneTree physics_frame signal carries no delta). DT-013: derived
@@ -380,6 +394,29 @@ func _start_server() -> void:
 	_login_gateway = login_services["gateway"]
 	print("Accounts database ready at user://%s (schema ensured); assertion-only game server (accounts live on the login process)." % accounts_db_path)
 
+	# Slice 162 (telemetry map #282): open the dedicated telemetry database and
+	# rate limiter. Best-effort — a failure here is operator-facing (Andon) and
+	# never refuses server start, since telemetry is diagnostic infrastructure,
+	# not durable game state.
+	_telemetry_store = SqliteStoreScript.new()
+	var telemetry_open_result: Dictionary = _telemetry_store.open(TelemetrySinkScript.resolve_db_path())
+	if telemetry_open_result["outcome"] != SqliteStoreScript.OUTCOME_OK:
+		push_error("Telemetry database failed to open (non-fatal): %s — %s" % [telemetry_open_result["outcome"], telemetry_open_result["detail"]])
+		_telemetry_store = null
+	else:
+		var telemetry_sink: Object = TelemetrySinkScript.new(_telemetry_store)
+		var telemetry_schema_result: Dictionary = telemetry_sink.ensure_schema()
+		if telemetry_schema_result["outcome"] != TelemetrySinkScript.OUTCOME_OK:
+			push_error("Telemetry schema failed to initialize (non-fatal): %s — %s" % [telemetry_schema_result["outcome"], telemetry_schema_result["detail"]])
+			_telemetry_store.close()
+			_telemetry_store = null
+		else:
+			_telemetry_sink = telemetry_sink
+			print("Telemetry database ready at user://%s." % TelemetrySinkScript.resolve_db_path())
+	_telemetry_rate_limiter = TelemetryRateLimiterScript.new()
+	if _telemetry_sink != null:
+		_telemetry_ingest = TelemetryIngestServiceScript.new(_telemetry_sink, _telemetry_rate_limiter)
+
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
 	var server_port: int = NetworkConfigScript.resolve_server_port()
 
@@ -416,6 +453,7 @@ func _start_server() -> void:
 	if mutation_network_client != null:
 		mutation_network_client.canon_mutation_intent_received.connect(_on_canon_mutation_intent)
 		mutation_network_client.version_handshake_received.connect(_on_version_handshake_received)
+		mutation_network_client.client_telemetry_batch_received.connect(_on_client_telemetry_batch_received)
 	_spawn_target_dummies()
 	print("Server listening on %s:%d" % [bind_address, server_port])
 	# Slice 067: the tick loop is up and the socket is bound — report healthy.
@@ -580,6 +618,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.queue_free()
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
+	if _telemetry_rate_limiter != null:
+		_telemetry_rate_limiter.forget_peer(peer_id)
 
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
@@ -678,6 +718,22 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
 ## Server-owned monotonic tick used as the mutation event clock (Slice 097).
 func _current_server_tick() -> int:
 	return _monster_tick
+
+
+## Slice 162 (telemetry map #282): the sole entry point for client-originated
+## telemetry. Resolves this peer's server-known `character_id` (never trusted
+## from the client) and the current wall-clock/tick, then forwards to
+## TelemetryIngestService, which owns rate limiting, envelope construction,
+## and the actual write. A telemetry-unavailable server (see boot wiring
+## above) makes this a no-op — telemetry never blocks or disconnects a peer.
+func _on_client_telemetry_batch_received(peer_id: int, events: Array, _client_sequence: int) -> void:
+	if _telemetry_ingest == null:
+		return
+	var character_id: String = ""
+	var player_state: Node = _player_states.get(peer_id)
+	if player_state != null:
+		character_id = player_state.character_id
+	_telemetry_ingest.ingest_batch(peer_id, events, character_id, int(Time.get_unix_time_from_system()), _current_server_tick())
 
 
 ## Deterministic, visibly distinct starting positions for connected peers so
