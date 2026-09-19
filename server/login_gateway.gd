@@ -92,6 +92,12 @@ func get_presence_identity(peer_id: int) -> Dictionary:
 	}
 
 
+## Public seam (Slice 175). Binds only the bounded identity result returned by
+## the server-side Nakama validator; no client identity field reaches this call.
+func bind_validated_nakama_session(peer_id: int, validated: Dictionary) -> Dictionary:
+	return _characters.bind_validated_nakama_session(peer_id, validated)
+
+
 func clear_session(peer_id: int) -> void:
 	_sessions.clear(peer_id)
 

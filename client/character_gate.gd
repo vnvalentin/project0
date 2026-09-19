@@ -24,6 +24,8 @@ var _handing_off: bool = false
 ## Slice 093: true when this session runs the HTTPS (WAN) Character flow; the
 ## enrollment client instance is created only then.
 var _https: bool = false
+var _nakama: bool = false
+var _nakama_presented: bool = false
 var _http_client: Object = null
 
 func _ready() -> void:
@@ -38,6 +40,10 @@ func _ready() -> void:
 	
 	# Immediately request character list
 	status_label.text = "Status: Loading characters..."
+	_nakama = NetworkConfigScript.client_nakama_login_enabled()
+	if _nakama:
+		await _connect_nakama_game()
+		return
 	_https = NetworkConfigScript.client_https_login_enabled()
 	if _https:
 		_http_client = EnrollmentHttpClientScript.new()
@@ -45,6 +51,20 @@ func _ready() -> void:
 		await _https_reload_characters()
 	else:
 		NetworkClient.submit_list_characters()
+
+
+func _connect_nakama_game() -> void:
+	NetworkClient.nakama_session_established_received.connect(_on_nakama_session_established, CONNECT_ONE_SHOT)
+	NetworkClient.connect_to_server(PlayerIdentity.target_host, NetworkConfigScript.resolve_server_port())
+	status_label.text = "Status: Connecting to game..."
+
+
+func _on_nakama_session_established(outcome: String) -> void:
+	if outcome != "ok":
+		status_label.text = "Status: Nakama session failed (%s)" % outcome
+		return
+	status_label.text = "Status: Loading characters..."
+	NetworkClient.submit_list_characters()
 
 ## Slice 093: (re)loads the account's Characters over HTTPS using the account
 ## assertion obtained at login. Fail-closed: a bounded failure shows a readable
@@ -94,7 +114,10 @@ func _handle_select_result(outcome: String) -> void:
 		status_label.text = "Status: Character selected! Entering world..."
 		# Now attempt to enter the world with this character
 		await get_tree().create_timer(0.3).timeout
-		if NetworkConfigScript.client_login_split_enabled():
+		if _nakama:
+			_handing_off = true
+			NetworkClient.submit_enter_world()
+		elif NetworkConfigScript.client_login_split_enabled():
 			# Hand off to the game process: request assertion, reconnect, present,
 			# enter world. Success flows through _on_world_entry_result below.
 			_handing_off = true
@@ -131,6 +154,10 @@ func _on_connection_status(status_str: String) -> void:
 	# Keep connection status visible
 	if _handing_off:
 		return
+	if _nakama and status_str.begins_with("connected") and not _nakama_presented:
+		_nakama_presented = true
+		NetworkClient.submit_nakama_session(PlayerIdentity.nakama_auth_token)
+		return
 	if not status_str.begins_with("connected"):
 		status_label.text = "Status: Connection lost (%s)" % status_str
 
@@ -157,7 +184,9 @@ func _on_select_pressed() -> void:
 	
 	select_button.disabled = true
 	status_label.text = "Status: Selecting character..."
-	if _https:
+	if _nakama:
+		NetworkClient.submit_select_character(character_id)
+	elif _https:
 		await _https_select_and_enter(character_id)
 	else:
 		NetworkClient.submit_select_character(character_id)

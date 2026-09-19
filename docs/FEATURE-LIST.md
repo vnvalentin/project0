@@ -70,7 +70,9 @@ feature so future drift is easier to detect.
   (slices/171-nakama-shared-world-routing.md) (default shared-world routing and
   server-authored presence), [Slice 173]
   (slices/173-nakama-session-validation.md) (server-side Nakama session
-  validation and safe CharacterService binding).
+  validation and safe CharacterService binding), [Slice 175]
+  (slices/175-nakama-character-world-entry.md) (Nakama-mode Character CRUD and
+  world-entry wiring through existing RPC seams).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -177,6 +179,15 @@ feature so future drift is easier to detect.
     Character/world-entry RPCs; the server needs a real validation boundary.
     Related work: [Slice 173](slices/173-nakama-session-validation.md), #354,
     #381.
+    Validation evidence: local record sync passed with 0 errors; SSH-on-okami
+    full validation passed 117 scripts / 849 tests / 2645 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 175 wiring Nakama bearer-session presentation
+    into existing Project0 Character CRUD and world-entry RPC paths.
+    Why: The client had Nakama identity but no safe bridge into Project0's
+    server-owned Character/world-entry flow.
+    Related work: [Slice 175](slices/175-nakama-character-world-entry.md),
+    #354, #371.
     Validation evidence: local record sync passed with 0 errors; SSH-on-okami
     full validation passed 117 scripts / 849 tests / 2645 asserts.
 

@@ -51,6 +51,7 @@ const ProvisionalSectorGeneratorScript: Script = preload("res://server/provision
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
+const NakamaSessionValidatorScript: Script = preload("res://server/nakama_session_validator.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
 const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
@@ -170,6 +171,7 @@ var _accounts_store: SqliteStore = null
 var _account_repository: Object = null
 var _character_service: Object = null
 var _login_gateway: Object = null
+var _nakama_session_validator: Node = null
 var _canon_repository: Object = null
 var _canon_mutation_repository: Object = null
 var _canon_mutation_service: Object = null
@@ -394,6 +396,9 @@ func _start_server() -> void:
 	var login_services: Dictionary = LoginRuntimeScript.build_assertion_only_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret(), LoginRuntimeScript.ASSERTION_ISSUER_ID, LoginRuntimeScript.ASSERTION_AUDIENCE)
 	_character_service = login_services["characters"]
 	_login_gateway = login_services["gateway"]
+	_nakama_session_validator = NakamaSessionValidatorScript.new()
+	_nakama_session_validator.name = "NakamaSessionValidator"
+	root.add_child(_nakama_session_validator)
 	print("Accounts database ready at user://%s (schema ensured); assertion-only game server (accounts live on the login process)." % accounts_db_path)
 
 	# Slice 162 (telemetry map #282): open the dedicated telemetry database and
