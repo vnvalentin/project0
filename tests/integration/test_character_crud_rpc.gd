@@ -74,6 +74,24 @@ func _bind_nakama_account(peer_id: int, user_id: String, username: String) -> St
 	return result["account_id"]
 
 
+func test_validated_nakama_session_is_the_only_identity_bind_input() -> void:
+	var validated: Dictionary = {
+		"outcome": "ok",
+		"nakama_user_id": "validated-user",
+		"username": "validated@example.test",
+	}
+	var result: Dictionary = _service.bind_validated_nakama_session(1, validated)
+	assert_eq(result["outcome"], "ok")
+	assert_eq(result["account_id"], "validated-user")
+	assert_true(_sessions.is_authenticated(1))
+
+
+func test_failed_nakama_validation_binds_no_session() -> void:
+	var result: Dictionary = _service.bind_validated_nakama_session(1, {"outcome": "expired"})
+	assert_eq(result["outcome"], "expired")
+	assert_false(_sessions.is_authenticated(1))
+
+
 # Scenario 1: unauthenticated peer -> NOT_AUTHENTICATED on every op, no side effect.
 func test_unauthenticated_peer_is_rejected_on_every_operation_with_no_side_effect() -> void:
 	var list_result: Dictionary = _service.list_characters(1)

@@ -188,8 +188,9 @@ contended range and everything after it is tracked explicitly:
 | 170 | Nakama socket gameplay bridge protocol contract (F-039, #354, #359) | interactive |
 | 171 | Default shared playtest world routing and presence (F-039, #354, #360) | interactive |
 | 172 | Nakama v1 smoke and operations gate (F-039, #354, #361) | interactive |
+| 173 | Server-side Nakama session validation seam (F-039, #354, #381) | interactive |
 
-Next free slice: **173** (verify against `docs/slices/` before reserving).
+Next free slice: **174** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
