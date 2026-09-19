@@ -55,7 +55,8 @@ func test_valid_event_is_written_and_readable() -> void:
 	assert_eq(row["event_type"], "connection.peer_connected")
 	assert_eq(int(row["peer_id"]), 7)
 	assert_eq(row["account_id"], "acct-1")
-	assert_eq(JSON.parse_string(row["payload"]), {"houses_free_after": 2}, "payload round-trips as JSON")
+	var parsed_payload: Dictionary = JSON.parse_string(row["payload"])
+	assert_eq(int(parsed_payload["houses_free_after"]), 2, "payload round-trips as JSON (JSON numbers parse as float)")
 
 
 func test_invalid_event_is_rejected_and_not_written() -> void:
