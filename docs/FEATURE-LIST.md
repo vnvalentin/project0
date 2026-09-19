@@ -2937,23 +2937,26 @@ for a developer to pick up. No implementation has started.
 ### F-025: Project flow visual-management dashboard
 
 - Status: `Implemented`
-- Feature: A read-only web dashboard renders the delivery flow live — per-goal
-  issue vetting, a Vetting → Planned → Ready → Active → Done lifecycle strip, an
-  implementation board whose feature cards are correlated to the `.scratch`
-  issues they were promoted from, Andon/stop signals, and phase status.
+- Feature: A read-only web dashboard renders delivery progress live — an
+  executive Reality view (shipped/in-progress/phase completion, GitHub Goal
+  issues), a detail view built around Phase (GitHub milestone) -> Outcome
+  (GitHub label) -> Goal/slice alignment with per-phase completion percentage,
+  an implementation board correlating features to planning issues, and
+  Andon/stop signals.
 - Problem solved: Delivery state was spread across `.scratch` maps/issues,
-  `FEATURE-LIST.md`, and `PROJECT-TRACKER.md` with no single visual read on what
-  is being vetted, what is ready, what is active, and what is done.
+  `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and GitHub milestones/labels with no
+  single visual read of phase completion, outcome coverage, or goal alignment.
 - How it solves the problem: `dashboard/app.py` (a dependency-free
-  `http.server`) parses `.scratch/<goal>/map.md` + `issues/*.md`,
-  `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and `TECHNICAL-DEBT-TRACKER.md` on
-  each request and renders the board; it runs read-only in the
-  `project0-flow-visual` container and hot-reloads on source change.
+  `http.server`) reads live GitHub Phase-milestone/Outcome-label/Goal-issue
+  data plus `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and
+  `TECHNICAL-DEBT-TRACKER.md` on each request and renders the board; it runs
+  read-only in the `project0-flow-visual` container and hot-reloads on source
+  change.
 - Phase: 13. Delivery workflow capabilities
-- Public seam: `dashboard/app.py` (`goal_maps`, `feature_cards`,
-  `feature_stage`, `phase_rows`, `debt_cards`, `render`),
+- Public seam: `dashboard/app.py` (`phase_milestones`, `outcome_completion`,
+  `goal_issue_cards`, `feature_cards`, `feature_stage`, `debt_cards`, `render`),
   `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state; [Slice 115](slices/115-goal-good-looks-like-criteria.md) makes WGL criteria the basis for Goal target coverage.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state; [Slice 115](slices/115-goal-good-looks-like-criteria.md) makes WGL criteria the basis for Goal target coverage; [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md) rebuilds `/detail` around the Phase-milestone/Outcome-label roadmap.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -3026,6 +3029,23 @@ for a developer to pick up. No implementation has started.
     Validation: `python -m py_compile dashboard/app.py`, focused Reality render
     checks, parent Goal issue mirror verification, and `scripts/check_record_sync.sh`
     passed; see [Slice 115](slices/115-goal-good-looks-like-criteria.md).
+  - Date: 2026-09-19
+    What changed: Slice 176 rebuilds `/detail` around the 2026-09-19 Phase
+    (GitHub milestone) / Outcome (GitHub label, renamed from Track A-F)
+    convention: retires `.scratch`-based goal maps, the GitHub traceability
+    summary, the old phase/slice tables, and the standalone milestone "outcome
+    tracks" section (per issues #374-#380); replaces them with one Phases ->
+    Outcomes -> Goals/slices roadmap section computing each phase's completion
+    as the fraction of its touching Outcomes that are fully closed. `/` drops
+    the now-redundant milestone section. Feature cards, Andon debt cards, and
+    action-item signals are kept as-is.
+    Why: The dashboard's goal-tracking mechanisms had drifted out of sync with
+    the live GitHub Phase-milestone/Outcome-label model adopted on issue #374;
+    the old panels either duplicated or contradicted it.
+    Validation: `python -m py_compile dashboard/app.py` (via `ast.parse`);
+    `render()`, `render_exec()`, `render_tests()`, `render_telemetry()` each
+    invoked against live repo/GitHub data with no exceptions and expected
+    Phase/Outcome/Goal content present; see [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md).
 
 ### F-022: Player house allocation
 
