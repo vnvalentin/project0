@@ -99,7 +99,7 @@ func _physics_process(delta: float) -> void:
 
 	var sequence: int = NetworkClient.next_input_sequence()
 	_pending_inputs.append(PendingInput.new(sequence, planar_input, locomotion_mode, delta))
-	NetworkClient.submit_input_intent(LocomotionContractScript.make_intent(planar_input, locomotion_mode), sequence)
+	NetworkClient.submit_input_intent(planar_input, sequence)
 
 
 ## Public seam: rotates this node so -global_transform.basis.z tracks the
