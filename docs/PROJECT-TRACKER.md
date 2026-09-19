@@ -216,7 +216,11 @@ Progress: **63%** (5 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [163 — Connection-lifecycle telemetry emission](slices/163-connection-lifecycle-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual e2e confirmed 4 rows land correctly**
+- **Current slice:** [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #351
+
+- Prior slice: [163 — Connection-lifecycle telemetry emission](slices/163-connection-lifecycle-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual e2e confirmed 4 rows land correctly**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #347
 
@@ -832,6 +836,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#286](https://github.com/vnvalentin/project0/issues/286)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; wires the combat-outcome family decided in the telemetry map into the live emission point established in Slice 163
+
 - **Slice:** [163 — Connection-lifecycle telemetry emission](slices/163-connection-lifecycle-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual e2e confirmed correct rows**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -1241,12 +1251,18 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   connection-lifecycle family from
   [#285](https://github.com/vnvalentin/project0/issues/285) is live in
   `server_main.gd`, superseding its matching `print()` sites.
-- [ ] Queued — Combat-outcome emission call sites and the dashboard
-  `/telemetry` page (Phase 13, F-038); design decided in the telemetry map
-  ([#286](https://github.com/vnvalentin/project0/issues/286),
-  [#290](https://github.com/vnvalentin/project0/issues/290)), slice route
+- [x] Delivered — Combat-outcome telemetry emission (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 164](slices/164-combat-outcome-telemetry.md),
+  [#351](https://github.com/vnvalentin/project0/issues/351)): the 6-event
+  combat-outcome family from
+  [#286](https://github.com/vnvalentin/project0/issues/286) is live in
+  `server_main.gd`, superseding its matching `print()` sites.
+- [ ] Queued — The dashboard `/telemetry` page (Phase 13, F-038); design
+  decided in the telemetry map
+  ([#290](https://github.com/vnvalentin/project0/issues/290)), slice route
   tracked in [#328](https://github.com/vnvalentin/project0/issues/328); not
-  yet allocated slice numbers.
+  yet allocated a slice number.
 
 - [x] Delivered — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
   [Slice 116](slices/116-phase14-character-foundation-handoff.md),

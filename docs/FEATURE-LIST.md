@@ -67,9 +67,10 @@ feature so future drift is easier to detect.
   [Slice 162](slices/162-telemetry-rpc-wiring.md) (live RPC wiring: the send
   path, the RPC itself, boot-wired sink/limiter, and the server-side
   untrusted-input-safe ingest orchestration), [Slice 163](slices/163-connection-lifecycle-telemetry.md)
-  (the 6-event connection-lifecycle family live in `server_main.gd`).
-  Combat-outcome emission and the dashboard page are tracked but not yet
-  allocated slice numbers — see
+  (the 6-event connection-lifecycle family live in `server_main.gd`),
+  [Slice 164](slices/164-combat-outcome-telemetry.md) (the 6-event
+  combat-outcome family live in `server_main.gd`). The dashboard page is
+  tracked but not yet allocated a slice number — see
   [issue #328](https://github.com/vnvalentin/project0/issues/328).
 - Related work: planning charted via the telemetry wayfinder map
   ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
@@ -178,6 +179,27 @@ feature so future drift is easier to detect.
     unrelated warnings). A manual end-to-end check (real server + real
     client connect/disconnect) confirmed the exact 4 expected rows and
     payload shapes land in `telemetry.db` in order.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 164 — the combat-outcome event family
+    lives. `server/server_main.gd`'s emission helper is renamed
+    `_emit_server_telemetry` (generic across families) and now emits
+    `combat.melee_swing_started`, `combat.hit`, `combat.monster_defeated`,
+    `combat.monster_hit_player`, `combat.player_defeated`, and
+    `combat.monster_respawned` at their decided points, superseding the
+    matching `print()` sites.
+    Why: Combat outcomes were the second fully-specified taxonomy family
+    (#286), needed to prove the pipeline works across more than one event
+    family.
+    Validation evidence: full suite on the Linux host — 111 scripts,
+    811/811 tests passing, exit 0; record-sync 0 errors (6 pre-existing
+    unrelated warnings). A root-cause-learning fix during implementation
+    (caught before any test run) removed a would-be duplicate
+    `combat.monster_defeated` emission from `_on_monster_died`, which is a
+    pure downstream consequence of the same event `_on_player_state_combat_
+    event_emitted` already emits from with richer (attacker-attributed)
+    data. A manual dump of the suite run's own `telemetry.db` confirmed
+    real `combat.melee_swing_started`/`combat.hit` rows with correct
+    peer_id and payload shape.
 
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 
