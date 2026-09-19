@@ -1238,16 +1238,20 @@ def render_exec(view: str = "committed") -> str:
 
 # PROTOTYPE (issue #380) -- throwaway, do not build on. Answers "what should
 # the exec/phase/slice/goal roadmap page look like" per docs/.agents/skills/prototype.
-# Three structurally different variants of ONE new page, switchable via ?variant=.
-# Best-effort phase<->goal matching (title word overlap) since slices don't carry
-# `Goal issue:` front-matter yet (that's #376's decision, not yet implemented).
-def _proto_phase_goal_matches(phase_title: str, goal_cards: list[dict]) -> list[dict]:
-    words = {w for w in re.findall(r"[a-z]+", phase_title.lower()) if len(w) > 3}
+# Iteration 2 after feedback on the first 3 variants: kept A's nesting shape,
+# folded in C's KPI strip, added real milestone nesting (not just goals) and
+# per-slice drill-down so goal/milestone alignment is visible below the phase
+# level, not just as a phase-wide chip row.
+# Best-effort phase/slice<->goal/milestone matching (title word overlap) since
+# slices don't carry `Goal issue:` front-matter yet (#376's decision, not yet
+# implemented in docs/slices/*.md).
+def _proto_word_matches(title: str, candidates: list[dict], key: str = "title") -> list[dict]:
+    words = {w for w in re.findall(r"[a-z]+", title.lower()) if len(w) > 3}
     out = []
-    for g in goal_cards:
-        gwords = set(re.findall(r"[a-z]+", g["title"].lower()))
-        if words & gwords:
-            out.append(g)
+    for c in candidates:
+        cwords = set(re.findall(r"[a-z]+", c[key].lower()))
+        if words & cwords:
+            out.append(c)
     return out
 
 
@@ -1256,115 +1260,80 @@ def render_prototype_roadmap(variant: str) -> str:
     m = executive_model(reader)
     issue_feed = github_issues()
     goal_cards = goal_issue_cards(issue_feed)
+    milestone_cards = outcome_track_cards(issue_feed)
     tracker = reader("docs/PROJECT-TRACKER.md")
     rows_by_phase: dict[int, list[dict]] = {}
     for r in slice_index_rows(tracker):
         rows_by_phase.setdefault(r["phase_num"], []).append(r)
 
-    if variant == "B":
-        title, body = "B \u00b7 Three-column board", _proto_variant_b(m, rows_by_phase, goal_cards)
-    elif variant == "C":
-        title, body = "C \u00b7 KPI + matrix", _proto_variant_c(m, rows_by_phase, goal_cards)
-    else:
-        variant, title, body = "A", "A \u00b7 Nested phase accordion", _proto_variant_a(m, rows_by_phase, goal_cards)
+    variant, title = "D", "D \u00b7 Deep nested phase (KPIs + milestones + per-slice drill-down)"
+    body = _proto_variant_d(m, rows_by_phase, goal_cards, milestone_cards)
 
-    switcher = "".join(
-        f'<a href="?variant={v}" style="padding:6px 14px;border-radius:20px;text-decoration:none;'
-        f'color:{"#08121a" if v == variant else "#e9eff6"};background:{"#5ad0e6" if v == variant else "#202b37"};'
-        f'font:12px monospace">{v}</a>'
-        for v in ("A", "B", "C")
-    )
     return f'''<!doctype html><html><head><meta charset="utf-8"><title>Prototype: {esc(title)}</title>
 <style>{EXEC_CSS}</style></head><body>
 <header><div><h1>PROTOTYPE \u2014 {esc(title)}</h1><div class="sub">issue #380 \u00b7 throwaway, not real navigation</div></div>
 <div class="nav"><a href="/">Reality</a></div></header>
 <main>{body}</main>
-<div style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#19212b;
-border:1px solid #2c3a49;border-radius:24px;padding:8px 10px;display:flex;gap:6px;box-shadow:0 4px 16px #000a">
-{switcher}</div>
-</main></body></html>'''
+</body></html>'''
 
 
-def _proto_variant_a(m: dict, rows_by_phase: dict, goal_cards: list[dict]) -> str:
+def _proto_variant_d(m: dict, rows_by_phase: dict, goal_cards: list[dict], milestone_cards: list[dict]) -> str:
+    tiles = (
+        f'<div class="tile done"><div class="num">{m["overall"]}%</div><div class="lbl">Overall</div></div>'
+        f'<div class="tile active"><div class="num">{len(m["phases"])}</div><div class="lbl">Phases</div></div>'
+        f'<div class="tile todo"><div class="num">{len(goal_cards)}</div><div class="lbl">Goals</div></div>'
+        f'<div class="tile todo"><div class="num">{len(milestone_cards)}</div><div class="lbl">Milestones</div></div>'
+    )
+
     sections = ""
     for p in m["phases"]:
         rows = rows_by_phase.get(p["num"], [])
-        slice_rows = "".join(
-            f'<div class="brow"><div class="bl"><small>#{r["num"]:03d}</small>{esc(_exec_short(r["title"]))}</div>'
-            f'<div class="bp">{"done" if r["done"] else "pending"}</div></div>'
-            for r in rows
-        ) or '<p class="empty">No slices recorded.</p>'
-        touching = _proto_phase_goal_matches(p["title"], goal_cards)
-        chips = "".join(
-            f'<a class="chip active" href="{esc(g["url"])}">#{g["number"]} {esc(_exec_short(g["title"], 30))} '
-            f'\u00b7 {g["target_percent"]}%</a>'
-            for g in touching
+        phase_goals = _proto_word_matches(p["title"], goal_cards)
+        phase_milestones = _proto_word_matches(p["title"], milestone_cards)
+
+        slice_rows = ""
+        for r in rows:
+            slice_goals = _proto_word_matches(r["title"], goal_cards) or phase_goals
+            slice_ms = _proto_word_matches(r["title"], milestone_cards) or phase_milestones
+            goal_chips = "".join(
+                f'<a class="chip active" href="{esc(g["url"])}">goal #{g["number"]} {esc(_exec_short(g["title"], 22))}</a>'
+                for g in slice_goals
+            ) or '<span class="chip todo">no matched goal</span>'
+            ms_chips = "".join(
+                f'<a class="chip decided" href="{esc(g["url"])}">ms {esc(_exec_short(g["title"], 22))}</a>'
+                for g in slice_ms
+            ) or '<span class="chip todo">no matched milestone</span>'
+            slice_rows += (
+                f'<details style="margin:4px 0 4px 14px;border-left:2px solid var(--line);padding-left:10px">'
+                f'<summary style="cursor:pointer"><small>#{r["num"]:03d}</small> {esc(_exec_short(r["title"], 60))} '
+                f'<span style="color:var(--muted)">\u00b7 {"done" if r["done"] else "pending"}</span></summary>'
+                f'<div class="chips" style="margin:6px 0">{goal_chips}{ms_chips}</div>'
+                f'</details>'
+            )
+        slice_rows = slice_rows or '<p class="empty" style="margin-left:14px">No slices recorded.</p>'
+
+        goal_chips_phase = "".join(
+            f'<a class="chip active" href="{esc(g["url"])}">#{g["number"]} {esc(_exec_short(g["title"], 26))} \u00b7 {g["target_percent"]}%</a>'
+            for g in phase_goals
         ) or '<span class="chip todo">no matched goals</span>'
+        ms_chips_phase = "".join(
+            f'<a class="chip decided" href="{esc(g["url"])}">{esc(_exec_short(g["title"], 26))} \u00b7 {g["percent"]}%</a>'
+            for g in phase_milestones
+        ) or '<span class="chip todo">no matched milestones</span>'
+
         sections += (
             f'<details {"open" if p["pct"] < 100 else ""} style="background:var(--panel);border:1px solid var(--line);'
             f'border-radius:10px;margin-bottom:10px;padding:14px 18px">'
             f'<summary style="cursor:pointer;font-weight:700">Phase {p["num"]:02d} \u00b7 {esc(p["title"])} '
             f'<span style="color:{_pcol(p["pct"])}">{p["pct"]}%</span></summary>'
-            f'<div style="margin-top:12px"><b>Slices</b>{slice_rows}</div>'
-            f'<div style="margin-top:12px"><b>Goals touched</b><div class="chips">{chips}</div></div>'
+            f'<div style="margin-top:12px"><b>Goals touched</b><div class="chips">{goal_chips_phase}</div></div>'
+            f'<div style="margin-top:10px"><b>Milestones touched</b><div class="chips">{ms_chips_phase}</div></div>'
+            f'<div style="margin-top:12px"><b>Slices (expand for its goal/milestone links)</b>{slice_rows}</div>'
             f'</details>'
-        )
-    return f'<section class="sec"><h2>Phases \u2192 slices \u2192 goals touched</h2>{sections}</section>'
-
-
-def _proto_variant_b(m: dict, rows_by_phase: dict, goal_cards: list[dict]) -> str:
-    phase_col = "".join(
-        f'<div class="brow"><div class="bl"><small>P{p["num"]:02d}</small>{esc(_exec_short(p["title"], 26))}</div>'
-        f'<div class="bp" style="color:{_pcol(p["pct"])}">{p["pct"]}%</div></div>'
-        for p in m["phases"]
-    )
-    all_rows = [r for rs in rows_by_phase.values() for r in rs]
-    slice_col = "".join(
-        f'<div class="brow"><div class="bl"><small>#{r["num"]:03d}</small>{esc(_exec_short(r["title"], 26))}</div>'
-        f'<div class="bp">{"\u2713" if r["done"] else "\u25cb"}</div></div>'
-        for r in all_rows
-    )
-    goal_col = "".join(
-        f'<div class="brow"><a class="bl" href="{esc(g["url"])}"><small>#{g["number"]}</small>{esc(_exec_short(g["title"], 26))}</a>'
-        f'<div class="bp" style="color:{_pcol(g["target_percent"])}">{g["target_percent"]}%</div></div>'
-        for g in goal_cards
-    )
-    return (
-        '<section class="sec"><h2>Phases / Slices / Goals \u2014 side by side</h2>'
-        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;align-items:start">'
-        f'<div><h3>Phases</h3><div class="bars">{phase_col}</div></div>'
-        f'<div><h3>Slices</h3><div class="bars" style="max-height:520px;overflow:auto">{slice_col}</div></div>'
-        f'<div><h3>Goals</h3><div class="bars">{goal_col}</div></div>'
-        '</div></section>'
-    )
-
-
-def _proto_variant_c(m: dict, rows_by_phase: dict, goal_cards: list[dict]) -> str:
-    tiles = (
-        f'<div class="tile done"><div class="num">{m["overall"]}%</div><div class="lbl">Overall</div></div>'
-        f'<div class="tile active"><div class="num">{len(m["phases"])}</div><div class="lbl">Phases</div></div>'
-        f'<div class="tile todo"><div class="num">{len(goal_cards)}</div><div class="lbl">Goals</div></div>'
-    )
-    body_rows = ""
-    for p in m["phases"]:
-        rows = rows_by_phase.get(p["num"], [])
-        done = sum(1 for r in rows if r["done"])
-        touching = _proto_phase_goal_matches(p["title"], goal_cards)
-        goal_pct = round(sum(g["target_percent"] for g in touching) / len(touching)) if touching else 0
-        body_rows += (
-            f'<tr><td>P{p["num"]:02d} {esc(_exec_short(p["title"], 30))}</td>'
-            f'<td style="color:{_pcol(p["pct"])}">{p["pct"]}%</td>'
-            f'<td>{done}/{len(rows)}</td>'
-            f'<td>{len(touching)} goal(s)</td>'
-            f'<td style="color:{_pcol(goal_pct)}">{goal_pct}%</td></tr>'
         )
     return (
         f'<section class="sec"><h2>KPIs</h2><div class="tiles">{tiles}</div></section>'
-        '<section class="sec"><h2>Phase \u00d7 Goal matrix</h2>'
-        '<table style="width:100%;border-collapse:collapse" cellpadding="8">'
-        '<tr style="text-align:left;color:var(--muted);font-size:12px"><th>Phase</th><th>Phase %</th>'
-        '<th>Slices done</th><th>Goals touched</th><th>Avg goal %</th></tr>'
-        f'{body_rows}</table></section>'
+        f'<section class="sec"><h2>Phases \u2192 goals + milestones touched \u2192 per-slice drill-down</h2>{sections}</section>'
     )
 
 
