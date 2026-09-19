@@ -211,12 +211,16 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 13 — Delivery workflow capabilities**
 
-Progress: **63%** (5 of 8 items done)
+Progress: **75%** (6 of 8 items done)
 
-- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
+- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
+- **Current slice:** [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #353
+
+- Prior slice: [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #351
 
@@ -301,14 +305,18 @@ Progress: **100%** (4 of 4 items done)
 
 **Phase 12 — Authoritative runtime and action input**
 
-Progress: **60%** (3 of 5 items done)
+Progress: **50%** (3 of 6 items done)
 
-- Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) — runtime foundations delivered; production-cutover evidence remains; `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input) — the server now resolves a bounded action set beyond the first melee seam (Heavy Strike, Slice 141); client input binding, damage differentiation, and PvP remain; `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), `done` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract; Implemented in Phase 15).
+- Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) — runtime foundations delivered; production-cutover evidence remains; `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input) — the server now resolves a bounded action set beyond the first melee seam (Heavy Strike, Slice 141); client input binding, damage differentiation, and PvP remain; `in-progress` [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation) — Nakama v1 entry/realtime foundation starts with the deployment foundation; `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), `done` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract; Implemented in Phase 15).
 - Tech debt: `open` [DT-012](TECHNICAL-DEBT-TRACKER.md#dt-012-login-authority-shares-the-game-servers-image-and-codebase) — login authority shares the game server's image and codebase; `done` [DT-013](TECHNICAL-DEBT-TRACKER.md#dt-013-advertised-tick_rate-does-not-match-the-actual-authoritative-tick-rate) — engine now runs at the advertised rate (Slice 107); `done` [DT-014](TECHNICAL-DEBT-TRACKER.md#dt-014-container-images-ship-without-the-wgnetstack-gdextension) — the Linux GDExtension now ships in the server image (Slice 110).
 
 - **Current slice:** [141 — Phase 12 (IP-015): second authoritative action kind — Heavy Strike](slices/141-heavy-strike-action.md) — **delivered; a second action kind (`HEAVY_STRIKE`) with its own data-driven archetype (slower/wider/longer-reach, multi-target) routed through the existing action machine + reach/arc test — the server now resolves a bounded action set beyond the first melee seam; new `test_heavy_strike_action` 7/7, melee regression `test_melee_combat_contracts` 21/21 + integration `test_authoritative_melee_strike` 9/9 unchanged; full cumulative tree 712/712 across 97/97, exit 0 on the Linux host**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
   - **Tech debt:** resolves [DT-013](TECHNICAL-DEBT-TRACKER.md#dt-013-advertised-tick_rate-does-not-match-the-actual-authoritative-tick-rate)
+
+- **Current slice:** [166 — Nakama v1 deployment foundation](slices/166-nakama-v1-deployment-foundation.md) — **delivered; adds the opt-in single-node Nakama/PostgreSQL compose profile, private Console/admin posture, host-side secrets/config runbook, backup-before-migration rule, and static validation seam; Linux validation passed record-sync 0 errors and full GUT 811/811**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** #355
 
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -840,6 +848,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#290](https://github.com/vnvalentin/project0/issues/290)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; implements the dashboard page decided in the telemetry map, closing the route
+
 - **Slice:** [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -932,6 +946,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Validation:** `python -m py_compile dashboard/app.py` exit 0; focused Reality render assertions exit 0 (`zone-sharding` 0%, `basic-monsters` 75%, `world-scale` 100%); parent Goal issue mirror updated 14 WGL maps with no failures; `scripts/check_record_sync.sh` exit 0
 
 #### Phase 12 — Authoritative runtime and action input
+
+- **Slice:** [166 — Nakama v1 deployment foundation](slices/166-nakama-v1-deployment-foundation.md) — **delivered; opt-in Nakama/PostgreSQL compose profile, private Console/admin posture, host-side secrets/config runbook, backup-before-migration rule, and static validation seam; Linux record-sync 0 errors and full GUT 811/811**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#355](https://github.com/vnvalentin/project0/issues/355)
+  - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
+  - **Decision:** no new ADR; implements the deployment posture decided in [#343](https://github.com/vnvalentin/project0/issues/343) without changing auth, Character, gameplay, or Canon authority.
 
 - **Slice:** [141 — Phase 12 (IP-015): second authoritative action kind — Heavy Strike](slices/141-heavy-strike-action.md) — **delivered; `shared/combat_contracts.gd` adds `ACTION_KIND_HEAVY_STRIKE` + a data-driven `HEAVY_GREATSWORD` archetype (windup 12, reach 3.0 yd, arc 120°, heavier locomotion, 3 targets) + `is_supported_action_kind`/`archetype_for_action`; `server/server_player_state.gd` accepts any supported kind and selects its archetype per swing, so the whole existing action machine + reach/arc test resolves both kinds — the server now resolves a bounded action set beyond the first melee seam. New `test_heavy_strike_action` 7/7; melee regression `test_melee_combat_contracts` 21/21 + integration `test_authoritative_melee_strike` 9/9 unchanged; full cumulative tree 712/712 across 97/97, exit 0 on the Linux host**
   - **Feature:** [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input)
@@ -1262,11 +1282,23 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   combat-outcome family from
   [#286](https://github.com/vnvalentin/project0/issues/286) is live in
   `server_main.gd`, superseding its matching `print()` sites.
-- [ ] Queued — The dashboard `/telemetry` page (Phase 13, F-038); design
-  decided in the telemetry map
-  ([#290](https://github.com/vnvalentin/project0/issues/290)), slice route
-  tracked in [#328](https://github.com/vnvalentin/project0/issues/328); not
-  yet allocated a slice number.
+- [x] Delivered — Dashboard telemetry page (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 165](slices/165-dashboard-telemetry-page.md),
+  [#353](https://github.com/vnvalentin/project0/issues/353)): the
+  `/telemetry` page in `dashboard/app.py`, decided in
+  [#290](https://github.com/vnvalentin/project0/issues/290), closes out the
+  telemetry pipeline's original route ([#328](https://github.com/vnvalentin/project0/issues/328)).
+  Remaining fog (client-UI taxonomy, network-quality stats, andon
+  thresholds, login/auth family, rollup) stays unticketed until the map is
+  redrawn.
+- [x] Delivered — Nakama v1 deployment foundation (Phase 12,
+  [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation),
+  [Slice 166](slices/166-nakama-v1-deployment-foundation.md),
+  [#355](https://github.com/vnvalentin/project0/issues/355)): optional
+  Nakama/PostgreSQL compose profile, private Console/admin posture,
+  host-side secrets/config runbook, backup-before-migration rule, and static
+  validation foundation.
 
 - [x] Delivered — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
   [Slice 116](slices/116-phase14-character-foundation-handoff.md),

@@ -3,6 +3,7 @@ import html
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -16,6 +17,12 @@ REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "vnvalentin/project0")
 GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "300"))
+# Slice 165 (telemetry map #282, decision #290): the game server's telemetry.db,
+# read-only. Mounted separately from /repo (see deploy/compose.yml's dashboard
+# service) since it lives in the game server's user:// data directory, not the
+# repository checkout.
+TELEMETRY_DB_PATH = os.environ.get("TELEMETRY_DB_PATH", "/gamedata/telemetry.db")
+TELEMETRY_ROW_LIMIT = 200
 SELF_PATH = Path(__file__).resolve()
 try:
     _SELF_MTIME = SELF_PATH.stat().st_mtime
@@ -1199,7 +1206,7 @@ def render_exec(view: str = "committed") -> str:
 <style>{EXEC_CSS}</style></head><body>
 <header>
     <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 {prov} \u00b7 {issue_status} \u00b7 auto-refreshes</div></div>
-  <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/{other}">{esc(other_lbl)}</a></div>
+  <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
   <section class="hero">
@@ -1379,7 +1386,152 @@ def render_tests() -> str:
 <style>{EXEC_CSS}{TESTS_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Tests</h1><div class="sub">Every automated test and its last recorded result \u00b7 build/validation/gut.xml \u00b7 auto-refreshes</div></div>
-  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a></div>
+  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a><a href="/telemetry">Telemetry</a></div>
+</header>
+<main>
+  <section class="sec">{body_html}</section>
+</main></body></html>'''
+
+
+TELEMETRY_CSS = """
+.tform{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:20px}
+.tform label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.tform input,.tform select{background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px}
+.tform button{background:var(--cyan);color:#08121a;border:none;border-radius:6px;padding:8px 16px;font-weight:700;font-size:13px;cursor:pointer}
+.ttable{width:100%;border-collapse:collapse;font-size:12px}
+.ttable th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.06em;padding:8px 10px;border-bottom:1px solid var(--line)}
+.ttable td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.ttable td.payload{font-family:monospace;font-size:11px;color:var(--muted);max-width:420px;overflow-wrap:anywhere}
+.ttable tr:hover{background:var(--card)}
+"""
+
+
+def _open_telemetry_db_readonly():
+    """Opens TELEMETRY_DB_PATH strictly read-only (mode=ro): the dashboard has
+    no write endpoint anywhere, and this page must not become the exception.
+    Returns (connection, error_detail); connection is None on any failure.
+    """
+    if not Path(TELEMETRY_DB_PATH).exists():
+        return None, f"No telemetry database found at {TELEMETRY_DB_PATH}."
+    try:
+        uri = f"file:{TELEMETRY_DB_PATH}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True)
+        conn.row_factory = sqlite3.Row
+        return conn, None
+    except sqlite3.Error as exc:
+        return None, f"Failed to open telemetry database: {exc}"
+
+
+def telemetry_model(filters: dict) -> dict:
+    """Slice 165 (telemetry map #282, decision #290): reads telemetry.db
+    read-only and returns top-line counters plus a filtered raw-event page.
+    `event_type` is discovered from the data (SELECT DISTINCT), never
+    hardcoded, so this page needs no change when a new event family is added.
+    """
+    conn, error = _open_telemetry_db_readonly()
+    if conn is None:
+        return {"available": False, "error": error}
+    try:
+        total_rows = conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()["n"]
+        event_types = [r["event_type"] for r in conn.execute("SELECT DISTINCT event_type FROM events ORDER BY event_type")]
+        counts_by_type = [
+            dict(r) for r in conn.execute(
+                "SELECT event_type, COUNT(*) AS n FROM events GROUP BY event_type ORDER BY n DESC"
+            )
+        ]
+
+        clauses = []
+        params: list = []
+        if filters.get("event_type"):
+            clauses.append("event_type = ?")
+            params.append(filters["event_type"])
+        if filters.get("account_id"):
+            clauses.append("account_id = ?")
+            params.append(filters["account_id"])
+        if filters.get("peer_id"):
+            clauses.append("peer_id = ?")
+            params.append(filters["peer_id"])
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        rows = [
+            dict(r) for r in conn.execute(
+                f"SELECT id, event_type, schema_version, emitted_at_unix, server_tick, peer_id, "
+                f"account_id, character_id, payload FROM events {where} "
+                f"ORDER BY id DESC LIMIT ?",
+                (*params, TELEMETRY_ROW_LIMIT),
+            )
+        ]
+        return {
+            "available": True,
+            "total_rows": total_rows,
+            "row_ceiling": 2000000,
+            "event_types": event_types,
+            "counts_by_type": counts_by_type,
+            "rows": rows,
+        }
+    except sqlite3.Error as exc:
+        return {"available": False, "error": f"Query failed: {exc}"}
+    finally:
+        conn.close()
+
+
+def render_telemetry(filters: dict) -> str:
+    m = telemetry_model(filters)
+
+    if not m["available"]:
+        body_html = f'<div class="sourcewarn">Telemetry unavailable: {esc(m["error"])}</div>'
+    else:
+        pct = round(m["total_rows"] / m["row_ceiling"] * 100, 2) if m["row_ceiling"] else 0
+        tiles = (
+            f'<div class="tile"><div class="num">{m["total_rows"]}</div><div class="lbl">Total events</div></div>'
+            f'<div class="tile"><div class="num">{len(m["event_types"])}</div><div class="lbl">Event types</div></div>'
+            f'<div class="tile"><div class="num">{pct}%</div><div class="lbl">Of row ceiling</div></div>'
+        )
+        counts_html = "".join(
+            f'<span class="pill">{esc(c["event_type"])}<small>{c["n"]}</small></span>' for c in m["counts_by_type"]
+        ) or '<p class="empty">No events recorded yet</p>'
+
+        type_options = "".join(
+            f'<option value="{esc(t)}"{" selected" if filters.get("event_type") == t else ""}>{esc(t)}</option>'
+            for t in m["event_types"]
+        )
+        form_html = (
+            '<form class="tform" method="get" action="/telemetry">'
+            f'<label>Event type<select name="event_type"><option value="">All</option>{type_options}</select></label>'
+            f'<label>Account ID<input name="account_id" value="{esc(filters.get("account_id", ""))}"></label>'
+            f'<label>Peer ID<input name="peer_id" value="{esc(filters.get("peer_id", ""))}"></label>'
+            '<button type="submit">Filter</button>'
+            '</form>'
+        )
+
+        rows_html = "".join(
+            '<tr>'
+            f'<td>{r["id"]}</td>'
+            f'<td>{esc(r["event_type"])}</td>'
+            f'<td>{r["emitted_at_unix"]}</td>'
+            f'<td>{r["server_tick"]}</td>'
+            f'<td>{r["peer_id"]}</td>'
+            f'<td>{esc(r["character_id"] or "")}</td>'
+            f'<td class="payload">{esc(r["payload"])}</td>'
+            '</tr>'
+            for r in m["rows"]
+        ) or '<tr><td colspan="7" class="empty">No matching events</td></tr>'
+        table_html = (
+            f'<table class="ttable"><thead><tr><th>ID</th><th>Event type</th><th>Emitted (unix)</th>'
+            f'<th>Tick</th><th>Peer</th><th>Character</th><th>Payload</th></tr></thead>'
+            f'<tbody>{rows_html}</tbody></table>'
+        )
+        body_html = (
+            f'<div class="tiles">{tiles}</div>'
+            f'<div class="pills" style="margin:16px 0">{counts_html}</div>'
+            f'{form_html}{table_html}'
+        )
+
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><title>Project0 — Telemetry</title>
+<style>{EXEC_CSS}{TELEMETRY_CSS}</style></head><body>
+<header>
+  <div><h1>Project0 — Telemetry</h1><div class="sub">Client interactions, connections, and combat outcomes · telemetry.db · query on demand</div></div>
+  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a class="on" href="/telemetry">Telemetry</a></div>
 </header>
 <main>
   <section class="sec">{body_html}</section>
@@ -1407,6 +1559,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/tests":
             body = render_tests().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/telemetry":
+            query = parse_qs(parsed.query)
+            filters = {
+                "event_type": query.get("event_type", [""])[0].strip(),
+                "account_id": query.get("account_id", [""])[0].strip(),
+                "peer_id": query.get("peer_id", [""])[0].strip(),
+            }
+            body = render_telemetry(filters).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:
