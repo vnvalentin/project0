@@ -78,6 +78,7 @@ def github_issues() -> dict:
             for item in parsed:
                 if "pull_request" in item:
                     continue
+                milestone = item.get("milestone") or {}
                 issues.append({
                     "number": int(item.get("number", 0)),
                     "title": str(item.get("title", "")),
@@ -85,6 +86,8 @@ def github_issues() -> dict:
                     "state": str(item.get("state", "open")),
                     "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
                     "body": str(item.get("body", "")),
+                    "milestone_number": milestone.get("number"),
+                    "milestone_title": str(milestone.get("title", "")),
                 })
             if len(parsed) < 100:
                 break
@@ -93,6 +96,43 @@ def github_issues() -> dict:
     except Exception as exc:
         data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
     _ISSUE_CACHE.update({"at": now, "data": data})
+    return data
+
+
+_MILESTONE_CACHE = {"at": 0.0, "data": {"available": False, "milestones": [], "error": "not loaded"}}
+
+
+def github_milestones() -> dict:
+    # Outcome tracks A-F (docs/ROADMAP-REASSESSMENT.md) live as GitHub milestones,
+    # not a hardcoded roadmap here — this mirrors that source of truth.
+    now = time.time()
+    if now - float(_MILESTONE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
+        return _MILESTONE_CACHE["data"]
+    try:
+        milestones = []
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&sort=title&direction=asc"
+        req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
+        with urlopen(req, timeout=5) as response:
+            raw = response.read().decode("utf-8")
+        for item in json.loads(raw):
+            open_n = int(item.get("open_issues", 0))
+            closed_n = int(item.get("closed_issues", 0))
+            total = open_n + closed_n
+            milestones.append({
+                "number": int(item.get("number", 0)),
+                "title": str(item.get("title", "")),
+                "description": str(item.get("description", "")),
+                "url": str(item.get("html_url", "")),
+                "state": str(item.get("state", "open")),
+                "open_issues": open_n,
+                "closed_issues": closed_n,
+                "percent": round(closed_n / total * 100) if total else 0,
+            })
+        milestones.sort(key=lambda ms: ms["title"])
+        data = {"available": True, "repo": GITHUB_REPO, "milestones": milestones, "error": ""}
+    except Exception as exc:
+        data = {"available": False, "repo": GITHUB_REPO, "milestones": [], "error": str(exc)}
+    _MILESTONE_CACHE.update({"at": now, "data": data})
     return data
 
 
@@ -515,23 +555,9 @@ def slice_index_rows(tracker: str) -> list[dict]:
     return list(rows.values())
 
 
-def _phase_wave_rank(phase_num: int, features: set) -> int:
-    pat = re.compile(rf"Phase {phase_num}\b")
-
-    def hit(blob: str) -> bool:
-        return bool(pat.search(blob)) or any(
-            re.search(rf"(?<![A-Za-z]){re.escape(fid)}\b", blob) for fid in features)
-
-    waves = DELIVERY_ROADMAP["waves"]
-    for i, w in enumerate(waves):
-        blob = w["title"] + " " + w["note"] + " " + " ".join(
-            t["name"] + " " + t["feat"] + " " + " ".join(t["steps"]) for t in w["tracks"])
-        if hit(blob):
-            return i
-    par = " ".join(p["name"] + " " + p["feat"] + " " + p["note"] for p in DELIVERY_ROADMAP["parallel"])
-    if hit(par):
-        return len(waves)
-    return 100 + phase_num
+def _phase_wave_rank(phase_num: int, progress: int | None) -> int:
+    # Completed phases sink below unfinished ones; otherwise keep phase order.
+    return 1000 + phase_num if progress == 100 else phase_num
 
 
 def next_slice_to_create(tracker: str) -> dict:
@@ -567,12 +593,9 @@ def build_slice_lane(tracker: str) -> dict:
         by_phase.setdefault(r["phase_num"], []).append(r)
     phases = []
     for pn, slices in by_phase.items():
-        feats = {s["feature"] for s in slices if s["feature"]}
         slices.sort(key=lambda s: s["num"])
         meta = prog.get(pn, {})
-        rank = _phase_wave_rank(pn, feats)
-        if rank >= 100 and meta.get("progress") == 100:
-            rank += 100  # fully-delivered phases sink below unfinished ones
+        rank = _phase_wave_rank(pn, meta.get("progress"))
         phases.append({"num": pn, "title": meta.get("title") or (slices[0]["phase_title"] if slices else ""),
                        "progress": meta.get("progress"), "slices": slices, "rank": rank})
     phases.sort(key=lambda p: (p["rank"], p["num"]))
@@ -597,23 +620,6 @@ def esc(value: str) -> str:
 
 def card(title: str, body: str, css: str = "") -> str:
     return f'<article class="card {css}"><h3>{esc(title)}</h3><p>{esc(body)}</p></article>'
-
-
-def roadmap_step_li(step: str, force_done: bool = False) -> str:
-    had_marker = re.search("\u2014 done\\.?$", step) is not None
-    label = re.sub("\\s*\u2014 done\\.?$", "", step)
-    done = force_done or had_marker
-    icon = "\u2713" if done else "\u25cb"
-    cls = "sdone" if done else ""
-    return f'<li class="{cls}"><span class="si">{icon}</span>{esc(label)}</li>'
-
-
-def track_card(track: dict, force_done: bool = False) -> str:
-    steps = "".join(roadmap_step_li(step, force_done) for step in track["steps"])
-    return (
-        f'<div class="rtrack"><div class="rtrack-h"><strong>{esc(track["name"])}</strong>'
-        f'<span class="rfeat">{esc(track["feat"])}</span></div><ul class="rsteps">{steps}</ul></div>'
-    )
 
 
 # Extra CSS for the "do this next" hero and done/next/queued roadmap states.
@@ -686,96 +692,66 @@ PRIORITY_CSS = (
 )
 
 
-# Recommended finish order. Waves run top-to-bottom (sequential); tracks inside a
-# wave with >1 entry run in parallel. Kept in the viz tool as the orchestration
-# layer's recommendation, not (yet) promoted into PROJECT-TRACKER.
-DELIVERY_ROADMAP = {
-    "waves": [
-        {
-            "n": "1", "title": "Finish the combat loop & solid village", "done": True,
-            "note": "Monster combat is GUI-confirmed (Slice 033); the monster-RPC blocker was a stale-server method-table artifact, not code (Slice 032 re-run reaches 'player spawned').",
-            "tracks": [
-                {"name": "Combat loop", "feat": "IP-023 \u00b7 IP-015", "steps": [
-                    "Server damage/death (029) + client render (033) \u2014 done",
-                    "Monster-RPC blocker resolved \u2014 stale server, not code"]},
-                {"name": "Walkable village", "feat": "F-026 \u00b7 F-027", "steps": [
-                    "Server collision (F-027) \u2014 done", "Slice 031 bigger village \u2014 done"]},
-            ],
-        },
-        {
-            "n": "2", "title": "Lock cross-cutting decisions", "done": True,
-            "note": "World-scale contract landed (F-028 / ADR 0003); player-accounts design resolved (all 6 tickets, spec.md, new Phase 14).",
-            "tracks": [
-                {"name": "World-scale", "feat": "F-028 \u00b7 ADR 0003", "steps": [
-                    "1 unit = 1 yard; Sector \u2248 \u00bc mile \u2014 done",
-                    "WorldScale contract shipped (Slice 036)"]},
-                {"name": "Accounts + persistence design", "feat": "player-accounts \u00b7 Phase 14", "steps": [
-                    "All 6 tickets resolved; CONTEXT reconciled \u2014 done",
-                    "Handoff spec + shared-SQLite decision \u2014 done"]},
-            ],
-        },
-        {
-            "n": "3", "title": "World-scale migration", "done": True,
-            "note": "Delivered as ADR 0003's two handoff slices: the versioned WorldScale seam (Slice 036) and the meters\u2192yards relabel of the existing constants (Slice 037, magnitudes unchanged). Full GUT suite green (268/268).",
-            "tracks": [
-                {"name": "Scale / tuning seam", "feat": "F-028 \u00b7 ADR 0003", "steps": [
-                    "Versioned WorldScale seam (Slice 036) \u2014 done",
-                    "Reconcile existing constants meters\u2192yards (Slice 037) \u2014 done"]},
-            ],
-        },
-        {
-            "n": "4", "title": "Shared SQLite persistence foundation", "done": True,
-            "note": "Linchpin, built once (Slice 038, F-029): one server-owned SQLite engine consumed by accounts, Canon, and progression. Engine only \u2014 no domain tables yet.",
-            "tracks": [
-                {"name": "SQLite engine", "feat": "Phase 9 core \u00b7 accounts core", "steps": [
-                    "godot-sqlite GDExtension (headless) \u2014 done",
-                    "Atomic tx + user_version fail-closed, server-owned \u2014 done"]},
-            ],
-        },
-        {
-            "n": "5", "title": "Two big consumers (parallel)", "done": True,
-            "note": "Accounts: auth/session/CRUD/world-entry and the Windows login/Character/gameplay lifecycle are implemented and validated (Linux 315/315 tests; Windows GUI acceptance confirmed). Canon/JIT: IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045-047); P-009 local-inference config/telemetry (Slice 051) and F-026 LLM-on-boot + town-derived monster exclusion (Slices 052-053) implemented \u2014 Phase 8 is 11/11. P-013 GUIDs/RPC/replay (Slices 095-098) also done \u2014 Phase 9 is 4/4.",
-            "tracks": [
-                {"name": "Player accounts & characters", "feat": "F-031 \u00b7 F-032 \u00b7 F-033 \u00b7 F-034", "steps": [
-                    "Auth/session + Character CRUD/world entry (Slices 040, 042-043) \u2014 done",
-                    "Character CRUD/select/create \u2192 world entry (Slices 042-044) \u2014 done"]},
-                {"name": "Canon persistence + JIT completion", "feat": "Phase 9 \u00b7 Phase 8", "steps": [
-                    "IP-008 JIT boundary + P-011/P-012 durable canon (Slices 045/046) \u2014 done",
-                    "P-009 inference (Slice 051) + F-026 LLM-on-boot & monster exclusion (Slices 052-053) \u2014 done; P-013 GUIDs/RPC/replay (Slices 095-098) \u2014 done"]},
-            ],
-        },
-        {
-            "n": "6", "title": "Harden the runtime",
-            "note": "Needs the persistence design; wants a feature-stable server.",
-            "tracks": [
-                {"name": "Containerized fixed-tick server", "feat": "P-014 \u00b7 Phase 10", "steps": [
-                    "Isolated Docker runtime", "20\u201330 Hz tick, health + clean shutdown"]},
-            ],
-        },
-        {
-            "n": "7", "title": "Signature progression system",
-            "note": "Last on purpose \u2014 largest & most speculative; needs combat + persistence + scale + the accounts vessel seam.",
-            "tracks": [
-                {"name": "Biological progression & kinetic", "feat": "P-016 \u00b7 Phase 12", "steps": [
-                    "Six-node vessel, friction, Meridians", "Burnout, magic equilibrium"]},
-            ],
-        },
-    ],
-    "parallel": [
-        {"name": "Public access \u2014 WireGuard", "feat": "P-024 \u00b7 Phase 13",
-         "note": "Independent files (infra/, ci/, Go GDExtension). Already advancing (Slices 028 \u2192 032)."},
-        {"name": "Workflow fillers", "feat": "P-005 \u00b7 P-006 \u00b7 DT-006 (resolved)",
-         "note": "Remote-SSH, asset quarantine \u2014 low-risk, anytime. Test migration (DT-006) done via Slice 041."},
-    ],
-    "sequence_rules": [
-        "World-scale ADR \u2192 migration \u2192 any further big generation/bounds work.",
-        "SQLite engine \u2192 accounts storage, Canon storage, progression storage.",
-        "Combat server (Slice 029) \u2192 client monster rendering.",
-        "Persistence design \u2192 containerized runtime (P-014).",
-        "Combat + persistence + scale + accounts vessel seam \u2192 biological progression (P-016).",
-        "Shared hot-spot files (server_player_state.gd, server_main.gd connect, schema/monster constants): edit one track at a time.",
-    ],
-}
+# Outcome tracks (A-F) are sourced live from GitHub milestones, not hardcoded
+# here — see docs/ROADMAP-REASSESSMENT.md for the authoritative track write-up
+# and github_milestones()/outcome_track_cards() below for how they render.
+
+
+def outcome_track_cards(issue_feed: dict) -> list[dict]:
+    milestones = github_milestones()
+    if not milestones["available"]:
+        return []
+    by_milestone: dict[int, list[dict]] = {}
+    for issue in issue_feed.get("issues", []):
+        n = issue.get("milestone_number")
+        if n:
+            by_milestone.setdefault(n, []).append(issue)
+    cards = []
+    for ms in milestones["milestones"]:
+        issues = sorted(by_milestone.get(ms["number"], []), key=lambda i: i["number"])
+        cards.append({**ms, "issues": issues})
+    return cards
+
+
+def outcome_tracks_section(issue_feed: dict) -> str:
+    cards = outcome_track_cards(issue_feed)
+    if not cards:
+        return ""
+    body = ""
+    for c in cards:
+        chips = "".join(
+            f'<a class="chip {"decided" if i["state"] == "closed" else "active"}" href="{esc(i["url"])}">'
+            f'#{i["number"]} {esc(_exec_short(i["title"], 40))}</a>'
+            for i in c["issues"]
+        ) or '<span class="chip todo">no linked issues</span>'
+        desc = c["description"].split(" See docs/")[0]
+        body += (
+            f'<section class="goal"><div class="goal-head"><h3><a href="{esc(c["url"])}">{esc(c["title"])}</a></h3>'
+            f'<span class="pct">{c["closed_issues"]}/{c["closed_issues"] + c["open_issues"]} \u00b7 {c["percent"]}%</span></div>'
+            f'<div class="bar"><div class="fill" style="width:{c["percent"]}%"></div></div>'
+            f'<p class="dest">{esc(desc)}</p><div class="chips">{chips}</div></section>'
+        )
+    return (
+        '<section class="rmwrap"><h2>Outcome tracks \u00b7 GitHub milestones '
+        '<span>docs/ROADMAP-REASSESSMENT.md</span></h2>'
+        f'<div class="roadmap">{body}</div></section>'
+    )
+
+
+def outcome_tracks_exec_html(issue_feed: dict) -> str:
+    # Same milestone data as outcome_tracks_section(), rendered with the
+    # Reality page's existing bar/pill classes instead of the /detail styles.
+    cards = outcome_track_cards(issue_feed)
+    if not cards:
+        return '<p class="empty">No outcome-track milestones found.</p>'
+    rows = "".join(
+        f'<div class="brow"><a class="bl" href="{esc(c["url"])}"><small>{esc(c["title"].split(":")[0])}</small>'
+        f'{esc(_exec_short(c["title"].split(": ", 1)[-1], 46))}</a>'
+        f'<div class="track"><i style="width:{c["percent"]}%;background:{_pcol(c["percent"])}"></i></div>'
+        f'<div class="bp" style="color:{_pcol(c["percent"])}">{c["percent"]}%</div></div>'
+        for c in cards
+    )
+    return f'<div class="bars">{rows}</div>'
 
 
 def render(view: str = "committed") -> str:
@@ -856,54 +832,7 @@ def render(view: str = "committed") -> str:
         '</div>'
         f'<div class="pills tracepills">{missing_map_html}</div></section>'
     )
-    waves = DELIVERY_ROADMAP["waves"]
-    next_wave = next((w for w in waves if not w.get("done")), None)
-    done_count = sum(1 for w in waves if w.get("done"))
-    wave_total = len(waves)
-
-    waves_html = ""
-    for w in waves:
-        tracks = w["tracks"]
-        is_done = bool(w.get("done"))
-        if is_done:
-            state, sbadge = "done", '<span class="wbadge done">\u2713 Done</span>'
-        elif w is next_wave:
-            state, sbadge = "next", '<span class="wbadge next">\u25b6 Do next</span>'
-        else:
-            state, sbadge = "queued", '<span class="wbadge queued">Queued</span>'
-        par = (f'<span class="par">{len(tracks)} parallel tracks</span>'
-               if len(tracks) > 1 else '<span class="par seq">single track</span>')
-        track_cards = "".join(track_card(t, is_done) for t in tracks)
-        waves_html += (
-            f'<div class="wave {state}"><div class="wave-h"><span class="wn">{esc(w["n"])}</span>'
-            f'{sbadge}<h3>{esc(w["title"])}</h3>{par}</div>'
-            f'<p class="wnote">{esc(w["note"])}</p>'
-            f'<div class="rtracks">{track_cards}</div></div>'
-        )
-    par_html = "".join(
-        f'<div class="pcard"><div class="rtrack-h"><strong>{esc(p["name"])}</strong>'
-        f'<span class="rfeat">{esc(p["feat"])}</span></div><p>{esc(p["note"])}</p></div>'
-        for p in DELIVERY_ROADMAP["parallel"]
-    )
-    seq_html = "".join(f'<li>{esc(r)}</li>' for r in DELIVERY_ROADMAP["sequence_rules"])
-
-    if next_wave:
-        hero_tracks = "".join(track_card(t) for t in next_wave["tracks"])
-        hero_par = " \u00b7 ".join(esc(p["name"]) for p in DELIVERY_ROADMAP["parallel"])
-        hero_html = (
-            f'<section class="hero"><span class="hero-tag">\u25b6 Do this next</span>'
-            f'<div class="hero-head"><span class="hero-wn">{esc(next_wave["n"])}</span>'
-            f'<h2>{esc(next_wave["title"])}</h2>'
-            f'<span class="hero-of">wave {esc(next_wave["n"])} of {wave_total} \u00b7 {done_count} done</span></div>'
-            f'<p class="hero-note">{esc(next_wave["note"])}</p>'
-            f'<div class="rtracks">{hero_tracks}</div>'
-            f'<p class="hero-par">Safe to run in parallel: {hero_par}</p></section>'
-        )
-    else:
-        hero_html = (
-            '<section class="hero done"><span class="hero-tag">\u2713 All waves complete</span>'
-            '<p class="hero-note">Every delivery-roadmap wave is done. Pick the next goal from the vetting roadmap below.</p></section>'
-        )
+    outcome_html = outcome_tracks_section(data["issue_feed"])
 
     calib = data["calibration"]
     if not calib["available"]:
@@ -985,6 +914,7 @@ def render(view: str = "committed") -> str:
 <main>{calib_html}{trace_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
 <section class="flow">{flow_html}</section>
 <section class="sl"><h2 class="sech">Slices \u2014 what's part of what, in priority order</h2>{slices_html}</section>
+{outcome_html}
 <section class="rmwrap"><h2>Goals \u00b7 parent issues and child planning issues <span>{decided_issues}/{total_issues} local issues decided \u00b7 {overall_pct}%</span></h2><div class="roadmap">{goal_html}</div></section>
 <h2 class="sech">Implementation pipeline \u2014 features correlated to local planning issues</h2>
 <section class="board">{column_html}</section>
@@ -1280,6 +1210,8 @@ def render_exec(view: str = "committed") -> str:
         <div class="tile todo"><div class="num">{open_goal_children if issue_feed["available"] else len(m["not_started"])}</div><div class="lbl">Open goal child issues</div></div>
     </div>
   </section>
+
+    <section class="sec"><h2>Outcome tracks \u2014 GitHub milestones</h2>{outcome_tracks_exec_html(issue_feed)}</section>
 
     <section class="sec"><h2>GitHub source of truth</h2><div class="issues">{issues_html}</div></section>
 
