@@ -41,6 +41,50 @@ feature so future drift is easier to detect.
 
 ## Planned Features
 
+### F-039: Nakama v1 entry and realtime foundation
+
+- Status: `In Progress`
+- Feature: Project0 uses Nakama as the v1 Account/session root and
+  client-facing realtime socket entry while Project0 remains authoritative for
+  Character semantics, gameplay simulation, and Canon/Sector writes.
+- Problem solved: Project0's current bespoke login/session and direct ENet/RPC
+  entry path does not provide the Nakama account/session/realtime foundation
+  needed for the next playtester-visible access path.
+- Phase: 12. Authoritative runtime and action input
+- Public seam: The Nakama deployment profile and validation command first, then
+  the future Nakama Godot auth/session entry, Project0 Character service keyed
+  by Nakama user ID, world-entry ticket contract, Nakama socket gameplay bridge,
+  and shared playtest-world routing.
+- Implementation slices: [Slice 166](slices/166-nakama-v1-deployment-foundation.md)
+  (single-node Nakama/PostgreSQL deployment foundation, private admin posture,
+  host-side secrets, backup-before-migration runbook, and static validation).
+  Remaining implementation issues are tracked by the parent Goal
+  [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
+  [#356](https://github.com/vnvalentin/project0/issues/356), Character service
+  [#357](https://github.com/vnvalentin/project0/issues/357), world-entry ticket
+  [#358](https://github.com/vnvalentin/project0/issues/358), gameplay bridge
+  [#359](https://github.com/vnvalentin/project0/issues/359), shared-world
+  routing [#360](https://github.com/vnvalentin/project0/issues/360), and smoke
+  gate [#361](https://github.com/vnvalentin/project0/issues/361).
+- Related work: [Nakama adoption map](https://github.com/vnvalentin/project0/issues/336),
+  [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354),
+  and [deployment foundation issue #355](https://github.com/vnvalentin/project0/issues/355).
+- Change history:
+  - Date: 2026-09-19
+    What changed: Delivered Slice 166 as the deployment foundation for Nakama
+    v1: an opt-in `nakama` compose profile with single-node Nakama plus
+    PostgreSQL, host-mounted config/secrets under `/etc/project0`, loopback
+    Console posture, backup-before-migration runbook, and executable static
+    validation.
+    Why: The Nakama Wayfinder map resolved the adoption boundary and v1 scope;
+    implementation must begin with a safe operational foundation before auth,
+    Character, or realtime bridge code depends on Nakama.
+    Related work: [Slice 166](slices/166-nakama-v1-deployment-foundation.md),
+    #354, #355.
+    Validation evidence: focused static check and Python compile pass locally;
+    Linux host validation passed record sync with 0 errors and full GUT with
+    811/811 tests passing.
+
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 
 - Status: `Implemented`
