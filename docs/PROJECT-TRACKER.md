@@ -358,6 +358,10 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #361
 
+- **Current slice:** [179 — Import pinned Nakama Godot SDK and prove two-client socket path](slices/179-nakama-sdk-proof.md) — **delivered; imports official Nakama Godot v3.4.0 and proves direct socket match transport without replacing Project0 ENet/RPC; live proof and full validation passed**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** #386
+
 - **Current slice:** [173 — Server-side Nakama session validation seam](slices/173-nakama-session-validation.md) — **delivered; validates Nakama sessions server-side before binding identity into Project0 Character/session authority; okami validation passed 117 scripts / 849 tests / 2645 asserts**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #381
@@ -1044,6 +1048,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
   - **Decision:** no new ADR; reuses existing server-owned auth/Character/world-entry seams without trusting client identity.
 
+- **Slice:** [179 — Import pinned Nakama Godot SDK and prove two-client socket path](slices/179-nakama-sdk-proof.md) — **in progress; imports official Nakama Godot v3.4.0 and proves direct socket match transport without replacing Project0 ENet/RPC**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#386](https://github.com/vnvalentin/project0/issues/386)
+  - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
+  - **Decision:** no new ADR; uses a pinned upstream addon and isolated proof before any gameplay transport replacement.
+
 - **Slice:** [173 — Server-side Nakama session validation seam](slices/173-nakama-session-validation.md) — **delivered; validates Nakama sessions server-side before binding identity into Project0 Character/session authority; okami validation passed 117 scripts / 849 tests / 2645 asserts**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** [#381](https://github.com/vnvalentin/project0/issues/381)
@@ -1055,6 +1065,12 @@ the phase exit gate; it is not a count of completed slices.
   - **GitHub issue:** [#361](https://github.com/vnvalentin/project0/issues/361)
   - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
   - **Decision:** no new ADR; adds an operational gate without provisioning, secret exposure, or claims about unwired player flows.
+
+- **Slice:** [179 — Import pinned Nakama Godot SDK and prove two-client socket path](slices/179-nakama-sdk-proof.md) — **delivered; pinned official Nakama Godot v3.4.0 imported and isolated two-client relayed socket proof passed; Project0 full validation passed 117 scripts / 849 tests / 2645 asserts**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#386](https://github.com/vnvalentin/project0/issues/386)
+  - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
+  - **Decision:** no new ADR; pinned upstream SDK is isolated from the Project0 global autoload until the live bridge slice consumes it.
 
 - **Slice:** [171 — Default shared playtest world routing and presence](slices/171-nakama-shared-world-routing.md) — **delivered; one shared-world route and server-authored presence snapshots over the existing reliable RPC seam; okami validation passed 844 tests / 2633 asserts**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)

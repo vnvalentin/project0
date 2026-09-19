@@ -193,8 +193,9 @@ contended range and everything after it is tracked explicitly:
 | 176 | Dashboard Phase/Outcome/Slice/Goal roadmap rebuild (#374-#380) | interactive |
 | 177 | Dashboard per-slice Goal alignment (real data, not phase-level) (#374) | interactive |
 | 178 | Reality (/) page phase bars use real Outcome-label completion (#374) | interactive |
+| 179 | Import pinned Nakama Godot SDK and prove two-client socket path (F-039, #354, #386) | interactive |
 
-Next free slice: **179** (verify against `docs/slices/` before reserving).
+Next free slice: **180** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

@@ -72,7 +72,9 @@ feature so future drift is easier to detect.
   (slices/173-nakama-session-validation.md) (server-side Nakama session
   validation and safe CharacterService binding), [Slice 175]
   (slices/175-nakama-character-world-entry.md) (Nakama-mode Character CRUD and
-  world-entry wiring through existing RPC seams).
+  world-entry wiring through existing RPC seams), [Slice 179]
+  (slices/179-nakama-sdk-proof.md) (pinned official Nakama Godot SDK import and
+  isolated two-client socket proof).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -181,6 +183,16 @@ feature so future drift is easier to detect.
     #381.
     Validation evidence: local record sync passed with 0 errors; SSH-on-okami
     full validation passed 117 scripts / 849 tests / 2645 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 179 by importing pinned Nakama Godot v3.4.0,
+    preserving attribution, and proving the direct socket API with two clients
+    before live bridge wiring.
+    Why: The live bridge must use a validated official SDK/API path rather than
+    speculative socket code.
+    Related work: [Slice 179](slices/179-nakama-sdk-proof.md), #354, #386.
+    Validation evidence: clean Godot 4.3 import/parse; live two-client relayed
+    match proof passed; Project0 full validation passed 117 scripts / 849 tests
+    / 2645 asserts with no failures.
   - Date: 2026-09-19
     What changed: Delivered Slice 175 wiring Nakama bearer-session presentation
     into existing Project0 Character CRUD and world-entry RPC paths.
