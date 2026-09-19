@@ -150,6 +150,8 @@ signal assertion_result_received(outcome: String, assertion: String)
 ## assertion to the game server (session established from the validated token, or
 ## a bounded rejection that binds nothing).
 signal session_established_received(outcome: String)
+## Slice 175: result of presenting a Nakama bearer token to the game server.
+signal nakama_session_established_received(outcome: String)
 
 ## Slice 087: emitted on the requesting client with the outcome of a resume-token
 ## request (a longer-lived account assertion the client keeps to re-establish a
@@ -1410,6 +1412,38 @@ func _reply_session_established(peer_id: int, result: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func receive_session_established_result(outcome: String) -> void:
 	session_established_received.emit(outcome)
+
+
+## Slice 175: presents the Nakama bearer token to the game server. The server
+## validates it against Nakama and binds only the returned identity.
+func submit_nakama_session(token: String) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_nakama_session_on_server", token)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func receive_nakama_session_on_server(token: String) -> void:
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var validator: Node = get_tree().root.get_node_or_null("NakamaSessionValidator")
+	var gateway: Node = get_tree().root.get_node_or_null("LoginGateway")
+	if validator == null or gateway == null:
+		_reply_nakama_session(sender_id, "unavailable")
+		return
+	var validated: Dictionary = await validator.validate(token)
+	var result: Dictionary = gateway.bind_validated_nakama_session(sender_id, validated)
+	_reply_nakama_session(sender_id, String(result.get("outcome", "validation_failed")))
+
+
+func _reply_nakama_session(peer_id: int, outcome: String) -> void:
+	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+	if network_client != null:
+		network_client.rpc_id(peer_id, "receive_nakama_session_result", outcome)
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_nakama_session_result(outcome: String) -> void:
+	nakama_session_established_received.emit(outcome)
 
 
 ## Slice 043: emitted on the requesting client with the outcome of its own

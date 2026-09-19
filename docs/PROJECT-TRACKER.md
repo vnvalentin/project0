@@ -314,6 +314,10 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
   - **Tech debt:** resolves [DT-013](TECHNICAL-DEBT-TRACKER.md#dt-013-advertised-tick_rate-does-not-match-the-actual-authoritative-tick-rate)
 
+- **Current slice:** [175 — Nakama Character and world-entry client path](slices/175-nakama-character-world-entry.md) — **delivered; presents the Nakama bearer session for server validation, then reuses existing Character CRUD and world-entry RPC seams; okami validation passed 117 scripts / 849 tests / 2645 asserts**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** #371
+
 - **Current slice:** [166 — Nakama v1 deployment foundation](slices/166-nakama-v1-deployment-foundation.md) — **delivered; adds the opt-in single-node Nakama/PostgreSQL compose profile, private Console/admin posture, host-side secrets/config runbook, backup-before-migration rule, and static validation seam; Linux validation passed record-sync 0 errors and full GUT 811/811**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #355
@@ -1005,6 +1009,12 @@ the phase exit gate; it is not a count of completed slices.
   - **GitHub issue:** [#359](https://github.com/vnvalentin/project0/issues/359)
   - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
   - **Decision:** no new ADR; defines the bridge contract without changing transport, simulation, Character, or Canon authority.
+
+- **Slice:** [175 — Nakama Character and world-entry client path](slices/175-nakama-character-world-entry.md) — **delivered; presents the Nakama bearer session for server validation, then reuses existing Character CRUD and world-entry RPC seams; okami validation passed 117 scripts / 849 tests / 2645 asserts**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#371](https://github.com/vnvalentin/project0/issues/371)
+  - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
+  - **Decision:** no new ADR; reuses existing server-owned auth/Character/world-entry seams without trusting client identity.
 
 - **Slice:** [173 — Server-side Nakama session validation seam](slices/173-nakama-session-validation.md) — **delivered; validates Nakama sessions server-side before binding identity into Project0 Character/session authority; okami validation passed 117 scripts / 849 tests / 2645 asserts**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
