@@ -1238,13 +1238,14 @@ def render_exec(view: str = "committed") -> str:
 
 # PROTOTYPE (issue #380) -- throwaway, do not build on. Answers "what should
 # the exec/phase/slice/goal roadmap page look like" per docs/.agents/skills/prototype.
-# Iteration 2 after feedback on the first 3 variants: kept A's nesting shape,
-# folded in C's KPI strip, added real milestone nesting (not just goals) and
-# per-slice drill-down so goal/milestone alignment is visible below the phase
-# level, not just as a phase-wide chip row.
-# Best-effort phase/slice<->goal/milestone matching (title word overlap) since
-# slices don't carry `Goal issue:` front-matter yet (#376's decision, not yet
-# implemented in docs/slices/*.md).
+# Iteration 3, after the Phase=milestone / Track->Outcome-label convention change
+# (docs/PROJECT-TRACKER.md phases became live GitHub milestones "Phase N: ...",
+# Track A-F became `Outcome: ...` labels). Now uses REAL milestone/label data
+# instead of the earlier title-word heuristic. Phase % = (Outcomes fully closed
+# across the whole repo) / (distinct Outcomes touching this phase's issues),
+# per the user's rule: rate phase completion on the % of outcomes complete.
+# Goal alignment (goal_issue_cards) is still title-word best-effort, since
+# slices don't carry `Goal issue:` front-matter yet (#376, not yet implemented).
 def _proto_word_matches(title: str, candidates: list[dict], key: str = "title") -> list[dict]:
     words = {w for w in re.findall(r"[a-z]+", title.lower()) if len(w) > 3}
     out = []
@@ -1255,19 +1256,64 @@ def _proto_word_matches(title: str, candidates: list[dict], key: str = "title") 
     return out
 
 
+def _proto_outcome_completion(issue_feed: dict) -> dict[str, dict]:
+    by_label: dict[str, list[dict]] = {}
+    for issue in issue_feed.get("issues", []):
+        for label in issue["labels"]:
+            if label.startswith("Outcome:"):
+                by_label.setdefault(label, []).append(issue)
+    return {
+        label: {
+            "total": len(issues),
+            "closed": sum(1 for i in issues if i["state"] == "closed"),
+            "complete": all(i["state"] == "closed" for i in issues),
+        }
+        for label, issues in by_label.items()
+    }
+
+
+def _proto_phase_milestones(issue_feed: dict) -> list[dict]:
+    ms_feed = github_milestones()
+    outcomes = _proto_outcome_completion(issue_feed)
+    by_ms: dict[int, list[dict]] = {}
+    for issue in issue_feed.get("issues", []):
+        n = issue.get("milestone_number")
+        if n:
+            by_ms.setdefault(n, []).append(issue)
+
+    phases = []
+    for ms in ms_feed.get("milestones", []):
+        m = re.match(r"^Phase (\d+):\s*(.+)$", ms["title"])
+        if not m:
+            continue
+        issues = sorted(by_ms.get(ms["number"], []), key=lambda i: i["number"])
+        touching = sorted({label for i in issues for label in i["labels"] if label.startswith("Outcome:")})
+        complete = sum(1 for label in touching if outcomes[label]["complete"])
+        phases.append({
+            "num": int(m.group(1)), "title": m.group(2), "url": ms["url"],
+            "issues": issues, "outcomes": touching,
+            "outcomes_complete": complete, "outcomes_total": len(touching),
+            "pct": round(complete / len(touching) * 100) if touching else ms["percent"],
+        })
+    phases.sort(key=lambda p: p["num"])
+    return phases
+
+
 def render_prototype_roadmap(variant: str) -> str:
     reader = read_committed_file
     m = executive_model(reader)
     issue_feed = github_issues()
     goal_cards = goal_issue_cards(issue_feed)
-    milestone_cards = outcome_track_cards(issue_feed)
+    outcomes = _proto_outcome_completion(issue_feed)
+    phases = _proto_phase_milestones(issue_feed)
     tracker = reader("docs/PROJECT-TRACKER.md")
     rows_by_phase: dict[int, list[dict]] = {}
     for r in slice_index_rows(tracker):
         rows_by_phase.setdefault(r["phase_num"], []).append(r)
+    issue_by_number = {i["number"]: i for i in issue_feed.get("issues", [])}
 
-    variant, title = "D", "D \u00b7 Deep nested phase (KPIs + milestones + per-slice drill-down)"
-    body = _proto_variant_d(m, rows_by_phase, goal_cards, milestone_cards)
+    title = "Phase-milestone + Outcome-label roadmap (live GitHub data)"
+    body = _proto_variant_e(m, phases, rows_by_phase, goal_cards, outcomes, issue_by_number)
 
     return f'''<!doctype html><html><head><meta charset="utf-8"><title>Prototype: {esc(title)}</title>
 <style>{EXEC_CSS}</style></head><body>
@@ -1277,63 +1323,61 @@ def render_prototype_roadmap(variant: str) -> str:
 </body></html>'''
 
 
-def _proto_variant_d(m: dict, rows_by_phase: dict, goal_cards: list[dict], milestone_cards: list[dict]) -> str:
+def _proto_variant_e(m: dict, phases: list[dict], rows_by_phase: dict, goal_cards: list[dict],
+                      outcomes: dict[str, dict], issue_by_number: dict[int, dict]) -> str:
     tiles = (
-        f'<div class="tile done"><div class="num">{m["overall"]}%</div><div class="lbl">Overall</div></div>'
-        f'<div class="tile active"><div class="num">{len(m["phases"])}</div><div class="lbl">Phases</div></div>'
+        f'<div class="tile done"><div class="num">{len(phases)}</div><div class="lbl">Active phases (milestones)</div></div>'
+        f'<div class="tile active"><div class="num">{len(outcomes)}</div><div class="lbl">Outcomes (labels)</div></div>'
+        f'<div class="tile todo"><div class="num">{sum(1 for o in outcomes.values() if o["complete"])}</div><div class="lbl">Outcomes complete</div></div>'
         f'<div class="tile todo"><div class="num">{len(goal_cards)}</div><div class="lbl">Goals</div></div>'
-        f'<div class="tile todo"><div class="num">{len(milestone_cards)}</div><div class="lbl">Milestones</div></div>'
     )
 
     sections = ""
-    for p in m["phases"]:
+    for p in phases:
         rows = rows_by_phase.get(p["num"], [])
-        phase_goals = _proto_word_matches(p["title"], goal_cards)
-        phase_milestones = _proto_word_matches(p["title"], milestone_cards)
+        outcome_chips = "".join(
+            f'<span class="chip {"decided" if outcomes[o]["complete"] else "active"}">{esc(o[len("Outcome: "):])} '
+            f'\u00b7 {outcomes[o]["closed"]}/{outcomes[o]["total"]}</span>'
+            for o in p["outcomes"]
+        ) or '<span class="chip todo">no outcome-labeled issues yet</span>'
+
+        issue_rows = "".join(
+            f'<div class="brow"><a class="bl" href="{esc(i["url"])}"><small>#{i["number"]}</small>{esc(_exec_short(i["title"], 60))}</a>'
+            f'<div class="bp">{"\u2713" if i["state"] == "closed" else "\u25cb"}</div></div>'
+            for i in p["issues"]
+        ) or '<p class="empty" style="margin-left:14px">No issues on this milestone yet.</p>'
 
         slice_rows = ""
         for r in rows:
+            phase_goals = _proto_word_matches(p["title"], goal_cards)
             slice_goals = _proto_word_matches(r["title"], goal_cards) or phase_goals
-            slice_ms = _proto_word_matches(r["title"], milestone_cards) or phase_milestones
             goal_chips = "".join(
                 f'<a class="chip active" href="{esc(g["url"])}">goal #{g["number"]} {esc(_exec_short(g["title"], 22))}</a>'
                 for g in slice_goals
             ) or '<span class="chip todo">no matched goal</span>'
-            ms_chips = "".join(
-                f'<a class="chip decided" href="{esc(g["url"])}">ms {esc(_exec_short(g["title"], 22))}</a>'
-                for g in slice_ms
-            ) or '<span class="chip todo">no matched milestone</span>'
             slice_rows += (
                 f'<details style="margin:4px 0 4px 14px;border-left:2px solid var(--line);padding-left:10px">'
                 f'<summary style="cursor:pointer"><small>#{r["num"]:03d}</small> {esc(_exec_short(r["title"], 60))} '
                 f'<span style="color:var(--muted)">\u00b7 {"done" if r["done"] else "pending"}</span></summary>'
-                f'<div class="chips" style="margin:6px 0">{goal_chips}{ms_chips}</div>'
+                f'<div class="chips" style="margin:6px 0">{goal_chips}</div>'
                 f'</details>'
             )
         slice_rows = slice_rows or '<p class="empty" style="margin-left:14px">No slices recorded.</p>'
 
-        goal_chips_phase = "".join(
-            f'<a class="chip active" href="{esc(g["url"])}">#{g["number"]} {esc(_exec_short(g["title"], 26))} \u00b7 {g["target_percent"]}%</a>'
-            for g in phase_goals
-        ) or '<span class="chip todo">no matched goals</span>'
-        ms_chips_phase = "".join(
-            f'<a class="chip decided" href="{esc(g["url"])}">{esc(_exec_short(g["title"], 26))} \u00b7 {g["percent"]}%</a>'
-            for g in phase_milestones
-        ) or '<span class="chip todo">no matched milestones</span>'
-
         sections += (
-            f'<details {"open" if p["pct"] < 100 else ""} style="background:var(--panel);border:1px solid var(--line);'
+            f'<details open style="background:var(--panel);border:1px solid var(--line);'
             f'border-radius:10px;margin-bottom:10px;padding:14px 18px">'
-            f'<summary style="cursor:pointer;font-weight:700">Phase {p["num"]:02d} \u00b7 {esc(p["title"])} '
-            f'<span style="color:{_pcol(p["pct"])}">{p["pct"]}%</span></summary>'
-            f'<div style="margin-top:12px"><b>Goals touched</b><div class="chips">{goal_chips_phase}</div></div>'
-            f'<div style="margin-top:10px"><b>Milestones touched</b><div class="chips">{ms_chips_phase}</div></div>'
-            f'<div style="margin-top:12px"><b>Slices (expand for its goal/milestone links)</b>{slice_rows}</div>'
+            f'<summary style="cursor:pointer;font-weight:700"><a href="{esc(p["url"])}" style="color:inherit">'
+            f'Phase {p["num"]:02d} \u00b7 {esc(p["title"])}</a> '
+            f'<span style="color:{_pcol(p["pct"])}">{p["pct"]}% ({p["outcomes_complete"]}/{p["outcomes_total"]} outcomes)</span></summary>'
+            f'<div style="margin-top:12px"><b>Outcomes touched</b><div class="chips">{outcome_chips}</div></div>'
+            f'<div style="margin-top:12px"><b>Milestone issues</b><div class="bars">{issue_rows}</div></div>'
+            f'<div style="margin-top:12px"><b>Tracker slices (goal match still best-effort)</b>{slice_rows}</div>'
             f'</details>'
         )
     return (
         f'<section class="sec"><h2>KPIs</h2><div class="tiles">{tiles}</div></section>'
-        f'<section class="sec"><h2>Phases \u2192 goals + milestones touched \u2192 per-slice drill-down</h2>{sections}</section>'
+        f'<section class="sec"><h2>Phases (GitHub milestones) \u2192 outcomes (labels) \u2192 issues / slices</h2>{sections}</section>'
     )
 
 
