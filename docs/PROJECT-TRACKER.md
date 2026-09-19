@@ -216,7 +216,11 @@ Progress: **75%** (6 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
+- **Current slice:** [176 — Dashboard Phase/Outcome/Slice/Goal roadmap rebuild](slices/176-dashboard-phase-outcome-roadmap.md) — **delivered; `/detail` rebuilt around live GitHub Phase-milestone/Outcome-label data per issues #374-#380; retired `.scratch` goal maps, the old traceability summary, phase/slice tables, and the standalone milestone section**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #374
+
+- Prior slice: [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #353
 
@@ -880,6 +884,12 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (ticket 04), [ADR 0003](adr/0003-imperial-world-scale.md)
 
 #### Phase 13 — Delivery workflow capabilities
+
+- **Slice:** [176 — Dashboard Phase/Outcome/Slice/Goal roadmap rebuild](slices/176-dashboard-phase-outcome-roadmap.md) — **delivered; `/detail` rebuilt around live GitHub Phase-milestone/Outcome-label data, retiring `.scratch` goal maps, the old traceability summary, phase/slice tables, and the standalone milestone section; `render`/`render_exec`/`render_tests`/`render_telemetry` all smoke-tested against live data with no errors**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Dashboard restructure map](https://github.com/vnvalentin/project0/issues/374) (decisions [#376](https://github.com/vnvalentin/project0/issues/376), [#377](https://github.com/vnvalentin/project0/issues/377), [#378](https://github.com/vnvalentin/project0/issues/378), [#379](https://github.com/vnvalentin/project0/issues/379), prototype [#380](https://github.com/vnvalentin/project0/issues/380))
+  - **Decision:** no new ADR; implements the Phase=milestone / Track-renamed-Outcome=label convention decided on the map
 
 - **Slice:** [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)

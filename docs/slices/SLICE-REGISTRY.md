@@ -190,8 +190,9 @@ contended range and everything after it is tracked explicitly:
 | 172 | Nakama v1 smoke and operations gate (F-039, #354, #361) | interactive |
 | 173 | Server-side Nakama session validation seam (F-039, #354, #381) | interactive |
 | 175 | Nakama Character and world-entry client path (F-039, #354, #371) | interactive |
+| 176 | Dashboard Phase/Outcome/Slice/Goal roadmap rebuild (#374-#380) | interactive |
 
-Next free slice: **176** (verify against `docs/slices/` before reserving).
+Next free slice: **177** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
