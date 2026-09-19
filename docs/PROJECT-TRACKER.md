@@ -216,7 +216,11 @@ Progress: **75%** (6 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [177 — Dashboard per-slice Goal alignment (real data, not phase-level)](slices/177-dashboard-per-slice-goal-alignment.md) — **delivered; each slice row now shows its own resolved Goal via its linked issue's `Parent goal: #N`, not its phase's full goal list; 23 slices resolved real Goals, rest correctly show no linked goal**
+- **Current slice:** [178 — Reality page phase bars use real Outcome-label completion](slices/178-reality-page-outcome-percentages.md) — **delivered; `/` now sources active-phase completion from `phase_milestones()`, the same data `/detail` uses, instead of an independently-computed tracker-text percentage**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #374
+
+- Prior slice: [177 — Dashboard per-slice Goal alignment (real data, not phase-level)](slices/177-dashboard-per-slice-goal-alignment.md) — **delivered; each slice row now shows its own resolved Goal via its linked issue's `Parent goal: #N`, not its phase's full goal list; 23 slices resolved real Goals, rest correctly show no linked goal**
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
   - **GitHub issue:** #374
 
@@ -888,6 +892,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (ticket 04), [ADR 0003](adr/0003-imperial-world-scale.md)
 
 #### Phase 13 — Delivery workflow capabilities
+
+- **Slice:** [178 — Reality page phase bars use real Outcome-label completion](slices/178-reality-page-outcome-percentages.md) — **delivered; `/` and `/detail` now report identical active-phase percentages from the same `phase_milestones()` source**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Dashboard restructure map](https://github.com/vnvalentin/project0/issues/374)
 
 - **Slice:** [177 — Dashboard per-slice Goal alignment](slices/177-dashboard-per-slice-goal-alignment.md) — **delivered; each slice row shows its own resolved Goal (via linked issue's `Parent goal: #N`) instead of its phase's full goal list; 23 slices resolved real Goals, rest correctly show no linked goal**
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)

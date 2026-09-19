@@ -736,7 +736,7 @@ def _donut(pct: int, size: int = 190, stroke: int = 20) -> str:
     )
 
 
-def executive_model(reader) -> dict:
+def executive_model(reader, phase_outcomes: dict[int, dict] | None = None) -> dict:
     tracker = reader("docs/PROJECT-TRACKER.md")
     features = feature_cards(reader)
     rows = slice_index_rows(tracker)
@@ -785,10 +785,14 @@ def executive_model(reader) -> dict:
     phases = []
     for n, meta in sorted(prog.items()):
         counts = slice_counts.get(n, {"total": 0, "delivered": 0})
-        phases.append({"num": n, "title": meta["title"], "pct": meta["progress"],
+        outcome = (phase_outcomes or {}).get(n)
+        pct = outcome["pct"] if outcome else meta["progress"]
+        phases.append({"num": n, "title": meta["title"], "pct": pct,
                        "status": status_by_num.get(n, ""),
                        "slice_total": counts["total"],
-                       "slice_delivered": counts["delivered"]})
+                       "slice_delivered": counts["delivered"],
+                       "outcomes_complete": outcome["outcomes_complete"] if outcome else None,
+                       "outcomes_total": outcome["outcomes_total"] if outcome else None})
     # Weight overall completion by tracked phase items.
     done_items = sum(m["done_items"] for m in prog.values() if m.get("done_items") is not None)
     total_items = sum(m["total_items"] for m in prog.values() if m.get("total_items") is not None)
@@ -905,15 +909,19 @@ TESTS_CSS = """
 
 
 def phase_activity_label(phase: dict) -> str:
-    if not phase["slice_total"]:
-        return ""
-    return f' <span class="phase-slices">{phase["slice_delivered"]}/{phase["slice_total"]} slices delivered</span>'
+    bits = []
+    if phase["slice_total"]:
+        bits.append(f'{phase["slice_delivered"]}/{phase["slice_total"]} slices delivered')
+    if phase.get("outcomes_total"):
+        bits.append(f'{phase["outcomes_complete"]}/{phase["outcomes_total"]} outcomes')
+    return f' <span class="phase-slices">{" \u00b7 ".join(bits)}</span>' if bits else ""
 
 
 def render_exec(view: str = "committed") -> str:
     reader = read_repo_file if view == "working" else read_committed_file
-    m = executive_model(reader)
     issue_feed = github_issues()
+    phase_outcomes = {p["num"]: p for p in phase_milestones(issue_feed)}
+    m = executive_model(reader, phase_outcomes)
     all_issues = issue_feed["issues"]
     open_issues = [issue for issue in all_issues if issue.get("state") == "open"]
     goal_cards = goal_issue_cards(issue_feed)
@@ -997,7 +1005,7 @@ def render_exec(view: str = "committed") -> str:
 
   <section class="sec"><h2>In progress \u2014 how far</h2><div class="bars">{active_html}</div></section>
 
-  <section class="sec"><h2>Delivery by phase</h2><div class="bars">{phase_html}</div>
+  <section class="sec"><h2>Delivery by phase <span style="font-weight:400;text-transform:none;letter-spacing:0">\u00b7 active phases % from Outcome-label completion, see /detail</span></h2><div class="bars">{phase_html}</div>
     <div class="legend"><span><i style="background:var(--green)"></i>Complete</span>
     <span><i style="background:var(--amber)"></i>In progress</span>
     <span><i style="background:var(--grey)"></i>Not started</span></div>

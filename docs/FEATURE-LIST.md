@@ -2955,8 +2955,9 @@ for a developer to pick up. No implementation has started.
 - Phase: 13. Delivery workflow capabilities
 - Public seam: `dashboard/app.py` (`phase_milestones`, `outcome_completion`,
   `slice_goal_number`, `goal_issue_cards`, `feature_cards`, `feature_stage`,
-  `debt_cards`, `render`), `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state; [Slice 115](slices/115-goal-good-looks-like-criteria.md) makes WGL criteria the basis for Goal target coverage; [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md) rebuilds `/detail` around the Phase-milestone/Outcome-label roadmap; [Slice 177](slices/177-dashboard-per-slice-goal-alignment.md) makes each slice row show its own resolved Goal instead of its phase's full goal list.
+  `executive_model`, `debt_cards`, `render`, `render_exec`),
+  `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state; [Slice 115](slices/115-goal-good-looks-like-criteria.md) makes WGL criteria the basis for Goal target coverage; [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md) rebuilds `/detail` around the Phase-milestone/Outcome-label roadmap; [Slice 177](slices/177-dashboard-per-slice-goal-alignment.md) makes each slice row show its own resolved Goal instead of its phase's full goal list; [Slice 178](slices/178-reality-page-outcome-percentages.md) makes the Reality page's phase bars use the same Outcome-label completion as `/detail`.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -3059,6 +3060,19 @@ for a developer to pick up. No implementation has started.
     data resolved 23 slices to real Goals (`#100` x14, `#354` x9) and correctly
     showed "no linked goal" for the rest; `scripts/check_record_sync.sh` — 0
     errors; see [Slice 177](slices/177-dashboard-per-slice-goal-alignment.md).
+  - Date: 2026-09-19
+    What changed: Slice 178 makes the Reality (`/`) page's "Delivery by phase"
+    bars use `phase_milestones()`'s Outcome-label completion percentage for
+    active phases (same source `/detail` uses), falling back to the existing
+    tracker-text percentage only for historical phases with no GitHub
+    milestone. `phase_activity_label()` now also shows outcomes-complete/total.
+    Why: `/` and `/detail` computed phase completion from two independent
+    sources (tracker text vs. GitHub Outcome labels) that could silently
+    disagree; reviewed after Slices 176/177 landed on `/detail` only.
+    Validation: `ast.parse` — no syntax errors; `render_exec()` and `render()`
+    invoked against live data show identical Phase 12/13 percentages and
+    outcome counts; `scripts/check_record_sync.sh` — 0 errors; see
+    [Slice 178](slices/178-reality-page-outcome-percentages.md).
 
 ### F-022: Player house allocation
 
