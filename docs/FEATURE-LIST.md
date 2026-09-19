@@ -60,8 +60,10 @@ feature so future drift is easier to detect.
   page in `dashboard/app.py`.
 - Implementation slices: [Slice 159](slices/159-telemetry-envelope-validation.md)
   (envelope shape, per-event `schema_version`, size cap, and mechanical
-  privacy denylist). Transport, sink/database, connection/combat emission, and
-  the dashboard page are tracked but not yet allocated slice numbers — see
+  privacy denylist), [Slice 160](slices/160-telemetry-sink-database.md)
+  (dedicated `telemetry.db` sink, schema, retention, and row-ceiling
+  enforcement). Transport, connection/combat emission, and the dashboard page
+  are tracked but not yet allocated slice numbers — see
   [issue #328](https://github.com/vnvalentin/project0/issues/328).
 - Related work: planning charted via the telemetry wayfinder map
   ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
@@ -86,6 +88,26 @@ feature so future drift is easier to detect.
     scripts/run_gut_validation.sh` — 107 scripts, 785/785 tests passing, exit
     0. `bash scripts/check_record_sync.sh` — 0 errors (6 pre-existing
     unrelated warnings for Slices 002/003/009/010/038/041).
+  - Date: 2026-09-19
+    What changed: Delivered Slice 160 — `server/telemetry_sink.gd` provides
+    `TelemetrySink.ensure_schema()` (a wide `events` table plus
+    `(event_type, emitted_at_unix)` and `(account_id/peer_id,
+    emitted_at_unix)` indexes over a dedicated `telemetry.db`, opened through
+    the existing `SqliteStore` engine, distinct from Canon) and `emit()`
+    (validates via Slice 159's `TelemetryEvent.validate()` before any write,
+    then opportunistically enforces a 30-day retention window and a
+    2,000,000-row hard ceiling on every call).
+    Why: The telemetry map (#282) decided storage engine, schema, and
+    retention shape (#287, #288) before any emission call site can exist.
+    Validation evidence: this slice depends on the `SQLite` GDExtension
+    (no Windows native library in this checkout), so validation ran only on
+    a fresh Linux-host clone with the compiled `godot-sqlite`/`wgnetstack`
+    binaries copied in: `bash scripts/run_gut_validation.sh` — 108 scripts,
+    791/791 tests passing, exit 0. `bash scripts/check_record_sync.sh` — 0
+    errors (6 pre-existing unrelated warnings). Root-cause learning recorded
+    in the slice record for two test-fixture bugs (stale hardcoded
+    timestamps colliding with the real-time retention sweep) found and fixed
+    during validation.
 
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 
