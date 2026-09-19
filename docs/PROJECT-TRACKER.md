@@ -216,7 +216,11 @@ Progress: **63%** (5 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [159 — Telemetry envelope + validation](slices/159-telemetry-envelope-validation.md) — **delivered; shared/telemetry_event.gd build/validate, 11/11 focused tests, full suite 785/785, record-sync 0 errors**
+- **Current slice:** [160 — Telemetry sink + dedicated database](slices/160-telemetry-sink-database.md) — **delivered; server/telemetry_sink.gd schema+emit+retention, 108 scripts/791/791 tests on Linux, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #332
+
+- Prior slice: [159 — Telemetry envelope + validation](slices/159-telemetry-envelope-validation.md) — **delivered; shared/telemetry_event.gd build/validate, 11/11 focused tests, full suite 785/785, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #329
 
@@ -816,6 +820,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [160 — Telemetry sink + dedicated database](slices/160-telemetry-sink-database.md) — **delivered; server/telemetry_sink.gd schema+emit+retention, 108 scripts/791/791 tests on Linux, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decisions [#287](https://github.com/vnvalentin/project0/issues/287), [#288](https://github.com/vnvalentin/project0/issues/288)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; implements the storage engine/schema/retention decided in the telemetry map
+
 - **Slice:** [159 — Telemetry envelope + validation](slices/159-telemetry-envelope-validation.md) — **delivered; shared/telemetry_event.gd build/validate, 11/11 focused tests, full suite 785/785, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -1172,13 +1182,22 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   contract per the telemetry map's decisions
   ([#282](https://github.com/vnvalentin/project0/issues/282),
   [#283](https://github.com/vnvalentin/project0/issues/283)).
-- [ ] Queued — Telemetry transport, sink/database, connection- and
-  combat-outcome emission, and the dashboard `/telemetry` page (Phase 13,
-  F-038); design decided in the telemetry map
-  ([#284](https://github.com/vnvalentin/project0/issues/284)-[#290](https://github.com/vnvalentin/project0/issues/290)),
-  slice route tracked in
-  [#328](https://github.com/vnvalentin/project0/issues/328); not yet
-  allocated slice numbers.
+- [x] Delivered — Telemetry sink + dedicated database (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 160](slices/160-telemetry-sink-database.md),
+  [#332](https://github.com/vnvalentin/project0/issues/332)):
+  `server/telemetry_sink.gd` provides the `telemetry.db` schema, validated
+  writes, and retention/row-ceiling enforcement per decisions
+  [#287](https://github.com/vnvalentin/project0/issues/287)/[#288](https://github.com/vnvalentin/project0/issues/288).
+- [ ] Queued — Telemetry transport, connection- and combat-outcome emission,
+  and the dashboard `/telemetry` page (Phase 13, F-038); design decided in
+  the telemetry map
+  ([#284](https://github.com/vnvalentin/project0/issues/284),
+  [#285](https://github.com/vnvalentin/project0/issues/285),
+  [#286](https://github.com/vnvalentin/project0/issues/286),
+  [#290](https://github.com/vnvalentin/project0/issues/290)), slice route
+  tracked in [#328](https://github.com/vnvalentin/project0/issues/328); not
+  yet allocated slice numbers.
 
 - [x] Delivered — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
   [Slice 116](slices/116-phase14-character-foundation-handoff.md),
