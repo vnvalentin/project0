@@ -211,12 +211,16 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 13 — Delivery workflow capabilities**
 
-Progress: **63%** (5 of 8 items done)
+Progress: **75%** (6 of 8 items done)
 
-- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
+- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
+- **Current slice:** [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #353
+
+- Prior slice: [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #351
 
@@ -836,6 +840,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [165 — Dashboard telemetry page](slices/165-dashboard-telemetry-page.md) — **delivered; /telemetry page live, manual e2e HTTP check confirmed counters + filter, record-sync 0 errors — closes out the telemetry pipeline route**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#290](https://github.com/vnvalentin/project0/issues/290)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; implements the dashboard page decided in the telemetry map, closing the route
+
 - **Slice:** [164 — Combat-outcome telemetry emission](slices/164-combat-outcome-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual dump confirmed correct combat rows**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -1258,11 +1268,16 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   combat-outcome family from
   [#286](https://github.com/vnvalentin/project0/issues/286) is live in
   `server_main.gd`, superseding its matching `print()` sites.
-- [ ] Queued — The dashboard `/telemetry` page (Phase 13, F-038); design
-  decided in the telemetry map
-  ([#290](https://github.com/vnvalentin/project0/issues/290)), slice route
-  tracked in [#328](https://github.com/vnvalentin/project0/issues/328); not
-  yet allocated a slice number.
+- [x] Delivered — Dashboard telemetry page (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 165](slices/165-dashboard-telemetry-page.md),
+  [#353](https://github.com/vnvalentin/project0/issues/353)): the
+  `/telemetry` page in `dashboard/app.py`, decided in
+  [#290](https://github.com/vnvalentin/project0/issues/290), closes out the
+  telemetry pipeline's original route ([#328](https://github.com/vnvalentin/project0/issues/328)).
+  Remaining fog (client-UI taxonomy, network-quality stats, andon
+  thresholds, login/auth family, rollup) stays unticketed until the map is
+  redrawn.
 
 - [x] Delivered — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
   [Slice 116](slices/116-phase14-character-foundation-handoff.md),

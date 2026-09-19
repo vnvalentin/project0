@@ -150,6 +150,11 @@ services:
     volumes:
       # Read-only view of the repository the dashboard reports on.
       - "${REPO_DIR:-/data/code/project0}:/repo:ro"
+      # Slice 165 (telemetry map #282, decision #290): read-only view of the
+      # game server's user:// data directory, so the /telemetry page can open
+      # telemetry.db. Never mounted read-write — the dashboard has no write
+      # endpoint anywhere.
+      - "${GAME_DATA_DIR:-/var/lib/project0/game}:/gamedata:ro"
     mem_limit: 256m
     cpus: 0.5
     restart: unless-stopped
