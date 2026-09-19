@@ -29,6 +29,21 @@ server-authoritative, generated, canon-persisted content`.
   server-authoritative once networking exists.
   _Avoid_: character (the persistent persona is the Character; the Player is its
   in-world instantiation), user.
+- **Party**: A persistent, server-owned cooperative association of one to five
+  unique Characters, with its own identity, leader, mutable roster, and shared
+  coordination history. A Party survives roster and presence changes until it
+  is authoritatively retired; one Character belongs to at most one active Party.
+  _Avoid_: group (overloaded by engineering and external-game terminology),
+  squad, raid, team.
+- **Party membership**: The authoritative relationship between a Character and
+  an active Party. Membership begins through accepted consent and ends through
+  leave, removal, timeout, or Party retirement; it is not inferred from a live
+  network connection, scene proximity, or current Sector.
+  _Avoid_: Player membership, peer membership, Account membership.
+- **Party presence**: A Party member's current in-world availability as a
+  Player, distinct from Party membership. Connection loss or movement between
+  Sectors changes presence without itself expressing consent to leave.
+  _Avoid_: membership status, online membership.
 - **Flat plane**: The minimal placeholder ground scene used to prove movement
   without committing to any generated or hand-built map. Authoritative as the
   current slice's only world geometry.
@@ -129,7 +144,6 @@ server-authoritative, generated, canon-persisted content`.
   and client presentation state are not durable client authority.
 - A Sector is never treated as Canon until the server has validated and written
   it to the SQLite Canon store.
-
 
 ## Ambiguity policy
 
