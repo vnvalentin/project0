@@ -79,6 +79,19 @@ func is_authenticated(peer_id: int) -> bool:
 	return _sessions.is_authenticated(peer_id)
 
 
+## Public seam (Slice 171). Returns only presentation-safe identity fields for
+## server-authored presence; session tokens and credential material never leave
+## the SessionRegistry.
+func get_presence_identity(peer_id: int) -> Dictionary:
+	if not _sessions.is_authenticated(peer_id):
+		return {}
+	var session: Dictionary = _sessions.get_session(peer_id)
+	return {
+		"account_id": String(session.get("account_id", "")),
+		"character_id": _sessions.get_selected_character(peer_id),
+	}
+
+
 func clear_session(peer_id: int) -> void:
 	_sessions.clear(peer_id)
 

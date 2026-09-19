@@ -53,6 +53,7 @@ const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_gen
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
 const TelemetrySinkScript: Script = preload("res://server/telemetry_sink.gd")
 const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
 const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ingest_service.gd")
@@ -590,6 +591,8 @@ func _admit_peer(peer_id: int) -> void:
 		for npc: Variant in _town_npc_manager.all_npcs():
 			network_client.rpc_id(peer_id, "receive_town_npc_spawn", (npc as Object).npc_id, (npc as Object).position_at(_town_npc_tick))
 
+	_broadcast_presence_snapshot()
+
 
 ## Called whenever a client peer disconnects. Removes that peer's
 ## ServerPlayerState entirely (Slice 007: no longer just unbinds a shared
@@ -634,8 +637,31 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
+	_broadcast_presence_snapshot()
 	for remaining_peer_id: int in _player_states.keys():
 		network_client.rpc_id(remaining_peer_id, "despawn_remote_player_representation", peer_id)
+
+
+## Slice 171: builds one server-authored snapshot for the single shared v1 world
+## and sends it to every admitted peer after join/leave membership changes.
+func _broadcast_presence_snapshot() -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	var entries: Array[Dictionary] = []
+	for peer_id: int in _player_states.keys():
+		var player_state: Node = _player_states[peer_id]
+		var identity: Dictionary = _login_gateway.get_presence_identity(peer_id) if _login_gateway != null else {}
+		entries.append(NakamaPresenceScript.entry(
+			peer_id,
+			String(identity.get("account_id", "unknown-%d" % peer_id)),
+			String(identity.get("character_id", player_state.character_id)),
+			String(player_state.character_display_name),
+			"online"
+		))
+	var snapshot: Dictionary = NakamaPresenceScript.build(entries, true)
+	for peer_id: int in _player_states.keys():
+		network_client.rpc_id(peer_id, "receive_presence_snapshot", snapshot)
 
 
 ## Relays one peer's authoritative position to every other connected peer so
