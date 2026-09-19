@@ -83,3 +83,28 @@ This check proves the committed deployment contract stays aligned with the v1
 Wayfinder decisions. Live deployment, auth/session smoke, Character smoke,
 world-entry smoke, and bridge/presence smoke are later implementation issues
 under Goal #354.
+
+## V1 smoke and operations gate
+
+The manifest-backed Slice 172 gate validates the full required stage list while
+keeping unimplemented player-flow stages explicitly named rather than silently
+passing them:
+
+```bash
+python scripts/check_nakama_v1_smoke.py
+```
+
+Static mode runs the deployment foundation check and does not need Docker,
+credentials, or a live service. An operator may explicitly probe a live Nakama
+health endpoint with:
+
+```bash
+PROJECT0_NAKAMA_SMOKE_URL=https://nakama.example.test \
+  python scripts/check_nakama_v1_smoke.py --live
+```
+
+The live mode performs one bounded unauthenticated GET, prints only the HTTP
+status/result class, and never prints response bodies or secrets. A static pass
+does not claim that login, Character CRUD, world-entry, or bridge/presence
+player flows are already implemented; those remain the named stages for the
+later Goal #354 slices.

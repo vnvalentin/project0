@@ -338,6 +338,10 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #360
 
+- **Current slice:** [172 — Nakama v1 smoke and operations gate](slices/172-nakama-v1-smoke-ops-gate.md) — **delivered; adds manifest-backed static deployment validation and explicit bounded live Nakama health/API probing; okami validation passed 116 scripts / 844 tests / 2633 asserts**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** #361
+
 - **Current slice:** [085 — Remove in-process login from the game server](slices/085-remove-game-in-process-login.md) — **delivered; the game process now builds an assertion-only login graph with NO AuthService (no register/login/PBKDF2) via LoginRuntime.build_assertion_only_services; LoginGateway depends on a SessionRegistry directly with AuthService optional (additive constructor arg, so the login process and existing tests are unchanged); server_main drops the PROJECT0_GAME_ASSERTION_ONLY opt-out and routes disconnect through the gateway; proven on Linux — GUT 58/58, boot logs "assertion-only game server", login handoff e2e ALL PASS (world entry "Handoff Hero") with the game holding no AuthService**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 - **Current tooling slice:** [110 — Ship the Linux wgnetstack GDExtension in the server image](slices/110-ship-wgnetstack-extension.md) — **delivered; a cached image stage builds the extension and copies it in before the import cache is baked. Boot-log occurrences of `GDExtension dynamic library not found` / `Error loading extension` went from four at every boot to **0**, so a real startup failure is now visible. Resolves DT-014**
@@ -997,6 +1001,12 @@ the phase exit gate; it is not a count of completed slices.
   - **GitHub issue:** [#359](https://github.com/vnvalentin/project0/issues/359)
   - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
   - **Decision:** no new ADR; defines the bridge contract without changing transport, simulation, Character, or Canon authority.
+
+- **Slice:** [172 — Nakama v1 smoke and operations gate](slices/172-nakama-v1-smoke-ops-gate.md) — **delivered; manifest-backed static deployment validation and explicit bounded live Nakama health/API probing; okami validation passed 116 scripts / 844 tests / 2633 asserts**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#361](https://github.com/vnvalentin/project0/issues/361)
+  - **Planning ticket:** [Nakama v1 implementation Goal](https://github.com/vnvalentin/project0/issues/354), [Wayfinder map](https://github.com/vnvalentin/project0/issues/336)
+  - **Decision:** no new ADR; adds an operational gate without provisioning, secret exposure, or claims about unwired player flows.
 
 - **Slice:** [171 — Default shared playtest world routing and presence](slices/171-nakama-shared-world-routing.md) — **delivered; one shared-world route and server-authored presence snapshots over the existing reliable RPC seam; okami validation passed 844 tests / 2633 asserts**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
