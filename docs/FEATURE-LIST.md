@@ -492,6 +492,7 @@ feature so future drift is easier to detect.
 - Public seam: Server-owned Character/progression resolution and a bounded
   replicated Character snapshot containing presentation-safe derived state.
 - Implementation slices: [Slice 116](slices/116-phase14-character-foundation-handoff.md)
+- Follow-on implementation: [Slice 158](slices/158-player-traversal-locomotion.md) adds the baseline Player traversal locomotion modes on the existing Character movement seam.
 - Validation: Slice 116 establishes the records-first handoff. Implementation
   must add public-seam GUT coverage, full GUT telemetry, record-sync evidence,
   and authority/hidden-state review before this feature becomes Implemented.
