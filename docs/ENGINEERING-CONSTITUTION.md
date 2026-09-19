@@ -40,6 +40,33 @@ TPSA is not permission to rush. Security-sensitive changes, data migrations,
 public contracts, financial or compliance behavior, and irreversible actions
 require explicit design, stronger validation, and a recovery plan first.
 
+### Minimalism is subordinate to quality
+
+Use **Ponytail ultra** as the default implementation posture: question whether
+work needs to exist, reuse existing abstractions, prefer standard-library or
+native capabilities, and make the smallest focused, purposeful, reversible
+change that satisfies the current outcome. This supports TPSA Just-In-Time flow
+and small-lot delivery by reducing muda, waiting, and speculative scaffolding.
+
+Ponytail is subordinate to this constitution and never permits skipping a
+required control. In priority order, every minimal change still preserves:
+
+1. TPSA in full effect: Jidoka stop-on-abnormality, root-cause evidence,
+   MIFC/process-lane separation, standardized work, and continuous learning.
+2. This constitution's safety -> quality -> flow -> efficiency order.
+3. Delivery gates: records-first planning, GitHub Issue traceability,
+   public-seam tests, full GUT validation, record synchronization, review,
+   rollback/recovery evidence, and root-cause learning.
+4. Security boundaries: no client authority shortcuts, no secret exposure, and
+   fail-closed behavior at external trust boundaries.
+5. Existing coding standards, domain contracts, and repository abstractions
+   before introducing new code or dependencies.
+
+When minimalism conflicts with any item above, keep the stronger control and
+record the reason. Minimalism reduces waste; it does not reduce validation,
+documentation, testing, observability, or safety. If the smallest safe change
+cannot yet be identified, stop and gather evidence before editing.
+
 ## 3. Three process lanes
 
 Keep these lanes distinct while connecting them through evidence:
