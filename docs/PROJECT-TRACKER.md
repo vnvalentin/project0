@@ -216,7 +216,11 @@ Progress: **63%** (5 of 8 items done)
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [162 — Live telemetry RPC wiring](slices/162-telemetry-rpc-wiring.md) — **delivered; live RPC + boot-wired sink/limiter + ingest service, 111 scripts/811/811 tests on Linux, record-sync 0 errors**
+- **Current slice:** [163 — Connection-lifecycle telemetry emission](slices/163-connection-lifecycle-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual e2e confirmed 4 rows land correctly**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #347
+
+- Prior slice: [162 — Live telemetry RPC wiring](slices/162-telemetry-rpc-wiring.md) — **delivered; live RPC + boot-wired sink/limiter + ingest service, 111 scripts/811/811 tests on Linux, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **GitHub issue:** #345
 
@@ -828,6 +832,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [163 — Connection-lifecycle telemetry emission](slices/163-connection-lifecycle-telemetry.md) — **delivered; 6-event family live in server_main.gd, 111 scripts/811/811 tests on Linux, record-sync 0 errors, manual e2e confirmed correct rows**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#285](https://github.com/vnvalentin/project0/issues/285)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; wires the connection-lifecycle family decided in the telemetry map into a live emission point
+
 - **Slice:** [162 — Live telemetry RPC wiring](slices/162-telemetry-rpc-wiring.md) — **delivered; live RPC + boot-wired sink/limiter + ingest service, 111 scripts/811/811 tests on Linux, record-sync 0 errors**
   - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
   - **Tech debt:** none identified
@@ -1224,11 +1234,16 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   `receive_client_telemetry_batch_on_server` RPC, boot-wired sink/rate
   limiter, and `server/telemetry_ingest_service.gd`'s untrusted-input-safe
   ingest orchestration.
-- [ ] Queued — Connection- and combat-outcome emission call sites, and the
-  dashboard `/telemetry` page (Phase 13, F-038); design decided in the
-  telemetry map
-  ([#285](https://github.com/vnvalentin/project0/issues/285),
-  [#286](https://github.com/vnvalentin/project0/issues/286),
+- [x] Delivered — Connection-lifecycle telemetry emission (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 163](slices/163-connection-lifecycle-telemetry.md),
+  [#347](https://github.com/vnvalentin/project0/issues/347)): the 6-event
+  connection-lifecycle family from
+  [#285](https://github.com/vnvalentin/project0/issues/285) is live in
+  `server_main.gd`, superseding its matching `print()` sites.
+- [ ] Queued — Combat-outcome emission call sites and the dashboard
+  `/telemetry` page (Phase 13, F-038); design decided in the telemetry map
+  ([#286](https://github.com/vnvalentin/project0/issues/286),
   [#290](https://github.com/vnvalentin/project0/issues/290)), slice route
   tracked in [#328](https://github.com/vnvalentin/project0/issues/328); not
   yet allocated slice numbers.
