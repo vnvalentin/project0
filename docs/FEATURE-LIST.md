@@ -63,7 +63,10 @@ feature so future drift is easier to detect.
   state), [Slice 168](slices/168-nakama-character-service.md) (Project0
   Character service Account materialization and session binding keyed by Nakama
   user ID), [Slice 169](slices/169-nakama-world-entry-ticket.md) (server-only
-  world-entry ticket issue/consume contract for Nakama sessions).
+  world-entry ticket issue/consume contract for Nakama sessions), [Slice 170]
+  (slices/170-nakama-gameplay-bridge-protocol.md) (transport-neutral
+  identity-bound gameplay input/state/presence/error envelopes for a future
+  Nakama socket adapter).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -131,6 +134,16 @@ feature so future drift is easier to detect.
     #358.
     Validation evidence: local record sync passed with 0 errors; SSH-on-okami
     full validation passed 114 scripts / 836 tests / 2617 asserts.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 170 with a transport-neutral Nakama gameplay
+    bridge protocol contract and pure validation; no Nakama SDK or live socket
+    dependency is added in this slice.
+    Why: Project0 needs a stable identity-bound input/state/error contract before
+    replacing the current gameplay transport or coupling simulation to Nakama.
+    Related work: [Slice 170](slices/170-nakama-gameplay-bridge-protocol.md),
+    #354, #359.
+    Validation evidence: local record sync passed with 0 errors; SSH-on-okami
+    full validation passed 115 scripts / 841 tests / 2633 asserts.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 
