@@ -211,12 +211,16 @@ Progress: **100%** (1 of 1 items done)
 
 **Phase 13 — Delivery workflow capabilities**
 
-Progress: **71%** (5 of 7 items done)
+Progress: **63%** (5 of 8 items done)
 
-- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
+- Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration); `in-progress` [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
-- **Current slice:** [104 — Registry-driven all-server deployment](slices/104-registry-driven-deploy.md) — **delivered; dry-run resolved all five services and live health on okami, mutating path not yet exercised**
+- **Current slice:** [159 — Telemetry envelope + validation](slices/159-telemetry-envelope-validation.md) — **delivered; shared/telemetry_event.gd build/validate, 11/11 focused tests, full suite 785/785, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **GitHub issue:** #329
+
+- Prior slice: [104 — Registry-driven all-server deployment](slices/104-registry-driven-deploy.md) — **delivered; dry-run resolved all five services and live health on okami, mutating path not yet exercised**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
 
 - Prior slice: [103 — Linux-hosted Windows client package build](slices/103-linux-client-package-build.md) — **delivered; full cross-build executed on okami, artifacts and manifest verified**
@@ -812,6 +816,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 13 — Delivery workflow capabilities
 
+- **Slice:** [159 — Telemetry envelope + validation](slices/159-telemetry-envelope-validation.md) — **delivered; shared/telemetry_event.gd build/validate, 11/11 focused tests, full suite 785/785, record-sync 0 errors**
+  - **Feature:** [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [telemetry wayfinder map](https://github.com/vnvalentin/project0/issues/282) (decision [#283](https://github.com/vnvalentin/project0/issues/283)), [slice route](https://github.com/vnvalentin/project0/issues/328)
+  - **Decision:** no new ADR; implements the envelope decided in the telemetry map
+
 - **Slice:** [010 — Core mechanics architecture contract](slices/010-core-mechanics-architecture.md) — **100% complete; focused documentation and full-suite validation passed**
   - **Features:** [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
   - **Tech debt:** none identified
@@ -1153,6 +1163,22 @@ Every slice links:
 This section lists planned work with no implementation slice started yet. An
 item only becomes a tracked, in-progress slice (and moves out of this queue)
 once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
+
+- [x] Delivered — Telemetry envelope + validation (Phase 13,
+  [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
+  [Slice 159](slices/159-telemetry-envelope-validation.md),
+  [#329](https://github.com/vnvalentin/project0/issues/329)):
+  `shared/telemetry_event.gd` provides the shared envelope and validation
+  contract per the telemetry map's decisions
+  ([#282](https://github.com/vnvalentin/project0/issues/282),
+  [#283](https://github.com/vnvalentin/project0/issues/283)).
+- [ ] Queued — Telemetry transport, sink/database, connection- and
+  combat-outcome emission, and the dashboard `/telemetry` page (Phase 13,
+  F-038); design decided in the telemetry map
+  ([#284](https://github.com/vnvalentin/project0/issues/284)-[#290](https://github.com/vnvalentin/project0/issues/290)),
+  slice route tracked in
+  [#328](https://github.com/vnvalentin/project0/issues/328); not yet
+  allocated slice numbers.
 
 - [x] Delivered — Phase 14 unified Character foundation ([F-036](FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization),
   [Slice 116](slices/116-phase14-character-foundation-handoff.md),
