@@ -20,6 +20,51 @@ x-infra-image: &infra-image
   image: ghcr.io/vnvalentin/project0-infra:${PROJECT0_IMAGE_TAG:-main}
 
 services:
+  # Nakama v1 platform foundation. Profile-gated so the existing stack does not
+  # start a new database unless the operator explicitly opts in. Secrets and the
+  # Nakama YAML config live under /etc/project0, not in this repo or image.
+  nakama-db:
+    image: postgres:16.8-alpine
+    container_name: project0-nakama-db
+    profiles: ["nakama"]
+    env_file:
+      - path: /etc/project0/nakama-db.env
+        required: true
+    volumes:
+      - "${NAKAMA_DB_DATA_DIR:-/var/lib/project0/nakama-postgres}:/var/lib/postgresql/data"
+      - "${BACKUP_DIR:-/var/backups/project0}:/backup"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER:-nakama}\" -d \"$${POSTGRES_DB:-nakama}\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  nakama:
+    image: registry.heroiclabs.com/heroiclabs/nakama:${NAKAMA_IMAGE_TAG:-3.37.0}
+    container_name: project0-nakama
+    profiles: ["nakama"]
+    command: ["/bin/sh", "-ec", "nakama migrate up --config /nakama/data/nakama.yml && exec nakama --config /nakama/data/nakama.yml"]
+    depends_on:
+      nakama-db:
+        condition: service_healthy
+    ports:
+      # Client HTTP API and realtime socket surface. This is the only Nakama
+      # surface intended for public routing in v1.
+      - "${NAKAMA_BIND:-192.168.1.254}:7350:7350"
+      # Console/admin UI stays private. Do not bind this to WAN/public IPs.
+      - "${NAKAMA_CONSOLE_BIND:-127.0.0.1}:7351:7351"
+    volumes:
+      - "${NAKAMA_CONFIG_DIR:-/etc/project0/nakama}:/nakama/data:ro"
+    healthcheck:
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   # Authoritative fixed-tick game simulation. user:// resolves under HOME=/data,
   # so the mounted volume is what carries accounts and Canon across deploys.
   game-server:
