@@ -41,6 +41,52 @@ feature so future drift is easier to detect.
 
 ## Planned Features
 
+### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
+
+- Status: `In Progress`
+- Feature: Client and server subsystems emit structured, bounded, privacy-safe
+  telemetry events (connection lifecycle, combat outcomes, and future
+  families) into a dedicated server-owned database, queryable through a new
+  read-only `dashboard/` page — for both engineering diagnosis and
+  understanding how players use the system.
+- Problem solved: Existing telemetry is ad-hoc `print()`/`push_warning()`
+  calls with no shared schema, no aggregation/storage, and no query surface,
+  so neither engineering diagnosis nor player-behavior analysis has durable,
+  structured data to work from.
+- Phase: 13. Delivery workflow capabilities
+- Public seam: `shared/telemetry_event.gd` (`TelemetryEvent.build`/`validate`),
+  a future `server/telemetry_sink.gd` writer over a dedicated `telemetry.db`
+  (`SqliteStore`), a client-to-server telemetry RPC, and a new `/telemetry`
+  page in `dashboard/app.py`.
+- Implementation slices: [Slice 159](slices/159-telemetry-envelope-validation.md)
+  (envelope shape, per-event `schema_version`, size cap, and mechanical
+  privacy denylist). Transport, sink/database, connection/combat emission, and
+  the dashboard page are tracked but not yet allocated slice numbers — see
+  [issue #328](https://github.com/vnvalentin/project0/issues/328).
+- Related work: planning charted via the telemetry wayfinder map
+  ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
+  [#283](https://github.com/vnvalentin/project0/issues/283)-[#290](https://github.com/vnvalentin/project0/issues/290)),
+  [Project Tracker](PROJECT-TRACKER.md#phase-work-index).
+- Change history:
+  - Date: 2026-09-19
+    What changed: Delivered Slice 159 — `shared/telemetry_event.gd` provides
+    `TelemetryEvent.build()` (fixed envelope: `event_type`, per-event
+    `schema_version`, `emitted_at_unix`, `server_tick`, `peer_id`, nullable
+    `account_id`/`character_id`/`session_id`, bounded `payload`) and
+    `validate()` (structural checks, a ~2KB size cap, and a mechanical
+    privacy denylist on payload keys/free-text-length values). An unrecognized
+    `schema_version` is never rejected by `validate()` — it is the future
+    sink's "store raw" concern, matching `EmbodimentTuning.resolve()`'s
+    fail-closed-but-non-blocking precedent elsewhere in this codebase.
+    Why: The telemetry map (#282) requires a shared emission contract before
+    any transport, storage, or emission-site work can begin.
+    Validation evidence: `godot --headless -s addons/gut/gut_cmdln.gd
+    -gselect=test_telemetry_event -gdisable_colors -gexit` — 11/11 tests
+    passed on Windows. Full suite on the Linux host: `bash
+    scripts/run_gut_validation.sh` — 107 scripts, 785/785 tests passing, exit
+    0. `bash scripts/check_record_sync.sh` — 0 errors (6 pre-existing
+    unrelated warnings for Slices 002/003/009/010/038/041).
+
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 
 - Status: `In Progress`
