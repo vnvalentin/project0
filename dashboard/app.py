@@ -190,6 +190,46 @@ def slice_issue_stats() -> dict:
     return {"total": total, "missing": missing, "linked": total - len(missing)}
 
 
+def slice_files_by_number() -> dict[int, str]:
+    out = {}
+    for name in list_repo_dir("docs/slices"):
+        m = re.match(r"^(\d{3})-.+\.md$", name)
+        if m:
+            out[int(m.group(1))] = name
+    return out
+
+
+def slice_linked_issue_number(text: str) -> int | None:
+    match = re.search(r"^GitHub issue:\s*#(\d+)", text, re.M | re.I)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"^GitHub issue:\s*https://github\.com/[^/]+/[^/]+/issues/(\d+)", text, re.M | re.I)
+    return int(match.group(1)) if match else None
+
+
+# Slice 176's own #95 finding: 109/172 slices' "GitHub issue:" line points at
+# the same bulk backfill ticket (#95), not a real per-slice issue. Treat that
+# number as "no real link" rather than a resolvable goal.
+BACKFILL_PLACEHOLDER_ISSUE = 95
+
+
+def slice_goal_number(text: str, issue_by_number: dict[int, dict]) -> int | None:
+    # Real per-slice goal alignment, derived from data that already exists:
+    # the slice's linked implementation issue is itself a Goal issue, or that
+    # issue's body names its "Parent goal: #N" (both already used by
+    # goal_issue_cards()). No new slice front-matter field needed.
+    issue_num = slice_linked_issue_number(text)
+    if issue_num is None or issue_num == BACKFILL_PLACEHOLDER_ISSUE:
+        return None
+    issue = issue_by_number.get(issue_num)
+    if not issue:
+        return None
+    if "Goal" in issue.get("labels", []) or issue.get("title", "").startswith("Goal:"):
+        return issue_num
+    match = re.search(r"^Parent goal:\s*#(\d+)\b", issue.get("body", ""), re.M)
+    return int(match.group(1)) if match else None
+
+
 def issue_covers_goal_target(issue: dict) -> bool:
     return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
 
@@ -544,6 +584,7 @@ def render(view: str = "committed") -> str:
     for r in slice_index_rows(data["tracker"]):
         rows_by_phase.setdefault(r["phase_num"], []).append(r)
     goal_cards = goal_issue_cards(issue_feed)
+    goal_by_number = {g["number"]: g for g in goal_cards}
     goals_by_ms: dict[int, list[dict]] = {}
     for g in goal_cards:
         n = g.get("milestone_number")
@@ -554,6 +595,8 @@ def render(view: str = "committed") -> str:
         pm = re.match(r"^Phase (\d+):", ms["title"])
         if pm:
             ms_number_by_phase_num[int(pm.group(1))] = ms["number"]
+    issue_by_number = {i["number"]: i for i in issue_feed.get("issues", [])}
+    slice_files = slice_files_by_number()
 
     roadmap_html = ""
     for p in phases:
@@ -575,11 +618,24 @@ def render(view: str = "committed") -> str:
             f'<div class="bp">{"\u2713" if i["state"] == "closed" else "\u25cb"}</div></div>'
             for i in p["issues"]
         ) or '<p class="empty" style="margin-left:14px">No issues on this milestone yet.</p>'
-        slice_rows = "".join(
-            f'<div class="slrow {"done" if r["done"] else "active"}"><span class="slnum">{r["num"]:03d}</span>'
-            f'<span class="sltitle">{esc(r["title"])}</span></div>'
-            for r in rows
-        ) or '<p class="empty" style="margin-left:14px">No tracker slices recorded for this phase.</p>'
+        slice_rows = ""
+        for r in rows:
+            slice_name = slice_files.get(r["num"])
+            slice_text = read_committed_file(f"docs/slices/{slice_name}") if slice_name else ""
+            goal_num = slice_goal_number(slice_text, issue_by_number) if slice_text else None
+            goal = goal_by_number.get(goal_num) if goal_num else None
+            if goal:
+                goal_tag = (f'<a class="sl-feat" href="{esc(goal["url"])}">goal #{goal["number"]} '
+                            f'{esc(_exec_short(goal["title"], 24))}</a>')
+            elif goal_num:
+                goal_tag = f'<span class="sl-feat">goal #{goal_num} (not a tracked Goal issue)</span>'
+            else:
+                goal_tag = '<span class="sl-feat" style="opacity:.6">no linked goal</span>'
+            slice_rows += (
+                f'<div class="slrow {"done" if r["done"] else "active"}"><span class="slnum">{r["num"]:03d}</span>'
+                f'<span class="sltitle">{esc(r["title"])}</span>{goal_tag}</div>'
+            )
+        slice_rows = slice_rows or '<p class="empty" style="margin-left:14px">No tracker slices recorded for this phase.</p>'
         roadmap_html += (
             f'<section class="goal"><div class="goal-head">'
             f'<h3><a href="{esc(p["url"])}">Phase {p["num"]:02d} \u00b7 {esc(p["title"])}</a></h3>'
@@ -632,7 +688,7 @@ def render(view: str = "committed") -> str:
 .flow {{ display:flex; align-items:stretch; gap:6px; margin-bottom:22px; flex-wrap:wrap }} .flow .stage {{ flex:1 1 0; min-width:118px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:2px }} .flow .stage .n {{ font-size:22px; font-weight:600 }} .flow .stage .lbl {{ font-size:12px; color:var(--muted) }} .flow .stage.ready {{ border-left:4px solid var(--cyan) }} .flow .stage.active {{ border-left:4px solid var(--amber) }} .flow .stage.done {{ border-left:4px solid var(--green) }} .flow .arw {{ align-self:center; color:var(--muted); font-size:18px }} .sech {{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted) }}
 .itags {{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px }} .itag {{ font-size:10px; padding:2px 7px; border-radius:10px; background:#1a2430; border:1px solid var(--line); color:var(--muted) }} .itag.none {{ opacity:.6; font-style:italic }} .card.planned {{ border-left-color:var(--muted) }} .flow .stage.planned {{ border-left:4px solid var(--muted) }}
 .bars {{ display:flex; flex-direction:column; gap:4px }} .brow {{ display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px }} .brow .bl {{ color:var(--text); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }} .brow .bp {{ color:var(--muted); flex:none }}
-.slrows {{ display:flex; flex-direction:column; gap:4px }} .slrow {{ display:flex; align-items:baseline; gap:8px; font-size:12px; padding:4px 7px; border-radius:5px; border-left:3px solid var(--line); background:#1a2430 }} .slrow.done {{ border-left-color:var(--green) }} .slrow.done .sltitle {{ color:var(--muted) }} .slrow.active {{ border-left-color:var(--amber) }} .slnum {{ font-family:monospace; color:var(--muted); flex:none }} .sltitle {{ flex:1; color:var(--text) }}
+.slrows {{ display:flex; flex-direction:column; gap:4px }} .slrow {{ display:flex; align-items:baseline; gap:8px; font-size:12px; padding:4px 7px; border-radius:5px; border-left:3px solid var(--line); background:#1a2430 }} .slrow.done {{ border-left-color:var(--green) }} .slrow.done .sltitle {{ color:var(--muted) }} .slrow.active {{ border-left-color:var(--amber) }} .slnum {{ font-family:monospace; color:var(--muted); flex:none }} .sltitle {{ flex:1; color:var(--text) }} .sl-feat {{ font-size:10px; color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:1px 6px; flex:none; text-decoration:none }}
 .calib {{ font-size:12px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:14px }} .calib.warn {{ border-color:var(--amber); background:#332619; color:#ffe0a0 }} .calib code {{ color:var(--cyan) }} .calib-link {{ color:var(--cyan); text-decoration:none; white-space:nowrap }}
 .hdr-right {{ display:flex; flex-direction:column; align-items:flex-end; gap:8px }} .viewtoggle {{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden }} .viewtoggle .vt {{ font-size:12px; padding:5px 12px; color:var(--muted); text-decoration:none; background:var(--panel) }} .viewtoggle .vt + .vt {{ border-left:1px solid var(--line) }} .viewtoggle .vt.on {{ background:var(--cyan); color:#0b1118; font-weight:700 }}
 </style></head><body>

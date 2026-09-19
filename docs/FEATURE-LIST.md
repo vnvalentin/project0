@@ -2954,9 +2954,9 @@ for a developer to pick up. No implementation has started.
   change.
 - Phase: 13. Delivery workflow capabilities
 - Public seam: `dashboard/app.py` (`phase_milestones`, `outcome_completion`,
-  `goal_issue_cards`, `feature_cards`, `feature_stage`, `debt_cards`, `render`),
-  `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
-- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state; [Slice 115](slices/115-goal-good-looks-like-criteria.md) makes WGL criteria the basis for Goal target coverage; [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md) rebuilds `/detail` around the Phase-milestone/Outcome-label roadmap.
+  `slice_goal_number`, `goal_issue_cards`, `feature_cards`, `feature_stage`,
+  `debt_cards`, `render`), `dashboard/Dockerfile`, `dashboard/docker-compose.yml`.
+- Implementation slices: [Slice 094](slices/094-reality-dashboard-truthfulness.md) extends the Reality view's parser and provenance display; [Slice 111](slices/111-dashboard-issue-traceability-detail.md) refreshes the detail screen for GitHub Issue traceability; [Slice 112](slices/112-reality-goal-source-of-truth.md) makes the Reality view show parent Goal issues with child-issue completion; [Slice 113](slices/113-dashboard-apps-source-layout.md) standardizes the live container layout under `/apps/project0/dashboard`; [Slice 114](slices/114-goal-target-coverage-cards.md) separates Goal target-condition coverage from GitHub child issue state; [Slice 115](slices/115-goal-good-looks-like-criteria.md) makes WGL criteria the basis for Goal target coverage; [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md) rebuilds `/detail` around the Phase-milestone/Outcome-label roadmap; [Slice 177](slices/177-dashboard-per-slice-goal-alignment.md) makes each slice row show its own resolved Goal instead of its phase's full goal list.
 - Validation: Served live at `http://127.0.0.1:18083` (HTTP 200); the parsers
   run against the live records each request. No GUT coverage — this is Python
   delivery tooling outside the Godot suite.
@@ -3046,6 +3046,19 @@ for a developer to pick up. No implementation has started.
     `render()`, `render_exec()`, `render_tests()`, `render_telemetry()` each
     invoked against live repo/GitHub data with no exceptions and expected
     Phase/Outcome/Goal content present; see [Slice 176](slices/176-dashboard-phase-outcome-roadmap.md).
+  - Date: 2026-09-19
+    What changed: Slice 177 makes each tracker slice row on `/detail` show its
+    own resolved Goal (via its linked issue's `Parent goal: #N`, or the linked
+    issue being a Goal issue itself) instead of inheriting every Goal touching
+    its Phase. Slices whose `GitHub issue:` line is missing, unresolvable, or
+    points at the `#95` bulk-backfill placeholder show "no linked goal" rather
+    than a guess.
+    Why: Slice 176's phase-wide goal rollup made every slice in a phase look
+    aligned to every goal in that phase, which the user flagged as misleading.
+    Validation: `ast.parse` — no syntax errors; `render()` invoked against live
+    data resolved 23 slices to real Goals (`#100` x14, `#354` x9) and correctly
+    showed "no linked goal" for the rest; `scripts/check_record_sync.sh` — 0
+    errors; see [Slice 177](slices/177-dashboard-per-slice-goal-alignment.md).
 
 ### F-022: Player house allocation
 
