@@ -61,6 +61,36 @@ const TARGET_HOST_ENV_VAR: String = "PROJECT0_SERVER_HOST"
 const SERVER_PORT_CLI_ARG: String = "--server-port="
 const SERVER_PORT_ENV_VAR: String = "PROJECT0_SERVER_PORT"
 
+# Slice 072: the standalone login server's UDP port, resolved with the same
+# precedence as the game port so the client and the login server never disagree.
+const LOGIN_PORT: int = 9998
+const LOGIN_PORT_CLI_ARG: String = "--login-port="
+const LOGIN_PORT_ENV_VAR: String = "PROJECT0_LOGIN_PORT"
+
+# Slice 088: the login process's loopback-only HTTP endpoint port
+# (server/login_loopback_http_endpoint.gd), adjacent to the ENet LOGIN_PORT.
+# Unlike LOGIN_PORT, the endpoint's bind ADDRESS is never configurable (always
+# hardcoded to "127.0.0.1" in the endpoint itself) — only the port is resolved
+# here, with the same CLI/env/default precedence as the other network config.
+const LOGIN_HTTP_PORT: int = 9997
+const LOGIN_HTTP_PORT_CLI_ARG: String = "--login-http-port="
+const LOGIN_HTTP_PORT_ENV_VAR: String = "PROJECT0_LOGIN_HTTP_PORT"
+
+# Slice 078: opt-in client login split. When set, the client authenticates on the
+# separate login process and hands off to the game process; default off keeps the
+# single-connection flow.
+const CLIENT_LOGIN_SPLIT_ENV_VAR: String = "PROJECT0_CLIENT_LOGIN_SPLIT"
+
+# Slice 093: opt-in client HTTPS login/character flow (ADR 0005 Option A, WAN).
+# When enabled the client authenticates and performs Character CRUD over the
+# public HTTPS enrollment surface (client/enrollment_http_client.gd), obtains a
+# signed Character assertion, then presents it to the assertion-only game server
+# through the tunnel — instead of the ENet login/character path (which stays for
+# LAN development). Defaults ON under tunnel mode so the WAN launcher, which
+# already sets PROJECT0_TUNNEL=1, needs no extra flag.
+const CLIENT_HTTPS_LOGIN_ENV_VAR: String = "PROJECT0_CLIENT_HTTPS_LOGIN"
+const TUNNEL_ENV_VAR: String = "PROJECT0_TUNNEL"
+
 
 ## Public seam: resolves the address the headless server should bind to.
 ## Precedence: `--server-bind-address=<addr>` CLI argument, then the
@@ -110,6 +140,62 @@ static func resolve_server_port() -> int:
 		return from_env
 
 	return SERVER_PORT
+
+
+## Public seam: resolves the UDP port the standalone login server listens on and
+## the client dials for the login handoff. Precedence: `--login-port=<n>` CLI
+## argument, then `PROJECT0_LOGIN_PORT`, then LOGIN_PORT. A malformed value falls
+## back to the default (never binds port 0 or an out-of-range port).
+static func resolve_login_port() -> int:
+	var from_cli: int = _parse_port(_find_cli_arg_value(LOGIN_PORT_CLI_ARG))
+	if from_cli != 0:
+		return from_cli
+
+	var from_env: int = _parse_port(OS.get_environment(LOGIN_PORT_ENV_VAR))
+	if from_env != 0:
+		return from_env
+
+	return LOGIN_PORT
+
+
+## Public seam (Slice 088): resolves the TCP port the login process's loopback
+## HTTP endpoint listens on. Precedence: `--login-http-port=<n>` CLI argument,
+## then `PROJECT0_LOGIN_HTTP_PORT`, then LOGIN_HTTP_PORT. A malformed value
+## falls back to the default (never binds port 0 or an out-of-range port).
+static func resolve_login_http_port() -> int:
+	var from_cli: int = _parse_port(_find_cli_arg_value(LOGIN_HTTP_PORT_CLI_ARG))
+	if from_cli != 0:
+		return from_cli
+
+	var from_env: int = _parse_port(OS.get_environment(LOGIN_HTTP_PORT_ENV_VAR))
+	if from_env != 0:
+		return from_env
+
+	return LOGIN_HTTP_PORT
+
+
+## Public seam: whether the client should authenticate on the separate login
+## process (then hand off to the game process) instead of the single-connection
+## flow. Default ON (the login split is canonical after the Slice 084 cutover);
+## set PROJECT0_CLIENT_LOGIN_SPLIT=0 to use the legacy single-connection flow.
+static func client_login_split_enabled() -> bool:
+	return OS.get_environment(CLIENT_LOGIN_SPLIT_ENV_VAR).strip_edges() != "0"
+
+
+## Public seam (Slice 093): whether the client runs the HTTPS account/character
+## flow (log in + list/create/select over the enrollment service, obtain a
+## Character assertion, present it to the game server through the tunnel) instead
+## of the ENet login/character path. Precedence: PROJECT0_CLIENT_HTTPS_LOGIN="1"
+## forces it on and "0" forces it off; when unset it defaults to tunnel mode
+## (PROJECT0_TUNNEL="1"), so the WAN launcher enables it implicitly while LAN
+## development (no tunnel) keeps the ENet path.
+static func client_https_login_enabled() -> bool:
+	var explicit: String = OS.get_environment(CLIENT_HTTPS_LOGIN_ENV_VAR).strip_edges()
+	if explicit == "1":
+		return true
+	if explicit == "0":
+		return false
+	return OS.get_environment(TUNNEL_ENV_VAR).strip_edges() == "1"
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,

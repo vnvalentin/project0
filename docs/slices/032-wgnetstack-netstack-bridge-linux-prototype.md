@@ -1,10 +1,11 @@
 # Slice 032: In-client wgnetstack netstack bridge (Linux prototype)
+GitHub issue: #95
 
 Status: delivered (Linux prototype validated end to end; the Godot client
 reaches `connected: player spawned` through the bridge against the live
 server — see Validation Evidence below)
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 by delivering S2 of the netstack-bridge design: a real `wireguard-go` userspace
 netstack bridge proven on Linux, ahead of the Windows DLL validation (S3) and

@@ -1,4 +1,5 @@
 # Slice 051 — Hardware-accelerated local inference (P-009)
+GitHub issue: #95
 
 Status: **delivered**
 

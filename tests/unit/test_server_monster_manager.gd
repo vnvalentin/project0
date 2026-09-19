@@ -139,6 +139,61 @@ func test_every_respawn_stays_outside_town() -> void:
 		assert_true(_outside_town(position), "respawn at %s is outside the town" % position)
 
 
+## --- Slice 094: monster -> player damage routing (player_hit) ---
+
+
+func test_landed_attack_emits_player_hit_with_victim_peer() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	var hits: Array = []
+	manager.player_hit.connect(func(victim_peer_id: int, spawn_id: String, tick: int) -> void:
+		hits.append([victim_peer_id, spawn_id, tick]))
+	var player_pos: Vector3 = Vector3(9, 1, 0)  # within the monster's 2.0 reach
+	for tick in 20:
+		manager.advance_all([player_pos], 1.0, tick, [42])
+		if not hits.is_empty():
+			break
+	assert_gt(hits.size(), 0, "a landed, in-reach attack routes a player_hit")
+	assert_eq(hits[0][0], 42, "player_hit carries the nearest player's peer id as the victim")
+	assert_eq(hits[0][1], "s0", "player_hit carries the attacking monster's spawn id")
+
+
+func test_missed_attack_during_windup_emits_no_player_hit() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	var hits: Array = []
+	manager.player_hit.connect(func(_v: int, _s: String, _t: int) -> void:
+		hits.append(true))
+	var resolutions: Array = []
+	manager.monster_at(0).attack_resolved.connect(func(_id: String, landed: bool, _t: int) -> void:
+		resolutions.append(landed))
+	var in_reach: Vector3 = Vector3(9, 1, 0)
+	var out_of_reach: Vector3 = Vector3(100, 1, 0)
+	# Two ticks in reach to detect and enter WINDUP (locking the telegraph
+	# facing); then step far away so the committed swing whiffs.
+	manager.advance_all([in_reach], 1.0, 0, [42])  # IDLE -> CHASE
+	manager.advance_all([in_reach], 1.0, 1, [42])  # CHASE -> WINDUP (facing locked)
+	for tick in range(2, 20):
+		manager.advance_all([out_of_reach], 1.0, tick, [42])
+		if not resolutions.is_empty():
+			break
+	assert_gt(resolutions.size(), 0, "the monster committed and resolved its swing")
+	assert_false(resolutions[0], "stepping out during the telegraph makes the attack miss")
+	assert_eq(hits.size(), 0, "a missed attack routes no player_hit (the dodge window is preserved)")
+
+
+func test_landed_attack_without_peer_ids_emits_no_player_hit() -> void:
+	# Backward compatibility: the older advance_all(positions, delta, tick)
+	# signature (no peer ids) still resolves attacks but routes no player_hit.
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	var hits: Array = []
+	manager.player_hit.connect(func(_v: int, _s: String, _t: int) -> void:
+		hits.append(true))
+	var player_pos: Vector3 = Vector3(9, 1, 0)
+	for tick in 20:
+		manager.advance_all([player_pos], 1.0, tick)
+	assert_eq(hits.size(), 0, "with no peer ids supplied, a landed attack routes no player_hit")
+
+
+
 func test_town_exclusion_half_extent_matches_fixture_constant() -> void:
 	var extent: float = ServerMonsterManagerScript.town_exclusion_half_extent(StartingTownHubFixtureScript.blueprint())
 	assert_eq(extent, 32.0, "the shipped fixture (radius 30) derives to exactly 32.0, matching prior hard-coded behavior")

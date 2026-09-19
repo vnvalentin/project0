@@ -17,6 +17,8 @@ const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry
 
 ## Set of blocked grid cells: Vector2i -> true.
 var _blocked: Dictionary = {}
+var _traversal_surfaces: Array[Dictionary] = []
+var _traversal_ceilings: Array[Dictionary] = []
 
 
 ## Builds the blocked-cell set from `blueprint`: every wall tile, plus every
@@ -24,6 +26,13 @@ var _blocked: Dictionary = {}
 ## from SectorGeometryLookup). An empty/absent blueprint yields an empty map
 ## (nothing solid), so a caller with no town simply has free movement.
 func _init(blueprint: Dictionary = {}) -> void:
+	for surface: Dictionary in blueprint.get("traversal_surfaces", []):
+		if surface.has("height"):
+			_traversal_surfaces.append(surface)
+	for ceiling: Dictionary in blueprint.get("traversal_ceilings", []):
+		if ceiling.has("height"):
+			_traversal_ceilings.append(ceiling)
+
 	for tile: Dictionary in blueprint.get("tiles", []):
 		if String(tile.get("kind", "")) == "wall":
 			_blocked[Vector2i(int(tile.get("x", 0)), int(tile.get("y", 0)))] = true
@@ -44,6 +53,29 @@ func is_blocked(cell: Vector2i) -> bool:
 
 func blocked_count() -> int:
 	return _blocked.size()
+
+
+## Returns the highest authored surface beneath the current motion, or the
+## caller's base floor when the Player is outside an authored surface.
+func ground_height_at(world_position: Vector3, current_height: float, base_height: float) -> float:
+	var support_height: float = base_height
+	for surface: Dictionary in _traversal_surfaces:
+		var inside_x: bool = world_position.x >= float(surface.get("x_min", 0.0)) and world_position.x <= float(surface.get("x_max", 0.0))
+		var inside_z: bool = world_position.z >= float(surface.get("z_min", 0.0)) and world_position.z <= float(surface.get("z_max", 0.0))
+		var height: float = float(surface.get("height", base_height))
+		if inside_x and inside_z and height <= current_height + 0.05 and height > support_height:
+			support_height = height
+	return support_height
+
+
+
+func can_stand_at(world_position: Vector3, standing_height: float) -> bool:
+	for ceiling: Dictionary in _traversal_ceilings:
+		var inside_x: bool = world_position.x >= float(ceiling.get("x_min", 0.0)) and world_position.x <= float(ceiling.get("x_max", 0.0))
+		var inside_z: bool = world_position.z >= float(ceiling.get("z_min", 0.0)) and world_position.z <= float(ceiling.get("z_max", 0.0))
+		if inside_x and inside_z and standing_height > float(ceiling.get("height", INF)):
+			return false
+	return true
 
 
 ## Resolves a desired move from `from` to `to`, sliding along solids: if `to`

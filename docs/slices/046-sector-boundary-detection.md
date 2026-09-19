@@ -1,4 +1,5 @@
 # Slice 046 — Authoritative sector-boundary detection for JIT generation
+GitHub issue: #95
 
 Status: **delivered**
 

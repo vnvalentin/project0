@@ -1,5 +1,5 @@
 [Unit]
-Description=Periodically sync the Project0 Flow dashboard mirror to origin/main
+Description=Periodically sync the Project0 Flow dashboard repo clone to origin/main
 
 [Timer]
 OnBootSec=1min

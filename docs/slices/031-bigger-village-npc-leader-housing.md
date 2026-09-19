@@ -1,4 +1,5 @@
 # Slice 031: Bigger rural village with NPC and leader housing
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-026](../FEATURE-LIST.md#f-026-organic-districted-starting-city) and extends

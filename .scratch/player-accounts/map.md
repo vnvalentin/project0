@@ -18,6 +18,13 @@ instantiation seam are decided well enough to create implementation tickets
 safely. See [Project Tracker](../../docs/PROJECT-TRACKER.md),
 [CLAUDE.md](../../CLAUDE.md), and [CONTEXT.md](../../CONTEXT.md).
 
+## What Good Looks Like
+
+- [x] Account, Character, and Player terms and ownership boundaries are defined.
+- [x] Authentication, session, and Character lifecycle contracts are decided for the home-hosted invite-gated trust level.
+- [x] Persistence boundaries are specified with server-owned SQLite, atomic operations, and fail-closed versioning.
+- [x] The login/register, Character select/create/delete, and Character-to-Player world-entry flow is handoff-ready.
+
 ## Notes
 
 - Domain: Godot 4 GDScript 2.0 strict typing, server-authoritative per

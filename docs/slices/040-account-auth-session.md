@@ -1,4 +1,5 @@
 # Slice 040 — Account authentication and session (server)
+GitHub issue: #95
 
 Status: **delivered** (server-side auth/session seam; additive RPCs; no
 mandatory-auth gate, no client UI, no Character CRUD).

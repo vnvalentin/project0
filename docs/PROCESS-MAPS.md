@@ -8,15 +8,16 @@ customer journey, runtime behavior, or delivery loop.
 
 The current value stream is:
 
-> A developer or playtester launches the Windows client, connects to the Linux
-> server, enters a local identity, and moves a Player while the server remains
-> authoritative for networked movement. Up to two clients (Slice 007) can be
-> connected at once, each seeing the other's server-authoritative movement and
-> a clean removal of the other's representation on disconnect.
+> A remote Windows playtester creates or uses an Account through the public
+> HTTPS enrollment surface, selects a Character, provisions a least-privilege
+> WireGuard peer, and enters the assertion-only game server. The server owns
+> movement, combat, generated Canon sectors, and effective replay of durable
+> world mutations.
 
-The maps stop before JIT world generation, SQLite canon persistence,
-production authentication, and support for more than two concurrent peers,
-because those systems are not yet in the live path.
+The implemented path is held before public advertising and phase closure by
+public-route abuse controls (DT-009), public self-registration (DT-010), and
+the real-WAN Windows evidence in the F-035 runbook. These are current Andon
+signals, not completed capabilities.
 
 ## Material And Information Flow
 
@@ -69,20 +70,20 @@ may move right only when the exit evidence for its current column exists.
 ```mermaid
 flowchart LR
     subgraph Ready[READY - WIP 2]
-        R1[Slice 007 follow-up: physical two-client LAN run]
-        R2[Phase 8: JIT generation contract decision]
+      R1[DT-009 public-auth abuse controls]
+      R2[DT-010 HTTPS account registration]
     end
     subgraph Claimed[CLAIMED - WIP 1]
-        C1[Slice 007 multi-peer replication]
+        C1[No implementation slice claimed]
     end
     subgraph Handoff[CLAUDE HANDOFF - WIP 1]
         H1[One bounded implementation brief]
     end
     subgraph Evidence[AWAITING EVIDENCE - WIP 1]
-        E1[Focused test plus Windows/LAN observation]
+        E1[Real-WAN Windows F-035 evidence]
     end
     subgraph Done[DONE]
-        D1[Slice 001-006 validated]
+        D1[Canon replay and HTTPS onboarding seams validated]
     end
     subgraph Andon[ANDON / STOP]
         A1[Failure, contradiction, stale process, or missing evidence]
@@ -98,14 +99,12 @@ flowchart LR
 
 | Card | Column | Exit condition for next move | Evidence or stop reason |
 | --- | --- | --- | --- |
-| Slice 001: identity, plane, local movement | Done | None; regression only | Headless smoke test passes; Windows rendering confirmed during client work |
-| Slice 002: server connection proof | Done | None; regression only | ENet connection and Player spawn smoke test pass |
-| Slice 003: LAN client connection | Done with follow-up | Physical LAN behavior remains a reusable regression check | User connected Windows client to Linux server |
-| Slice 004: authoritative movement | Done with follow-up | Multi-peer behavior must preserve authority | Server-owned movement smoke test passes |
-| Slice 005: prediction/reconciliation | Done with follow-up | Multi-peer behavior must preserve sequence acknowledgement | Prediction smoke test passes; visual quality remains a manual check |
-| Slice 006: portable Windows client | Done | None for this slice; release hardening is separate | Exported client launched outside editor/source share and connected over LAN |
-| Slice 007: multi-peer replication | Evidence / handoff review | Two-client Windows/LAN run and final review | Headless multi-peer evidence exists; physical two-client run remains open |
-| JIT world generation | Ready / fog | Slice 007 review and authority model must settle first | Not eligible for implementation yet |
+| Phase 9 Canon replay | Done | Regression only | Slice 098 full Linux GUT 493/493 and melee E2E passed |
+| HTTPS login, Character flow, and assertion-gated redeem | Done | Regression only | Slices 088-093 validate the loopback authority and public-client seams |
+| DT-009 public-auth abuse controls | Ready | Bounded SDD/BDD/TDD and a reserved slice | Required before public advertising |
+| DT-010 HTTPS account registration | Ready after DT-009 design | Bounded registration design using the same protections | WAN registration is currently disabled |
+| F-035 / Slices 092-093 real-WAN validation | Awaiting evidence | Record six runbook checks from an off-LAN Windows client | No live self-service auth-gated run yet |
+| Phase 12 action-input expansion | Queued | Pick one action seam without overlapping server hot spots | First authoritative melee seam already exists |
 
 ### Kanban operating rules
 

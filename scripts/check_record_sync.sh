@@ -12,6 +12,7 @@
 #   4. Next-free pointer sanity  - registry "Next free slice" exceeds every known
 #      slice number.
 #   5. Slice-doc feature link     - each slice doc names an existing feature (warn).
+#   6. GitHub Issue traceability  - every slice doc names a GitHub Issue.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
@@ -105,6 +106,14 @@ for doc in "$SLICE_DIR"/[0-9][0-9][0-9]-*.md; do
 		[ -n "$id" ] && has_feature "$id" && ok=1
 	done < <(grep -oE '(F|IP|P)-[0-9]+' "$doc" | sort -u)
 	[ "$ok" -eq 1 ] || warn "$doc names no feature present in $FEATURE"
+done
+
+# 6) Every slice doc must carry a GitHub Issue reference.
+for doc in "$SLICE_DIR"/[0-9][0-9][0-9]-*.md; do
+	pad="$(basename "$doc" | grep -oE '^[0-9]+')"
+	if ! grep -qiE '^GitHub issue:[[:space:]]*(#[0-9]+|https://github\.com/[^/]+/[^/]+/issues/[0-9]+)' "$doc"; then
+		err "slice $pad ($doc) missing GitHub issue traceability; add 'GitHub issue: #N' or an issue URL"
+	fi
 done
 
 printf '\nrecord-sync: %d error(s), %d warning(s)\n' "$errors" "$warns" >&2

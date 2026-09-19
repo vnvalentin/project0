@@ -1,6 +1,7 @@
 # Slice 020: Monster HP, damage, and death model
+GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; advances
+Tracker context: Phase 12 — Authoritative runtime and action input; advances
 [IP-023](../FEATURE-LIST.md#ip-023-basic-monster-combat).
 Planning tickets: [Basic Monsters map](../../.scratch/basic-monsters/map.md),
 [issue 01 — HP/damage/death model](../../.scratch/basic-monsters/issues/01-hp-damage-death-model.md)

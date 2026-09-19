@@ -11,6 +11,13 @@ pool, Smithy, Armor Shop, Inn) always exist — delivered as bounded,
 always-playable slices. Supersedes the Slice 016 hard-coded square hub. See
 [Project Tracker](../../docs/PROJECT-TRACKER.md).
 
+## What Good Looks Like
+
+- [x] The starting town is large, organic, walled, and districted enough to replace the tiny square hub as the player-facing starting city.
+- [x] The geometry pipeline scales the town without one physics body per tile.
+- [x] LLM-proposed town layouts are validated and fall back to a known usable fixture when invalid or unavailable.
+- [x] Required gameplay structures and monster exclusion derive from validated town data.
+
 ## Notes
 
 - Scale reference (user, 2026-09-12): EverQuest Qeynos and FF7 Midgar — large

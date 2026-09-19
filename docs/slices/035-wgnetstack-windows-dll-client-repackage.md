@@ -1,4 +1,5 @@
 # Slice 035: wgnetstack Windows DLL cross-compile + client repackage (S3b)
+GitHub issue: #95
 
 Status: delivered (build + package: the wgnetstack GDExtension cross-compiles
 to a valid PE32+ Windows DLL and the portable Windows client package bundles
@@ -6,7 +7,7 @@ it alongside `Project0.exe`; the Windows *runtime* spawn-through-tunnel proof
 over the public WAN is now user-confirmed, 2026-09-14 — see WAN runtime proof
 below)
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard).
 Completes the client-side half of the in-process tunnel design: after
 [Slice 034](034-wgnetstack-godot-gdextension-tunnel-integration-linux.md)

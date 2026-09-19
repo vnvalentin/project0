@@ -1,0 +1,13 @@
+# Slice 082: split-topology overlay for deploy/game-server/docker-compose.yml.
+# Applied on top of the base file to run the game server accounts-disabled
+# (assertion-only) beside the login-server, so accounts authority lives only on
+# the login container. Both services already share PROJECT0_ASSERTION_SECRET from
+# the base file. Not part of the default `docker compose up`; use explicitly:
+#
+#   PROJECT0_ASSERTION_SECRET=<hex> docker compose \
+#     -f docker-compose.yml -f docker-compose.split.yml --profile login-split up
+services:
+  game-server:
+    environment:
+      # Refuse register/login/Character CRUD; accept only the assertion path.
+      PROJECT0_GAME_ASSERTION_ONLY: "1"

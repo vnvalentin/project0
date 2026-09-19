@@ -1,0 +1,17 @@
+# Build-context trim for the game-server image (deploy/game-server/Dockerfile).
+# Keep server/client/shared/addons and the wgnetstack built .so; drop heavy or
+# non-runtime paths. The godot-cpp source tree is huge and never needed at
+# runtime (only the prebuilt libwgnetstack .so under gdext/build is).
+.git
+.github
+.godot
+build
+.scratch
+docs
+dashboard
+tests
+ci
+infra
+native/wgnetstack/gdext/godot-cpp
+native/windows_launcher
+**/*.log

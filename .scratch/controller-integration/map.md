@@ -4,6 +4,13 @@ Produce a validated, handoff-ready plan for a controller integration placeholder
 
 The map is complete when the supported controller scope, action contract, fallback behavior, and executable validation evidence are clear enough to create an implementation ticket safely.
 
+## What Good Looks Like
+
+- [x] Supported controller families and connection states are decided for the first placeholder.
+- [x] Controller input maps to the existing named actions without changing server authority or network contracts.
+- [x] Keyboard/mouse behavior remains unchanged and fallback/disconnect behavior is specified.
+- [x] A realistic validation path exists for the first controller implementation slice.
+
 ## Notes
 
 - Domain: Godot 4 client input, networked movement and action presentation, GDScript 2.0 strict typing.
@@ -14,6 +21,12 @@ The map is complete when the supported controller scope, action contract, fallba
 - Consult the `grilling` and `domain-modeling` skills for each decision ticket.
 
 ## Decisions so far
+
+The controller boundary is included in [the Windows client delivery contract](../client-auto-update/spec.md)
+and [ADR 0008](../../docs/adr/0008-windows-client-delivery-trust-and-rollback.md):
+Windows XInput through Godot's built-in InputMap/Joypad support, left-stick
+movement and south/A attack, keyboard/mouse preserved, DirectInput-only devices
+best-effort/unsupported in v1.
 
 ## Not yet specified
 

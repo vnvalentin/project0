@@ -1,6 +1,7 @@
 # Slice 030: Server-side wall and building collision
+GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; adds
+Tracker context: Phase 12 — Authoritative runtime and action input; adds
 [F-027](../FEATURE-LIST.md#f-027-server-authoritative-movement-collision),
 extends the movement authority of
 [IP-001](../FEATURE-LIST.md#ip-001-server-authoritative-networked-multiplayer),

@@ -14,14 +14,14 @@
 # it calls iptables directly.
 #
 # Usage:
-#   sudo ci/host-firewall-helper.sh apply [--allow-lan]
+#   sudo ci/host-firewall-helper.sh apply [--allow-lan|--allow-public]
 #   sudo ci/host-firewall-helper.sh remove
 #   ci/host-firewall-helper.sh status
 #
 # apply    Flush/recreate the P0_GAME chain and hook it into INPUT. Accepts
 #          UDP 9999 from 10.77.0.0/24 (and, with --allow-lan, also from
-#          192.168.1.0/24 for local dev bring-up), drops all other UDP 9999
-#          traffic. Safe to re-run: idempotent.
+#          192.168.1.0/24). `--allow-public` temporarily accepts public UDP
+#          game traffic for the direct-WAN playability stage.
 # remove   Unhook and delete the P0_GAME chain, restoring pre-lockdown
 #          behavior for UDP 9999 on this host.
 # status   Print whether the chain is hooked into INPUT and list its rules.
@@ -51,8 +51,11 @@ input_jump_exists() {
 cmd_apply() {
     require_root
     local allow_lan="0"
+    local allow_public="0"
     if [[ "${1:-}" == "--allow-lan" ]]; then
         allow_lan="1"
+    elif [[ "${1:-}" == "--allow-public" ]]; then
+        allow_public="1"
     fi
 
     if chain_exists; then
@@ -68,13 +71,16 @@ cmd_apply() {
     if [[ "${allow_lan}" == "1" ]]; then
         iptables -A "${CHAIN}" -p udp --dport "${GAME_PORT}" -s "${LAN_SUBNET}" -j ACCEPT
     fi
+    if [[ "${allow_public}" == "1" ]]; then
+        iptables -A "${CHAIN}" -p udp --dport "${GAME_PORT}" -j ACCEPT
+    fi
     iptables -A "${CHAIN}" -p udp --dport "${GAME_PORT}" -j DROP
 
     if ! input_jump_exists; then
         iptables -I INPUT -p udp --dport "${GAME_PORT}" -j "${CHAIN}"
     fi
 
-    echo "Applied: UDP ${GAME_PORT} restricted to ${TUNNEL_SUBNET}$( [[ ${allow_lan} == 1 ]] && echo " and ${LAN_SUBNET} (--allow-lan)" )."
+    echo "Applied: UDP ${GAME_PORT} allows tunnel=${TUNNEL_SUBNET}, lan=${allow_lan}, public=${allow_public}."
 }
 
 cmd_remove() {
@@ -117,7 +123,7 @@ main() {
             cmd_status
             ;;
         *)
-            echo "Usage: $0 {apply [--allow-lan]|remove|status}" >&2
+            echo "Usage: $0 {apply [--allow-lan|--allow-public]|remove|status}" >&2
             exit 1
             ;;
     esac

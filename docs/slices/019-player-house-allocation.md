@@ -1,4 +1,5 @@
 # Slice 019: Player house allocation
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-022](../FEATURE-LIST.md#f-022-player-house-allocation).

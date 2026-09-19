@@ -1,86 +1,96 @@
-# Map: Nonplayer Characters
+# Map: Unified Character and NPC Generalization
 
 ## Destination
 
-Generalize today's always-aggressive Monster into a unified, server-authoritative
-**NPC** entity that carries a **disposition** (`HOSTILE` | `PASSIVE`), **moves
-when it has no combat target** (no longer static when idle), and shares a
-**provisional stat block** (HP-first, a Phase-12 vessel placeholder) with the
-Player — so an NPC has "the same stats as the player" by construction. The
-destination is a handoff-ready set of decisions (SDD/BDD-shaped), delivered
-afterward as bounded SDD/BDD/TDD slices. The map is complete when the disposition
-model, non-combat movement, the shared stat block (including giving the Player an
-HP pool for the first time), hostile-NPC→Player damage, and passive-NPC spawn
-source are each decided well enough to become implementation slices. Generalizes
-the resolved [Basic Monsters map](../basic-monsters/map.md) and reopens its "a
-monster is always aggressive" assumption. See
-[Project Tracker](../../docs/PROJECT-TRACKER.md) and [CLAUDE.md](../../CLAUDE.md).
+Generalize the current Monster into a server-authoritative NPC while making
+Player and NPC two controller modes of the same `Character` entity. Every
+Character uses the same six-node vessel, organic development, equipment,
+techniques, movement, combat, and persistence contracts. The player is
+humanoid in the current game; non-humanoid types are NPC-only. This map is the
+Phase 14 foundation for the later Phase 15 biological subsystems.
 
-## Notes
+## What Good Looks Like
 
-- Domain: server-authoritative non-player behavior, extending the existing
-  monster contracts + state machine (`shared/monster_contracts.gd`,
-  `server/server_monster_state.gd`, `server/server_monster_manager.gd`) and the
-  combat pattern (`shared/combat_contracts.gd`).
-- Generalization (Q2): **NPC** is the umbrella entity; **disposition**
-  (`HOSTILE` | `PASSIVE`) is the axis; today's Monster becomes the `HOSTILE`
-  disposition. Prefer reusing/generalizing the existing state machine over a
-  parallel "friendly NPC" system.
-- Stats (Q3): a **provisional shared stat block**, HP-first, defined once in
-  `shared/` and given to BOTH Player and NPC so "NPC stats == Player stats"
-  holds by construction. Explicitly a placeholder for the Phase-12 six-node
-  vessel (0% built) — this map does NOT build the vessel. The Player gains an HP
-  pool for the first time here (it has none today), which also finally lets a
-  hostile NPC's landed attack damage the Player — a gap
-  `server/server_monster_state.gd` explicitly calls out.
-- Standing constraints (carried from the sibling maps, user direction):
-  telemetry-first — every disposition/movement/damage transition emits bounded
-  structured telemetry, reusing CLAUDE.md's "Telemetry And Andon Signals" seam;
-  every slice follows SDD/BDD/TDD (public-seam failing test first) with focused
-  + full GUT validation; always-playable increments.
-- Delivery workflow: Copilot owns grilling, domain decisions, scope, acceptance
-  criteria, and the implementation handoff; Claude Code CLI owns the code edits
-  and executable validation; Copilot reviews the result against the handoff
-  before the next decision. No implementation slice starts until its ticket has
-  a recorded decision, public seam, non-goals, safety invariants, validation
-  command, and handoff brief.
-- Godot headless lessons (carried): a new `class_name` script must be reached via
-  a `preload` const + `Object` typing, never a bare type annotation; a `.tscn`
-  `Transform3D` needs exactly 12 floats.
-- Numbering: these are local wayfinder tickets (numbered from `01` in
-  `issues/`); implementation slice/feature numbers are allocated later via the
-  [SLICE-REGISTRY](../../docs/slices/SLICE-REGISTRY.md), not here.
+- [x] Player and NPC share one Character state model; controller type is
+      separate from alignment and decision-time disposition.
+- [x] A humanoid player starts from the same fixed balanced six-node baseline
+      as every Character, with uncapped organic development layered above it.
+- [x] Practice, techniques, equipment, and status effects use explicit,
+      server-authoritative contracts without exposing hidden numeric stats.
+- [x] NPC activities, off-screen simulation, relevance transitions, and
+      route-consistent arrivals preserve Character continuity.
+- [x] Hostile NPC combat uses the same damage, health, defeat, and recovery
+      rules as player combat; no generic injury subsystem is introduced.
+- [x] Fixed anchors, population pressure, delayed replacement, and emergent
+      NPC significance produce a persistent-feeling world without recycling
+      identities silently.
 
-## Decisions so far
+## Resolved Decisions
 
-<!-- empty: charting resolves nothing; each closed ticket appends one line here -->
+The following frontier decisions were charted through the Phase 14 wayfinder
+issue [#227](https://github.com/vnvalentin/project0/issues/227):
 
-## Not yet specified
+- [#228](https://github.com/vnvalentin/project0/issues/228) — disposition uses
+  continuous morality/chaos axes, narrative labels may deceive, relationships
+  and context drive decision-time disposition, and hidden details remain
+  server-authoritative.
+- [#235](https://github.com/vnvalentin/project0/issues/235) — the player is
+  humanoid; non-humanoid types are NPC-only; future playable races are out of
+  current scope.
+- [#230](https://github.com/vnvalentin/project0/issues/230) — fixed balanced
+  six-node baseline plus uncapped organic development; weighted continuous
+  activity growth; multidimensional techniques; persistent skills; visible
+  technique percentages; spider graph and technique relationship map.
+- [#233](https://github.com/vnvalentin/project0/issues/233) — mundane and
+  magical fixed-effect items, fixed equipment slots, free swapping, default
+  tradeability, no degradation, and separate item/class proficiency scales.
+- [#234](https://github.com/vnvalentin/project0/issues/234) — techniques are
+  taught, discovered, practiced, and combined; failure teaches; pre-mastery
+  proficiency decays; 100% mastery makes knowledge permanent; mastered
+  Characters can teach willing learners.
+- [#229](https://github.com/vnvalentin/project0/issues/229) — activity-driven
+  NPC movement with idle/patrol fallback, off-screen simulation, visible
+  route-consistent arrival, interruptible routines, and activity-scoped
+  following.
+- [#231](https://github.com/vnvalentin/project0/issues/231) — shared attack,
+  damage, health, defeat, and recovery rules; deliberate magical or impairment
+  status effects are resistible/removable; ordinary hits do not cause injury.
+- [#232](https://github.com/vnvalentin/project0/issues/232) — fixed anchors and
+  activity-driven population, delayed pressure-based replacement, new
+  identities, contextual generation, and silent promotion of ambient NPCs.
 
-- **Client presentation of disposition** — how the client visually distinguishes
-  a `HOSTILE` from a `PASSIVE` NPC (nameplate, tint, animation) and how
-  disposition replicates to the client. Fog until the disposition model
-  (ticket 01) and dynamics (ticket 03) settle: the right cue depends on how many
-  dispositions exist and whether they flip.
-- **Player death / respawn design** — what happens when the Player's provisional
-  HP reaches 0, beyond a bounded placeholder. A system in its own right (respawn
-  point, penalty, telemetry); the hostile-damage ticket (05) only pins the
-  minimum.
-- **Movement fidelity beyond straight-line** — obstacle avoidance /
-  `NavigationServer3D` pathfinding around town buildings for wander and chase.
-  Fog until the non-combat movement model (ticket 02) picks its baseline; the
-  existing chase is deliberately straight-line.
-- **Richer disposition / faction model** — neutral-until-provoked tiers,
-  factions, dialogue, trading. Beyond the binary `HOSTILE`/`PASSIVE` this map
-  commits to; graduates only if a resolved ticket demands it.
+## Dependencies
 
-## Out of scope
+- Existing Character account/world-entry records and server-authoritative
+  combat/movement seams.
+- [ADR 0006](../../docs/adr/0006-versioned-embodiment-mechanics-architecture.md)
+  for versioned tuning, baseline vessel derivation, and future Phase 15
+  subsystem layering.
+- Phase 14 must establish the shared Character/progression seam before Phase
+  15 implements kinetic, friction, Meridian, Burnout, and magic layers.
 
-- The full six-node biological vessel (STR/DEX/CON/INT/WIS/CHA) and progression
-  (CLAUDE.md Phase 12, 0% built) — this map uses a provisional HP-first stat
-  block as a bounded stand-in, never the real vessel.
-- A complete Player death / respawn / penalty system (only a bounded placeholder
-  is in scope, via ticket 05).
-- Loot, drops, rewards, currency, and any NPC "economy".
-- NPC dialogue, quests, trading, and faction reputation.
-- Multiple hostile archetypes beyond the one baseline monster being generalized.
+## Explicit Non-Goals
+
+- Playing as a non-humanoid character or implementing a humanoid race catalog.
+- Magical item evolution, awakening, or transformation.
+- Player-authored technique invention; Phase 14 supports discovery and mastery
+  of defined combinations only.
+- A generic injury system caused by ordinary damage.
+- Automatic respawn of named or story-critical NPCs, reincarnation, or memory
+  transfer.
+- Replacing the authoritative server with client-authored outcomes.
+
+## Implementation Handoff Requirements
+
+Every implementation slice must name its public server seam, falsifiable
+hypothesis, SDD/BDD/TDD acceptance criteria, non-goals, safety invariants,
+validation command, telemetry evidence, and review outcome. Slices must reuse
+the unified Character model, remain always-playable, preserve hidden server
+state, and update the Feature List, Project Tracker, and technical-debt record
+when scope or status changes. No slice is complete from passing code alone.
+
+## Status
+
+The design map is charted. Implementation begins with the records-first
+handoff in [Slice 116](../../docs/slices/116-phase14-character-foundation-handoff.md)
+under [F-036](../../docs/FEATURE-LIST.md#f-036-phase-14-unified-character-and-npc-generalization).

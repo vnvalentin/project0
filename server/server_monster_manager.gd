@@ -37,6 +37,13 @@ const TOWN_EXCLUSION_MARGIN_YARDS: float = 2.0
 signal monster_died(spawn_id: String, server_tick: int)
 signal monster_respawned(spawn_id: String, position: Vector3, server_tick: int)
 
+## Slice 094: emitted when a monster's landed, telegraph-fair attack should
+## damage a Player. Carries the victim peer id (the nearest player the monster
+## was resolving its attack against this tick), so server_main.gd can route the
+## damage to that peer's ServerPlayerState without this manager knowing about
+## players or networking. Only emitted when advance_all was given peer ids.
+signal player_hit(victim_peer_id: int, spawn_id: String, server_tick: int)
+
 var _slots: Array[Dictionary] = []
 var _respawn_cooldown_ticks: int
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -61,9 +68,20 @@ func _init(spawn_points: Array, rng_seed: int = 0, respawn_cooldown_ticks: int =
 		_slots.append({
 			"spawn_id": spawn_id,
 			"base": base,
-			"monster": ServerMonsterStateScript.new(spawn_id, base),
+			"monster": _spawn_monster(spawn_id, base),
 			"cooldown": 0,
+			"target_peer_id": -1,
 		})
+
+
+## Slice 094: constructs a monster state and connects its attack_resolved
+## telemetry to this manager, so a landed attack becomes a routed player_hit.
+## Used for both the initial spawn and every respawn, so respawned monsters
+## damage players too.
+func _spawn_monster(spawn_id: String, position: Vector3) -> Object:
+	var monster: Object = ServerMonsterStateScript.new(spawn_id, position)
+	monster.attack_resolved.connect(_on_monster_attack_resolved)
+	return monster
 
 
 func monster_count() -> int:
@@ -123,8 +141,12 @@ func receive_player_hit(target_id: String, attacker_peer_id: int, server_tick: i
 
 ## Advances every monster one tick against the nearest connected player, and
 ## drives death -> cooldown -> respawn. `player_positions` may be empty (no
-## connected players), in which case living monsters simply idle.
-func advance_all(player_positions: Array, delta: float, server_tick: int) -> void:
+## connected players), in which case living monsters simply idle. Slice 094:
+## `player_peer_ids` is an optional parallel array (same order/length as
+## `player_positions`); when supplied, a monster whose attack lands this tick
+## emits player_hit against the nearest player's peer id. When omitted (older
+## call sites/tests), no player_hit is emitted — behavior is otherwise unchanged.
+func advance_all(player_positions: Array, delta: float, server_tick: int, player_peer_ids: Array = []) -> void:
 	for slot: Dictionary in _slots:
 		var monster: Object = slot["monster"]
 		if monster != null:
@@ -133,25 +155,48 @@ func advance_all(player_positions: Array, delta: float, server_tick: int) -> voi
 				slot["cooldown"] = _respawn_cooldown_ticks
 				monster_died.emit(slot["spawn_id"], server_tick)
 			elif not player_positions.is_empty():
-				monster.advance(_nearest_player(player_positions, monster.position), delta, server_tick)
+				var nearest_index: int = _nearest_player_index(player_positions, monster.position)
+				# Set the victim BEFORE advancing: the monster resolves its attack
+				# (emitting attack_resolved) synchronously inside advance(), and
+				# _on_monster_attack_resolved reads this slot's target_peer_id.
+				slot["target_peer_id"] = int(player_peer_ids[nearest_index]) if nearest_index < player_peer_ids.size() else -1
+				monster.advance(player_positions[nearest_index], delta, server_tick)
 		else:
 			slot["cooldown"] = int(slot["cooldown"]) - 1
 			if int(slot["cooldown"]) <= 0:
 				var position: Vector3 = _random_position_outside_town(slot["base"])
-				slot["monster"] = ServerMonsterStateScript.new(slot["spawn_id"], position)
+				slot["monster"] = _spawn_monster(slot["spawn_id"], position)
 				monster_respawned.emit(slot["spawn_id"], position, server_tick)
 
 
+## Slice 094: emits player_hit for a landed attack against the slot's current
+## victim. Connected to every monster's attack_resolved (initial + respawn) via
+## _spawn_monster; a miss (landed == false) or an unknown victim is a no-op.
+func _on_monster_attack_resolved(target_id: String, landed: bool, server_tick: int) -> void:
+	if not landed:
+		return
+	for slot: Dictionary in _slots:
+		if String(slot["spawn_id"]) != target_id:
+			continue
+		var victim_peer_id: int = int(slot.get("target_peer_id", -1))
+		if victim_peer_id >= 0:
+			player_hit.emit(victim_peer_id, target_id, server_tick)
+		return
+
+
 func _nearest_player(player_positions: Array, monster_position: Vector3) -> Vector3:
-	var nearest: Vector3 = player_positions[0]
-	var best: float = _horizontal_distance(nearest, monster_position)
+	return player_positions[_nearest_player_index(player_positions, monster_position)]
+
+
+func _nearest_player_index(player_positions: Array, monster_position: Vector3) -> int:
+	var best_index: int = 0
+	var best: float = _horizontal_distance(player_positions[0], monster_position)
 	for i in range(1, player_positions.size()):
-		var candidate: Vector3 = player_positions[i]
-		var distance: float = _horizontal_distance(candidate, monster_position)
+		var distance: float = _horizontal_distance(player_positions[i], monster_position)
 		if distance < best:
 			best = distance
-			nearest = candidate
-	return nearest
+			best_index = i
+	return best_index
 
 
 ## A randomized point within RESPAWN_AREA_RADIUS_YARDS of `base`, then pushed

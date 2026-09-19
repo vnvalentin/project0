@@ -1,4 +1,5 @@
 # Slice 015: Client-side sector geometry translation
+GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [F-018](../FEATURE-LIST.md#f-018-client-side-sector-geometry-translation).

@@ -32,7 +32,11 @@ $nested = Join-Path $payload "native\wgnetstack\gdext\build"
 New-Item -ItemType Directory -Force -Path $nested | Out-Null
 Copy-Item (Join-Path $SourcePackage "libwgnetstack_gdext.windows.template_release.x86_64.dll") $nested
 
-$output = Join-Path (Get-Location) $OutputPath
+$output = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
+    [System.IO.Path]::GetFullPath($OutputPath)
+} else {
+    Join-Path (Get-Location) $OutputPath
+}
 New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
 Push-Location $launcher
 try {

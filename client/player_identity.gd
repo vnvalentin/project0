@@ -14,10 +14,20 @@ var selected_character: Dictionary = {}
 ## Kept as the selected Character's display name for any legacy reader.
 var display_name: String = ""
 
+## Slice 093: signed assertions obtained over the public HTTPS enrollment surface
+## in the WAN/tunnel flow. account_assertion authorizes account-scoped Character
+## CRUD on the enrollment service; character_assertion carries the signed Character
+## snapshot presented to the game server for world entry. In-memory only, never
+## persisted, and empty in the LAN ENet path (which never mints them client-side).
+var account_assertion: String = ""
+var character_assertion: String = ""
+
 
 func clear_session() -> void:
 	account_id = ""
 	username = ""
+	account_assertion = ""
+	character_assertion = ""
 	clear_selected_character()
 
 

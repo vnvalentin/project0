@@ -12,7 +12,7 @@ quick-reference and seed, not a replacement for them.
 
 ## Canonical rule sources (read these first)
 
-- Delivery + safety: [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md),
+- Delivery + safety: [AGENTS.md](../AGENTS.md), [docs/SYSTEMS-SPECIFICATION.md](../docs/SYSTEMS-SPECIFICATION.md),
   [docs/ENGINEERING-CONSTITUTION.md](../docs/ENGINEERING-CONSTITUTION.md),
   [docs/DEVELOPMENT-WORKFLOW.md](../docs/DEVELOPMENT-WORKFLOW.md).
 - Delivery records: [docs/PROJECT-TRACKER.md](../docs/PROJECT-TRACKER.md),
@@ -21,6 +21,10 @@ quick-reference and seed, not a replacement for them.
 
 ## Branching + PR rule (mandatory; canonical in AGENTS.md + DEVELOPMENT-WORKFLOW.md)
 
+- Every work item must be tied to a GitHub Issue before work starts. Link the
+  issue from the branch/PR, slice record, tracker entries, and any local
+  `.scratch` planning ticket references. Use `Fixes #N`/`Closes #N`/`Resolves #N`
+  when the PR completes it; use `Refs #N` for related or partial work.
 - `main` is always releasable; **never** commit directly to `main`.
 - Every change gets its own branch cut from the latest `origin/main`, named
   `type/short-topic` (`slice/NNN-topic`, `fix/topic`, `docs/topic`,
@@ -33,6 +37,22 @@ quick-reference and seed, not a replacement for them.
 - The agent completing the change **merges when green** and deletes the branch.
   Tooling: `gh` (authenticated). `gh pr create --base main ...`;
   `gh pr merge <n> --merge --delete-branch`.
+
+## Implementation ownership (canonical in AGENTS.md)
+
+- Default: Claude CLI owns application-code, test-code, and
+  implementation-facing delivery-record edits; Copilot orchestrates, hands off,
+  validates, and reviews.
+- **Standing authorization (user, 2026-09-18):** when Claude CLI is
+  unavailable, interactive-only, rate-limited, or times out, Copilot implements
+  directly rather than stopping. The delivery gate is unchanged — records-first,
+  issue traceability, public-seam tests, validation evidence, record sync,
+  branch/PR/merge. Note the fallback trigger in the slice record.
+- Windows gotcha: `claude` and `claude -p` both open a full-screen TUI here, so
+  VS Code reports "the command opened the alternate buffer" and returns no
+  output; the `Claude:` VS Code tasks also fail on an unresolved
+  `${relativeFile}`. A launched session wedges the persistent shell — recover by
+  opening a NEW terminal, not by retrying the wedged one.
 
 ## Validation / build quick-reference
 
@@ -62,4 +82,5 @@ quick-reference and seed, not a replacement for them.
 
 - Reserve the number in [docs/slices/SLICE-REGISTRY.md](../docs/slices/SLICE-REGISTRY.md)
   **before** creating `docs/slices/NNN-*.md`.
-- Next free slice: **054** (verify against `docs/slices/` before reserving).
+- The registry's own "Next free slice" line is the single source of truth; this
+  file does not duplicate it (a stale copy here caused a near-collision).

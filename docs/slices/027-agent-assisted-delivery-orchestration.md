@@ -1,8 +1,9 @@
 # Slice 027: Agent-assisted delivery orchestration
+GitHub issue: #95
 
 Status: complete
 
-Tracker context: Phase 7 — Delivery workflow capabilities; delivers
+Tracker context: Phase 13 — Delivery workflow capabilities; delivers
 [P-004](../FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration) by
 formalizing the Copilot → Claude Code CLI handoff mechanism and demonstrating
 one traceable handoff.

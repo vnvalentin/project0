@@ -1,7 +1,9 @@
 # Godot 4 Core Ignores
 .godot/
 *.import
-export_presets.cfg
+# export_presets.cfg IS tracked (Slice 103): it defines exactly which files ship
+# in the client package, so the build is not reproducible in CI without it. It
+# holds no credentials. Re-ignore it only if a preset ever gains a secret.
 
 # Build & Deployment Ignores
 build/
@@ -40,6 +42,9 @@ native/**/*.a
 
 # Enrollment service local sqlite data (Slice 048) — never commit real invite/allocation state
 infra/enrollment/.data/
+
+# Operator control-plane durable audit DB (Slice 065) — host-local, never committed
+infra/operator/.data/
 *.sqlite3
 
 # Enrollment service deployment virtualenv (Slice 054) — host-local, never committed
@@ -48,6 +53,8 @@ infra/enrollment/.data/
 # Windows one-click launcher payloads and local builds; payloads may contain
 # tester-specific private keys and must never enter source control.
 native/windows_launcher/payload/
+native/windows_launcher/*.exe
 dist/Project0-WAN.exe
 # Dashboard host-specific runtime config (mirror path, LAN bind)
 dashboard/.env
+dashboard/repo/

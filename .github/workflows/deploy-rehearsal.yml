@@ -1,0 +1,34 @@
+name: Deploy rehearsal
+
+# Runner and stack health check. Runs scripts/deploy_containers.sh in --dry-run
+# on the deployment host: it resolves the image for every service in
+# deploy/compose.yml and reports the current container state. It changes
+# nothing, so the first exercise of the self-hosted runner is not a real
+# deployment.
+on:
+  workflow_dispatch:
+  schedule:
+    # Weekly, so a runner that has silently gone offline is noticed before a
+    # release tag depends on it.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-rehearsal
+  cancel-in-progress: true
+
+jobs:
+  rehearse:
+    name: Dry-run deploy plan on the host
+    runs-on: [self-hosted, linux, okami]
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve images and report host state
+        run: scripts/deploy_containers.sh --tag "${PROJECT0_REHEARSAL_TAG:-main}" --dry-run

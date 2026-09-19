@@ -1,4 +1,5 @@
 # Slice 043 — Character world entry (server-side binding)
+GitHub issue: #95
 
 Status: **delivered** (server-side selected-Character resolution + binding; the
 client login/character screens are a separate GUI-confirmed slice).

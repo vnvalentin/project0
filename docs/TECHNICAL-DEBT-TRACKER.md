@@ -1,7 +1,7 @@
 # Project0 Technical Debt Tracker
 
 Status: active
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-16
 Owner: valentin.vn@gmail.com
 
 ## Rule
@@ -53,9 +53,286 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
 
 ## Outstanding Items
 
-None currently open.
+### DT-015: The packaged Windows client logs GDExtension load errors at boot
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Quality`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-18
+- Benefit or reason: Accepted tradeoff. `export_presets.cfg` excludes
+  `addons/godot-sqlite/**` from the client package on purpose — SQLite is
+  server-only per the ownership rules, and the client must never link it. The
+  project still declares the extension, so the exported client tries to load an
+  entry that was deliberately left out.
+- Impact: Every packaged-client boot logs three errors before the engine banner:
+  `Error loading GDExtension configuration file:
+  res://addons/godot-sqlite/gdsqlite.gdextension`, a matching
+  `Failed loading resource`, and `Error loading extension`. Gameplay is
+  unaffected, but this is the same false-alarm pattern DT-014 fixed on the
+  server: persistent expected errors at startup train testers to ignore the
+  client log, and they will mask a real failure — including, now, an update or
+  rollback failure, which is exactly where a tester's log is the only evidence.
+- Remediation plan: Make the `.gdextension` declaration conditional so a client
+  build does not declare a library it never loads, or stop excluding the addon
+  and ship a client-side stub. Prefer the former; the exclusion itself is
+  correct and must not be reversed just to silence the log.
+- Status: `done` — resolved by [Slice 151](slices/151-client-export-metadata-exclusion.md),
+  which excludes `.godot/**` editor/import metadata from the Windows pack. The
+  source project retains the server-only SQLite extension and the client still
+  excludes `addons/godot-sqlite/**`; the package no longer carries the stale
+  `.godot/extension_list.cfg` that caused Godot to try loading the absent
+  extension. Fresh export evidence: the package contains neither the extension
+  list nor the SQLite addon, and the packaged client boot no longer logs the
+  three expected SQLite GDExtension errors.
+- Discovery evidence: Observed while running the real packaged client during the
+  Slice 149 pack-lock probe (`Project0.exe --headless` from
+  `native/windows_launcher/payload`). Not previously recorded.
+- Related work: [Slice 149](slices/149-updater-transaction.md),
+  [DT-014](#dt-014-container-images-ship-without-the-wgnetstack-gdextension)
+  (same defect class, server side, resolved),
+  [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
+
+### DT-012: Login authority shares the game server's image and codebase
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Architecture`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: Accepted tradeoff taken when containerizing the runtime.
+  The login server and game server are the same Godot codebase differing only
+  by entrypoint script, so one image serves both. That halves image build time
+  and storage, guarantees both processes run the identical code revision — which
+  matters because they share `PROJECT0_ASSERTION_SECRET` and a signed-assertion
+  contract — and gives a future zone server a third entrypoint on the same image
+  with no new build pipeline.
+- Impact: The login authority carries the entire game simulation codebase it
+  never executes, on the process most exposed to untrusted public traffic. The
+  two services cannot be built, versioned, released, or scaled independently:
+  a game-only change forces a login image rebuild and redeploy. This becomes
+  materially worse once the login service also owns **client update
+  distribution**, which is a different trust boundary, a different release
+  cadence, and a different scaling profile from authoritative simulation.
+- Remediation plan: Split the login authority into its own service with its own
+  image and release cadence. Extract the login/account/assertion code and the
+  shared contracts it needs into a boundary that does not pull in the game
+  simulation, give it a dedicated Dockerfile, and publish it as a separate
+  image. The shared assertion contract must stay version-compatible across the
+  two images, so the split requires an explicit schema/version compatibility
+  test between independently built login and game images — that test is the
+  main cost, and is why the split is deferred rather than taken now.
+- Status: `open`
+- Related work: [Slice 105](slices/105-container-images-and-registry.md),
+  [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+  [.scratch/container-platform/issues/02-account-login-service-boundary.md](../.scratch/container-platform/issues/02-account-login-service-boundary.md)
+
+### DT-011: Client export filter ships the test framework and build artifacts
+
+- Classification: `Delinquent Debt`
+- Debt type: `Quality`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: None. This is a discovered liability, not an accepted
+  tradeoff. `export_presets.cfg` uses `export_filter="all_resources"` with an
+  `exclude_filter` that omits `server/**`, `tests/**`, `infra/**`, `docs/**` and
+  similar, but does **not** exclude `addons/gut/**`, `build/**`, or
+  `skills-lock.json`. The first CI cross-build in
+  [Slice 103](slices/103-linux-client-package-build.md) showed the export
+  packing `res://build/validation/validation-summary.json` and
+  `res://skills-lock.json` into the shipped PCK.
+- Impact: Every shipped Windows client contains the GUT test framework and
+  whatever happens to be sitting in `build/validation/` on the build machine.
+  That leaks internal validation telemetry to players, inflates the PCK, and
+  makes the package contents depend on uncommitted local build state rather
+  than on the commit being built.
+- Remediation plan: Extend `exclude_filter` with `addons/gut/**`, `build/**`,
+  and `skills-lock.json`, then re-export and diff the PCK file list against the
+  current build to confirm only intended resources were removed. This changes
+  what ships, so it requires a runtime launch of the exported client as
+  evidence, not just a successful export — which is why Slice 103 recorded it
+  here rather than changing the shipped contents without that evidence.
+- Status: `open`
+- Related work: [Slice 103](slices/103-linux-client-package-build.md),
+  [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
+
+### DT-010: No public HTTPS account-registration surface for the WAN client
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Security`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-15
+- Benefit or reason: [Slice 093](slices/093-client-https-login-wiring.md) wires
+  the WAN client to the public HTTPS enrollment surface, which exposes `/login`
+  and `/characters/*` (Slices 088/090) but **no** `/register` route. Adding a
+  public, unauthenticated account-creation endpoint is a distinct, security-
+  sensitive unit of work (it inherits and widens the same rate-limiting/lockout/
+  anti-enumeration concern as [DT-009](#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration),
+  plus abuse/bot-signup and CAPTCHA considerations) that would have enlarged
+  Slice 093's client-wiring scope. The shortcut is intentional and bounded: the
+  WAN login/character/world-entry path is fully wired, and the register button is
+  explicitly disabled in WAN mode with a clear message rather than silently
+  failing; accounts can still be created over the ENet LAN path (development) or
+  by an operator.
+- Impact: a remote player with no account cannot self-register over the internet
+  — WAN onboarding is login-only until a public registration surface exists.
+  Does not affect the diagnosed `account_authority_disabled` fix, which was about
+  login, not registration.
+- Remediation plan: add a `POST /register` route to the enrollment service,
+  loopback-delegated to the login authority (mirroring `/login`, Slice 088), with
+  the DT-009 abuse protections applied; then add an `EnrollmentHttpClient.register`
+  method and re-enable the register button in WAN mode. Own ADR/slice.
+- Status: `Resolved`
+- Closure date: 2026-09-16
+- Closure outcome: Slice 100 added loopback-delegated `POST /register`, the
+  public enrollment route, the Godot HTTPS client method, and WAN account-screen
+  registration followed by normal HTTPS login. The route inherits DT-009's
+  bounded public-auth limiter.
+- Validation evidence: registration/login pytest 8/8 and full enrollment pytest
+  120/120 passed on Windows, exit 0; loopback and client GDScript parse checks
+  reported no parse errors. Windows cannot load the repository's Linux-only
+  GDExtensions, so full Godot runtime validation remains Linux-host evidence.
+- Related work: [Slice 093](slices/093-client-https-login-wiring.md),
+  [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md),
+  [ADR 0005](adr/0005-character-selection-over-https.md),
+  [DT-009](#dt-009-public-login-on-the-enrollment-service-has-no-rate-limiting-lockout-or-anti-enumeration).
+
+### DT-009: Public `/login` on the enrollment service has no rate-limiting, lockout, or anti-enumeration
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Security`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-15
+- Benefit or reason: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+  adds the first public, unauthenticated credential-verification HTTP surface
+  the enrollment service has ever exposed (`POST /login`, delegating to the
+  login authority's loopback endpoint). ADR 0004's Consequences section names
+  rate-limiting/lockout/anti-enumeration as *required* before this path is
+  advertised publicly, but implementing it is a distinct, boundable unit of
+  work (likely a token-bucket or fixed-window limiter plus a lockout policy on
+  the enrollment service, or a Cloudflare/WAF-level rule) that would have
+  enlarged Slice 088's scope beyond its stated login-delegation seam. The
+  shortcut is intentional and bounded: `AuthService.login` (server/auth_service.gd)
+  already pays a fixed PBKDF2 cost on an unknown username (no timing
+  enumeration) and returns the identical `BAD_CREDENTIALS` reason for both
+  "unknown user" and "wrong password" (no message enumeration) — so the
+  liability is specifically the absence of a cap on *repeated* attempts, not a
+  missing baseline.
+- Impact: Until remediated, an attacker with network access to the public
+  `/login` endpoint can attempt unlimited username/password combinations
+  (online brute-force / credential-stuffing), bounded only by whatever
+  Cloudflare's WAF in front of the enrollment service does by default (not a
+  substitute for application-level lockout, per the slice record). No other
+  path is affected: `POST /redeem` (invite-code based) and the ENet login port
+  (loopback/LAN-only per its own bind default) are unchanged.
+- Remediation plan: A follow-up slice adds request throttling (e.g. a
+  fixed-window or token-bucket limiter keyed by source IP and/or username) and
+  an account or IP lockout policy to `infra/enrollment/app.py`'s `POST /login`
+  route (and/or an OPNsense/Cloudflare WAF rule), with test coverage proving
+  the limiter rejects excess attempts with a bounded reason and does not
+  regress the no-enumeration property already provided by `AuthService.login`.
+  This item closes when that slice lands and its validation evidence is
+  linked here, or is explicitly accepted permanently with a recorded
+  compensating control (e.g. a documented WAF rule) if a follow-up slice is
+  judged unnecessary.
+- Status: `Resolved`
+- Closure date: 2026-09-16
+- Closure outcome: Slice 099 added bounded, process-local public-auth controls
+  to `POST /login` and every `POST /characters/*` route. Login failures are
+  keyed by source host and normalized username; character requests are keyed by
+  source host; limited requests receive bounded `429 public_auth_rate_limited`
+  responses before authority delegation. Successful login clears its failure
+  window, and expired lockouts clear stale events.
+- Validation evidence: focused pytest passed 7/7 and the full enrollment suite
+  passed 119/119 on Windows, exit 0. The implementation uses an injected clock
+  in tests and configurable positive bounds in `EnrollmentConfig`.
+- Phase: 13 (Public game access)
+- Links: [Slice 088](slices/088-auth-gated-onboarding-login-delegation.md)
+  (Scope/Safety invariants sections), [ADR 0004](adr/0004-auth-gated-tunnel-provisioning.md)
+  (Consequences section), [PROJECT-TRACKER.md](PROJECT-TRACKER.md#phase-13--public-game-access),
+  and [Slice 099](slices/099-public-auth-abuse-controls.md).
+- Remaining limitation: enforcement is process-local; distributed coordination
+  is deferred until the deployment topology requires multiple enrollment
+  workers. This is an explicit operational limitation, not an untracked gap.
 
 ## Resolved Items
+
+### DT-014: Container images ship without the wgnetstack GDExtension
+
+- Classification: `Strategic Technical Debt`
+- Debt type: `Infrastructure`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: Accepted tradeoff. `native/wgnetstack/gdext/build/` is
+  gitignored, so the Linux `.so` is not in the build context and the published
+  images do not contain it. Building it inside the image would add a full
+  godot-cpp compile to every image build for a library the server processes do
+  not currently call. The servers start and run correctly without it.
+- Impact: Both Godot containers log `GDExtension dynamic library not found` and
+  `Error loading extension` at every boot. That is persistent false-alarm noise
+  in the logs of the authoritative server, which trains operators to ignore
+  startup errors — and it means any future server-side use of the tunnel
+  extension will fail at runtime rather than at build time.
+- Remediation plan: Either build the Linux GDExtension as a stage in the
+  `project0-godot` image (the cross-build already exists in
+  `scripts/package_client_linux.sh`), or make the `.gdextension` entry
+  conditional so a server build does not declare a library it never loads.
+  Prefer the former once anything server-side needs the tunnel.
+- Status: `done` — resolved by
+  [Slice 110](slices/110-ship-wgnetstack-extension.md). A cached image stage now
+  builds the Linux `template_debug` GDExtension and copies it in before the
+  import cache is baked. Risk reduced: the authoritative server's boot log no
+  longer carries four expected errors, so a real startup failure is visible.
+  Measured after the change: 0 occurrences of `GDExtension dynamic library not
+  found` / `Error loading extension`, previously four lines at every boot.
+- Related work: [Slice 105](slices/105-container-images-and-registry.md),
+  [Slice 106](slices/106-container-runtime-cutover.md),
+  [GitHub Issue #92](https://github.com/vnvalentin/project0/issues/92),
+  [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
+
+### DT-013: Advertised `tick_rate` does not match the actual authoritative tick rate
+
+- Classification: `Delinquent Debt`
+- Debt type: `Architecture`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-16
+- Benefit or reason: None. This is a discovered liability, not an accepted
+  tradeoff. `server/server_health.gd` declares `DEFAULT_TICK_RATE = 30` clamped
+  to `[20, 30]` and publishes `tick_rate: 30` in the health contract, but
+  `project.godot` has **no `[physics]` section**, so Godot runs
+  `_physics_process` at its default 60 Hz and `server_tick` (sourced from
+  `_monster_tick`) advances at 60/s. Measured on the containerized server at two
+  points 85 minutes apart: `server_tick 11100` at `uptime 184.9s` and
+  `server_tick 320040` at `uptime 5333.9s` — both exactly 60.0 ticks/second
+  against an advertised 30.
+- Impact: The authoritative tick is the unit of time for
+  `BurnoutInstance.start_tick`/`end_tick`, `ExecutionProfile` invulnerability
+  windows and `recovery_end_tick`, cooldowns, and Canon mutation ordering, per
+  `CLAUDE.md`. Any consumer converting ticks to seconds using the advertised
+  `tick_rate` is wrong by a factor of two. Today the blast radius is small
+  because progression and Burnout are not implemented; it grows with every
+  tick-denominated contract built on top of it. It also means the "fixed
+  simulation tick" is currently whatever Godot's default happens to be rather
+  than an explicit, owned decision.
+- Remediation plan: Decide the intended authoritative rate, then make it
+  explicit and singular — set `physics/common/physics_ticks_per_second` in
+  `project.godot` to the chosen value and derive the health contract's
+  `tick_rate` from the same source instead of a separate constant, so the two
+  cannot drift again. Add a test asserting the advertised rate equals the
+  observed tick advance over a bounded window. Changing the rate alters
+  simulation timing, so it needs runtime evidence (movement, monster combat,
+  reconciliation), not just a unit test.
+- Status: `done` — resolved by
+  [Slice 107](slices/107-authoritative-tick-rate.md). The engine is now driven by
+  the same resolved value the health snapshot reports, and the monster delta is
+  derived from it rather than hardcoded to `1/60`. Measured after the change:
+  `server_tick 1170` over `uptime 38.733s` = **30.21 ticks/s** against an
+  advertised `30`. Risk reduced: every tick-denominated contract now has a rate
+  that matches its published value. Residual: the check is a one-off runtime
+  measurement, not an automated assertion — noted in the slice's remaining
+  limitation.
+- Related work: [Slice 107](slices/107-authoritative-tick-rate.md),
+  [Slice 106](slices/106-container-runtime-cutover.md) (where it was observed),
+  [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime),
+  [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems)
 
 ### DT-006: Remaining hand-rolled smoke tests not yet migrated to GUT
 

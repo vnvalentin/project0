@@ -1,8 +1,9 @@
 # Slice 011: Mind versus Tool architecture refinement
+GitHub issue: #95
 
 Status: complete
 
-Tracker context: Phase 7 - Delivery workflow capabilities; refines
+Tracker context: Phase 13 - Delivery workflow capabilities; refines
 [F-007](../FEATURE-LIST.md#f-007-living-architecture-anchor) and constrains
 [P-016](../FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems).
 

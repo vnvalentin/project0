@@ -49,6 +49,10 @@ func _ready() -> void:
 	_llm_client.ollama_host = ollama_host
 	_llm_client.model_name = model_name
 	_llm_client.request_timeout_sec = request_timeout_sec
+	# An unchanged export means "no explicit choice", so defer to the process
+	# environment. Without this the containerized server points at its own
+	# loopback and every sector request fails before validation.
+	_llm_client.configure_from_env()
 	add_child(_llm_client)
 
 

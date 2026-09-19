@@ -113,6 +113,77 @@ func get_canonical_sector(sector_id: Variant) -> Dictionary:
 	return {"outcome": OUTCOME_OK, "detail": "", "sector": _record_from_row(row, JSON.parse_string(row["blueprint_json"]))}
 
 
+## Slice 080: server-only migration read. Returns every Canon row verbatim
+## (including created_at) so a one-time copy into a dedicated store preserves the
+## immutable historical record. Ordered oldest-first. NEVER a client DTO.
+func list_all_records() -> Dictionary:
+	if _store == null or not _store.is_open():
+		return {"outcome": SqliteStore.OUTCOME_NOT_OPEN, "detail": "Store is not open.", "records": []}
+	var select_result: Dictionary = _store.query(
+		"SELECT sector_id, blueprint_json, schema_version, created_at FROM canon_sectors ORDER BY created_at ASC, sector_id ASC;"
+	)
+	if select_result["outcome"] != SqliteStore.OUTCOME_OK:
+		return {"outcome": SqliteStore.OUTCOME_QUERY_FAILED, "detail": select_result["detail"], "records": []}
+	var records: Array = []
+	for row: Dictionary in select_result["rows"]:
+		records.append(_record_from_row(row, JSON.parse_string(row["blueprint_json"])))
+	return {"outcome": OUTCOME_OK, "detail": "", "records": records}
+
+
+## Slice 080: server-only migration write. Inserts a previously-canonical record
+## into this store preserving its original created_at (unlike canonicalize_blueprint,
+## which stamps the current time). Validates the blueprint; idempotent on an
+## identical existing row; refuses to overwrite a differing one.
+func restore_record(record: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result(SqliteStore.OUTCOME_NOT_OPEN, "Store is not open.")
+	if not (record is Dictionary):
+		return _result(OUTCOME_INVALID_BLUEPRINT, "record must be a Dictionary.")
+	var validation: Dictionary = SectorBlueprintSchemaScript.validate((record as Dictionary).get("blueprint"))
+	if validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		return {
+			"outcome": OUTCOME_INVALID_BLUEPRINT,
+			"detail": validation["detail"],
+			"validation_outcome": validation["outcome"],
+		}
+	var created_at_value: Variant = (record as Dictionary).get("created_at")
+	if not (created_at_value is int) and not (created_at_value is float):
+		return _result(OUTCOME_INVALID_BLUEPRINT, "created_at must be a number.")
+	var created_at: int = int(created_at_value)
+	var validated: Dictionary = validation["blueprint"]
+	var sector_id: String = validated["sector_id"]
+	var blueprint_json: String = JSON.stringify(validated)
+	var existing: Dictionary = _store.query_with_bindings(
+		"SELECT blueprint_json FROM canon_sectors WHERE sector_id = ?;",
+		[sector_id]
+	)
+	if existing["outcome"] != SqliteStore.OUTCOME_OK:
+		return _result(SqliteStore.OUTCOME_QUERY_FAILED, existing["detail"])
+	if not (existing["rows"] as Array).is_empty():
+		if existing["rows"][0]["blueprint_json"] == blueprint_json:
+			return _result(OUTCOME_IDEMPOTENT, "Sector '%s' is already restored." % sector_id)
+		return _result(OUTCOME_CONFLICT, "Sector '%s' already has differing Canon." % sector_id)
+	var transaction_result: Dictionary = _store.transaction(func() -> bool:
+		var insert: Dictionary = _store.query_with_bindings(
+			"INSERT INTO canon_sectors (sector_id, blueprint_json, schema_version, created_at) VALUES (?, ?, ?, ?);",
+			[sector_id, blueprint_json, int(validated["schema_version"]), created_at]
+		)
+		return insert["outcome"] == SqliteStore.OUTCOME_OK
+	)
+	if transaction_result["outcome"] != SqliteStore.OUTCOME_OK:
+		return _result(SqliteStore.OUTCOME_TRANSACTION_FAILED, "Restore failed: %s" % transaction_result["detail"])
+	return {
+		"outcome": OUTCOME_OK,
+		"detail": "Sector '%s' restored." % sector_id,
+		"sector": {
+			"sector_id": sector_id,
+			"blueprint": validated,
+			"schema_version": int(validated["schema_version"]),
+			"created_at": created_at,
+		},
+	}
+
+
 func _record_from_row(row: Dictionary, blueprint: Variant) -> Dictionary:
 	return {
 		"sector_id": row["sector_id"],

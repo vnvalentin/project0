@@ -38,6 +38,17 @@ extends Node
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
+const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
+const CharacterFoundationScript: Script = preload("res://shared/character_foundation.gd")
+const EmbodimentProgressionServiceScript: Script = preload("res://server/embodiment_progression_service.gd")
+const EmbodimentTuningScript: Script = preload("res://server/embodiment_tuning.gd")
+const LocomotionContractScript: Script = preload("res://shared/locomotion_contract.gd")
+
+## Slice 142: the stable key this Player's single durable vessel is registered
+## under inside its own per-Player progression service instance. There is exactly
+## one vessel here, so a constant key suffices (the service keys by character id).
+const MECHANICS_CHARACTER_KEY: String = "self"
 
 ## Emitted every physics tick after this peer's authoritative position is
 ## computed, so server_main.gd can broadcast it to every other connected
@@ -65,13 +76,75 @@ signal combat_event_emitted(peer_id: int, combat_event: Object)
 ## presentation.
 signal melee_swing_started(peer_id: int, windup_ticks: int, active_ticks: int, facing: Vector3)
 
+## Slice 086: emitted once when this peer's selected Character is bound at world
+## entry, so server_main.gd can replicate the Character's identity (display name
+## + cosmetic) to every other connected peer without this node needing to know
+## about peer replication itself (matching position_updated's separation).
+signal character_bound(peer_id: int, display_name: String, cosmetic: Dictionary)
+
+## Slice 094: emitted whenever this Player's authoritative HP changes (took
+## monster damage, or was restored to full on the provisional defeat->respawn),
+## so server_main.gd can replicate the current HP to the owning client for
+## display without this node needing to know about networking itself.
+signal health_changed(peer_id: int, current_hp: int, max_hp: int, server_tick: int)
+
+## Slice 094: emitted exactly once on the tick a landed monster attack reduces
+## this Player to 0 HP, before the provisional full-HP respawn is applied. The
+## reposition itself replicates through the existing position_updated channel.
+signal player_defeated(peer_id: int, server_tick: int)
+
+## Slice 127: emitted at world entry with this Player's presentation-safe
+## Character snapshot (derived graph axes + controller/kind context only, never
+## raw stat numbers), so server_main.gd can replicate it to the owning client
+## for a vessel readout without this node knowing about networking itself.
+signal character_snapshot_ready(peer_id: int, snapshot: Dictionary)
+
+## Slice 142 (Phase 15 follow-on, P-016): emitted at world entry with this
+## Player's presentation-safe EffectiveMechanicsSnapshot (normalized graph axes +
+## subsystem-safe derived summaries only, never raw effective numbers), so
+## server_main.gd can replicate it to the owning client for a mechanics readout —
+## the same peer-scoped channel proven for the Character snapshot in Phase 14.
+signal effective_mechanics_ready(peer_id: int, snapshot: Dictionary)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
+## Slice 094: the spawn anchor this Player is returned to on the provisional
+## defeat->respawn (ticket 05). Captured in start_for_peer from the peer's
+## assigned start position; no separate respawn-point system exists yet.
+var _spawn_position: Vector3 = Vector3.ZERO
+## Slice 125 (Phase 14): the Player's server-owned HP pool, now the shared
+## CombatHealth contract (retiring the provisional PlayerVitals). Seeded at the
+## shared PLAYER_MAX_HP default so Player and monster still start equally
+## durable. Server-authoritative — the client only ever displays the replicated
+## value, never sets it. current_hp()/max_hp() expose it as ints for the
+## existing HUD replication.
+var _health: Object = CombatHealthScript.new(
+	float(PlayerCombatContractsScript.PLAYER_MAX_HP), float(PlayerCombatContractsScript.PLAYER_MAX_HP)
+)
+
+## Slice 127: the Player's server-owned unified Character (baseline humanoid),
+## the same CharacterFoundation contract NPCs use. Server-authoritative; only a
+## presentation-safe snapshot (never the raw nodes) crosses to the client.
+var _character: Object
+
+## Slice 142: the Player's server-owned embodiment progression service (holding
+## its single durable vessel) and the current tuning used to derive the effective
+## mechanics. Server-authoritative; only a presentation-safe snapshot ever
+## crosses to the client. Created at world entry alongside _character.
+var _embodiment: Object = null
+var _embodiment_tuning: Object = null
 ## Forward-facing direction used for the melee arc check; defaults to -Z
 ## (Godot's forward) and is updated from non-zero movement input, since this
 ## slice has no independent look/aim input.
 var facing: Vector3 = Vector3(0.0, 0.0, -1.0)
 var _input_intent: Vector2 = Vector2.ZERO
+var _locomotion_mode: String = LocomotionContractScript.MODE_NONE
+var _vertical_velocity: float = 0.0
+var _dodge_ticks_remaining: int = 0
+var _dodge_direction: Vector3 = Vector3.ZERO
+var _slide_ticks_remaining: int = 0
+var _floor_height: float = 0.0
+var _posture: String = LocomotionContractScript.MODE_NONE
 var _last_processed_sequence: int = -1
 
 ## Slice 043: the selected Character this Player was instantiated as, bound on
@@ -87,6 +160,7 @@ func bind_character(p_character_id: String, p_display_name: String, p_cosmetic: 
 	character_id = p_character_id
 	character_display_name = p_display_name
 	character_cosmetic = p_cosmetic
+	character_bound.emit(owning_peer_id, character_display_name, character_cosmetic)
 
 
 ## Melee action state. archetype is fixed to the Generic Sword baseline for
@@ -130,6 +204,14 @@ var _monster_manager: Object = null
 func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	owning_peer_id = peer_id
 	position = start_position
+	_spawn_position = start_position
+	_floor_height = start_position.y
+	_vertical_velocity = 0.0
+	_dodge_ticks_remaining = 0
+	_slide_ticks_remaining = 0
+	_locomotion_mode = LocomotionContractScript.MODE_NONE
+	_posture = LocomotionContractScript.MODE_NONE
+	_health.current_health = _health.max_health
 	_input_intent = Vector2.ZERO
 	_last_processed_sequence = -1
 	_phase = CombatContractsScript.PHASE_IDLE
@@ -137,6 +219,14 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	_last_processed_action_sequence = -1
 	_last_action_resolution = null
 	_hit_target_ids_this_swing.clear()
+	_character = CharacterFoundationScript.create_baseline(
+		CharacterFoundationScript.CONTROLLER_PLAYER, CharacterFoundationScript.KIND_HUMANOID
+	)["character"]
+	character_snapshot_ready.emit(owning_peer_id, character_snapshot())
+	_embodiment_tuning = _resolve_default_tuning()
+	_embodiment = EmbodimentProgressionServiceScript.new()
+	_embodiment.create_character(MECHANICS_CHARACTER_KEY, _embodiment_tuning)
+	effective_mechanics_ready.emit(owning_peer_id, effective_mechanics_snapshot())
 
 
 ## Public seam: called by server_main.gd to register the server-owned target
@@ -158,6 +248,85 @@ func set_monster_manager(monster_manager: Object) -> void:
 	_monster_manager = monster_manager
 
 
+## Slice 094/125: the Player's current authoritative HP (read-only view of the
+## shared CombatHealth pool), rounded to an int for HUD replication.
+func current_hp() -> int:
+	return int(round(_health.current_health))
+
+
+## Slice 094/125: the Player's maximum authoritative HP.
+func max_hp() -> int:
+	return int(round(_health.max_health))
+
+
+## Slice 127: the Player's presentation-safe Character snapshot (controller/kind
+## context + normalized graph axes only, never the raw stat numbers). The client
+## renders the vessel shape without learning the values.
+func character_snapshot() -> Dictionary:
+	return _character.to_presentation_snapshot()
+
+
+## Slice 142: resolves the default (currently only) embodiment tuning through the
+## sole fail-closed EmbodimentTuning.resolve seam. The default version always
+## resolves, so the returned tuning object is non-null here.
+func _resolve_default_tuning() -> Object:
+	var resolved: Dictionary = EmbodimentTuningScript.resolve(EmbodimentTuningScript.DEFAULT_TUNING_VERSION)
+	return resolved["tuning"]
+
+
+## Slice 142: the Player's presentation-safe EffectiveMechanicsSnapshot (normalized
+## graph axes + subsystem-safe derived summaries only, never the raw effective
+## numbers). Composed from the durable vessel + all five subsystems under the
+## current tuning at the world-entry baseline tick (0). The client renders the
+## mechanics readout without learning the values. Empty before world entry.
+func effective_mechanics_snapshot() -> Dictionary:
+	if _embodiment == null:
+		return {}
+	var snapshot: Object = _embodiment.effective_snapshot(MECHANICS_CHARACTER_KEY, _embodiment_tuning, 0)
+	if snapshot == null:
+		return {}
+	return snapshot.to_presentation_snapshot()
+
+
+## Public seam (Slice 094): applies a monster's authoritative, telegraph-fair
+## landed attack to this Player. Only server_main.gd calls this, routing from
+## the ServerMonsterManager.player_hit signal (the monster's own reach/arc test
+## against its locked telegraph facing already guarantees a Player who stepped
+## out during WINDUP is missed, so reaching here means the hit was fair). On the
+## tick this reduces the Player to 0 HP it emits player_defeated once, then
+## applies the provisional respawn placeholder (ticket 05): restore full HP and
+## return to the spawn anchor, cancelling any in-progress swing. Always emits
+## health_changed with the resulting HP so the owning client's HUD updates.
+func receive_monster_damage(amount: int, server_tick: int) -> void:
+	if owning_peer_id == -1:
+		return
+	if is_dodge_invulnerable():
+		return
+	# Preserve the retired PlayerVitals defeat semantics exactly: report defeat
+	# only on the tick a still-living Player is reduced to 0. CombatHealth floors
+	# damage at 0, so a non-positive amount is a no-op.
+	var was_alive: bool = not _health.is_now_defeated()
+	_health.take_damage(float(amount))
+	var defeated: bool = was_alive and _health.is_now_defeated()
+	if defeated:
+		player_defeated.emit(owning_peer_id, server_tick)
+		_health.current_health = _health.max_health
+		position = _spawn_position
+		_phase = CombatContractsScript.PHASE_IDLE
+		_phase_ticks_remaining = 0
+		_hit_target_ids_this_swing.clear()
+	health_changed.emit(owning_peer_id, current_hp(), max_hp(), server_tick)
+
+
+## Public seam: damage systems query the server-owned dodge protection window.
+func is_dodge_invulnerable() -> bool:
+	return _locomotion_mode == LocomotionContractScript.MODE_DODGE or _dodge_ticks_remaining > 0
+
+
+func posture() -> String:
+	return _posture
+
+
 ## Public seam: called (as a plain in-process call, not an RPC — this node
 ## exists only server-side, so it is never reached over the network directly;
 ## see client/network_client.gd's submit_input_intent for the RPC entry
@@ -169,16 +338,26 @@ func set_monster_manager(monster_manager: Object) -> void:
 ## sample is only applied if its sequence is not older than the last one
 ## already processed, so a late-arriving stale sample cannot overwrite a
 ## newer one.
-func apply_input_intent(sender_id: int, intent: Vector2, sequence: int) -> void:
+func apply_input_intent(sender_id: int, intent: Variant, sequence: int) -> void:
 	if sender_id != owning_peer_id:
 		return
 	if sequence <= _last_processed_sequence:
 		return
-	_input_intent = intent
+	var direction: Vector2 = intent if intent is Vector2 else intent.get("direction", Vector2.ZERO)
+	var requested_mode: String = intent.get("mode", LocomotionContractScript.MODE_NONE) if intent is Dictionary else LocomotionContractScript.MODE_NONE
+	if not LocomotionContractScript.valid_mode(requested_mode):
+		return
+	_input_intent = direction
+	_locomotion_mode = requested_mode
+	if requested_mode == LocomotionContractScript.MODE_DUCK or requested_mode == LocomotionContractScript.MODE_SLIDE:
+		_posture = requested_mode
+	elif requested_mode == LocomotionContractScript.MODE_NONE and _slide_ticks_remaining == 0:
+		if _collision_map == null or not _collision_map.has_method("can_stand_at") or _collision_map.can_stand_at(position, LocomotionContractScript.STANDING_HEIGHT):
+			_posture = LocomotionContractScript.MODE_NONE
 	_last_processed_sequence = sequence
 
-	if intent.length_squared() > 0.0:
-		facing = Vector3(intent.x, 0.0, intent.y).normalized()
+	if direction.length_squared() > 0.0:
+		facing = Vector3(direction.x, 0.0, direction.y).normalized()
 
 
 ## Public seam: called (plain in-process call, same pattern as
@@ -204,7 +383,7 @@ func apply_action_intent(sender_id: int, intent: Object) -> Object:
 		action_resolved.emit(owning_peer_id, resolution)
 		return resolution
 
-	if intent.action_kind != CombatContractsScript.ACTION_KIND_MELEE_STRIKE:
+	if not CombatContractsScript.is_supported_action_kind(intent.action_kind):
 		var resolution: Object = _make_resolution(sequence, false, CombatContractsScript.REJECTED_INVALID_STATE)
 		_last_processed_action_sequence = sequence
 		_last_action_resolution = resolution
@@ -222,6 +401,9 @@ func apply_action_intent(sender_id: int, intent: Object) -> Object:
 	if intent.aim_direction.length_squared() > 0.0:
 		facing = intent.aim_direction.normalized()
 
+	# Slice 141: the accepted action kind selects its archetype for this swing;
+	# the rest of the state machine and reach/arc test read it uniformly.
+	_archetype = CombatContractsScript.archetype_for_action(intent.action_kind)
 	_phase = CombatContractsScript.PHASE_WINDUP
 	_phase_ticks_remaining = _archetype.windup_ticks
 	_hit_target_ids_this_swing.clear()
@@ -251,7 +433,40 @@ func _physics_process(delta: float) -> void:
 	if direction.length_squared() > 0.0:
 		direction = direction.normalized()
 
-	var desired_position: Vector3 = position + direction * NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor * delta
+	if _locomotion_mode == LocomotionContractScript.MODE_JUMP and _vertical_velocity == 0.0 and is_equal_approx(position.y, _floor_height):
+		_vertical_velocity = LocomotionContractScript.JUMP_SPEED
+	if _locomotion_mode == LocomotionContractScript.MODE_DODGE and _dodge_ticks_remaining == 0 and direction.length_squared() > 0.0:
+		_dodge_ticks_remaining = LocomotionContractScript.DODGE_TICKS
+		_dodge_direction = direction.normalized()
+	if _locomotion_mode == LocomotionContractScript.MODE_SLIDE and _slide_ticks_remaining == 0 and direction.length_squared() > 0.0:
+		_slide_ticks_remaining = LocomotionContractScript.SLIDE_TICKS
+
+	var horizontal_speed: float = NetworkConfigScript.AUTHORITATIVE_MOVE_SPEED * speed_factor
+	if _dodge_ticks_remaining > 0:
+		direction = _dodge_direction
+		horizontal_speed = LocomotionContractScript.DODGE_SPEED
+		_dodge_ticks_remaining -= 1
+		if _dodge_ticks_remaining == 0:
+			_locomotion_mode = LocomotionContractScript.MODE_NONE
+	if _slide_ticks_remaining > 0:
+		horizontal_speed *= 1.35
+		_slide_ticks_remaining -= 1
+		if _slide_ticks_remaining == 0:
+			_locomotion_mode = LocomotionContractScript.MODE_NONE
+			_posture = LocomotionContractScript.MODE_NONE
+	var desired_position: Vector3 = position + direction * horizontal_speed * delta
+	if _vertical_velocity != 0.0 or position.y > _floor_height:
+		_vertical_velocity += LocomotionContractScript.GRAVITY * delta
+		desired_position.y = position.y + _vertical_velocity * delta
+		var support_height: float = _floor_height
+		if _collision_map != null and _collision_map.has_method("ground_height_at"):
+			support_height = _collision_map.ground_height_at(desired_position, maxf(position.y, desired_position.y), _spawn_position.y)
+		if desired_position.y <= support_height:
+			desired_position.y = support_height
+			_floor_height = support_height
+			_vertical_velocity = 0.0
+			if _locomotion_mode == LocomotionContractScript.MODE_JUMP:
+				_locomotion_mode = LocomotionContractScript.MODE_NONE
 	position = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
 
 	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")

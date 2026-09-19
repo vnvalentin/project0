@@ -7,6 +7,7 @@ extends GutTest
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutation_repository.gd")
+const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 const FixturesScript: Script = preload("res://scripts/sector_blueprint_fixtures.gd")
 
 var _relative_path: String = ""
@@ -23,8 +24,13 @@ func before_each() -> void:
 	_canon.ensure_schema()
 	_mutations = CanonMutationRepositoryScript.new(_store, _canon)
 	_mutations.ensure_schema()
-	# Every test operates on an already-canonical sector-0-0.
-	_canon.canonicalize_blueprint(JSON.parse_string(FixturesScript.VALID))
+	# Every test operates on an already-canonical sector-0-0 that carries one
+	# addressable structure (village_hall), so mutations target a real entity.
+	_canon.canonicalize_blueprint(JSON.parse_string(FixturesScript.VALID_WITH_STRUCTURE))
+
+
+func _target_guid() -> String:
+	return CanonEntityGuidScript.derive("sector-0-0", CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, "village_hall")
 
 
 func after_each() -> void:
@@ -41,7 +47,7 @@ func _event(overrides: Dictionary = {}) -> Dictionary:
 		"schema_version": 1,
 		"event_id": "evt-1",
 		"sector_id": "sector-0-0",
-		"target_guid": "structure-village_hall-0",
+		"target_guid": _target_guid(),
 		"mutation_kind": "defeat_leader",
 		"actor_player_id": "player-1",
 		"server_tick": 12345,
@@ -96,6 +102,13 @@ func test_mutation_on_non_canon_sector_is_rejected() -> void:
 	assert_eq(result["outcome"], CanonMutationRepositoryScript.OUTCOME_SECTOR_NOT_CANON)
 
 
+func test_mutation_against_unknown_target_is_rejected() -> void:
+	var unknown: Dictionary = _event({"event_id": "evt-unknown", "target_guid": "structure-does-not-exist"})
+	var result: Dictionary = _mutations.apply_mutation(unknown)
+	assert_eq(result["outcome"], CanonMutationRepositoryScript.OUTCOME_TARGET_NOT_FOUND, "a mutation must address a real canonical entity")
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 0, "a target-not-found mutation is not stored")
+
+
 func test_reused_event_id_with_different_content_conflicts() -> void:
 	assert_eq(_mutations.apply_mutation(_event())["outcome"], CanonMutationRepositoryScript.OUTCOME_OK)
 	var forged: Dictionary = _event({"payload": {"leader": "impostor"}})
@@ -143,9 +156,11 @@ func test_restart_recovery_replays_mutation_history() -> void:
 	assert_eq(rows[1]["applied_revision"], 2)
 
 
-func test_hostile_target_guid_is_stored_as_data() -> void:
-	var hostile: Dictionary = _event({"target_guid": "x'); DROP TABLE canon_mutations; --"})
+func test_hostile_actor_id_is_stored_as_data() -> void:
+	# target_guid stays valid so the mutation is admitted; the injection string
+	# rides in actor_player_id, which reaches the INSERT, proving binding safety.
+	var hostile: Dictionary = _event({"actor_player_id": "x'); DROP TABLE canon_mutations; --"})
 	assert_eq(_mutations.apply_mutation(hostile)["outcome"], CanonMutationRepositoryScript.OUTCOME_OK)
 	var history: Dictionary = _mutations.list_mutations("sector-0-0")
 	assert_eq(history["mutations"].size(), 1, "parameter binding stored the injection string as inert data")
-	assert_eq(history["mutations"][0]["target_guid"], "x'); DROP TABLE canon_mutations; --")
+	assert_eq(history["mutations"][0]["actor_player_id"], "x'); DROP TABLE canon_mutations; --")

@@ -8,6 +8,13 @@ The map is complete when the core melee exchange, action authority and timing,
 weapon-archetype model, target-and-hit rule, and first-slice acceptance
 boundary are clear enough to create safe implementation tickets.
 
+## What Good Looks Like
+
+- [x] The first melee exchange is server-authoritative and scoped to a reversible public seam.
+- [x] Action lifetime, timing, idempotency, and rejection rules are specified.
+- [x] A bounded weapon archetype and target/hit rule are specified without inventing full combat content.
+- [x] The first implementation slice has acceptance evidence and validation expectations.
+
 ## Notes
 
 - Domain: Godot 4 multiplayer action-adventure, server-authoritative gameplay,

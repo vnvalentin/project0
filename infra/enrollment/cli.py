@@ -44,6 +44,33 @@ def cmd_revoke_peer(store: EnrollmentStore, opnsense_client: OpnsenseWireguardCl
     return result.outcome.value
 
 
+def cmd_deprovision_stale(
+    store: EnrollmentStore,
+    opnsense_client: OpnsenseWireguardClient,
+    older_than_seconds: int,
+    dry_run: bool,
+    now: float | None = None,
+) -> list[str]:
+    """Slice 089: reclaim assertion-path peers idle past `older_than_seconds`.
+    Returns the public keys reclaimed (or, with dry_run, the keys that would be).
+    Each revoke is atomic/fail-closed (RevocationService); a single upstream
+    failure is skipped so one bad peer never blocks the whole sweep."""
+    now = now if now is not None else time.time()
+    threshold = now - older_than_seconds
+    stale = store.list_stale_account_allocations(threshold)
+    if dry_run:
+        return [public_key for _account_id, public_key in stale]
+    service = RevocationService(store, opnsense_client)
+    reclaimed: list[str] = []
+    for _account_id, public_key in stale:
+        try:
+            service.revoke(public_key)
+            reclaimed.append(public_key)
+        except RevocationRejected:
+            continue
+    return reclaimed
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Admin CLI for the enrollment service.")
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -58,6 +85,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     revoke = subparsers.add_parser("revoke-peer", help="Revoke/ban an enrolled peer by its public key.")
     revoke.add_argument("public_key", help="The WireGuard public key of the peer to revoke.")
+
+    deprovision = subparsers.add_parser(
+        "deprovision-stale", help="Reclaim assertion-path peers idle past the TTL."
+    )
+    deprovision.add_argument(
+        "--older-than-seconds",
+        type=int,
+        default=None,
+        help="Idle threshold in seconds; defaults to ENROLLMENT_PEER_IDLE_TTL_SECONDS.",
+    )
+    deprovision.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List the peers that would be reclaimed without revoking them.",
+    )
     return parser
 
 
@@ -80,6 +122,18 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"REJECTED: {exc.reason.value}", file=sys.stderr)
                 return 1
             print(outcome)
+            return 0
+        if args.subcommand == "deprovision-stale":
+            older_than = (
+                args.older_than_seconds
+                if args.older_than_seconds is not None
+                else config.peer_idle_ttl_seconds
+            )
+            opnsense_client = RealOpnsenseWireguardClient(config.opnsense_api_key, config.opnsense_api_secret)
+            reclaimed = cmd_deprovision_stale(store, opnsense_client, older_than, args.dry_run)
+            for public_key in reclaimed:
+                print(public_key)
+            print(f"{'would reclaim' if args.dry_run else 'reclaimed'}: {len(reclaimed)}")
             return 0
     finally:
         store.close()

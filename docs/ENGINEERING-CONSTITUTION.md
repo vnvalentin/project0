@@ -80,6 +80,19 @@ it has one primary phase for delivery ownership. Slice completion measures the
 slice's own evidence; phase completion measures progress toward the phase exit
 gate and is not reduced to a count of completed slices.
 
+Every work item must be traceable to a GitHub Issue before work starts. Local
+planning tickets under `.scratch/` may refine the design, but they do not
+replace the GitHub Issue that anchors external intent, branch work, pull request
+review, slice records, and tracker updates. Pull requests that complete the work
+use a closing keyword such as `Fixes #N`; partial or related work uses `Refs #N`.
+
+Every goal must name what good looks like before it can be treated as complete.
+The goal's success condition is a customer-facing acceptance-criteria checklist,
+not the mere existence or closure of child work items. Child issues capture known
+questions, research, decisions, and implementation candidates; new child issues
+may appear as learning clears fog around the goal. A goal with no map is new and
+unresearched, and its target coverage is zero until its criteria are written.
+
 Apply TPSA as small-lot, frequent delivery: prefer the smallest independently
 observable, reversible slice that tests one hypothesis and produces evidence.
 Feature groups and phases must not become excuses for bundled implementation.
@@ -101,9 +114,10 @@ Every implementation slice follows `docs/DEVELOPMENT-WORKFLOW.md`:
 6. Validate the cheapest focused check first, then relevant type, lint, build,
    integration, and full-suite checks.
 7. Record the design, scenarios, tests, ADR or no-ADR rationale, validation, and
-   review outcome. Name the feature IDs advanced, check for duplicates, update
-   `FEATURE-LIST.md` and `PROJECT-TRACKER.md`, and record telemetry and stop
-   signals. Update documentation when behavior or operations change.
+   review outcome. Name the GitHub Issue, feature IDs advanced, check for
+   duplicates, update `FEATURE-LIST.md` and `PROJECT-TRACKER.md`, and record
+   telemetry and stop signals. Update documentation when behavior or operations
+   change.
 
 ## 5. Jidoka and Genchi Genbutsu
 

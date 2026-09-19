@@ -1,4 +1,5 @@
 # Slice 001: Identity gate, flat plane, and player movement
+GitHub issue: #95
 
 Tracker context: Phase 1 — First playable vertical slice; advances
 [F-001](../FEATURE-LIST.md#f-001-local-identity-gate-flat-plane-scene-and-player-movement)

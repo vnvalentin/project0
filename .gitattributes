@@ -1,0 +1,6 @@
+# Guarantee LF for shell scripts and container files so they run on the Linux
+# host regardless of a Windows checkout's autocrlf setting.
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+*.gd text eol=lf

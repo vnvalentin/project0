@@ -1,0 +1,118 @@
+name: Project0 release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version stamped into the client artifacts"
+        required: false
+        default: "0.0.0-dispatch"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  client-package:
+    name: Windows client package (built on Linux)
+    runs-on: ubuntu-latest
+    # Ships the Godot 4.3 export templates, so the Windows client can be
+    # cross-exported without a Windows runner.
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install cross-build toolchain
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 scons zip git make
+          # godot-cpp uses std::mutex, which the win32-threads mingw variant
+          # only provides from GCC 13. This image ships an older GCC, so select
+          # the posix-threads variant explicitly rather than relying on the
+          # Debian default.
+          update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
+          update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
+          x86_64-w64-mingw32-g++ -v 2>&1 | grep -i 'thread model'
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache-dependency-path: |
+            native/wgnetstack/go.sum
+            native/windows_launcher/go.sum
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "value=${GITHUB_REF_NAME#v}" >>"$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.version }}" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Build Windows client package
+        run: scripts/package_client_linux.sh "${{ steps.version.outputs.value }}"
+
+      - name: Upload client artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: project0-client-${{ github.ref_name }}
+          path: |
+            dist/current/*.zip
+            dist/current/*.exe
+            dist/current/deployment-manifest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy-servers:
+    name: Deploy all servers
+    needs: client-package
+    # Tags only: a manual dispatch builds the client but never touches the host.
+    if: github.ref_type == 'tag'
+    # The runner lives on the deployment host, so deployment is a local
+    # operation: no inbound SSH, no deploy key, and no secret in GitHub.
+    runs-on: [self-hosted, linux, okami]
+    concurrency:
+      group: deploy-servers
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows client artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: project0-client-${{ github.ref_name }}
+          path: dist/current
+
+      - name: Publish Windows client downloads
+        run: scripts/publish_client_downloads.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Show deploy plan
+        run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}" --dry-run
+
+      - name: Deploy the container stack
+        run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}"
+
+      - name: Verify public client downloads
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          base="https://project0.valentin.vip/patches/downloads"
+          curl --fail --silent --show-error "${base}/index.html" >/dev/null
+          curl --fail --silent --show-error "${base}/${version}/Project0-WAN-${version}.exe" -o /dev/null
+          curl --fail --silent --show-error "${base}/${version}/Project0-WAN-${version}.zip" -o /dev/null
+          curl --fail --silent --show-error "${base}/${version}/Project0-client-windows-x64-${version}.zip" -o /dev/null

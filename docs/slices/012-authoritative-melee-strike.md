@@ -1,6 +1,7 @@
 # Slice 012: Server-authoritative melee strike and hit registration
+GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; advances
+Tracker context: Phase 12 — Authoritative runtime and action input; advances
 [IP-015](../FEATURE-LIST.md#ip-015-authoritative-action-input).
 Planning ticket: [melee-combat issue 05](../.scratch/melee-combat/issues/05-set-first-melee-slice-boundary-and-evidence.md),
 which resolves issues

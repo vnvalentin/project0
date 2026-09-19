@@ -1,9 +1,10 @@
 # Slice 049: WireGuard peer revocation/ban lifecycle (logic + tests)
+GitHub issue: #95
 
 Status: delivered (revocation logic + automated tests; live OPNsense
 deletion and the real ~25s tunnel-teardown timing remain pending)
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 against the resolved design in
 [issue 06 — peer revocation and ban lifecycle protocol](../../.scratch/wan-wireguard/issues/06-revocation-and-ban-lifecycle.md).

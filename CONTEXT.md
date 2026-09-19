@@ -2,10 +2,9 @@
 
 ## Product
 
-`Project0` helps `a single developer and their playtesters` accomplish `entering
-a shared 3D isometric world under one player identity and moving a character
-through it, as the foundation for a server-authoritative multiplayer
-action-adventure with JIT-generated, canon-persisted world content`.
+`Project0` helps `a single developer and their playtesters` accomplish `securely
+entering a shared 3D isometric world as a selected Character and moving through
+server-authoritative, generated, canon-persisted content`.
 
 ## Domain terms
 
@@ -30,6 +29,37 @@ action-adventure with JIT-generated, canon-persisted world content`.
   server-authoritative once networking exists.
   _Avoid_: character (the persistent persona is the Character; the Player is its
   in-world instantiation), user.
+- **Party**: A persistent, server-owned cooperative association of one to five
+  unique Characters, with its own identity, leader, mutable roster, and shared
+  coordination history. A Party survives roster and presence changes until it
+  is authoritatively retired; one Character belongs to at most one active Party.
+  _Avoid_: group (overloaded by engineering and external-game terminology),
+  squad, raid, team.
+- **Party membership**: The authoritative relationship between a Character and
+  an active Party. Membership begins through accepted consent and ends through
+  leave, removal, timeout, or Party retirement; it is not inferred from a live
+  network connection, scene proximity, or current Sector.
+  _Avoid_: Player membership, peer membership, Account membership.
+- **Party presence**: A Party member's current in-world availability as a
+  Player, distinct from Party membership. Connection loss or movement between
+  Sectors changes presence without itself expressing consent to leave.
+  _Avoid_: membership status, online membership.
+- **Encounter**: A bounded, server-owned attempt to resolve a hostile or world
+  objective. It begins and ends with authoritative objective state, may involve
+  Party and non-Party Characters, and retains its own participation history
+  independently of later roster changes.
+  _Avoid_: fight (not every Encounter is combat), Party event, client session.
+- **Participation evidence**: Authoritative facts that a Character performed
+  meaningful, relevant actions during an Encounter. Party membership,
+  proximity, presence, or another Character's actions are context, never
+  participation evidence by themselves.
+  _Avoid_: contribution score (evidence is not one universal public number),
+  shared experience, attendance.
+- **Encounter credit**: The terminal, personal fact that a Character qualified
+  for successful Encounter completion. Matching quest objectives or loot
+  allocation may consume this fact, but it is not conventional experience,
+  an item, or another Character's embodied training evidence.
+  _Avoid_: shared XP, Party reward, duplicated loot.
 - **Flat plane**: The minimal placeholder ground scene used to prove movement
   without committing to any generated or hand-built map. Authoritative as the
   current slice's only world geometry.
@@ -42,19 +72,19 @@ action-adventure with JIT-generated, canon-persisted world content`.
   (`shared/world_scale.gd`); see [ADR 0003](docs/adr/0003-imperial-world-scale.md).
   _Avoid_: meter (Godot's default convention, which this project overrides),
   pixel.
-- **Sector**: A unit of JIT-generated world content produced by the local LLM
-  and, once validated, written to the SQLite canon store. Its nominal span is
+- **Sector**: A unit of JIT-generated world content produced by the local LLM,
+  validated, then written to the server-owned SQLite Canon store. Its nominal span is
   **≈ ¼ mile = 440 world units** (tunable via `WorldScale`, growing toward
   1 mile = 1760); a Sector is a **region container** whose fine Tile detail
   covers only a bounded sub-area, not every yard (see
-  [ADR 0003](docs/adr/0003-imperial-world-scale.md)). Provisional — no generation
-  or persistence exists yet; the span is a measurement decision, not a built
-  feature.
+  [ADR 0003](docs/adr/0003-imperial-world-scale.md)). Generation is asynchronous;
+  an unseen coordinate is requested from an authoritative boundary transition,
+  and only the stored Canon result is replicated.
   _Avoid_: chunk, tile map, level.
-- **Canon**: World state that has been validated and persisted to SQLite,
-  making it authoritative and durable across sessions. Provisional — canon
-  persistence is not implemented in this slice; nothing produced today is
-  canon.
+- **Canon**: World state that has been validated and persisted to the
+  server-owned SQLite store, making it authoritative and durable across
+  sessions. Canon sectors are immutable at their base revision; an append-only,
+  idempotent mutation log yields an effective blueprint for replication.
   _Avoid_: save data, world save.
 - **Structure**: A building placement within a sector blueprint (e.g. player
   `house`, villager `npc_house`, the `village_hall` leader's house, smithy,
@@ -81,55 +111,55 @@ action-adventure with JIT-generated, canon-persisted world content`.
   the geometry pass.
   _Avoid_: terrain type, biome (kind is the blueprint/validator term).
 - **Spawn point**: A monster-instantiation marker within a sector blueprint,
-  distinct from a Structure (not rendered or enterable). Provisional —
-  reserved by [Starting Town map](.scratch/starting-town/map.md) ticket 01;
-  the monster archetype placed at a spawn point is decided by the
-  [Basic Monsters map](.scratch/basic-monsters/map.md).
+  distinct from a Structure (not rendered or enterable). Spawn points are
+  implemented in the blueprint schema and used by the current basic Monster
+  manager; future archetype breadth remains a gameplay decision.
   _Avoid_: spawner, spawn tile.
-- **Hub sector**: The one reserved, hard-coded fixture sector
-  (`sector_id = "starting_town_hub"`) every server instance starts with,
-  containing the starting town's Structures. Distinct from Canon — it is
-  static shipped data, not a persisted, validated-then-frozen LLM output.
-  Implemented: materialized fail-closed at boot (Slice 016) and enriched to the
-  schema-v3 organic vocabulary (Slice 025).
+- **Hub sector**: The reserved `starting_town_hub` starting-town blueprint.
+  It is materialized fail-closed at boot, validated, and canonicalized by the
+  server; its shipped fixture and optional LLM proposal are inputs, while its
+  accepted stored record is Canon.
   _Avoid_: starting sector (ambiguous with a future player-specific spawn
   concept), canon town (it is not Canon in the persisted-and-frozen sense
   until Phase 9 exists).
 - **Monster**: A server-authoritative, non-player combat target with a flat,
-  explicitly provisional HP pool (`MonsterCombatState` in
-  `shared/monster_contracts.gd`), distinct from `TargetDummy` (which has no
-  HP/death at all). Provisional — decided by
+  explicitly provisional HP pool (the shared `CombatHealth` contract in
+  `shared/combat_health.gd`, seeded at `MonsterContracts.MAX_HP`; Slice 126
+  retired the provisional `MonsterCombatState`), distinct from `TargetDummy`
+  (which has no HP/death at all). Provisional — decided by
   [Basic Monsters map](.scratch/basic-monsters/map.md) ticket 01; the HP
   model here is a placeholder for the future six-node vessel-derived health
   formula (Phase 12, 0% built).
   _Avoid_: enemy, mob (keep the term consistent with this repo's existing
   "Player"/"TargetDummy" naming register).
+- **Client build version**: The semver identity of a packaged Windows client
+  build, used by the server-owned pre-auth version gate. Distinct from a data
+  contract's `schema_version` or `tuning_version`.
+- **Update manifest**: The offline-signed release record that binds one client
+  build version to one full `Project0.pck` URL, byte size, and SHA-256.
+- **Patch**: A full replacement `Project0.pck` for one client build version;
+  v1 does not use delta patches.
+- **Version handshake**: The first client/server message after connection and
+  before authentication, where the client presents its build version and the
+  server accepts or rejects it.
 
 ## External contexts
 
 - **Ollama API** (`http://127.0.0.1:11434`, local Llama-3-8B on a Tesla P100):
-  Supplemental, server-side-only inference source for future sector
-  generation. Not authoritative for any game state by itself — the server
-  must validate its output before anything becomes canon. Not exercised by
-  the current identity-gate/movement slice.
-- **SQLite canon database** (future, server-owned): Will be authoritative for
-  persisted world state (canon) once introduced. Does not exist yet.
+  Supplemental, server-side-only inference source for sector generation. It is
+  never authoritative by itself: the server validates output before it can be
+  stored as Canon.
+- **SQLite Canon database**: The server-owned durable store for validated,
+  immutable sector records and their append-only mutation logs. It is separate
+  from the accounts store when the split runtime is configured.
 
 ## Invariants
 
-- The identity gate never blocks on, and has no dependency on, Ollama or
-  SQLite.
-- Nothing in the current slice is persisted to disk; closing the client
-  discards all state.
-- A Sector is never treated as Canon until the server has validated and
-  written it to the SQLite store (future work; stated here so the boundary is
-  not blurred when that system is built).
-
-## Ambiguity policy
-
-When evidence conflicts or is incomplete, preserve the source evidence, surface
-the ambiguity, and define whether the affected action is blocked, retried, or
-sent for review. Never silently guess.
+- The client never directly contacts Ollama or the Canon SQLite store.
+- Account, Character, Canon, and mutation state are server-owned; assertions
+  and client presentation state are not durable client authority.
+- A Sector is never treated as Canon until the server has validated and written
+  it to the SQLite Canon store.
 
 ## Ambiguity policy
 

@@ -32,6 +32,10 @@ var _has_target: bool = false
 
 var _strike_visual: Node3D = null
 
+## Slice 086: floating Character name label, populated once the server
+## replicates this peer's bound Character identity at world entry.
+@onready var _name_label: Label3D = $NameLabel
+
 ## Slice 013: mirrors server/server_player_state.gd's WINDUP/ACTIVE fixed-tick
 ## countdown, but only far enough to time the cosmetic strike-line — no
 ## RECOVERY tracking is needed since nothing renders differently during
@@ -47,8 +51,23 @@ func _ready() -> void:
 	_target_position = position
 	NetworkClient.remote_player_position_received.connect(_on_remote_player_position_received)
 	NetworkClient.melee_swing_started_received.connect(_on_melee_swing_started_received)
+	NetworkClient.remote_player_identity_received.connect(_on_remote_player_identity_received)
 	_strike_visual = MeleeStrikeVisualScene.instantiate()
 	add_child(_strike_visual)
+
+
+## Public seam: labels this remote representation as its bound Character. Called
+## by network_client.gd's spawn_remote_player_representation() when the identity
+## is already known at spawn, and via the identity signal on world entry. The
+## cosmetic is accepted for parity with the server contract but not yet rendered.
+func set_character_identity(display_name: String, _cosmetic: Dictionary) -> void:
+	_name_label.text = display_name
+
+
+func _on_remote_player_identity_received(identity_peer_id: int, display_name: String, cosmetic: Dictionary) -> void:
+	if identity_peer_id != peer_id:
+		return
+	set_character_identity(display_name, cosmetic)
 
 
 ## Public seam: binds this node to the specific peer id it represents.

@@ -1,9 +1,10 @@
 # Slice 028: WireGuard remote-access infrastructure foundation
+GitHub issue: #95
 
 Status: awaiting evidence (records-first handoff; live OPNsense/host execution
 owned by Copilot in a follow-up)
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 by delivering the first bounded implementation slice against its design-complete
 basis. Planning ticket: [Public Game Access via WireGuard

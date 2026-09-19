@@ -4,6 +4,11 @@ All development follows [the Engineering Constitution](docs/ENGINEERING-CONSTITU
 It is operating logic for implementation, not background documentation.
 Use [TPSA](docs/tpsa.md) as the core behavior profile for all activities.
 
+The tool-neutral systems/implementation contract is
+[docs/SYSTEMS-SPECIFICATION.md](docs/SYSTEMS-SPECIFICATION.md) (formerly
+`CLAUDE.md`, now a pointer stub). Any LLM working this repo — Copilot, Claude, or
+another — treats it as authoritative.
+
 ## Repository commands
 
 - Test: `scripts/run_gut_validation.sh` runs the automated GUT suite under
@@ -21,7 +26,9 @@ Use [TPSA](docs/tpsa.md) as the core behavior profile for all activities.
   command result and be recorded in the slice validation section.
 - Typecheck: Not applicable as a separate step. GDScript 2.0 static types are
   enforced by the same `--check-only` parse above; strict typing is a code-style
-  requirement (see Code Style in `CLAUDE.md`), not a standalone tool.
+  requirement (see Code Style in
+  [docs/SYSTEMS-SPECIFICATION.md](docs/SYSTEMS-SPECIFICATION.md)), not a
+  standalone tool.
 - Lint: Not applicable. No GDScript linter is installed.
 - Build: Not applicable during this phase. No export presets or packaged builds
   exist yet; the project runs from source via the Godot 4.3 editor/headless
@@ -83,9 +90,14 @@ Do not create implementation slices or product code while this gate is open.
 - Implementation ownership: Copilot performs orchestration, bounded handoffs,
   validation coordination, and review. Claude CLI owns application-code,
   test-code, and implementation-facing delivery-record edits unless the user
-  explicitly authorizes Copilot to edit directly. If Claude CLI is unavailable
-  or times out, stop and report the blocker; do not silently implement the
-  change with Copilot tools.
+  explicitly authorizes Copilot to edit directly. **Standing authorization
+  (user, 2026-09-18): if Claude CLI is unavailable, interactive-only,
+  rate-limited, or times out, Copilot is authorized to implement directly
+  rather than stopping.** The fallback changes who edits, never what the
+  delivery gate requires: records-first, GitHub issue traceability,
+  public-seam tests, real validation evidence, and record sync still apply in
+  full. Note the fallback trigger in the slice record so the ownership
+  deviation stays auditable.
 - Delivery gate: Claude must create or update the slice record, planning
   ticket, and synchronized tracker entries before implementation begins. Code
   and tests passing is insufficient to mark a slice complete unless the
@@ -96,6 +108,10 @@ Do not create implementation slices or product code while this gate is open.
   and Work Queue) per `docs/DEVELOPMENT-WORKFLOW.md`.
 - Before editing, state the user outcome, scope, non-goals, affected boundary,
   unacceptable outcomes, hypothesis, and cheapest discriminating check.
+- Before starting work, identify the governing GitHub Issue; create one when no
+  suitable issue exists. Link it from the branch/PR, slice record, tracker
+  records, and any local `.scratch` planning ticket references. Local planning
+  tickets do not replace the GitHub Issue.
 - Test at the public seam and run the narrowest relevant validation first.
 - Stop on unexpected failure, degraded health, missing evidence, or unclear
   security boundaries.

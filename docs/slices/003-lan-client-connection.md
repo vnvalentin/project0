@@ -1,4 +1,5 @@
 # Slice 003: Windows client connects to a configurable Linux server over LAN
+GitHub issue: #95
 
 Tracker context: Phase 3 — LAN client connection; advances
 [P-002](../FEATURE-LIST.md#p-002-lan-client-connection).

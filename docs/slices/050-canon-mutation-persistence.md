@@ -1,4 +1,5 @@
 # Slice 050 — Canon mutation persistence (dynamic world mutation tracking)
+GitHub issue: #95
 
 Status: **delivered**
 

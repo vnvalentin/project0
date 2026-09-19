@@ -18,7 +18,7 @@ from infra.enrollment.app import create_app
 from infra.enrollment.config import EnrollmentConfig
 from infra.enrollment.service import EnrollmentService
 from infra.enrollment.store import EnrollmentStore
-from infra.enrollment.tests.fakes import FakeOpnsenseWireguardClient
+from infra.enrollment.tests.fakes import FakeLoginAuthorityClient, FakeOpnsenseWireguardClient
 
 VALID_PUBLIC_KEY = base64.b64encode(bytes(range(32))).decode("ascii")
 
@@ -35,6 +35,10 @@ def make_config() -> EnrollmentConfig:
         pool_cidr=ipaddress.ip_network("10.77.0.0/24"),
         persistent_keepalive_seconds=25,
         db_path=":memory:",
+        login_authority_host="127.0.0.1",
+        login_authority_port=9997,
+        login_authority_timeout_seconds=5.0,
+        peer_idle_ttl_seconds=2592000,
     )
 
 
@@ -52,9 +56,14 @@ def fake_opnsense():
 
 
 @pytest.fixture
-def client(store, fake_opnsense):
+def fake_login_authority():
+    return FakeLoginAuthorityClient()
+
+
+@pytest.fixture
+def client(store, fake_opnsense, fake_login_authority):
     service = EnrollmentService(make_config(), store, fake_opnsense)
-    app = create_app(service)
+    app = create_app(service, fake_login_authority)
     return TestClient(app)
 
 
@@ -108,7 +117,7 @@ def test_redeem_malformed_public_key_returns_422(client, store):
 def test_redeem_upstream_failure_returns_502(store):
     failing_opnsense = FakeOpnsenseWireguardClient(fail_add_client=True)
     service = EnrollmentService(make_config(), store, failing_opnsense)
-    app = create_app(service)
+    app = create_app(service, FakeLoginAuthorityClient())
     client = TestClient(app)
     store.mint_invite("good-code")
 

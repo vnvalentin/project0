@@ -1,6 +1,7 @@
 # Slice 029: Authoritative monster melee damage and death broadcast
+GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; advances
+Tracker context: Phase 12 — Authoritative runtime and action input; advances
 [IP-023](../FEATURE-LIST.md#ip-023-basic-monster-combat). Fourth Basic
 Monsters slice; the server-authoritative half of the two-slice boundary
 recorded in

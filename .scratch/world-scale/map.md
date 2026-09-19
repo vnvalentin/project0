@@ -13,6 +13,13 @@ The map is complete when the unit anchor, grid resolution, Sector span, the
 measurement-contract seam, the existing-constant reconciliation policy, and the
 capstone ADR are all decided well enough to open implementation tickets safely.
 
+## What Good Looks Like
+
+- [x] The project has a single Imperial unit anchor and documented Tile/Sector hierarchy.
+- [x] Sector span and grid-resolution policy are decided without forcing a generation rewrite.
+- [x] A versioned `WorldScale` seam and existing-constant reconciliation policy are specified.
+- [x] ADR/spec evidence exists so downstream implementation slices can consume the decision safely.
+
 ## Notes
 
 - Domain: Godot 4 GDScript 2.0 strict typing; server-authoritative per

@@ -1,6 +1,7 @@
 # Slice 022: Monster spawning and respawn (outside town)
+GitHub issue: #95
 
-Tracker context: Phase 10 — Authoritative runtime and action input; advances
+Tracker context: Phase 12 — Authoritative runtime and action input; advances
 [IP-023](../FEATURE-LIST.md#ip-023-basic-monster-combat).
 Planning tickets: [Basic Monsters map](../../.scratch/basic-monsters/map.md),
 [issue 03 — Monster spawn points from town schema](../../.scratch/basic-monsters/issues/03-monster-spawn-points-from-town-schema.md)

@@ -1,8 +1,9 @@
 # Slice 048: WireGuard invite-code enrollment service (logic + tests)
+GitHub issue: #95
 
 Status: delivered (service logic + automated tests; live deployment pending)
 
-Tracker context: Phase 13 — Public game access; advances
+Tracker context: Phase 11 — Public game access; advances
 [P-024](../FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 against the resolved design in
 [issue 04 — enrollment service invite system](../../.scratch/wan-wireguard/issues/04-enrollment-service-invite-system.md).

@@ -66,6 +66,31 @@ func get_selected_character(peer_id: int) -> String:
 	return String(session.get("selected_character_id", ""))
 
 
+## Public seam (Slice 075). Records the selected Character's signed presentation
+## snapshot ({character_id, display_name, cosmetic}) on the session, so the game
+## server can bind a Player from it when its DB holds no such record (the
+## assertion handoff path). Also sets the selected id. A no-op if `peer_id` holds
+## no session.
+func set_selected_character_snapshot(peer_id: int, character_id: String, display_name: String, cosmetic: Dictionary) -> void:
+	if not _sessions_by_peer_id.has(peer_id):
+		return
+	var session: Dictionary = _sessions_by_peer_id[peer_id]
+	session["selected_character_id"] = character_id
+	session["selected_character_snapshot"] = {
+		"character_id": character_id,
+		"display_name": display_name,
+		"cosmetic": cosmetic,
+	}
+
+
+## Public seam (Slice 075). Returns the selected Character snapshot for `peer_id`
+## ({character_id, display_name, cosmetic}), or an empty Dictionary when none was
+## set — the in-process login path selects via the DB instead.
+func get_selected_character_snapshot(peer_id: int) -> Dictionary:
+	var session: Dictionary = _sessions_by_peer_id.get(peer_id, {})
+	return session.get("selected_character_snapshot", {})
+
+
 func _generate_token() -> String:
 	var crypto := Crypto.new()
 	return crypto.generate_random_bytes(32).hex_encode()

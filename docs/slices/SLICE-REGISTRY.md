@@ -70,8 +70,120 @@ contended range and everything after it is tracked explicitly:
 | 052 | F-026 LLM town generation ON at server boot (opt-in flag) | interactive |
 | 053 | F-026 derive monster exclusion from town bounds | interactive |
 | 054 | Secure Windows tunnel enrollment and credential storage (P-024, F-035) | interactive |
+| 055 | Server fixed-tick and health snapshot contract (P-014) | interactive |
+| 056 | Game-server container image and run-beside-native (P-014) | interactive |
+| 057 | Game-server persistent data boundary and SQLite backup/restore (P-014) | interactive |
+| 058 | In-process login gateway seam over AuthService/CharacterService (P-014) | interactive |
+| 059 | Signed session assertion contract, issuer, and validator (P-014) | interactive |
+| 060 | Assertion-backed session establishment in the login gateway (P-014) | interactive |
+| 061 | Operator control plane: read-only status service (P-014) | interactive |
+| 062 | Operator control plane: job/audit model + service restart action (P-014) | interactive |
+| 063 | Operator control plane: audited mint-invite action (P-014) | interactive |
+| 064 | Operator control plane: audited revoke-peer action (P-014) | interactive |
+| 065 | Operator control plane: durable SQLite audit sink (P-014) | interactive |
+| 066 | Operator control plane: audited start/stop lifecycle actions (P-014) | interactive |
+| 067 | Server runtime health file + container HEALTHCHECK (P-014) | interactive |
+| 068 | Login runtime extraction + standalone login-server process (P-014) | interactive |
+| 069 | Assertion handoff seams: request from login, present to game (P-014) | interactive |
+| 070 | Deploy + supervise the standalone login server (systemd + operator allowlist) (P-014) | interactive |
+| 071 | Shared assertion secret across the game + login units (P-014) | interactive |
+| 072 | Login-endpoint config: NetworkConfig.resolve_login_port + login server unifies on it (P-014) | interactive |
+| 073 | Login->game handoff e2e: client authenticates on login process, presents assertion to game process (P-014) | interactive |
+| 074 | Signed Character snapshot in the session assertion (contract + issuer) (P-014) | interactive |
+| 075 | Cross-DB world entry: bind Player from the assertion snapshot (P-014) | interactive |
+| 076 | Game server assertion-only mode: refuse account-authority RPCs (opt-in) (P-014) | interactive |
+| 077 | Client login->game handoff seam (NetworkClient.perform_login_to_game_handoff) (P-014) | interactive |
+| 078 | Wire login-screen gates to the login process (opt-in client flag) (P-014) | interactive |
+| 079 | Optional dedicated Canon store: opt-in canon/accounts DB split on the game server (P-014) | interactive |
+| 080 | One-time Canon migration into a dedicated store on first split boot (P-014) | interactive |
+| 081 | Deploy the standalone login server via docker-compose (opt-in profile) (P-014) | interactive |
+| 082 | Containerized login-split e2e: compose split overlay + two-container handoff proof (P-014) | interactive |
+| 083 | One-command split launcher with shared-secret management (run-split.sh) (P-014) | interactive |
+| 084 | Login-split cutover: split on by default (client split + game assertion-only) (P-014) | interactive |
+| 085 | Remove in-process login from the game server (assertion-only login graph, no AuthService) (P-014) | interactive |
+| 086 | Multi-peer Character replication: label remote Players with their bound Character (F-004) | interactive |
+| 087 | Login-session resume: in-world Character Select without re-login (F-034) | interactive |
+| 088 | Auth-gated onboarding A: HTTPS /login on the enrollment service, delegating credential verification to the login authority and returning a signed session assertion (P-024, ADR 0004) | interactive |
+| 089 | Auth-gated onboarding B: /redeem accepts a signed assertion + idempotent per-account peer lifecycle and aging/deprovision (P-024, ADR 0004) | interactive |
+| 090 | Auth-gated onboarding C-server: HTTPS character endpoints (list/create/delete/select + issue-character-assertion) on the enrollment service, loopback-delegated + account-scoped (P-024, ADR 0004, ADR 0005) | interactive |
+| 091 | Auth-gated onboarding C-client-seam: Godot EnrollmentHttpClient (HTTPS login + character list/create/select/delete seam) (P-024, ADR 0005) | interactive |
+| 092 | Auth-gated onboarding C-launcher: Windows launcher login + redeem-with-assertion + tunnel bring-up (P-024, ADR 0004, F-035) | interactive |
+| 093 | Auth-gated onboarding C-client-wiring: wire account/character gates to EnrollmentHttpClient + tunnel + present character assertion (runtime-validated) (P-024, ADR 0005) | interactive |
+| 094 | Reality dashboard truthfulness and delivery-record reconciliation (F-025) | interactive |
+| 095 | Canon entity GUIDs + mutation target-existence enforcement (P-013) | interactive |
+| 096 | Canon mutation intent DTO + server-authoritative resolution service (P-013) | interactive |
+| 097 | Canon mutation intent RPC transport + headless round-trip e2e (P-013) | interactive |
+| 098 | Canon sector mutation replay: server replicates the effective blueprint (P-013) | interactive |
+| 099 | Public authentication abuse controls: bounded rate limiting and lockout (DT-009) | interactive |
+| 100 | Public HTTPS account registration delegated to the login authority (DT-010) | interactive |
+| 101 | Server deployment path in the current deployment pipeline (P-014) | interactive |
+| 102 | Full-stack CI validation gate: record-sync, Python, Go, launcher jobs (F-005) | interactive |
+| 103 | Linux-hosted Windows client package build (F-002) | interactive |
+| 104 | Registry-driven all-server deployment on tag (P-014) | interactive |
+| 105 | Container images for every service, published to GHCR (F-002, P-014) | interactive |
+| 106 | Container runtime cutover: compose stack deployed by image tag (P-014) | interactive |
+| 107 | Drive the engine at the contracted authoritative tick rate (DT-013) | interactive |
+| 108 | Retire the git-archive deploy path (P-014) | interactive |
+| 109 | Host-assumption sweep and post-deploy smoke checks (P-014) | interactive |
+| 110 | Ship the Linux wgnetstack GDExtension in the server image (DT-014) | interactive |
+| 111 | Dashboard issue traceability detail (F-025) | interactive |
+| 112 | Reality page Goal source of truth (F-025) | interactive |
+| 113 | Dashboard apps source layout (F-025) | interactive |
+| 114 | Goal target coverage cards (F-025) | interactive |
+| 115 | Goal What Good Looks Like criteria (F-025, P-004) | interactive |
+| 116 | Phase 14 Character foundation handoff (#227, F-036) | interactive |
+| 117 | Phase 14 Character alignment & disposition contract (#227, #228, F-036) | interactive |
+| 118 | Phase 14 item & equipment effectiveness contract (#227, #233, F-036) | interactive |
+| 119 | Phase 14 technique readiness & proficiency contract (#227, #230, #234, F-036) | interactive |
+| 120 | Phase 14 shared health / defeat / recovery contract (#227, #231, F-036) | interactive |
+| 121 | Phase 14 damage-resolution composition contract (#227, #231, F-036) | interactive |
+| 122 | Phase 14 status-effect (resistible/removable) contract (#227, #231, F-036) | interactive |
+| 123 | Phase 14 activity-routine (idle/patrol fallback, off-screen simulation) contract (#227, #229, F-036) | interactive |
+| 124 | Phase 14 spawn-anchor (pressure-delayed replacement, promote/generate) contract (#227, #232, F-036) | interactive |
+| 125 | Phase 14 integration: Player HP on the shared CombatHealth contract (#227, #231, F-036) | interactive |
+| 126 | Phase 14 integration: Monster HP on the shared CombatHealth contract (#227, #231, F-036) | interactive |
+| 127 | Phase 14 integration: server-owned Character foundation + presentation-snapshot replication (#227, #230, F-036) | interactive |
+| 128 | Phase 14 integration: NPC/monster carries the shared CharacterFoundation (Player/NPC parity) (#227, F-036) | interactive |
+| 129 | Phase 14 integration: live town-NPC state (Character + ActivityRoutine, route-consistent position) (#227, #229, F-036) | interactive |
+| 130 | Phase 14 integration: live town-NPC population manager (SpawnAnchor pressure/replacement/significance) (#227, #232, F-036) | interactive |
+| 131 | Phase 14 integration: town NPCs live in server_main + client replication/rendering (closes exit gate) (#227, #229, #232, F-036) | interactive |
+| 132 | Phase 15 P-016-A: versioned embodiment tuning resolve seam (#219, #220, P-016) | interactive |
+| 133 | Phase 15 P-016-A: vessel progression state + fixed-budget redistribution (#219, #223, P-016) | interactive |
+| 134 | Phase 15 P-016-A: effective mechanics snapshot (derived, presentation-safe read-model) (#219, #224, P-016) | interactive |
+| 135 | Phase 15 P-016-B: inverse friction modifier (Massive Bulk / Fragile Agility) (#219, P-016) | interactive |
+| 136 | Phase 15 P-016-C: Kinetic Flow layer (Volume/Control/Output) (#219, P-016) | interactive |
+| 137 | Phase 15 P-016-D: Meridian pathways (dedup cross-training evidence, idempotent unlock) (#219, P-016) | interactive |
+| 138 | Phase 15 P-016-E: Biological Burnout (Overload Surge, temporary pathway flatten, lifecycle) (#219, P-016) | interactive |
+| 139 | Phase 15 P-016-F: Magic equilibrium (bulk insulation, fizzle/backlash) (#219, P-016) | interactive |
+| 140 | Phase 15 P-016-A/G: server progression service composing vessel + subsystems (closes exit gate) (#219, #224, P-016) | interactive |
+| 141 | Phase 12 IP-015: second authoritative action kind — Heavy Strike (bounded action set beyond melee) (IP-015) | interactive |
+| 142 | Phase 15 follow-on (P-016): live RPC replication of the EffectiveMechanicsSnapshot to the owning client at world entry (#219, #224, P-016) | interactive |
+| 143 | Phase 15 follow-on (P-016): durable vessel persistence — VesselRepository over SqliteStore + serializer (#219, #223, P-016) | interactive |
+| 144 | Phase 16 F-037: client build version identity + export-time stamp (#100, #182, F-037) | interactive |
+| 145 | Phase 16 F-037: pre-auth version handshake contract + server-owned required-version resolution (#100, F-037) | interactive |
+| 146 | Phase 16 F-037: live version-gate enforcement — deferred peer admission + client handshake/rejection (#100, F-037) | interactive |
+| 147 | Phase 16 F-037: signed update-manifest verifier + patch hash/size verification (#100, F-037) | interactive |
+| 148 | Phase 16 F-037: HTTPS update staging — verified patch staged to user://, nothing left behind on failure (#100, F-037) | interactive |
+| 149 | Phase 16 F-037: updater transaction — atomic pack swap, interrupted-swap recovery, rollback, bounded retries (Go launcher) (#100, #182, F-037) | interactive |
+| 150 | Phase 16 F-037: embed the trusted release public key + one-command release signing (#100, F-037) | interactive |
+| 151 | Phase 16 DT-015: exclude editor import metadata from packaged client to remove server-only GDExtension boot noise (#100, F-037, DT-015) | interactive |
+| 152 | Phase 16 F-037: enrollment HTTPS /patches static hosting and read-only release volume (#100, #182, F-037) | interactive |
+| 153 | Phase 16 F-037: launcher updater orchestration — persistent payload, detached apply helper, relaunch/readiness hook (#100, #182, F-037) | interactive |
+| 154 | Phase 16 F-037: launcher signed-update download, RSA verification, and staging integration (#100, #182, F-037) | interactive |
+| 155 | Phase 16 F-037: CLIENT_OUTDATED handoff from packaged client to launcher update loop (#100, #182, F-037) | interactive |
+| 156 | Phase 16 F-037: release pipeline publishes Windows client downloads (#100, #182, F-037) | interactive |
+| 157 | Phase 16 F-037: visible WAN package and opt-in stable-directory updates (#100, #182, F-037) | interactive |
+| 158 | Player traversal locomotion baseline: jump, dodge, duck, and slide (#229, F-036) | interactive |
+| 159 | Telemetry envelope + validation (F-038, #282, #283, #329) | interactive |
+| 160 | Telemetry sink + dedicated database (F-038, #282, #287, #288, #332) | interactive |
+| 161 | Telemetry transport contracts: client batch queue + server rate limiter (F-038, #282, #284, #334) | interactive |
+| 162 | Live telemetry RPC wiring (F-038, #282, #284, #345) | interactive |
+| 163 | Connection-lifecycle telemetry emission (F-038, #282, #285, #347) | interactive |
+| 164 | Combat-outcome telemetry emission (F-038, #282, #286, #351) | interactive |
+| 165 | Dashboard telemetry page (F-038, #282, #290, #353) | interactive |
+| 166 | Nakama v1 deployment foundation (F-039, #354, #355) | interactive |
 
-Next free slice: **055** (verify against `docs/slices/` before reserving).
+Next free slice: **167** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

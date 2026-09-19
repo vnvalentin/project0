@@ -36,16 +36,39 @@ const ServerPlayerStateScript: Script = preload("res://server/server_player_stat
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const HouseAllocatorScript: Script = preload("res://server/house_allocator.gd")
 const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
+const ServerTownNpcManagerScript: Script = preload("res://server/server_town_npc_manager.gd")
+const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const AccountCharacterRepositoryScript: Script = preload("res://server/account_character_repository.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
+const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutation_repository.gd")
+const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_service.gd")
+const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_resolver.gd")
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
-const AuthServiceScript: Script = preload("res://server/auth_service.gd")
-const CharacterServiceScript: Script = preload("res://server/character_service.gd")
+const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
+const ServerHealthScript: Script = preload("res://server/server_health.gd")
+const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+const TelemetrySinkScript: Script = preload("res://server/telemetry_sink.gd")
+const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
+const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ingest_service.gd")
+const TelemetryEventScript: Script = preload("res://shared/telemetry_event.gd")
+
+## Slice 067: the app schema version reported in the runtime health snapshot.
+const APP_SCHEMA_VERSION: int = 1
+
+## Slice 067: physics-frame stride between health-file refreshes (~0.5 s at the
+## default 60 Hz physics step). The container HEALTHCHECK interval is 15 s, so a
+## sub-second refresh keeps the file well within its staleness window.
+const HEALTH_REFRESH_FRAMES: int = 30
+
+# Slice 068: the login authority's assertion issuer/audience identifiers now live
+# on LoginRuntime (LoginRuntime.ASSERTION_ISSUER_ID / ASSERTION_AUDIENCE), shared
+# by the game server and the standalone login process.
 const TownLayoutProviderScript: Script = preload("res://server/town_layout_provider.gd")
 const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 
@@ -55,6 +78,13 @@ const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 ## local dev + CI) can each pass a distinct PROJECT0_ACCOUNTS_DB_PATH without
 ## colliding on one file.
 const DEFAULT_ACCOUNTS_DB_PATH: String = "accounts.db"
+
+## Slice 079: opt-in dedicated Canon database. Unset (default) keeps the Slice
+## 045 behavior where Canon shares the accounts SQLite handle. When set, Canon
+## opens its own store at this path so a split deployment's game server owns only
+## Canon and never touches the accounts file. Backward compatible: no migration,
+## no data movement, existing combined deployments are untouched.
+const CANON_DB_PATH_ENV_VAR: String = "PROJECT0_CANON_DB_PATH"
 
 ## Maximum concurrently connected peers supported on this server instance.
 ## Additional connection attempts beyond this limit are rejected (see
@@ -88,6 +118,16 @@ const START_POSITIONS: Array[Vector3] = [
 var _player_states: Dictionary = {}
 var _peer: ENetMultiplayerPeer
 
+## Slice 146: peers that have connected but not yet passed the version gate,
+## keyed by peer id. They hold an ENet slot and nothing else — no world, no
+## Player, no replication — until their handshake is accepted.
+var _pending_version_gate: Dictionary = {}
+
+## Slice 146: the server-owned version gate, resolved once before the socket
+## binds. The server refuses to start when the requirement is unusable.
+var _required_client_version: String = ""
+var _update_manifest_base_url: String = ""
+
 ## Slice 012: keyed by target_id to the server-owned Node3D each
 ## ServerPlayerState's melee hit test checks against. Populated once in
 ## _start_server(), shared read-only across every peer's ServerPlayerState.
@@ -116,22 +156,55 @@ var _house_allocator: Object = null
 var _monster_manager: Object = null
 var _monster_tick: int = 0
 
+## Slice 131: the live town-NPC population runtime (server_town_npc_manager.gd),
+## staffing the town's fixed anchors and driven each physics frame like monsters.
+var _town_npc_manager: Object = null
+var _town_npc_tick: int = 0
+
 ## Slice 040: the shared server-owned SQLite handle and the Account/Character
 ## repository/auth dispatch built on top of it. Opened/wired during
 ## _start_server() before the socket opens; a DB-open failure refuses to
 ## start the server (fail-closed, matching the existing hub-fixture check).
 var _accounts_store: SqliteStore = null
 var _account_repository: Object = null
-var _auth_service: Object = null
 var _character_service: Object = null
+var _login_gateway: Object = null
 var _canon_repository: Object = null
+var _canon_mutation_repository: Object = null
+var _canon_mutation_service: Object = null
+## Slice 079: only opened when PROJECT0_CANON_DB_PATH is set; otherwise Canon
+## reuses _accounts_store and this stays null.
+var _canon_store: SqliteStore = null
 var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
 
+## Slice 162 (telemetry map #282): the dedicated telemetry database and its
+## per-peer rate limiter. Best-effort, non-fatal: unlike accounts/Canon,
+## telemetry is diagnostic infrastructure and must never block the core game
+## server from booting or running. A DB-open failure logs an operator-facing
+## error and leaves `_telemetry_sink` null; every subsequent emit attempt is
+## then a silent no-op rather than a crash.
+var _telemetry_store: SqliteStore = null
+var _telemetry_sink: Object = null
+var _telemetry_rate_limiter: Object = null
+var _telemetry_ingest: Object = null
+
 ## Fixed simulation delta used to drive monster chase movement each physics
-## frame (the SceneTree physics_frame signal carries no delta).
-const MONSTER_TICK_DELTA: float = 1.0 / 60.0
+## frame (the SceneTree physics_frame signal carries no delta). DT-013: derived
+## from the authoritative tick rate, not a hardcoded 1/60 — a constant delta
+## would scale monster speed with any rate change.
+var _monster_tick_delta: float = 1.0 / float(ServerHealthScript.DEFAULT_TICK_RATE)
+
+
+## Slice 067: runtime health-file state. The path and the resolved (reported)
+## tick rate are read from the environment once at boot; the status transitions
+## starting -> healthy -> stopping over the server's life. Snapshot inputs are
+## authoritative runtime values, never client-supplied.
+var _health_file_path: String = ""
+var _health_tick_rate: int = ServerHealthScript.DEFAULT_TICK_RATE
+var _health_status: String = ServerHealthScript.STATUS_STARTING
+var _boot_ticks_ms: int = 0
 
 
 func _initialize() -> void:
@@ -142,6 +215,20 @@ func _initialize() -> void:
 ## _initialize() because SceneTree.root's multiplayer API is not yet attached
 ## when _initialize() runs.
 func _start_server() -> void:
+	# Slice 067: begin publishing the runtime health file before any slow boot
+	# work (e.g. the opt-in LLM-at-boot town) so an orchestrator sees `starting`
+	# immediately. Path and reported tick rate come from the environment once.
+	_health_file_path = HealthReporterScript.resolve_health_file_path(OS.get_environment("PROJECT0_HEALTH_FILE"))
+	_health_tick_rate = ServerHealthScript.resolve_tick_rate(OS.get_environment("PROJECT0_TICK_RATE"))
+	# DT-013: ServerHealth resolves the contracted rate but Slice 055 deferred
+	# applying it, so the server ran at Godot's 60 Hz default while advertising
+	# 30. Drive the engine from the same resolved value the health snapshot
+	# reports so the advertised and actual authoritative tick cannot diverge.
+	Engine.physics_ticks_per_second = _health_tick_rate
+	_monster_tick_delta = 1.0 / float(_health_tick_rate)
+	_boot_ticks_ms = Time.get_ticks_msec()
+	_write_health(ServerHealthScript.STATUS_STARTING)
+
 	# Slice 016: materialize the starting town hub fixture before opening a
 	# socket. It is static data, so validation is synchronous and cheap; a
 	# fixture that fails its own schema is a programming error, so fail closed
@@ -193,8 +280,17 @@ func _start_server() -> void:
 	_monster_manager = ServerMonsterManagerScript.new(_starting_town_hub_blueprint.get("spawn_points", []), int(Time.get_ticks_usec()), ServerMonsterManagerScript.RESPAWN_COOLDOWN_TICKS, exclusion_half_extent)
 	_monster_manager.monster_died.connect(_on_monster_died)
 	_monster_manager.monster_respawned.connect(_on_monster_respawned)
+	_monster_manager.player_hit.connect(_on_monster_player_hit)
 	physics_frame.connect(_on_physics_frame)
 	print("Spawned %d monsters outside the town." % _monster_manager.monster_count())
+
+	# Slice 131: staff the town's fixed anchors with live town NPCs, driven each
+	# physics frame. Anchors are a first-cut fixed set inside the town center; a
+	# later slice can derive them from the town blueprint's structures.
+	_town_npc_manager = ServerTownNpcManagerScript.new(_default_town_anchor_defs(), int(Time.get_ticks_usec()))
+	_town_npc_manager.npc_spawned.connect(_on_town_npc_spawned)
+	_town_npc_manager.npc_removed.connect(_on_town_npc_removed)
+	print("Staffed %d town NPCs across %d anchors." % [_town_npc_manager.npc_count(), _town_npc_manager.anchor_count()])
 
 	# Slice 040: open the shared accounts/characters SQLite store and ensure its
 	# schema before opening a socket. This is the first runtime consumer of the
@@ -220,18 +316,61 @@ func _start_server() -> void:
 	# Slice 045: Canon shares the one server-owned SQLite handle with accounts.
 	# The validated hub is canonicalized before the socket opens, so every peer
 	# sees a world record that survives a server restart.
-	_canon_repository = CanonRepositoryScript.new(_accounts_store)
+	# Slice 079: when PROJECT0_CANON_DB_PATH is set, Canon opens its own store so
+	# a split deployment isolates the world record from the accounts file. Unset
+	# preserves the Slice 045 shared-handle default (no migration).
+	var canon_store: SqliteStore = _accounts_store
+	var canon_db_path: String = OS.get_environment(CANON_DB_PATH_ENV_VAR).strip_edges()
+	if not canon_db_path.is_empty():
+		_canon_store = SqliteStoreScript.new()
+		var canon_open_result: Dictionary = _canon_store.open(canon_db_path)
+		if canon_open_result["outcome"] != SqliteStoreScript.OUTCOME_OK:
+			push_error("Refusing to start: Canon database failed to open: %s — %s" % [canon_open_result["outcome"], canon_open_result["detail"]])
+			quit(1)
+			return
+		canon_store = _canon_store
+	_canon_repository = CanonRepositoryScript.new(canon_store)
 	var canon_schema_result: Dictionary = _canon_repository.ensure_schema()
 	if canon_schema_result["outcome"] != "ok":
 		push_error("Refusing to start: Canon schema failed to initialize: %s — %s" % [canon_schema_result["outcome"], canon_schema_result["detail"]])
 		quit(1)
 		return
+	# Slice 080: one-time Canon migration for the combined→split transition. On
+	# the first boot with a dedicated (empty) canon store, copy any existing
+	# Canon out of the shared accounts store so a previously-combined world is
+	# not lost. Source rows are never deleted; a re-boot finds the dest non-empty
+	# and skips. Unset (shared handle) never migrates.
+	if not canon_db_path.is_empty():
+		var dest_records: Dictionary = _canon_repository.list_all_records()
+		if dest_records["outcome"] == CanonRepositoryScript.OUTCOME_OK and (dest_records["records"] as Array).is_empty():
+			var source_canon: Object = CanonRepositoryScript.new(_accounts_store)
+			source_canon.ensure_schema()
+			var source_records: Dictionary = source_canon.list_all_records()
+			if source_records["outcome"] == CanonRepositoryScript.OUTCOME_OK:
+				var migrated: int = 0
+				for record: Dictionary in source_records["records"]:
+					if _canon_repository.restore_record(record)["outcome"] == CanonRepositoryScript.OUTCOME_OK:
+						migrated += 1
+				if migrated > 0:
+					print("Migrated %d Canon sector(s) from the accounts store into %s." % [migrated, canon_db_path])
 	var canon_result: Dictionary = _canon_repository.canonicalize_blueprint(_starting_town_hub_blueprint)
 	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK and canon_result["outcome"] != CanonRepositoryScript.OUTCOME_IDEMPOTENT:
 		push_error("Refusing to start: starting town Canon failed: %s — %s" % [canon_result["outcome"], canon_result["detail"]])
 		quit(1)
 		return
-	print("Starting town Canon ready: %s." % canon_result["outcome"])
+	var canon_db_label: String = canon_db_path if not canon_db_path.is_empty() else ("shared:%s" % accounts_db_path)
+	print("Starting town Canon ready: %s (canon db: %s)." % [canon_result["outcome"], canon_db_label])
+
+	# Slice 050/097: the durable Canon mutation log and the server-authoritative
+	# resolution service, on the same store as Canon. Fail closed on a schema
+	# failure, matching the Canon boot checks above.
+	_canon_mutation_repository = CanonMutationRepositoryScript.new(canon_store, _canon_repository)
+	var mutation_schema: Dictionary = _canon_mutation_repository.ensure_schema()
+	if mutation_schema["outcome"] != "ok":
+		push_error("Refusing to start: Canon mutation schema failed: %s — %s" % [mutation_schema["outcome"], mutation_schema["detail"]])
+		quit(1)
+		return
+	_canon_mutation_service = CanonMutationServiceScript.new(_canon_mutation_repository, Callable(self, "_current_server_tick"))
 	# Slice 046: authoritative movement now drives non-blocking JIT requests for
 	# unexplored sectors. The detector performs only cheap sector math and the
 	# generator accepts work synchronously before awaiting Ollama in a deferred
@@ -246,19 +385,55 @@ func _start_server() -> void:
 	_sector_boundary_detector = SectorBoundaryDetectorScript.new()
 	_sector_boundary_detector.set_canon_lookup(Callable(_canon_repository, "get_canonical_sector"))
 	_sector_boundary_detector.set_request_callback(Callable(self, "_request_sector_from_boundary"))
-	_auth_service = AuthServiceScript.new(_account_repository)
-	_auth_service.name = "AuthService"
-	root.add_child(_auth_service)
-	# Slice 042: session-gated Character CRUD dispatch, sharing AuthService's
-	# SessionRegistry so a session bound by register/login is visible to
-	# character create/select/delete without a second session store.
-	_character_service = CharacterServiceScript.new(_account_repository, _auth_service.get_session_registry())
-	_character_service.name = "CharacterService"
-	root.add_child(_character_service)
-	print("Accounts database ready at user://%s (schema ensured)." % accounts_db_path)
+	# Slice 085: the game server builds an assertion-only login graph (no
+	# AuthService, no register/login/PBKDF2 in this process). Accounts live only
+	# on the standalone login process; a client enters the world by presenting a
+	# signed assertion. The shared LoginRuntime wires the same assertion seams the
+	# login process issues under.
+	var login_services: Dictionary = LoginRuntimeScript.build_assertion_only_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret(), LoginRuntimeScript.ASSERTION_ISSUER_ID, LoginRuntimeScript.ASSERTION_AUDIENCE)
+	_character_service = login_services["characters"]
+	_login_gateway = login_services["gateway"]
+	print("Accounts database ready at user://%s (schema ensured); assertion-only game server (accounts live on the login process)." % accounts_db_path)
+
+	# Slice 162 (telemetry map #282): open the dedicated telemetry database and
+	# rate limiter. Best-effort — a failure here is operator-facing (Andon) and
+	# never refuses server start, since telemetry is diagnostic infrastructure,
+	# not durable game state.
+	_telemetry_store = SqliteStoreScript.new()
+	var telemetry_open_result: Dictionary = _telemetry_store.open(TelemetrySinkScript.resolve_db_path())
+	if telemetry_open_result["outcome"] != SqliteStoreScript.OUTCOME_OK:
+		push_error("Telemetry database failed to open (non-fatal): %s — %s" % [telemetry_open_result["outcome"], telemetry_open_result["detail"]])
+		_telemetry_store = null
+	else:
+		var telemetry_sink: Object = TelemetrySinkScript.new(_telemetry_store)
+		var telemetry_schema_result: Dictionary = telemetry_sink.ensure_schema()
+		if telemetry_schema_result["outcome"] != TelemetrySinkScript.OUTCOME_OK:
+			push_error("Telemetry schema failed to initialize (non-fatal): %s — %s" % [telemetry_schema_result["outcome"], telemetry_schema_result["detail"]])
+			_telemetry_store.close()
+			_telemetry_store = null
+		else:
+			_telemetry_sink = telemetry_sink
+			print("Telemetry database ready at user://%s." % TelemetrySinkScript.resolve_db_path())
+	_telemetry_rate_limiter = TelemetryRateLimiterScript.new()
+	if _telemetry_sink != null:
+		_telemetry_ingest = TelemetryIngestServiceScript.new(_telemetry_sink, _telemetry_rate_limiter)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
 	var server_port: int = NetworkConfigScript.resolve_server_port()
+
+	# Slice 146: resolve the version gate BEFORE binding. An unusable requirement
+	# is an operator fault, and a server that cannot say what it serves must not
+	# serve at all rather than refuse every client as "outdated".
+	_required_client_version = VersionHandshakeScript.resolve_required_version()
+	_update_manifest_base_url = VersionHandshakeScript.resolve_manifest_base_url()
+	if _required_client_version.is_empty():
+		push_error(
+			"Refusing to start: %s is set to a malformed client build version."
+			% VersionHandshakeScript.REQUIRED_VERSION_ENV_VAR
+		)
+		quit(1)
+		return
+	print("Version gate: requiring client build version %s." % _required_client_version)
 
 	_peer = ENetMultiplayerPeer.new()
 	# set_bind_ip() must be called before create_server(); Godot 4.3's
@@ -275,8 +450,15 @@ func _start_server() -> void:
 	root.multiplayer.multiplayer_peer = _peer
 	root.multiplayer.peer_connected.connect(_on_peer_connected)
 	root.multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	var mutation_network_client: Node = root.get_node_or_null("NetworkClient")
+	if mutation_network_client != null:
+		mutation_network_client.canon_mutation_intent_received.connect(_on_canon_mutation_intent)
+		mutation_network_client.version_handshake_received.connect(_on_version_handshake_received)
+		mutation_network_client.client_telemetry_batch_received.connect(_on_client_telemetry_batch_received)
 	_spawn_target_dummies()
 	print("Server listening on %s:%d" % [bind_address, server_port])
+	# Slice 067: the tick loop is up and the socket is bound — report healthy.
+	_write_health(ServerHealthScript.STATUS_HEALTHY)
 	if bind_address != NetworkConfigScript.SERVER_ADDRESS:
 		print("WARNING: bound to a non-localhost address. This server accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, server_port])
 
@@ -291,7 +473,43 @@ func _start_server() -> void:
 ## rejects a third concurrent connection outright, since this slice's proof
 ## is scoped to exactly two peers.
 func _on_peer_connected(peer_id: int) -> void:
-	print("Peer connected: %d" % peer_id)
+	# Slice 146: connecting no longer admits. The peer gets no world, no Player,
+	# and no replication until it passes the server-owned version gate.
+	_emit_server_telemetry("connection.peer_connected", peer_id, {})
+	_pending_version_gate[peer_id] = true
+
+
+## Slice 146: decides one peer's version handshake, the first message a client
+## sends and the gate every later RPC depends on. Fail-closed: only an ACCEPTED
+## outcome admits, and a rejected peer is told why (so it can self-patch) and
+## then disconnected. The disconnect is graceful so the reliable rejection is
+## flushed before the socket closes.
+func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void:
+	if not _pending_version_gate.has(peer_id):
+		# Already admitted (or already refused): a resent handshake changes nothing.
+		return
+	var result: Dictionary = VersionHandshakeScript.evaluate(
+		handshake, _required_client_version, _update_manifest_base_url
+	)
+	_pending_version_gate.erase(peer_id)
+	if result["outcome"] != VersionHandshakeScript.OUTCOME_ACCEPTED:
+		_emit_server_telemetry("connection.version_gate_rejected", peer_id, {
+			"outcome": String(result["outcome"]),
+			"detail": String(result["detail"]),
+			"client_version": String(handshake.get("client_build_version", "")),
+		})
+		var network_client: Node = root.get_node_or_null("NetworkClient")
+		if network_client != null:
+			network_client.rpc_id(peer_id, "receive_version_handshake_rejected", result)
+		root.multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
+	_emit_server_telemetry("connection.version_gate_passed", peer_id, {"client_version": String(handshake.get("client_build_version", ""))})
+	_admit_peer(peer_id)
+
+
+## Admits a peer that passed the version gate: replicates the world to it and
+## gives it an authoritative Player. Previously the body of _on_peer_connected.
+func _admit_peer(peer_id: int) -> void:
 	var network_client: Node = root.get_node("NetworkClient")
 
 	if _player_states.size() >= MAX_REPLICATED_PEERS:
@@ -302,7 +520,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	# Slice 017: replicate the validated starting town hub to this peer before
 	# spawning any Player, so the world exists before its occupants. All these
 	# RPCs are reliable, so ordering is guaranteed.
-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _starting_town_hub_blueprint)
+	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(_starting_town_hub_blueprint.get("sector_id", ""), _starting_town_hub_blueprint))
 	print("Sent starting town hub blueprint to peer %d (sector_id=%s)." % [peer_id, _starting_town_hub_blueprint.get("sector_id", "")])
 
 	network_client.rpc_id(peer_id, "spawn_own_player_representation")
@@ -314,6 +532,11 @@ func _on_peer_connected(peer_id: int) -> void:
 	player_state.action_resolved.connect(_on_player_state_action_resolved)
 	player_state.combat_event_emitted.connect(_on_player_state_combat_event_emitted)
 	player_state.melee_swing_started.connect(_on_player_state_melee_swing_started)
+	player_state.character_bound.connect(_on_player_state_character_bound)
+	player_state.health_changed.connect(_on_player_state_health_changed)
+	player_state.character_snapshot_ready.connect(_on_player_state_character_snapshot_ready)
+	player_state.effective_mechanics_ready.connect(_on_player_state_effective_mechanics_ready)
+	player_state.player_defeated.connect(_on_player_state_player_defeated)
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
 	player_state.set_target_dummies(_target_dummies)
@@ -333,8 +556,9 @@ func _on_peer_connected(peer_id: int) -> void:
 	var house_id: String = _house_allocator.assign(peer_id)
 	if house_id.is_empty():
 		push_error("Peer %d connected but no house slot is available (pool exhausted)." % peer_id)
+		_emit_server_telemetry("connection.house_unavailable", peer_id, {"houses_free": _house_allocator.available_count()})
 	else:
-		print("Assigned house %s to peer %d (%d houses free)." % [house_id, peer_id, _house_allocator.available_count()])
+		_emit_server_telemetry("connection.house_assigned", peer_id, {"house_id": house_id, "houses_free_after": _house_allocator.available_count()})
 		network_client.rpc_id(peer_id, "receive_assigned_house", house_id)
 
 	# Replicate existing peers to the new peer, and the new peer to existing
@@ -346,6 +570,11 @@ func _on_peer_connected(peer_id: int) -> void:
 		var existing_state: Node = _player_states[existing_peer_id]
 		network_client.rpc_id(peer_id, "spawn_remote_player_representation", existing_peer_id, existing_state.position)
 		network_client.rpc_id(existing_peer_id, "spawn_remote_player_representation", peer_id, start_position)
+		# Slice 086: if that peer already entered the world, replicate its bound
+		# Character identity to the newly-connected peer. Reliable and ordered
+		# after the spawn above, so the RemotePlayer node exists when it arrives.
+		if not String(existing_state.character_display_name).is_empty():
+			network_client.rpc_id(peer_id, "receive_remote_player_identity", existing_peer_id, existing_state.character_display_name, existing_state.character_cosmetic)
 
 	# Slice 033: replicate every currently living monster to the new peer only
 	# — existing peers already have a representation for each from their own
@@ -356,33 +585,51 @@ func _on_peer_connected(peer_id: int) -> void:
 			var monster: Object = living[target_id]
 			network_client.rpc_id(peer_id, "receive_monster_spawn", target_id, monster.position)
 
+	# Slice 131: replicate every live town NPC to the newly-connected peer only.
+	if _town_npc_manager != null:
+		for npc: Variant in _town_npc_manager.all_npcs():
+			network_client.rpc_id(peer_id, "receive_town_npc_spawn", (npc as Object).npc_id, (npc as Object).position_at(_town_npc_tick))
+
 
 ## Called whenever a client peer disconnects. Removes that peer's
 ## ServerPlayerState entirely (Slice 007: no longer just unbinds a shared
 ## instance, since each peer now owns its own) and tells every remaining
 ## peer to despawn that departed peer's remote representation.
 func _on_peer_disconnected(peer_id: int) -> void:
-	print("Peer disconnected: %d" % peer_id)
+	# A peer can drop while still awaiting the version gate; it owns nothing else.
+	_pending_version_gate.erase(peer_id)
 	# Slice 040: clear this peer's in-memory session, if any. Sessions are
 	# never persisted, so a reconnecting peer always finds no session and must
 	# fully re-authenticate — see server/session_registry.gd.
-	if _auth_service != null:
-		_auth_service.clear_session(peer_id)
+	if _login_gateway != null:
+		_login_gateway.clear_session(peer_id)
 	# Slice 019: free this peer's house back to the pool immediately (no
 	# reconnect reservation).
+	var had_house: bool = false
 	if _house_allocator != null:
+		had_house = not _house_allocator.assigned_house(peer_id).is_empty()
 		_house_allocator.release(peer_id)
-		print("Released house for peer %d (%d houses free)." % [peer_id, _house_allocator.available_count()])
+	_emit_server_telemetry("connection.peer_disconnected", peer_id, {
+		"had_house": had_house,
+		"houses_free_after": _house_allocator.available_count() if _house_allocator != null else 0,
+	})
 	var player_state: Node = _player_states.get(peer_id)
 	if player_state != null:
 		player_state.position_updated.disconnect(_on_player_state_position_updated)
 		player_state.action_resolved.disconnect(_on_player_state_action_resolved)
 		player_state.combat_event_emitted.disconnect(_on_player_state_combat_event_emitted)
 		player_state.melee_swing_started.disconnect(_on_player_state_melee_swing_started)
+		player_state.character_bound.disconnect(_on_player_state_character_bound)
+		player_state.health_changed.disconnect(_on_player_state_health_changed)
+		player_state.character_snapshot_ready.disconnect(_on_player_state_character_snapshot_ready)
+		player_state.effective_mechanics_ready.disconnect(_on_player_state_effective_mechanics_ready)
+		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
+	if _telemetry_rate_limiter != null:
+		_telemetry_rate_limiter.forget_peer(peer_id)
 
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
@@ -408,6 +655,20 @@ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) 
 		network_client.rpc_id(other_peer_id, "receive_remote_player_position", peer_id, updated_position)
 
 
+## Slice 086: replicates a peer's bound Character identity (display name +
+## cosmetic) to every other connected peer when it enters the world, so each
+## client can label that peer's remote representation as the selected Character.
+## Identity only — never a trusted position or outcome.
+func _on_player_state_character_bound(peer_id: int, display_name: String, cosmetic: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for other_peer_id: int in _player_states.keys():
+		if other_peer_id == peer_id:
+			continue
+		network_client.rpc_id(other_peer_id, "receive_remote_player_identity", peer_id, display_name, cosmetic)
+
+
 func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
 	if _provisional_sector_generator == null:
 		return
@@ -431,8 +692,78 @@ func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> voi
 	if network_client == null:
 		return
 	for peer_id: int in _player_states.keys():
-		network_client.rpc_id(peer_id, "receive_sector_blueprint", blueprint)
+		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint))
 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
+
+
+## Slice 098 (P-013): replay the sector's durable mutation log onto its blueprint
+## so peers render the effective (post-mutation) world. Falls back to the
+## unchanged blueprint when the mutation store is unavailable or empty.
+func _effective_blueprint_for(sector_id: String, blueprint: Dictionary) -> Dictionary:
+	if _canon_mutation_repository == null or sector_id.is_empty():
+		return blueprint
+	var listed: Dictionary = _canon_mutation_repository.list_mutations(sector_id)
+	if listed["outcome"] != CanonMutationRepositoryScript.OUTCOME_OK:
+		return blueprint
+	return CanonSectorResolverScript.resolve_effective_blueprint(blueprint, listed["mutations"])
+
+
+## Slice 097 (P-013): resolve a client's Canon mutation intent authoritatively
+## and return the resolution to that peer only. The actor is the peer's
+## server-bound Character id; an unbound (unauthenticated) peer is rejected by
+## the service. Never broadcast.
+func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
+	if _canon_mutation_service == null:
+		return
+	var player_state: Node = _player_states.get(sender_peer_id)
+	if player_state == null:
+		return
+	var resolution: Dictionary = _canon_mutation_service.resolve_intent(player_state.character_id, intent)
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(sender_peer_id, "receive_canon_mutation_resolution", resolution)
+
+
+## Server-owned monotonic tick used as the mutation event clock (Slice 097).
+func _current_server_tick() -> int:
+	return _monster_tick
+
+
+## Slice 163 (telemetry map #282, decisions #285/#286): direct server-
+## authored emission for events the server itself observes (connection
+## lifecycle, combat outcomes), as opposed to TelemetryIngestService's
+## untrusted-client-batch path. No rate limiting applies here — the server
+## controls its own emission volume deterministically, once per real event.
+## A telemetry-unavailable server (see boot wiring) makes this a silent
+## no-op, never a crash or a blocked game loop.
+func _emit_server_telemetry(event_type: String, peer_id: int, payload: Dictionary) -> void:
+	if _telemetry_sink == null:
+		return
+	var character_id: String = ""
+	var player_state: Node = _player_states.get(peer_id)
+	if player_state != null:
+		character_id = player_state.character_id
+	var envelope: Dictionary = TelemetryEventScript.build(
+		event_type, 1, int(Time.get_unix_time_from_system()), _current_server_tick(), peer_id, payload, "", character_id, ""
+	)
+	_telemetry_sink.emit(envelope)
+
+
+## Slice 162 (telemetry map #282): the sole entry point for client-originated
+## telemetry. Resolves this peer's server-known `character_id` (never trusted
+## from the client) and the current wall-clock/tick, then forwards to
+## TelemetryIngestService, which owns rate limiting, envelope construction,
+## and the actual write. A telemetry-unavailable server (see boot wiring
+## above) makes this a no-op — telemetry never blocks or disconnects a peer.
+func _on_client_telemetry_batch_received(peer_id: int, events: Array, _client_sequence: int) -> void:
+	if _telemetry_ingest == null:
+		return
+	var character_id: String = ""
+	var player_state: Node = _player_states.get(peer_id)
+	if player_state != null:
+		character_id = player_state.character_id
+	_telemetry_ingest.ingest_batch(peer_id, events, character_id, int(Time.get_unix_time_from_system()), _current_server_tick())
 
 
 ## Deterministic, visibly distinct starting positions for connected peers so
@@ -478,14 +809,59 @@ func get_assigned_house(peer_id: int) -> String:
 ## frame, feeding it every connected peer's current position so monsters chase
 ## the nearest one. Monsters idle when no one is connected.
 func _on_physics_frame() -> void:
+	# Slice 067: refresh the runtime health file on a sub-second stride so a
+	# frozen tick loop turns the container unhealthy even while the socket stays
+	# bound. Runs regardless of monster state (health is independent of monsters).
+	if _health_status == ServerHealthScript.STATUS_HEALTHY and Engine.get_physics_frames() % HEALTH_REFRESH_FRAMES == 0:
+		_write_health(ServerHealthScript.STATUS_HEALTHY)
 	if _monster_manager == null:
 		return
 	var player_positions: Array[Vector3] = []
-	for player_state: Node in _player_states.values():
-		player_positions.append(player_state.position)
-	_monster_manager.advance_all(player_positions, MONSTER_TICK_DELTA, _monster_tick)
+	var player_peer_ids: Array[int] = []
+	for peer_id: int in _player_states.keys():
+		player_positions.append(_player_states[peer_id].position)
+		player_peer_ids.append(peer_id)
+	_monster_manager.advance_all(player_positions, _monster_tick_delta, _monster_tick, player_peer_ids)
 	_monster_tick += 1
 	_broadcast_monster_positions()
+	if _town_npc_manager != null:
+		_town_npc_manager.advance(player_positions, 1, _town_npc_tick)
+		_town_npc_tick += 1
+		_broadcast_town_npc_positions()
+
+
+## Slice 067: builds an authoritative ServerHealth snapshot from current runtime
+## state and writes it to the health file. Best-effort: an invalid snapshot or a
+## write failure logs a warning and is dropped — it never blocks or crashes the
+## tick loop. `status` drives the transition reported to the orchestrator.
+func _write_health(status: String) -> void:
+	if _health_file_path.is_empty():
+		return
+	_health_status = status
+	var uptime_seconds: float = float(maxi(0, Time.get_ticks_msec() - _boot_ticks_ms)) / 1000.0
+	var built: Dictionary = ServerHealthScript.build_snapshot({
+		"status": status,
+		"tick_rate": _health_tick_rate,
+		"uptime_seconds": uptime_seconds,
+		"server_tick": int(Engine.get_physics_frames()),
+		"connected_peers": _player_states.size(),
+		"max_peers": MAX_REPLICATED_PEERS,
+		"app_schema_version": APP_SCHEMA_VERSION,
+		"timestamp": int(Time.get_unix_time_from_system()),
+	})
+	if built["outcome"] != ServerHealthScript.OUTCOME_OK:
+		push_warning("Health snapshot rejected: %s" % built.get("detail", ""))
+		return
+	var written: Dictionary = HealthReporterScript.write_snapshot(_health_file_path, built["snapshot"])
+	if written["outcome"] != HealthReporterScript.OUTCOME_OK:
+		push_warning("Health file write failed: %s" % written.get("detail", ""))
+
+
+## Slice 067: on engine shutdown (e.g. SIGTERM -> graceful stop) publish a final
+## `stopping` snapshot best-effort, so a container caught mid-drain reads
+## `stopping` rather than a stale `healthy`.
+func _finalize() -> void:
+	_write_health(ServerHealthScript.STATUS_STOPPING)
 
 
 ## Slice 033: broadcasts every currently living monster's authoritative
@@ -505,8 +881,88 @@ func _broadcast_monster_positions() -> void:
 			network_client.rpc_id(receiving_peer_id, "receive_monster_position", target_id, monster.position)
 
 
-func _on_monster_died(spawn_id: String, server_tick: int) -> void:
-	print("Monster %s defeated at tick %d." % [spawn_id, server_tick])
+## Slice 131: a first-cut fixed set of in-town anchors for the live town NPCs.
+## Positions are inside the town center (players spawn near origin, monsters are
+## excluded outside the walls). A later slice can derive anchors from the town
+## blueprint's structures. Each NPC strolls a short daily route between stations.
+func _default_town_anchor_defs() -> Array:
+	return [
+		{
+			"anchor_id": "town_forge", "role": "smith", "home_position": Vector3(6, 1, 4),
+			"desired_capacity": 1, "replacement_delay_ticks": 600,
+			"routine_steps": [
+				{"activity_id": "forge", "duration_ticks": 300},
+				{"activity_id": "market", "duration_ticks": 300},
+			],
+			"activity_locations": {"forge": Vector3(6, 1, 4), "market": Vector3(-4, 1, 6)},
+		},
+		{
+			"anchor_id": "town_market", "role": "vendor", "home_position": Vector3(-4, 1, 6),
+			"desired_capacity": 1, "replacement_delay_ticks": 600,
+			"routine_steps": [
+				{"activity_id": "market", "duration_ticks": 240},
+				{"activity_id": "tavern", "duration_ticks": 360},
+			],
+			"activity_locations": {"market": Vector3(-4, 1, 6), "tavern": Vector3(2, 1, -6)},
+		},
+	]
+
+
+## Slice 131: broadcasts every live town NPC's authoritative route position to
+## every connected peer each tick, mirroring _broadcast_monster_positions.
+func _broadcast_town_npc_positions() -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for npc: Variant in _town_npc_manager.all_npcs():
+		var position: Vector3 = (npc as Object).position_at(_town_npc_tick)
+		for receiving_peer_id: int in _player_states.keys():
+			network_client.rpc_id(receiving_peer_id, "receive_town_npc_position", (npc as Object).npc_id, position)
+
+
+## Slice 131: replicates a newly-staffed town NPC (initial fill is silent; this
+## fires on a delayed replacement/promotion) to every connected peer.
+func _on_town_npc_spawned(npc_id: String, _anchor_id: String, _source: String, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null or _town_npc_manager == null:
+		return
+	var npc: Object = _town_npc_manager.find_npc(npc_id)
+	if npc == null:
+		return
+	for receiving_peer_id: int in _player_states.keys():
+		network_client.rpc_id(receiving_peer_id, "receive_town_npc_spawn", npc_id, npc.position_at(_town_npc_tick))
+
+
+## Slice 131: tells every connected peer to despawn a town NPC that left the world.
+func _on_town_npc_removed(npc_id: String, _anchor_id: String, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	for receiving_peer_id: int in _player_states.keys():
+		network_client.rpc_id(receiving_peer_id, "receive_town_npc_despawn", npc_id)
+
+
+func _on_monster_died(_spawn_id: String, _server_tick: int) -> void:
+	# Slice 164: no telemetry emit here — this signal is a direct consequence
+	# of _on_player_state_combat_event_emitted's own receive_player_hit()
+	# call below, which already emits combat.monster_defeated with the
+	# attacker's peer_id. Emitting here too would double-write the same
+	# death as two rows, one lacking attacker context.
+	pass
+
+
+## Slice 094: routes a monster's landed, telegraph-fair attack (surfaced by
+## ServerMonsterManager.player_hit against the nearest player it was resolving
+## against) to that peer's authoritative ServerPlayerState. The monster never
+## touches player state directly — this is the single owner of that routing,
+## mirroring how _on_player_state_combat_event_emitted is the sole route for a
+## player hit reaching a monster. A no-op if the victim has since disconnected.
+func _on_monster_player_hit(victim_peer_id: int, spawn_id: String, server_tick: int) -> void:
+	var player_state: Node = _player_states.get(victim_peer_id)
+	if player_state == null:
+		return
+	player_state.receive_monster_damage(MonsterContractsScript.DAMAGE_TO_PLAYER, server_tick)
+	_emit_server_telemetry("combat.monster_hit_player", victim_peer_id, {"spawn_id": spawn_id, "damage": MonsterContractsScript.DAMAGE_TO_PLAYER})
 
 
 ## Slice 033: in addition to existing telemetry, tells every connected peer to
@@ -517,7 +973,7 @@ func _on_monster_died(spawn_id: String, server_tick: int) -> void:
 ## (_on_player_state_combat_event_emitted), which client/monster.gd reacts to
 ## directly, so no separate "monster removed" RPC is added here.
 func _on_monster_respawned(spawn_id: String, position: Vector3, server_tick: int) -> void:
-	print("Monster %s respawned at %s (tick %d)." % [spawn_id, position, server_tick])
+	_emit_server_telemetry("combat.monster_respawned", -1, {"spawn_id": spawn_id, "position_x": position.x, "position_y": position.y, "position_z": position.z})
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
@@ -543,6 +999,50 @@ func _on_player_state_action_resolved(peer_id: int, resolution: Object) -> void:
 	)
 
 
+## Slice 094: replicates a Player's authoritative HP change to the owning
+## client only (peer-scoped like receive_action_resolution) so its HUD can show
+## current HP. Other peers do not need another peer's HP in this slice.
+func _on_player_state_health_changed(peer_id: int, current_hp: int, max_hp: int, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_health_update", current_hp, max_hp)
+
+
+## Slice 127: replicates a Player's presentation-safe Character snapshot to the
+## owning client only (peer-scoped like the HP channel above) at world entry, so
+## its HUD can show the vessel readout. Derived graph state only — never the raw
+## stat numbers, which stay server-side.
+func _on_player_state_character_snapshot_ready(peer_id: int, snapshot: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_character_snapshot", snapshot)
+
+
+## Slice 142 (Phase 15 follow-on): replicates a Player's presentation-safe
+## EffectiveMechanicsSnapshot to the owning client only (peer-scoped, exactly like
+## the Character snapshot channel above) at world entry, so its HUD can show the
+## mechanics readout. Derived graph + subsystem-safe summaries only — the raw
+## effective numbers and tuning tables stay server-side.
+func _on_player_state_effective_mechanics_ready(peer_id: int, snapshot: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_effective_mechanics", snapshot)
+
+
+## Slice 094: tells the owning client its Player was defeated (then provisionally
+## respawned at full HP; the reposition itself replicates through the normal
+## authoritative-position channel) so its HUD can flash a brief cue.
+func _on_player_state_player_defeated(peer_id: int, _server_tick: int) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	_emit_server_telemetry("combat.player_defeated", peer_id, {})
+	network_client.rpc_id(peer_id, "receive_player_defeated")
+
+
 ## Broadcasts a confirmed CombatEvent.HIT to every connected peer (including
 ## the attacker) so each client's target_dummy.gd can render the same
 ## authoritative feedback, regardless of which peer's swing produced it.
@@ -558,6 +1058,7 @@ func _on_player_state_combat_event_emitted(_peer_id: int, combat_event: Object) 
 
 	if combat_event.kind != CombatContractsScript.COMBAT_EVENT_HIT or _monster_manager == null:
 		return
+	_emit_server_telemetry("combat.hit", combat_event.attacker_peer_id, {"target_id": combat_event.target_id})
 
 	var died: bool = _monster_manager.receive_player_hit(combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick)
 	if died:
@@ -568,7 +1069,7 @@ func _on_player_state_combat_event_emitted(_peer_id: int, combat_event: Object) 
 			combat_event.impact_position,
 			combat_event.server_tick
 		)
-		print("Monster %s defeated by peer %d at tick %d." % [combat_event.target_id, combat_event.attacker_peer_id, combat_event.server_tick])
+		_emit_server_telemetry("combat.monster_defeated", combat_event.attacker_peer_id, {"target_id": combat_event.target_id})
 		_broadcast_combat_event(death_event)
 
 
@@ -599,6 +1100,7 @@ func _broadcast_combat_event(combat_event: Object) -> void:
 ## sees, without granting any peer a trusted hit outcome — that remains
 ## exclusively _on_player_state_combat_event_emitted's job.
 func _on_player_state_melee_swing_started(peer_id: int, windup_ticks: int, active_ticks: int, facing: Vector3) -> void:
+	_emit_server_telemetry("combat.melee_swing_started", peer_id, {"windup_ticks": windup_ticks, "active_ticks": active_ticks})
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return

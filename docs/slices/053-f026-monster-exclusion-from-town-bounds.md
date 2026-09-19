@@ -1,4 +1,5 @@
 # Slice 053 — F-026 derive monster exclusion from town bounds
+GitHub issue: #95
 
 Status: **delivered**
 

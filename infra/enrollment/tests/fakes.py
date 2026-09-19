@@ -1,10 +1,12 @@
 """Test-only fakes for the enrollment service's injectable seams.
 
 No test in this package ever performs real network I/O; `FakeOpnsenseWireguardClient`
-is the substitute for `OpnsenseWireguardClient` that every test wires in.
+is the substitute for `OpnsenseWireguardClient` that every test wires in, and
+`FakeLoginAuthorityClient` (Slice 088) is the substitute for `LoginAuthorityClient`.
 """
 from __future__ import annotations
 
+from infra.enrollment.login_client import AssertionValidationError, CharacterAuthorityError, LoginAuthorityError
 from infra.enrollment.opnsense_client import OpnsenseApiError
 
 
@@ -48,3 +50,91 @@ class FakeOpnsenseWireguardClient:
         if self.fail_delete_client:
             raise OpnsenseApiError("simulated delClient failure")
         self.delete_client_calls.append(client_uuid)
+
+
+class FakeLoginAuthorityClient:
+    """Records verify_and_mint calls; can be configured to return a fixed
+    assertion or raise a bounded LoginAuthorityError (matching what the real
+    loopback client would raise on a rejection/timeout/connection failure)."""
+
+    def __init__(self, assertion: str = "fake-assertion-token", fail_with_reason: str | None = None) -> None:
+        self.assertion = assertion
+        self.fail_with_reason = fail_with_reason
+        self.calls: list[dict] = []
+
+    def verify_and_mint(self, username: str, password: str) -> str:
+        self.calls.append({"username": username, "password": password})
+        if self.fail_with_reason is not None:
+            raise LoginAuthorityError(self.fail_with_reason)
+        return self.assertion
+
+    def register(self, username: str, password: str) -> dict[str, str]:
+        self.calls.append({"operation": "register", "username": username, "password": password})
+        if self.fail_with_reason is not None:
+            raise LoginAuthorityError(self.fail_with_reason)
+        return {"account_id": "acct-registered", "username": username}
+
+
+class FakeAssertionValidationClient:
+    """Slice 089: records validate() calls; returns a fixed
+    (account_id, expires_at) or raises a bounded AssertionValidationError
+    (matching what the real loopback client raises on a rejection/failure)."""
+
+    def __init__(
+        self,
+        account_id: str = "acct-1",
+        expires_at: int = 9999999999,
+        fail_with_reason: str | None = None,
+    ) -> None:
+        self.account_id = account_id
+        self.expires_at = expires_at
+        self.fail_with_reason = fail_with_reason
+        self.calls: list[str] = []
+
+    def validate(self, assertion: str) -> tuple[str, int]:
+        self.calls.append(assertion)
+        if self.fail_with_reason is not None:
+            raise AssertionValidationError(self.fail_with_reason)
+        return self.account_id, self.expires_at
+
+
+class FakeCharacterClient:
+    """Slice 090: records character-op calls; returns configured data or raises a
+    bounded CharacterAuthorityError (matching what the real loopback client would
+    raise on an auth/domain/transport failure)."""
+
+    def __init__(
+        self,
+        characters: list | None = None,
+        created_character: dict | None = None,
+        selected_assertion: str = "fake-character-assertion",
+        fail_with_reason: str | None = None,
+    ) -> None:
+        self.characters = characters if characters is not None else []
+        self.created_character = created_character if created_character is not None else {"character_id": "char-1"}
+        self.selected_assertion = selected_assertion
+        self.fail_with_reason = fail_with_reason
+        self.calls: list[dict] = []
+
+    def _maybe_fail(self) -> None:
+        if self.fail_with_reason is not None:
+            raise CharacterAuthorityError(self.fail_with_reason)
+
+    def list_characters(self, assertion: str) -> list[dict]:
+        self.calls.append({"op": "list", "assertion": assertion})
+        self._maybe_fail()
+        return self.characters
+
+    def create_character(self, assertion: str, name: str, cosmetic: dict) -> dict:
+        self.calls.append({"op": "create", "assertion": assertion, "name": name, "cosmetic": cosmetic})
+        self._maybe_fail()
+        return self.created_character
+
+    def delete_character(self, assertion: str, character_id: str) -> None:
+        self.calls.append({"op": "delete", "assertion": assertion, "character_id": character_id})
+        self._maybe_fail()
+
+    def select_character(self, assertion: str, character_id: str) -> str:
+        self.calls.append({"op": "select", "assertion": assertion, "character_id": character_id})
+        self._maybe_fail()
+        return self.selected_assertion

@@ -27,6 +27,20 @@ class EnrollmentConfig:
     pool_cidr: ipaddress.IPv4Network
     persistent_keepalive_seconds: int
     db_path: str
+    # Slice 088: locates the login authority's loopback-only HTTP delegation
+    # endpoint (server/login_loopback_http_endpoint.gd). Co-located by default
+    # (ADR 0004) — the enrollment service and the login process run on the
+    # same host, so this is a loopback call, never a second public hop.
+    login_authority_host: str
+    login_authority_port: int
+    login_authority_timeout_seconds: float
+    # Slice 089: an assertion-path peer whose last redeem/touch is older than
+    # this is eligible for the operator-invoked deprovision sweep. Default 30
+    # days. Invite-path peers are never aged by this.
+    peer_idle_ttl_seconds: int
+    public_auth_max_attempts: int = 5
+    public_auth_window_seconds: float = 60.0
+    public_auth_lockout_seconds: float = 300.0
 
 
 DEFAULT_DB_PATH = os.path.join(
@@ -65,6 +79,42 @@ def load_config() -> EnrollmentConfig:
             f"ENROLLMENT_PERSISTENT_KEEPALIVE_SECONDS must be an integer: {keepalive_raw}"
         ) from exc
 
+    login_authority_port_raw = os.getenv("LOGIN_AUTHORITY_PORT", "9997").strip()
+    try:
+        login_authority_port = int(login_authority_port_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"LOGIN_AUTHORITY_PORT must be an integer: {login_authority_port_raw}"
+        ) from exc
+
+    login_authority_timeout_raw = os.getenv("LOGIN_AUTHORITY_TIMEOUT_SECONDS", "5").strip()
+    try:
+        login_authority_timeout_seconds = float(login_authority_timeout_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"LOGIN_AUTHORITY_TIMEOUT_SECONDS must be a number: {login_authority_timeout_raw}"
+        ) from exc
+
+    peer_idle_ttl_raw = os.getenv("ENROLLMENT_PEER_IDLE_TTL_SECONDS", "2592000").strip()
+    try:
+        peer_idle_ttl_seconds = int(peer_idle_ttl_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"ENROLLMENT_PEER_IDLE_TTL_SECONDS must be an integer: {peer_idle_ttl_raw}"
+        ) from exc
+
+    public_auth_max_attempts_raw = os.getenv("PUBLIC_AUTH_MAX_ATTEMPTS", "5").strip()
+    public_auth_window_raw = os.getenv("PUBLIC_AUTH_WINDOW_SECONDS", "60").strip()
+    public_auth_lockout_raw = os.getenv("PUBLIC_AUTH_LOCKOUT_SECONDS", "300").strip()
+    try:
+        public_auth_max_attempts = int(public_auth_max_attempts_raw)
+        public_auth_window_seconds = float(public_auth_window_raw)
+        public_auth_lockout_seconds = float(public_auth_lockout_raw)
+    except ValueError as exc:
+        raise RuntimeError("PUBLIC_AUTH_* values must be numeric") from exc
+    if public_auth_max_attempts < 1 or public_auth_window_seconds <= 0 or public_auth_lockout_seconds <= 0:
+        raise RuntimeError("PUBLIC_AUTH_* values must be positive")
+
     return EnrollmentConfig(
         opnsense_host=os.getenv("OPNSENSE_HOST", "192.168.1.1").strip(),
         opnsense_api_key=api_key,
@@ -80,4 +130,11 @@ def load_config() -> EnrollmentConfig:
         pool_cidr=pool_cidr,
         persistent_keepalive_seconds=keepalive,
         db_path=os.getenv("ENROLLMENT_DB_PATH", DEFAULT_DB_PATH).strip(),
+        login_authority_host=os.getenv("LOGIN_AUTHORITY_HOST", "127.0.0.1").strip(),
+        login_authority_port=login_authority_port,
+        login_authority_timeout_seconds=login_authority_timeout_seconds,
+        peer_idle_ttl_seconds=peer_idle_ttl_seconds,
+        public_auth_max_attempts=public_auth_max_attempts,
+        public_auth_window_seconds=public_auth_window_seconds,
+        public_auth_lockout_seconds=public_auth_lockout_seconds,
     )
