@@ -91,6 +91,15 @@ const CLIENT_LOGIN_SPLIT_ENV_VAR: String = "PROJECT0_CLIENT_LOGIN_SPLIT"
 const CLIENT_HTTPS_LOGIN_ENV_VAR: String = "PROJECT0_CLIENT_HTTPS_LOGIN"
 const TUNNEL_ENV_VAR: String = "PROJECT0_TUNNEL"
 
+# Slice 167: opt-in Nakama login/session entry. Defaults off until the Character
+# service and world-entry ticket slices exist. The Nakama server key is a client
+# API key (not a Project0 gameplay authority) and must be configured by the
+# launcher/operator before this path is used.
+const CLIENT_NAKAMA_LOGIN_ENV_VAR: String = "PROJECT0_CLIENT_NAKAMA_LOGIN"
+const NAKAMA_URL_ENV_VAR: String = "PROJECT0_NAKAMA_URL"
+const NAKAMA_SERVER_KEY_ENV_VAR: String = "PROJECT0_NAKAMA_SERVER_KEY"
+const DEFAULT_NAKAMA_URL: String = "https://project0.valentin.vip:7350"
+
 
 ## Public seam: resolves the address the headless server should bind to.
 ## Precedence: `--server-bind-address=<addr>` CLI argument, then the
@@ -196,6 +205,21 @@ static func client_https_login_enabled() -> bool:
 	if explicit == "0":
 		return false
 	return OS.get_environment(TUNNEL_ENV_VAR).strip_edges() == "1"
+
+
+static func client_nakama_login_enabled() -> bool:
+	return OS.get_environment(CLIENT_NAKAMA_LOGIN_ENV_VAR).strip_edges() == "1"
+
+
+static func resolve_nakama_base_url() -> String:
+	var value: String = OS.get_environment(NAKAMA_URL_ENV_VAR).strip_edges().rstrip("/")
+	if value.is_empty():
+		return DEFAULT_NAKAMA_URL
+	return value
+
+
+static func resolve_nakama_server_key() -> String:
+	return OS.get_environment(NAKAMA_SERVER_KEY_ENV_VAR).strip_edges()
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,

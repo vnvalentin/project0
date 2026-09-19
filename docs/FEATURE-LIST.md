@@ -57,7 +57,10 @@ feature so future drift is easier to detect.
   and shared playtest-world routing.
 - Implementation slices: [Slice 166](slices/166-nakama-v1-deployment-foundation.md)
   (single-node Nakama/PostgreSQL deployment foundation, private admin posture,
-  host-side secrets, backup-before-migration runbook, and static validation).
+  host-side secrets, backup-before-migration runbook, and static validation),
+  [Slice 167](slices/167-nakama-godot-auth-session-entry.md) (Godot Nakama
+  auth/session client, account-gate entry path, and in-memory Nakama identity
+  state).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -84,6 +87,19 @@ feature so future drift is easier to detect.
     Validation evidence: focused static check and Python compile pass locally;
     Linux host validation passed record sync with 0 errors and full GUT with
     811/811 tests passing.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 167 as the Godot Nakama auth/session entry
+    path: a feature-flagged Nakama HTTP client, account-gate login/register
+    path, Nakama endpoint/server-key configuration, and in-memory Nakama user,
+    auth-token, and refresh-token state in PlayerIdentity.
+    Why: After the deployment foundation, the first player-facing Nakama value
+    is replacing Project0's bespoke account credential/session entry with
+    Nakama user/session identity.
+    Related work: [Slice 167](slices/167-nakama-godot-auth-session-entry.md),
+    #354, #356.
+    Validation evidence: SSH-on-okami validation with native addon artifacts
+    overlaid passed record sync with 0 errors and full GUT with 826/826 tests
+    and 2558 asserts passing.
 
 ### F-038: Cross-cutting telemetry pipeline (envelope, transport, storage, dashboard)
 

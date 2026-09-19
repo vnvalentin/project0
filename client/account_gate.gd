@@ -8,6 +8,7 @@ const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 ## Slice 093: the client's HTTPS seam to the enrollment service, used for the
 ## WAN login flow (client_https_login_enabled). Null in the LAN ENet path.
 const EnrollmentHttpClientScript: Script = preload("res://client/enrollment_http_client.gd")
+const NakamaHttpClientScript: Script = preload("res://client/nakama_http_client.gd")
 
 @onready var username_input = $VBoxContainer/UsernameInput
 @onready var password_input = $VBoxContainer/PasswordInput
@@ -25,6 +26,7 @@ var _pending_password: String = ""
 
 ## Slice 093: the HTTPS enrollment client instance, created only in the WAN flow.
 var _http_client: Object = null
+var _nakama_client: Object = null
 
 func _ready() -> void:
 	# Connect to NetworkClient auth signals
@@ -40,7 +42,12 @@ func _ready() -> void:
 	# Slice 093: in the WAN flow authentication happens over HTTPS; registration
 	# is not exposed on the public enrollment surface yet (DT-010), so log into an
 	# existing account only.
-	if NetworkConfigScript.client_https_login_enabled():
+	if NetworkConfigScript.client_nakama_login_enabled():
+		_nakama_client = NakamaHttpClientScript.new()
+		add_child(_nakama_client)
+		register_button.disabled = false
+		register_button.tooltip_text = "Click to register a Nakama account."
+	elif NetworkConfigScript.client_https_login_enabled():
 		_http_client = EnrollmentHttpClientScript.new()
 		add_child(_http_client)
 		register_button.disabled = false
@@ -57,6 +64,10 @@ func _on_login_pressed() -> void:
 	# Store target host in PlayerIdentity for gameplay to inherit
 	PlayerIdentity.target_host = host if not host.is_empty() else NetworkConfigScript.resolve_client_target_host()
 	
+	if NetworkConfigScript.client_nakama_login_enabled():
+		await _perform_nakama_auth(username, password, false)
+		return
+
 	# Slice 093: WAN flow authenticates over HTTPS, not the ENet login connection.
 	if NetworkConfigScript.client_https_login_enabled():
 		await _perform_https_login(username, password)
@@ -95,6 +106,38 @@ func _perform_https_login(username: String, password: String) -> void:
 		status_label.text = "Status: Login failed (%s)" % _https_failure_reason(result)
 		login_button.disabled = false
 
+
+func _perform_nakama_auth(username: String, password: String, create: bool) -> void:
+	status_label.text = "Status: Registering..." if create else "Status: Logging in..."
+	login_button.disabled = true
+	register_button.disabled = true
+	var base_url: String = NetworkConfigScript.resolve_nakama_base_url()
+	var server_key: String = NetworkConfigScript.resolve_nakama_server_key()
+	var result: Dictionary = await _nakama_client.register(base_url, server_key, username, password) if create else await _nakama_client.login(base_url, server_key, username, password)
+	if result["outcome"] == NakamaHttpClientScript.OUTCOME_OK:
+		PlayerIdentity.account_id = String(result["user_id"])
+		PlayerIdentity.nakama_user_id = String(result["user_id"])
+		PlayerIdentity.username = String(result["username"])
+		PlayerIdentity.nakama_auth_token = String(result["auth_token"])
+		PlayerIdentity.nakama_refresh_token = String(result["refresh_token"])
+		status_label.text = "Status: Login successful! Loading characters..."
+		await get_tree().create_timer(0.3).timeout
+		get_tree().change_scene_to_file("res://client/character_gate.tscn")
+	else:
+		var action: String = "Registration" if create else "Login"
+		status_label.text = "Status: %s failed (%s)" % [action, _nakama_failure_reason(result)]
+		login_button.disabled = false
+		register_button.disabled = false
+
+
+func _nakama_failure_reason(result: Dictionary) -> String:
+	var outcome: String = String(result.get("outcome", "error"))
+	if outcome == NakamaHttpClientScript.OUTCOME_HTTP_ERROR and int(result.get("status", 0)) == 401:
+		return "invalid username or password"
+	if outcome == NakamaHttpClientScript.OUTCOME_CONFIG_ERROR:
+		return "nakama not configured"
+	return outcome
+
 ## Slice 093: maps a bounded EnrollmentHttpClient failure result to a short,
 ## input-free status string (never echoes the caller's credentials).
 func _https_failure_reason(result: Dictionary) -> String:
@@ -108,6 +151,13 @@ func _on_register_pressed() -> void:
 	var password = password_input.text
 	var host = host_input.text.strip_edges()
 	
+	if NetworkConfigScript.client_nakama_login_enabled():
+		if not _validate_input(username, password):
+			return
+		PlayerIdentity.target_host = host if not host.is_empty() else NetworkConfigScript.resolve_client_target_host()
+		await _perform_nakama_auth(username, password, true)
+		return
+
 	# Slice 093: no public HTTPS registration surface exists yet (DT-010).
 	if NetworkConfigScript.client_https_login_enabled():
 		await _perform_https_register(username, password)
