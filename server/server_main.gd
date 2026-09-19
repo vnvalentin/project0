@@ -56,6 +56,7 @@ const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
 const TelemetrySinkScript: Script = preload("res://server/telemetry_sink.gd")
 const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
 const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ingest_service.gd")
+const TelemetryEventScript: Script = preload("res://shared/telemetry_event.gd")
 
 ## Slice 067: the app schema version reported in the runtime health snapshot.
 const APP_SCHEMA_VERSION: int = 1
@@ -474,7 +475,7 @@ func _start_server() -> void:
 func _on_peer_connected(peer_id: int) -> void:
 	# Slice 146: connecting no longer admits. The peer gets no world, no Player,
 	# and no replication until it passes the server-owned version gate.
-	print("Peer connected: %d (awaiting version handshake)" % peer_id)
+	_emit_connection_telemetry("connection.peer_connected", peer_id, {})
 	_pending_version_gate[peer_id] = true
 
 
@@ -492,13 +493,17 @@ func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void
 	)
 	_pending_version_gate.erase(peer_id)
 	if result["outcome"] != VersionHandshakeScript.OUTCOME_ACCEPTED:
-		print("Refusing peer %d: %s (%s)" % [peer_id, result["outcome"], result["detail"]])
+		_emit_connection_telemetry("connection.version_gate_rejected", peer_id, {
+			"outcome": String(result["outcome"]),
+			"detail": String(result["detail"]),
+			"client_version": String(handshake.get("client_build_version", "")),
+		})
 		var network_client: Node = root.get_node_or_null("NetworkClient")
 		if network_client != null:
 			network_client.rpc_id(peer_id, "receive_version_handshake_rejected", result)
 		root.multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
-	print("Peer %d passed the version gate." % peer_id)
+	_emit_connection_telemetry("connection.version_gate_passed", peer_id, {"client_version": String(handshake.get("client_build_version", ""))})
 	_admit_peer(peer_id)
 
 
@@ -551,8 +556,9 @@ func _admit_peer(peer_id: int) -> void:
 	var house_id: String = _house_allocator.assign(peer_id)
 	if house_id.is_empty():
 		push_error("Peer %d connected but no house slot is available (pool exhausted)." % peer_id)
+		_emit_connection_telemetry("connection.house_unavailable", peer_id, {"houses_free": _house_allocator.available_count()})
 	else:
-		print("Assigned house %s to peer %d (%d houses free)." % [house_id, peer_id, _house_allocator.available_count()])
+		_emit_connection_telemetry("connection.house_assigned", peer_id, {"house_id": house_id, "houses_free_after": _house_allocator.available_count()})
 		network_client.rpc_id(peer_id, "receive_assigned_house", house_id)
 
 	# Replicate existing peers to the new peer, and the new peer to existing
@@ -590,7 +596,6 @@ func _admit_peer(peer_id: int) -> void:
 ## instance, since each peer now owns its own) and tells every remaining
 ## peer to despawn that departed peer's remote representation.
 func _on_peer_disconnected(peer_id: int) -> void:
-	print("Peer disconnected: %d" % peer_id)
 	# A peer can drop while still awaiting the version gate; it owns nothing else.
 	_pending_version_gate.erase(peer_id)
 	# Slice 040: clear this peer's in-memory session, if any. Sessions are
@@ -600,9 +605,14 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		_login_gateway.clear_session(peer_id)
 	# Slice 019: free this peer's house back to the pool immediately (no
 	# reconnect reservation).
+	var had_house: bool = false
 	if _house_allocator != null:
+		had_house = not _house_allocator.assigned_house(peer_id).is_empty()
 		_house_allocator.release(peer_id)
-		print("Released house for peer %d (%d houses free)." % [peer_id, _house_allocator.available_count()])
+	_emit_connection_telemetry("connection.peer_disconnected", peer_id, {
+		"had_house": had_house,
+		"houses_free_after": _house_allocator.available_count() if _house_allocator != null else 0,
+	})
 	var player_state: Node = _player_states.get(peer_id)
 	if player_state != null:
 		player_state.position_updated.disconnect(_on_player_state_position_updated)
@@ -718,6 +728,26 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
 ## Server-owned monotonic tick used as the mutation event clock (Slice 097).
 func _current_server_tick() -> int:
 	return _monster_tick
+
+
+## Slice 163 (telemetry map #282, decision #285): direct server-authored
+## emission for events the server itself observes (connection lifecycle),
+## as opposed to TelemetryIngestService's untrusted-client-batch path. No
+## rate limiting applies here — the server controls its own emission volume
+## deterministically, once per real event. A telemetry-unavailable server
+## (see boot wiring) makes this a silent no-op, never a crash or a blocked
+## game loop.
+func _emit_connection_telemetry(event_type: String, peer_id: int, payload: Dictionary) -> void:
+	if _telemetry_sink == null:
+		return
+	var character_id: String = ""
+	var player_state: Node = _player_states.get(peer_id)
+	if player_state != null:
+		character_id = player_state.character_id
+	var envelope: Dictionary = TelemetryEventScript.build(
+		event_type, 1, int(Time.get_unix_time_from_system()), _current_server_tick(), peer_id, payload, "", character_id, ""
+	)
+	_telemetry_sink.emit(envelope)
 
 
 ## Slice 162 (telemetry map #282): the sole entry point for client-originated
