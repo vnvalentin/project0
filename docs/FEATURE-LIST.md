@@ -66,8 +66,10 @@ feature so future drift is easier to detect.
   (client batching queue + server per-peer rate limiter contracts),
   [Slice 162](slices/162-telemetry-rpc-wiring.md) (live RPC wiring: the send
   path, the RPC itself, boot-wired sink/limiter, and the server-side
-  untrusted-input-safe ingest orchestration). Connection/combat emission and
-  the dashboard page are tracked but not yet allocated slice numbers — see
+  untrusted-input-safe ingest orchestration), [Slice 163](slices/163-connection-lifecycle-telemetry.md)
+  (the 6-event connection-lifecycle family live in `server_main.gd`).
+  Combat-outcome emission and the dashboard page are tracked but not yet
+  allocated slice numbers — see
   [issue #328](https://github.com/vnvalentin/project0/issues/328).
 - Related work: planning charted via the telemetry wayfinder map
   ([#282](https://github.com/vnvalentin/project0/issues/282), decisions
@@ -159,6 +161,23 @@ feature so future drift is easier to detect.
     warnings). `client/network_client.gd` and
     `server/telemetry_ingest_service.gd` additionally parse-checked cleanly
     on Windows.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 163 — the connection-lifecycle event
+    family lives. `server/server_main.gd` gains
+    `_emit_connection_telemetry()` and emits `connection.peer_connected`,
+    `connection.version_gate_rejected`/`passed`,
+    `connection.house_assigned`/`house_unavailable`, and
+    `connection.peer_disconnected` at their exact decided points, superseding
+    the 6 matching `print()` call sites (touched-code-only, no broader
+    retrofit, per #285).
+    Why: The taxonomy (#285) and the sink/transport (#287/#284) needed a real
+    emission site to prove the pipeline end-to-end; connection lifecycle was
+    the first fully-specified family.
+    Validation evidence: full suite on the Linux host — 111 scripts,
+    811/811 tests passing, exit 0; record-sync 0 errors (6 pre-existing
+    unrelated warnings). A manual end-to-end check (real server + real
+    client connect/disconnect) confirmed the exact 4 expected rows and
+    payload shapes land in `telemetry.db` in order.
 
 ### F-037: Windows client delivery — version identity, mandatory gate, and signed patching
 
