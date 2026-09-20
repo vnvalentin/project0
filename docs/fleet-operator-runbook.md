@@ -12,7 +12,7 @@ so the console binds to LAN port 18090. Start both services with the deployed
 Project0 image tag so the operator API includes the merged control adapter:
 
 ```sh
-export PROJECT0_IMAGE_TAG=sha-7fdbb30c2f7a8cf16a37308588fdac99144ab300
+export PROJECT0_IMAGE_TAG=sha-91103a2921eec9d849330e5f93738dc516418d4d
 export OPERATOR_CONSOLE_PORT=18090
 sudo -n env PROJECT0_IMAGE_TAG="$PROJECT0_IMAGE_TAG" \
 	OPERATOR_CONSOLE_PORT="$OPERATOR_CONSOLE_PORT" \
@@ -25,6 +25,12 @@ mounts these paths read-only:
 
 - `/etc/project0/operator-console/servers.json`
 - `/var/lib/project0/ops-snapshots/`
+
+The manifest must use the OpsSnapshot registry contract. The current v1
+entries are `project0-game` with `server_type: world` and `project0-login` with
+`server_type: login`; each entry uses the `unit` field. Producer containers
+write into their per-server snapshot directories, and the console reads the
+parent directory read-only.
 
 The console exposes `/healthz`, `/`, and `/server/<server_id>`. Unknown or stale
 snapshots are displayed as non-healthy states; they are never treated as live
@@ -59,5 +65,5 @@ requires the recorded PostgreSQL backup path; image rollback alone is not enough
 
 The pure OpsSnapshot, atomic writer, registry scanner, read-only console, control
 contracts, and operator assertion verifier have focused automated validation.
-A full live operator-control proof remains gated on the host helper and
-authoritative Godot control seam.
+Remote deployment health, smoke checks, fresh world/login console rows, invalid
+assertion rejection, and reversible authorized control proof passed on `okami`.

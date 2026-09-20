@@ -43,7 +43,7 @@ feature so future drift is easier to detect.
 
 ### F-041: Fleet operations console
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Project0 exposes a private LAN operator console with bounded,
   versioned current-state telemetry and authenticated control actions while
   preserving server and gameplay authority.
@@ -78,7 +78,7 @@ feature so future drift is easier to detect.
     authenticated repair seam before deployment cutover.
     Validation evidence: focused GUT 13/13 with 30 assertions; deployed
     `set_degraded` enable/clear both returned HTTP 200; invalid bearer returned
-    HTTP 403. Deployed read-side console proof remains open.
+    HTTP 403. The LAN console then rendered fresh healthy world/login rows.
   - Date: 2026-09-20
     What changed: Delivered Slice 185's atomic OpsSnapshot writer.
     Why: Snapshot publication needs a stable file boundary before server emitters
