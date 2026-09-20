@@ -44,6 +44,18 @@ These three record types form one causal chain, not three independent lists:
   not delivery. A Feature closes only when its Slices' combined evidence
   satisfies the Feature's resolution proof.
 
+This applies to every Goal regardless of its current status, including
+`chartering`, `research-first`, and `design gate` ones: a Goal without a stated
+ideal condition cannot yet spawn a Feature, because there is no gap to define.
+Grilling and research on a Goal exist precisely to produce that `## What Good
+Looks Like` condition; they are not exempt from eventually stating one.
+
+Every Goal must also trace to and advance the master vision charter in the
+governing issue [#421](https://github.com/vnvalentin/project0/issues/421). A
+Goal map or Goal issue states which part of that charter it closes distance
+toward; a Goal with no traceable line to #421 is out of scope until it is
+re-chartered or retired.
+
 ## Delivery lifecycle
 
 Every capability moves through one lifecycle with a single authoritative status
