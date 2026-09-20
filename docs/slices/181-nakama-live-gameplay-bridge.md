@@ -96,3 +96,22 @@ accounts and proof artifacts were removed after capture.
 
 Earlier attempts exposed stale-image, relay-credential, container-endpoint, and
 proof-harness assertion defects. Those were corrected before the passing run.
+
+### WAN/LAN client capture
+
+On 2026-09-20, with one tester client connected through the WAN path and one
+through the LAN path, a read-only capture against the deployed stack recorded:
+
+- Two distinct active game peers: `675135518` and `286720337`.
+- Two starting-town world-entry events, one for each peer.
+- Recent enrollment activity with successful login, Character list/create/select
+  requests.
+- Recent enrollment source classification: `LAN=8`, `WAN=62` requests.
+- Healthy `project0-game-server`, `project0-login-server`, `project0-enrollment`,
+  `project0-nakama`, and `project0-nakama-db` containers.
+- Nakama health endpoint returned HTTP 200.
+
+The capture proves simultaneous WAN/LAN activity and two authoritative world
+entries, but the current logs do not correlate a specific peer id with a
+specific route class. No tokens, passwords, IP addresses, or persistent proof
+artifacts were retained.
