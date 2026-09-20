@@ -190,45 +190,6 @@ def slice_issue_stats() -> dict:
     return {"total": total, "missing": missing, "linked": total - len(missing)}
 
 
-def slice_files_by_number() -> dict[int, str]:
-    out = {}
-    for name in list_repo_dir("docs/slices"):
-        m = re.match(r"^(\d{3})-.+\.md$", name)
-        if m:
-            out[int(m.group(1))] = name
-    return out
-
-
-def slice_linked_issue_number(text: str) -> int | None:
-    match = re.search(r"^GitHub issue:\s*#(\d+)", text, re.M | re.I)
-    if match:
-        return int(match.group(1))
-    match = re.search(r"^GitHub issue:\s*https://github\.com/[^/]+/[^/]+/issues/(\d+)", text, re.M | re.I)
-    return int(match.group(1)) if match else None
-
-
-# Slice 176's own #95 finding: 109/172 slices' "GitHub issue:" line points at
-# the same bulk backfill ticket (#95), not a real per-slice issue. Treat that
-# number as "no real link" rather than a resolvable goal.
-BACKFILL_PLACEHOLDER_ISSUE = 95
-
-
-def slice_goal_number(text: str, issue_by_number: dict[int, dict]) -> int | None:
-    # Real per-slice goal alignment, derived from data that already exists:
-    # the slice's linked implementation issue is itself a Goal issue, or that
-    # issue's body names its "Parent goal: #N" (both already used by
-    # goal_issue_cards()). No new slice front-matter field needed.
-    issue_num = slice_linked_issue_number(text)
-    if issue_num is None or issue_num == BACKFILL_PLACEHOLDER_ISSUE:
-        return None
-    issue = issue_by_number.get(issue_num)
-    if not issue:
-        return None
-    if "Goal" in issue.get("labels", []) or issue.get("title", "").startswith("Goal:"):
-        return issue_num
-    match = re.search(r"^Parent goal:\s*#(\d+)\b", issue.get("body", ""), re.M)
-    return int(match.group(1)) if match else None
-
 
 def issue_covers_goal_target(issue: dict) -> bool:
     return bool(re.search(r"^Status:\s*(resolved|done|closed|accepted)\b", issue.get("body", ""), re.M | re.I))
@@ -379,69 +340,6 @@ def normalize_tracker_text(text: str) -> str:
     return text.replace("â€”", "—").replace("â€“", "–").replace("â€¦", "…")
 
 
-def slice_cards(text: str) -> list[dict[str, str]]:
-    cards = []
-    pattern = r"^- \*\*(?:Current\s+)?[Ss]lice:\*\*\s*(?:\[([^]]+)\]\([^)]*\)|([^—]+))\s*—\s*\*\*([^*]+)\*\*"
-    for match in re.finditer(pattern, text, re.M):
-        title = (match.group(1) or match.group(2) or "").strip()
-        cards.append({"title": title, "status": match.group(3).strip()})
-    return cards
-
-
-def queue_items(text: str) -> list[dict[str, str]]:
-    cards = []
-    section_match = re.search(r"^## Work queue\n([\s\S]*?)(?=^## |\Z)", text, re.M)
-    if not section_match:
-        return cards
-    lines = section_match.group(1).splitlines()
-    item = None
-    for line in lines:
-        top_match = re.match(r"^- \[( |x)\]\s*(?:(Ready|Queued|In progress)\s*—\s*)?(.+)$", line)
-        if top_match:
-            if item:
-                cards.append(item)
-            checked, label, title = top_match.groups()
-            item = None if checked == "x" else {"title": title.strip(), "status": label or "Queued"}
-            continue
-        if item and line.strip():
-            item["title"] += " " + line.strip()
-    if item:
-        cards.append(item)
-    for card in cards:
-        card["title"] = re.sub(r"\[([^]]+)\]\([^)]*\)", r"\1", card["title"])
-        card["title"] = re.sub(r"`([^`]+)`", r"\1", card["title"])
-    return cards
-
-
-def debt_cards(text: str) -> list[dict[str, str]]:
-    cards = []
-    outstanding = text.split("## Resolved Items", 1)[0]
-    for match in re.finditer(r"^###\s+(DT-\d+):\s*(.+)$([\s\S]*?)(?=^###\s+|\Z)", outstanding, re.M):
-        body = match.group(3)
-        status = re.search(r"^- Status:\s*`?([^`\n]+)", body, re.M)
-        cards.append({"id": match.group(1), "title": match.group(2).strip(), "status": status.group(1).strip() if status else "Unstated"})
-    return cards
-
-
-def action_items(phases: list[dict[str, str]], debts: list[dict[str, str]], slices: list[dict[str, str]]) -> list[str]:
-    actions = []
-    for debt in debts:
-        if debt["status"].lower() not in {"resolved", "closed", "accepted"}:
-            actions.append(f"Andon: {debt['id']} {debt['title']}")
-    for phase in phases:
-        if phase["status"].lower() == "blocked":
-            actions.append(f"Blocked Phase: {phase['phase']}")
-    for card in slices:
-        status = card["status"].lower()
-        if "100%" in status and "outstanding" not in status:
-            continue
-        if "outstanding" in status or "awaiting" in status:
-            actions.append(f"Evidence needed: {card['title']}")
-        elif "in progress" in status or "working" in status:
-            actions.append(f"In progress: {card['title']}")
-    return actions
-
-
 def phase_progress_map(tracker: str) -> dict:
     tracker = normalize_tracker_text(tracker)
     out = {}
@@ -467,14 +365,20 @@ def _slice_done(status: str) -> bool:
 
 
 def current_slice_numbers(tracker: str) -> set:
-    return {int(n) for n in re.findall(r"\*\*Current slice:\*\* \[(\d+)", tracker)}
+    nums = set()
+    for line in tracker.splitlines():
+        if re.match(r"^-\s*\*{0,2}(?:Current s|S)lices?:\*{0,2}", line):
+            nums.update(int(n) for n in re.findall(r"\[(\d+)\s*[—-]", line))
+    return nums
 
 
 def slice_index_rows(tracker: str) -> list[dict]:
     tracker = normalize_tracker_text(tracker)
     # Walk the whole tracker, tracking phase context from both the work-index
     # (**Phase N — Title**) and slice-index (#### Phase N — Title) headers, and
-    # collect every Slice/Current slice entry deduped by number.
+    # collect every Slice/Current slice entry deduped by number. A single
+    # '- Current slices:' line may list many slices (each with its own
+    # bracketed title/status), not just one.
     rows: dict[int, dict] = {}
     phase_num, phase_title, last = 0, "", None
     for line in tracker.splitlines():
@@ -482,35 +386,22 @@ def slice_index_rows(tracker: str) -> list[dict]:
         if h:
             phase_num, phase_title, last = int(h.group(1)), h.group(2).strip(), None
             continue
-        s = re.match(r"^- \*\*(?:Current s|S)lice:\*\* \[(\d+)\s*[—-]\s*([^\]]+)\]\([^)]*\)(?:\s*[—-]\s*\*\*([^*]+)\*\*)?", line)
-        if s:
-            num, status = int(s.group(1)), (s.group(3) or "").strip()
-            row = rows.get(num)
-            if row is None:
-                rows[num] = {"num": num, "title": s.group(2).strip(), "status_text": status,
-                             "phase_num": phase_num, "phase_title": phase_title,
-                             "feature": "", "done": _slice_done(status)}
-            elif status and not row["status_text"]:
-                row["status_text"], row["done"] = status, _slice_done(status)
-            last = num
+        if re.match(r"^-\s*\*{0,2}(?:Current s|S)lices?:\*{0,2}", line):
+            for s in re.finditer(r"\[(\d+)\s*[—-]\s*([^\]]+)\]\([^)]*\)(?:\s*[—-]\s*\*\*([^*]+)\*\*)?", line):
+                num, status = int(s.group(1)), (s.group(3) or "").strip()
+                row = rows.get(num)
+                if row is None:
+                    rows[num] = {"num": num, "title": s.group(2).strip(), "status_text": status,
+                                 "phase_num": phase_num, "phase_title": phase_title,
+                                 "feature": "", "done": _slice_done(status)}
+                elif status and not row["status_text"]:
+                    row["status_text"], row["done"] = status, _slice_done(status)
+                last = num
             continue
         f = re.match(r"^\s*- \*\*Features?:\*\* \[([A-Za-z]+-\d+)\]", line)
         if f and last is not None and not rows[last]["feature"]:
             rows[last]["feature"] = f.group(1)
     return list(rows.values())
-
-
-def snapshot(view: str = "committed") -> dict:
-    reader = read_repo_file if view == "working" else read_committed_file
-    tracker = reader("docs/PROJECT-TRACKER.md")
-    debt = reader("docs/TECHNICAL-DEBT-TRACKER.md")
-    phases = phase_rows(tracker)
-    slices = slice_cards(tracker) + queue_items(tracker)
-    debts = debt_cards(debt)
-    issue_feed = github_issues()
-    return {"phases": phases, "slices": slices, "debts": debts, "features": feature_cards(reader),
-            "actions": action_items(phases, debts, slices), "calibration": calibration(),
-            "view": view, "issue_feed": issue_feed, "tracker": tracker}
 
 
 def esc(value: str) -> str:
@@ -569,167 +460,50 @@ def phase_milestones(issue_feed: dict) -> list[dict]:
     return phases
 
 
-def render(view: str = "committed") -> str:
-    data = snapshot(view)
-    working_view = data["view"] == "working"
-    issue_feed = data["issue_feed"]
+def render_vision(view: str = "committed") -> str:
+    """Detailed view: the charter/vision narrative plus every Goal's real,
+    live Goal->Feature->Slice progress (no more hardcoded Track A-F letters
+    or stale Outcome-label matching)."""
+    issue_feed = github_issues()
+    issues_html, issue_status, goal_cards = goal_cards_section(issue_feed)
+    other = "?view=working" if view != "working" else "?view=committed"
+    other_lbl = "Working tree" if view != "working" else "Committed"
 
-    features = data["features"]
-    stage_order = ["Planned", "Ready", "Active", "Done"]
-    stage_css = {"Planned": "planned", "Ready": "", "Active": "in-progress", "Done": "done"}
-    fcols: dict[str, list] = {name: [] for name in stage_order}
-    for feat in features:
-        fcols[feature_stage(feat["status"])].append(feat)
-
-    def feature_card(feat: dict) -> str:
-        stage = feature_stage(feat["status"])
-        tags = "".join(f'<span class="itag">{esc(t)}</span>' for t in feat["issue_tags"]) or '<span class="itag none">no linked issue</span>'
-        return (
-            f'<article class="card {stage_css[stage]}"><h3>{esc(feat["id"])} \u00b7 {esc(feat["title"])}</h3>'
-            f'<div class="itags">{tags}</div></article>'
-        )
-
-    column_html = ""
-    board_stages = [name for name in stage_order if name != "Done"] if working_view else stage_order
-    for name in board_stages:
-        items = fcols[name]
-        body = "".join(feature_card(feat) for feat in items) or '<p class="empty">Nothing here</p>'
-        column_html += f'<section class="column"><h2>{esc(name)} <span>{len(items)}</span></h2>{body}</section>'
-    blocked = [d for d in data["debts"] if d["status"].lower() not in {"resolved", "closed", "accepted"}]
-    andon_html = "".join(card(d["id"], d["title"] + " — " + d["status"], "andon") for d in blocked) or '<p class="clear">No open Andon signals</p>'
-    actions_html = "".join(f"<li>{esc(item)}</li>" for item in data["actions"]) or '<li>No immediate action detected</li>'
-    stage_defs = [
-        ("Planned", len(fcols["Planned"]), "planned"),
-        ("Ready", len(fcols["Ready"]), "ready"),
-        ("Active", len(fcols["Active"]), "active"),
-        ("Done", len(fcols["Done"]), "done"),
-    ]
-    flow_html = '<div class="arw">\u2192</div>'.join(
-        f'<div class="stage {cls}"><span class="n">{n}</span><span class="lbl">{esc(name)}</span></div>'
-        for name, n, cls in stage_defs
-    )
-
-    # Phases (GitHub milestones) -> Outcomes (labels) -> Goals + slices/issues.
-    phases = phase_milestones(issue_feed)
-    rows_by_phase: dict[int, list[dict]] = {}
-    for r in slice_index_rows(data["tracker"]):
-        rows_by_phase.setdefault(r["phase_num"], []).append(r)
-    goal_cards = goal_issue_cards(issue_feed)
-    goal_by_number = {g["number"]: g for g in goal_cards}
-    goals_by_ms: dict[int, list[dict]] = {}
-    for g in goal_cards:
-        n = g.get("milestone_number")
-        if n:
-            goals_by_ms.setdefault(n, []).append(g)
-    ms_number_by_phase_num = {}
-    for ms in github_milestones().get("milestones", []):
-        pm = re.match(r"^Phase (\d+):", ms["title"])
-        if pm:
-            ms_number_by_phase_num[int(pm.group(1))] = ms["number"]
-    issue_by_number = {i["number"]: i for i in issue_feed.get("issues", [])}
-    slice_files = slice_files_by_number()
-
-    roadmap_html = ""
-    for p in phases:
-        rows = rows_by_phase.get(p["num"], [])
-        outcomes = p["outcome_completion"]
-        outcome_chips = "".join(
-            f'<span class="chip {"decided" if outcomes[o]["complete"] else "active"}">{esc(o[len("Outcome: "):])} '
-            f'\u00b7 {outcomes[o]["closed"]}/{outcomes[o]["total"]}</span>'
-            for o in p["outcomes"]
-        ) or '<span class="chip todo">no outcome-labeled issues yet</span>'
-        ms_number = ms_number_by_phase_num.get(p["num"])
-        phase_goals = goals_by_ms.get(ms_number, []) if ms_number else []
-        goal_chips = "".join(
-            f'<a class="chip active" href="{esc(g["url"])}">#{g["number"]} {esc(_exec_short(g["title"], 30))} \u00b7 {g["target_percent"]}%</a>'
-            for g in phase_goals
-        ) or '<span class="chip todo">no Goal issues on this milestone</span>'
-        issue_rows = "".join(
-            f'<div class="brow"><a class="bl" href="{esc(i["url"])}"><small>#{i["number"]}</small>{esc(_exec_short(i["title"], 60))}</a>'
-            f'<div class="bp">{"\u2713" if i["state"] == "closed" else "\u25cb"}</div></div>'
-            for i in p["issues"]
-        ) or '<p class="empty" style="margin-left:14px">No issues on this milestone yet.</p>'
-        slice_rows = ""
-        for r in rows:
-            slice_name = slice_files.get(r["num"])
-            slice_text = read_committed_file(f"docs/slices/{slice_name}") if slice_name else ""
-            goal_num = slice_goal_number(slice_text, issue_by_number) if slice_text else None
-            goal = goal_by_number.get(goal_num) if goal_num else None
-            if goal:
-                goal_tag = (f'<a class="sl-feat" href="{esc(goal["url"])}">goal #{goal["number"]} '
-                            f'{esc(_exec_short(goal["title"], 24))}</a>')
-            elif goal_num:
-                goal_tag = f'<span class="sl-feat">goal #{goal_num} (not a tracked Goal issue)</span>'
-            else:
-                goal_tag = '<span class="sl-feat" style="opacity:.6">no linked goal</span>'
-            slice_rows += (
-                f'<div class="slrow {"done" if r["done"] else "active"}"><span class="slnum">{r["num"]:03d}</span>'
-                f'<span class="sltitle">{esc(r["title"])}</span>{goal_tag}</div>'
-            )
-        slice_rows = slice_rows or '<p class="empty" style="margin-left:14px">No tracker slices recorded for this phase.</p>'
-        roadmap_html += (
-            f'<section class="goal"><div class="goal-head">'
-            f'<h3><a href="{esc(p["url"])}">Phase {p["num"]:02d} \u00b7 {esc(p["title"])}</a></h3>'
-            f'<span class="pct">{p["outcomes_complete"]}/{p["outcomes_total"]} outcomes \u00b7 {p["pct"]}%</span></div>'
-            f'<div class="bar"><div class="fill" style="width:{p["pct"]}%"></div></div>'
-            f'<div class="itags"><span class="itag">Outcomes touched</span></div><div class="chips">{outcome_chips}</div>'
-            f'<div class="itags" style="margin-top:8px"><span class="itag">Goals touched</span></div><div class="chips">{goal_chips}</div>'
-            f'<div class="itags" style="margin-top:8px"><span class="itag">Milestone issues</span></div><div class="bars">{issue_rows}</div>'
-            f'<div class="itags" style="margin-top:8px"><span class="itag">Tracker slices</span></div><div class="slrows">{slice_rows}</div>'
-            f'</section>'
-        )
-    roadmap_html = roadmap_html or '<p class="empty">No active Phase milestones found.</p>'
-
-    calib = data["calibration"]
-    if not calib["available"]:
-        calib_html = '<div class="calib">Showing the working tree (git unavailable in this environment).</div>'
-    elif working_view:
-        files = ", ".join(esc(f.rsplit("/", 1)[-1]) for f in calib["dirty_records"]) or "none"
-        calib_html = (
-            f'<div class="calib warn"><strong>\u26a0 Live working tree \u2014 unfinished work only</strong> \u2014 includes uncommitted edits and '
-            f'may be mid-slice; done items are hidden. Dirty record files: {files}. {calib["in_flight"]} file(s) in flight total.</div>'
-        )
-    else:
-        src = f'board reflects committed <code>{esc(calib["sha"])}</code> \u00b7 {esc(calib["subject"][:70])}'
-        if calib["dirty_records"]:
-            files = ", ".join(esc(f.rsplit("/", 1)[-1]) for f in calib["dirty_records"])
-            calib_html = (
-                f'<div class="calib warn"><strong>\u26a0 {len(calib["dirty_records"])} record file(s) uncommitted / in-flight</strong> '
-                f'\u2014 not reflected below: {files}. {calib["in_flight"]} file(s) in flight total. The {src}. '
-                f'<a class="calib-link" href="/?view=working">View working tree \u2192</a></div>'
-            )
-        else:
-            calib_html = (
-                f'<div class="calib"><strong>\u2713 Records clean</strong> \u2014 the {src}. '
-                f'{calib["in_flight"]} non-record file(s) in flight.</div>'
-            )
-
-    toggle_html = (
-        '<div class="viewtoggle">'
-        f'<a class="vt{"" if working_view else " on"}" href="/detail">Committed</a>'
-        f'<a class="vt{" on" if working_view else ""}" href="/detail?view=working">Working tree</a>'
-        '</div>'
-    )
     return f'''<!doctype html>
-<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="15"><title>Project0 Flow Dashboard</title>
-<style>
-:root {{ color-scheme: dark; --bg:#11161d; --panel:#1a222d; --line:#304052; --text:#e8eef5; --muted:#9dafbf; --cyan:#58d4e8; --green:#54d18a; --amber:#f3bd55; --red:#ff7070; }}
-* {{ box-sizing:border-box }} body {{ margin:0; font:14px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--text) }} header {{ padding:24px 32px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:end }} h1 {{ margin:0; color:var(--cyan); letter-spacing:.03em }} h2 {{ margin:0 0 12px; font-size:16px }} h3 {{ margin:0 0 6px; font-size:14px }} p {{ margin:0; color:var(--muted) }} main {{ padding:24px 32px; max-width:1500px; margin:auto }} .banner {{ background:#332619; border:1px solid var(--amber); color:#ffe0a0; padding:14px 16px; margin-bottom:22px; border-radius:8px }} .board {{ display:grid; grid-template-columns:repeat(4,minmax(190px,1fr)); gap:14px; align-items:start }} .column,.panel {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px }} .column h2 span {{ float:right; color:var(--muted); font-weight:normal }} .card {{ background:#222d39; border:1px solid #3a4b5d; border-left:4px solid var(--cyan); border-radius:6px; padding:10px; margin:8px 0 }} .card.andon {{ border-left-color:var(--red) }} .card.in-progress {{ border-left-color:var(--amber) }} .card.done {{ border-left-color:var(--green) }} .empty,.clear {{ color:var(--muted); padding:12px 0 }} .grid {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:22px }} ul {{ margin:0; padding-left:20px }} li {{ margin:8px 0 }} .action {{ color:#ffe0a0 }} .stamp {{ color:var(--muted); font-size:12px }} @media(max-width:900px) {{ .board,.grid {{ grid-template-columns:1fr 1fr }} }} @media(max-width:600px) {{ header,main {{ padding:16px }} .board,.grid {{ grid-template-columns:1fr }} }}
-.rmwrap {{ margin-bottom:22px }} .rmwrap h2 {{ display:flex; justify-content:space-between; align-items:baseline }} .rmwrap h2 span {{ color:var(--muted); font-weight:normal; font-size:13px }} .roadmap {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px }} .goal {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px }} .goal-head {{ display:flex; justify-content:space-between; align-items:baseline; gap:8px }} .goal-head h3 {{ margin:0; color:var(--cyan) }} .goal-head h3 a {{ color:inherit; text-decoration:none }} .pct {{ color:var(--muted); font-size:12px; white-space:nowrap }} .bar {{ height:8px; background:#0e141b; border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:10px 0 }} .fill {{ height:100%; background:linear-gradient(90deg,var(--green),var(--cyan)) }} .dest {{ font-size:12px; margin-bottom:10px }} .chips {{ display:flex; flex-wrap:wrap; gap:6px }} .chip {{ font-size:11px; padding:3px 8px; border-radius:12px; border:1px solid var(--line); background:#222d39; color:var(--muted) }} .chip.decided {{ border-color:var(--green); color:var(--green) }} .chip.active {{ border-color:var(--amber); color:var(--amber) }} .chip.todo {{ opacity:.7 }}
-.flow {{ display:flex; align-items:stretch; gap:6px; margin-bottom:22px; flex-wrap:wrap }} .flow .stage {{ flex:1 1 0; min-width:118px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 14px; display:flex; flex-direction:column; gap:2px }} .flow .stage .n {{ font-size:22px; font-weight:600 }} .flow .stage .lbl {{ font-size:12px; color:var(--muted) }} .flow .stage.ready {{ border-left:4px solid var(--cyan) }} .flow .stage.active {{ border-left:4px solid var(--amber) }} .flow .stage.done {{ border-left:4px solid var(--green) }} .flow .arw {{ align-self:center; color:var(--muted); font-size:18px }} .sech {{ margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted) }}
-.itags {{ display:flex; flex-wrap:wrap; gap:4px; margin-top:8px }} .itag {{ font-size:10px; padding:2px 7px; border-radius:10px; background:#1a2430; border:1px solid var(--line); color:var(--muted) }} .itag.none {{ opacity:.6; font-style:italic }} .card.planned {{ border-left-color:var(--muted) }} .flow .stage.planned {{ border-left:4px solid var(--muted) }}
-.bars {{ display:flex; flex-direction:column; gap:4px }} .brow {{ display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:12px }} .brow .bl {{ color:var(--text); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }} .brow .bp {{ color:var(--muted); flex:none }}
-.slrows {{ display:flex; flex-direction:column; gap:4px }} .slrow {{ display:flex; align-items:baseline; gap:8px; font-size:12px; padding:4px 7px; border-radius:5px; border-left:3px solid var(--line); background:#1a2430 }} .slrow.done {{ border-left-color:var(--green) }} .slrow.done .sltitle {{ color:var(--muted) }} .slrow.active {{ border-left-color:var(--amber) }} .slnum {{ font-family:monospace; color:var(--muted); flex:none }} .sltitle {{ flex:1; color:var(--text) }} .sl-feat {{ font-size:10px; color:var(--muted); border:1px solid var(--line); border-radius:8px; padding:1px 6px; flex:none; text-decoration:none }}
-.calib {{ font-size:12px; color:var(--muted); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:14px }} .calib.warn {{ border-color:var(--amber); background:#332619; color:#ffe0a0 }} .calib code {{ color:var(--cyan) }} .calib-link {{ color:var(--cyan); text-decoration:none; white-space:nowrap }}
-.hdr-right {{ display:flex; flex-direction:column; align-items:flex-end; gap:8px }} .viewtoggle {{ display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden }} .viewtoggle .vt {{ font-size:12px; padding:5px 12px; color:var(--muted); text-decoration:none; background:var(--panel) }} .viewtoggle .vt + .vt {{ border-left:1px solid var(--line) }} .viewtoggle .vt.on {{ background:var(--cyan); color:#0b1118; font-weight:700 }}
-</style></head><body>
-<header><div><h1>Project0 Roadmap</h1><p>Phase (milestone) \u2192 Outcome (label) \u2192 Goal / slice alignment</p></div><div class="hdr-right"><a class="calib-link" href="/">\u2190 Reality view</a><a class="calib-link" href="/tests">Tests</a>{toggle_html}<div class="stamp">Read-only · refreshes every 15s</div></div></header>
-<main>{calib_html}<div class="banner"><strong>Open signals</strong><ul>{actions_html}</ul></div>
-<section class="flow">{flow_html}</section>
-<section class="rmwrap"><h2>Phases \u2192 outcomes \u2192 goals / slices <span>docs/PROJECT-TRACKER.md \u00b7 GitHub milestones + Outcome labels</span></h2><div class="roadmap">{roadmap_html}</div></section>
-<h2 class="sech">Implementation pipeline \u2014 features correlated to local planning issues</h2>
-<section class="board">{column_html}</section>
-<div class="grid"><section class="panel"><h2>Andon / Stop Signals</h2>{andon_html}</section></div>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Project0 \u2014 Vision &amp; Roadmap</title>
+<style>{EXEC_CSS}{VISION_CSS}</style></head><body>
+<header>
+  <div><h1>Project0 \u2014 Vision &amp; Roadmap</h1><div class="sub">Build a world worth changing \u00b7 {issue_status}</div></div>
+  <div class="nav"><a href="/">Reality</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
+</header>
+<main>
+  <section class="vhero">
+    <article class="vstatement"><h2>The world is not only generated for players to visit.</h2>
+      <p>It is a foundation they can explore, alter, inhabit, build upon, and eventually help govern.
+      Meaning comes from the DM Guild; truth comes from deterministic, authoritative execution.</p>
+      <span class="vsource">Technology-neutral charter \u00b7 <a href="https://github.com/{esc(issue_feed["repo"])}/issues/495">Charter #495</a></span>
+    </article>
+    <aside class="vsignal">
+      <div><div class="vlabel">Current planning signal</div><div class="vbig">{len(goal_cards)} goals</div>
+      <p>One bounded proof comes first: two players solve a movement-based environmental puzzle,
+      receive a meaningful item, and permanently change a shared location.</p></div>
+      <span class="vsource">{issue_status}</span>
+    </aside>
+  </section>
+  <section class="sec"><h2>Goals \u2192 Features \u2192 Slices <span style="font-weight:400;text-transform:none;letter-spacing:0">\u00b7 live from GitHub, see docs/DEVELOPMENT-WORKFLOW.md#goal-feature-and-slice-semantics-2026-09-20</span></h2>
+    <div class="issues">{issues_html}</div></section>
+  <section class="sec vtwo">
+    <article class="vpanel"><h3>Next proof</h3><p>The Vision-to-Play vertical slice is the bridge from charter to playable evidence.</p>
+      <ul><li>Two Characters form a Party.</li><li>Players use traversal to solve one shared puzzle.</li>
+      <li>The authoritative server grants one reward.</li><li>A later revisit exposes the accepted world mutation.</li></ul></article>
+    <article class="vpanel"><h3>Delivery order</h3>
+      <ul><li>Trusted client and runtime evidence already in flight.</li>
+      <li>Telemetry identity and persistence for useful evidence.</li>
+      <li>Party, traversal, blueprint, reward, and mutation contracts.</li>
+      <li>Content and crafting foundations.</li><li>DM Guild, semantic builders, then player construction.</li>
+      <li>Scale only when measured evidence demands it.</li></ul></article>
+  </section>
+  <div class="footer">Roadmap is a planning surface, not an implementation claim. \u00b7 Refreshes every 30 seconds \u00b7 {esc(issue_feed["repo"])}</div>
 </main></body></html>'''
 
 
@@ -832,13 +606,13 @@ def executive_model(reader, phase_outcomes: dict[int, dict] | None = None) -> di
     else:
         overall = round(sum(p["pct"] for p in phases) / len(phases)) if phases else 0
 
-    # Focus = the current slice of each still-unfinished phase.
+    # Focus = the current, not-yet-done slice of each still-unfinished phase.
     focus, seen = [], set()
     for r in rows:
         pn = r["phase_num"]
         meta = prog.get(pn) or {}
         pct = meta.get("progress")
-        if r["num"] not in currents or pct is None or pct >= 100 or pn in seen:
+        if r["num"] not in currents or pct is None or pct >= 100 or pn in seen or r["done"]:
             continue
         seen.add(pn)
         focus.append({"phase_num": pn, "phase_title": meta.get("title") or r["phase_title"],
@@ -920,6 +694,26 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 @media(max-width:760px){.hero{grid-template-columns:1fr}.tiles{grid-template-columns:1fr}.brow{grid-template-columns:1fr auto}.brow .track{grid-column:1/-1;order:3}}
 """
 
+VISION_CSS = """
+.vhero{display:grid;grid-template-columns:1.15fr .85fr;gap:20px;align-items:stretch;margin-bottom:22px}
+.vstatement,.vpanel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px}
+.vstatement{border-top:3px solid var(--cyan)}
+.vstatement h2{margin:0;font-size:24px;font-weight:400}
+.vstatement p{margin-top:12px;color:var(--muted)}
+.vsignal{display:flex;flex-direction:column;justify-content:space-between;padding:22px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.vlabel{font:700 11px/1.2 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.vbig{font:400 42px/1.1 system-ui,sans-serif;color:var(--cyan);margin-top:6px}
+.vsignal p{color:var(--muted);margin-top:8px}
+.vsource{display:inline-block;margin-top:16px;font-size:11px;color:var(--green)}
+.vsource a{color:var(--cyan)}
+.vtwo{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.vpanel h3{margin:0 0 8px}
+.vpanel ul{margin:0;padding-left:18px;color:var(--muted)}
+.vpanel li{margin:6px 0}
+.footer{color:var(--muted);font-size:12px;margin-top:26px;text-align:center}
+@media(max-width:900px){.vhero,.vtwo{grid-template-columns:1fr}}
+"""
+
 
 TESTS_CSS = """
 .trunbar{border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:22px;font-size:13px;background:var(--panel)}
@@ -959,6 +753,55 @@ def phase_activity_label(phase: dict) -> str:
     return f' <span class="phase-slices">{" \u00b7 ".join(bits)}</span>' if bits else ""
 
 
+def _goal_coverage_label(issue: dict) -> str:
+    if issue["state"] == "closed":
+        return "Goal closed"
+    return f'Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria'
+
+
+def _feature_slice_html(card: dict) -> str:
+    if not card["features"]:
+        return ""
+    rows = "".join(
+        f'<div class="gfeature"><a href="{esc(feature["url"])}">#{feature["number"]} {esc(_exec_short(feature["title"], 40))}</a>'
+        f'<span class="gfstats">{feature["slice_closed"]}/{feature["slice_total"]} slices closed</span>'
+        + "".join(
+            f'<a class="gslice" href="{esc(s["url"])}">#{s["number"]} {"\u2713" if s.get("state") == "closed" else "\u25cb"} {esc(_exec_short(s["title"], 34))}</a>'
+            for s in feature["slices"]
+        )
+        + "</div>"
+        for feature in card["features"]
+    )
+    return f'<div class="gfeatures">{rows}</div>'
+
+
+def goal_cards_section(issue_feed: dict) -> tuple[str, str, list[dict]]:
+    """Renders the Goal->Feature->Slice cards shared by the Reality and Detailed views."""
+    goal_cards = goal_issue_cards(issue_feed)
+    open_goal_children = sum(goal["child_open"] for goal in goal_cards)
+    if not issue_feed["available"]:
+        issues_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
+        issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
+        return issues_html, issue_status, goal_cards
+
+    issues_html = "".join(
+        f'<div class="issue-block">'
+        f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
+        f'<div class="ititle">{esc(issue["title"])}</div>'
+        f'<div class="gstats"><span>{_goal_coverage_label(issue)}</span>'
+        f'<span class="gdone">{issue["target_percent"]}%</span></div>'
+        f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
+        f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
+        f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
+        f'</div></a>'
+        f'{_feature_slice_html(issue)}'
+        f'</div>'
+        for issue in goal_cards
+    ) or '<p class="empty">No Goal issues found.</p>'
+    issue_status = f'{len(goal_cards)} goal issue(s), {open_goal_children} open child issue(s) from {esc(issue_feed["repo"])}'
+    return issues_html, issue_status, goal_cards
+
+
 def render_exec(view: str = "committed") -> str:
     reader = read_repo_file if view == "working" else read_committed_file
     issue_feed = github_issues()
@@ -966,7 +809,7 @@ def render_exec(view: str = "committed") -> str:
     m = executive_model(reader, phase_outcomes)
     all_issues = issue_feed["issues"]
     open_issues = [issue for issue in all_issues if issue.get("state") == "open"]
-    goal_cards = goal_issue_cards(issue_feed)
+    issues_html, issue_status, goal_cards = goal_cards_section(issue_feed)
     open_goal_children = sum(goal["child_open"] for goal in goal_cards)
 
     focus_html = "".join(
@@ -996,43 +839,6 @@ def render_exec(view: str = "committed") -> str:
         f'<span class="pill"><span class="dot">\u2713</span><small>{esc(f["id"])}</small>{esc(_exec_short(f["title"]))}</span>'
         for f in m["done"]
     ) or '<p class="empty">Nothing shipped yet.</p>'
-
-    if issue_feed["available"]:
-        goal_coverage_label = lambda issue: "Goal closed" if issue["state"] == "closed" else f'Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria'
-
-        def feature_slice_html(card: dict) -> str:
-            if not card["features"]:
-                return ""
-            rows = "".join(
-                f'<div class="gfeature"><a href="{esc(feature["url"])}">#{feature["number"]} {esc(_exec_short(feature["title"], 40))}</a>'
-                f'<span class="gfstats">{feature["slice_closed"]}/{feature["slice_total"]} slices closed</span>'
-                + "".join(
-                    f'<a class="gslice" href="{esc(s["url"])}">#{s["number"]} {"\u2713" if s.get("state") == "closed" else "\u25cb"} {esc(_exec_short(s["title"], 34))}</a>'
-                    for s in feature["slices"]
-                )
-                + "</div>"
-                for feature in card["features"]
-            )
-            return f'<div class="gfeatures">{rows}</div>'
-
-        issues_html = "".join(
-            f'<div class="issue-block">'
-            f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
-            f'<div class="ititle">{esc(issue["title"])}</div>'
-            f'<div class="gstats"><span>{goal_coverage_label(issue)}</span>'
-            f'<span class="gdone">{issue["target_percent"]}%</span></div>'
-            f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
-            f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
-            f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
-            f'</div></a>'
-            f'{feature_slice_html(issue)}'
-            f'</div>'
-            for issue in goal_cards
-        ) or '<p class="empty">No Goal issues found.</p>'
-        issue_status = f'{len(goal_cards)} goal issue(s), {open_goal_children} open child issue(s) from {esc(issue_feed["repo"])}'
-    else:
-        issues_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
-        issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
 
     other = "?view=working" if view != "working" else "?view=committed"
     other_lbl = "Working tree" if view != "working" else "Committed"
@@ -1400,7 +1206,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/detail":
             view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
-            body = render(view).encode("utf-8")
+            body = render_vision(view).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/tests":
