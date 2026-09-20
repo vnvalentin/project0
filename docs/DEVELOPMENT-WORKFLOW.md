@@ -33,9 +33,13 @@ These three record types form one causal chain, not three independent lists:
 - A **Feature** is the defined, measurable gap between the current condition
   and its parent Goal's ideal condition. A Feature issue must state both
   sides of that gap: the current condition (what is true today) and the ideal
-  condition it is closing distance toward (`Parent goal: #N`). The Feature
-  resolves only when measurable proof shows the stated gap is closed — code
-  merging is not, by itself, resolution.
+  condition it is closing distance toward (`Parent goal: #N`), **and which
+  specific `## What Good Looks Like` item it advances**
+  (`Advances: #<goal issue> item <n>`, where `<n>` is that item's 1-based
+  position in the Goal's WGL list). A Feature with no `Advances:` line is not
+  yet justified: if it doesn't close distance toward a named ideal-condition
+  item, why does it exist? The Feature resolves only when measurable proof
+  shows the stated gap is closed — code merging is not, by itself, resolution.
 - A **Slice** is one step, or one bounded group of steps, that resolves a root
   cause standing between the current condition and the Feature's target
   condition. A Slice issue must name the root cause it addresses
@@ -43,6 +47,14 @@ These three record types form one causal chain, not three independent lists:
   gap. A Slice that does not reduce the Feature's stated gap is scope creep,
   not delivery. A Feature closes only when its Slices' combined evidence
   satisfies the Feature's resolution proof.
+
+A Goal's percent-complete is **never** derived from the Goal issue's own
+open/closed state or a hand-ticked WGL checkbox — both are unreliable signals
+on their own. It is the fraction of WGL items that have at least one
+`Advances:` Feature which is itself resolved (closed, or every one of its
+Slices closed). An item with zero linked Features, or only unresolved ones,
+is not done, no matter what its checkbox says or whether the Goal issue itself
+got closed.
 
 This applies to every Goal regardless of its current status, including
 `chartering`, `research-first`, and `design gate` ones: a Goal without a stated
