@@ -41,7 +41,7 @@ well enough to create implementation slices without guessing.
   (Copilot orchestrates; Claude CLI implements).
 - Current reality: a Windows Go launcher already exists
   ([native/windows_launcher/main.go](../../native/windows_launcher/main.go),
-  [enrollment.go](../../native/windows_launcher/enrollment.go)). It performs
+  [updater.go](../../native/windows_launcher/updater.go)). It performs
   first-run self-service login (username/password -> signed account assertion ->
   WireGuard peer redemption) or an `--invite-code` fallback, stores a
   DPAPI-protected private key + `peer.json` in AppData, extracts an **embedded**

@@ -56,14 +56,49 @@ custom_minimum_size = Vector2(0, 40)
 placeholder_text = "password (6+ chars)"
 secret = true
 
-[node name="HostLabel" type="Label" parent="VBoxContainer"]
+[node name="SettingsButton" type="Button" parent="VBoxContainer"]
 layout_mode = 2
-text = "Server Host:"
+text = "Settings"
 
-[node name="HostInput" type="LineEdit" parent="VBoxContainer"]
+[node name="RemoteServerCheckBox" type="CheckButton" parent="VBoxContainer"]
+layout_mode = 2
+text = "Enable Remote server"
+button_pressed = true
+
+[node name="SettingsPanel" type="PanelContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="SettingsBox" type="VBoxContainer" parent="VBoxContainer/SettingsPanel"]
+layout_mode = 2
+
+[node name="HostLabel" type="Label" parent="VBoxContainer/SettingsPanel/SettingsBox"]
+layout_mode = 2
+text = "Remote Server Host:"
+
+[node name="HostInput" type="LineEdit" parent="VBoxContainer/SettingsPanel/SettingsBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 40)
-placeholder_text = "localhost (or IP/hostname)"
+placeholder_text = "192.69.180.236"
+
+[node name="GamePortLabel" type="Label" parent="VBoxContainer/SettingsPanel/SettingsBox"]
+layout_mode = 2
+text = "Game Port:"
+
+[node name="GamePortInput" type="LineEdit" parent="VBoxContainer/SettingsPanel/SettingsBox"]
+layout_mode = 2
+placeholder_text = "9999"
+
+[node name="LoginModeLabel" type="Label" parent="VBoxContainer/SettingsPanel/SettingsBox"]
+layout_mode = 2
+text = "Login Mode:"
+
+[node name="LoginModeOption" type="OptionButton" parent="VBoxContainer/SettingsPanel/SettingsBox"]
+layout_mode = 2
+item_count = 2
+popup/item_0/text = "Public HTTPS (WAN)"
+popup/item_0/id = 0
+popup/item_1/text = "Direct ENet (LAN)"
+popup/item_1/id = 1
 
 [node name="Spacer2" type="Control" parent="VBoxContainer"]
 custom_minimum_size = Vector2(0, 10)

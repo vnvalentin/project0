@@ -3552,6 +3552,13 @@ for a developer to pick up. No implementation has started.
     reproducible from a commit.
     Related work: [Slice 103](slices/103-linux-client-package-build.md),
     [DT-011](TECHNICAL-DEBT-TRACKER.md#dt-011-client-export-filter-ships-the-test-framework-and-build-artifacts)
+  - Date: 2026-09-20
+    What changed: Closed DT-011 by excluding the GUT test framework, build
+    validation artifacts, and `skills-lock.json` from the Windows export. The
+    package was rebuilt and the packaged client launched successfully.
+    Related work: [Slice 183](slices/183-client-export-filter-debt-remediation.md)
+    Validation: `scripts/export_windows_client.sh 0.12.0` passed; package
+    inspection found no excluded paths; bounded packaged launch exited 0.
   - Date: 2026-09-12
     What changed: Implemented Slice 006 — the Windows Desktop export preset
     was created with client-only files, the build script was added, and the

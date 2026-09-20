@@ -150,8 +150,12 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   what ships, so it requires a runtime launch of the exported client as
   evidence, not just a successful export — which is why Slice 103 recorded it
   here rather than changing the shipped contents without that evidence.
-- Status: `open`
+- Status: `done` — resolved by [Slice 183](slices/183-client-export-filter-debt-remediation.md).
+- Validation: `bash scripts/export_windows_client.sh 0.12.0` passed; package
+  inspection found no `addons/gut/**`, `build/**`, or `skills-lock.json`; the
+  packaged `Project0.exe --headless --quit-after 2` launch exited 0.
 - Related work: [Slice 103](slices/103-linux-client-package-build.md),
+  [Slice 183](slices/183-client-export-filter-debt-remediation.md),
   [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
 
 ### DT-010: No public HTTPS account-registration surface for the WAN client

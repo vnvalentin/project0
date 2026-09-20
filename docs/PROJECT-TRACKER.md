@@ -546,6 +546,10 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
+- **Slice:** [183 — Goal A / F-002: client export filter debt remediation](slices/183-client-export-filter-debt-remediation.md) — **delivered; Windows exports now exclude the GUT framework, build validation artifacts, and `skills-lock.json`; rebuilt package contents and bounded packaged launch passed. DT-011 closed.**
+  - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
+  - **GitHub issue:** [#421](https://github.com/vnvalentin/project0/issues/421)
+
 - **Slice:** [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in-progress; launcher payloads are now external visible package files, installed under stable LocalAppData, and signed updates require explicit confirmation. Release and packaged-Windows runtime evidence remain pending.** Prior: [156](slices/156-release-client-downloads.md).
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
@@ -1356,7 +1360,7 @@ the phase exit gate; it is not a count of completed slices.
 - **Slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **delivered; server validation and Windows GUI lifecycle confirmed**
   - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (client half), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (new feature for the UI)
   - **Tech debt:** none identified
-  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 5), [handoff-044](../.scratch/player-accounts/handoff-044-client-login-character-screens.md) (if created)
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 5); the optional handoff-044 ticket was not created
   - **Decision:** no new ADR; defensive refactor discovered spawn-deferral brittleness against e2e harnesses; reverted deferral, documented intended pattern (login manages connection, gameplay inherits it); Linux authoritative validation passes 315/315 tests across 44/44 scripts and 1224 assertions. Known limitation: spawn may misfire into login menu if Player RPC arrives mid-auth (low probability, low impact, documented as follow-up). GUI-confirmed behavior on Windows remains the final Slice 044 gate.
 
 ## Implementation slice acceptance
