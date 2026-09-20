@@ -68,6 +68,13 @@ gates.
 	into an isolated `%LOCALAPPDATA%/Project0/payload` directory; exit code was 0
 	and both payload files were present. Live update and rollback evidence remains
 	post-release work by decision.
+- A real Windows launcher rollback probe then invoked
+	`Project0-Launcher-0.12.0-proof.exe --project0-update-helper` against an
+	isolated payload with a deliberately invalid staged PCK. The relaunched client
+	failed readiness and the original payload PCK was restored byte-for-byte.
+	The GUI-subsystem launcher did not expose a reliable process exit code through
+	the PowerShell harness; the on-disk restoration assertion passed. Signed
+	download and valid-update runtime evidence remain open.
 - [Slice 181](181-nakama-live-gameplay-bridge.md) provides the current WAN
 	gameplay evidence: both fresh clients exited 0 after Nakama session,
 	Character, world-entry, shared-match, movement, and authoritative-state
