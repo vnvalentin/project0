@@ -14,7 +14,7 @@ $payload = Join-Path $repo "native\windows_launcher\payload"
 $work = Join-Path $repo "build\deployment-work"
 $clientStage = Join-Path $work "client"
 $clientZip = Join-Path $current "Project0-client-windows-x64-$Version.zip"
-$launcherPath = Join-Path $current "Project0-WAN-$Version.exe"
+$launcherPath = Join-Path $current "Project0-Launcher-$Version.exe"
 $manifestPath = Join-Path $current "deployment-manifest.json"
 
 function Require-File([string]$Path, [string]$Description) {

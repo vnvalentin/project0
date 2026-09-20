@@ -33,7 +33,7 @@ def test_public_navigation_pages_are_available_without_auth():
     client = TestClient(create_app(FakeLoginAuthorityClient()))
 
     assert client.get("/").status_code == 200
-    assert "/downloads/" in client.get("/").text
+    assert "/patches/downloads/0.13.2/Project0-client-windows-x64-0.13.2.zip" in client.get("/").text
     assert client.get("/downloads/").status_code == 200
     assert client.get("/telemetry").status_code == 200
     assert client.get("/dashboard").status_code == 200
