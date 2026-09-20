@@ -16,6 +16,7 @@ const REASON_TICKET: String = "invalid_ticket"
 const REASON_DUPLICATE: String = "duplicate"
 const REASON_BACKPRESSURE: String = "backpressure"
 const REASON_DISPATCH: String = "dispatch_rejected"
+const REASON_ALREADY_BOUND: String = "already_bound"
 
 var _socket: Object
 var _bindings: Dictionary = {}
@@ -30,6 +31,8 @@ func _init(socket: Object = null) -> void:
 func bind_world_entry(connection_id: String, peer_id: int, nakama_user_id: String, character_id: String, world_entry_ticket: String, player_state: Object) -> Dictionary:
 	if connection_id.strip_edges().is_empty() or peer_id < 1 or nakama_user_id.strip_edges().is_empty() or character_id.strip_edges().is_empty() or world_entry_ticket.strip_edges().is_empty() or player_state == null:
 		return {"outcome": REASON_UNBOUND}
+	if _bindings.has(connection_id):
+		return {"outcome": REASON_ALREADY_BOUND}
 	if _consumed_tickets.has(world_entry_ticket):
 		return {"outcome": REASON_TICKET}
 	_consumed_tickets[world_entry_ticket] = true
@@ -75,8 +78,9 @@ func receive_match_state(connection_id: String, raw_data: Variant, server_tick: 
 		return _reject(connection_id, String(dispatch_result["outcome"]))
 	binding["last_sequence"] = sequence
 	var state_message: Dictionary = ProtocolScript.build_state(
-		binding["nakama_user_id"], binding["character_id"], server_tick, state.position, dispatch_result.get("payload", {})
+		binding["nakama_user_id"], binding["character_id"], sequence, state.position, dispatch_result.get("payload", {})
 	)
+	state_message["payload"]["server_tick"] = server_tick
 	if not _send(connection_id, OP_STATE, state_message):
 		return _reject(connection_id, REASON_BACKPRESSURE)
 	return {"outcome": ProtocolScript.OUTCOME_OK, "message": state_message}

@@ -46,7 +46,31 @@ func connect_shared_match(nakama: Object, auth_token: String, match_id: String =
 		var joined: Object = await _socket.join_match_async(resolved_match_id)
 		if joined.is_exception():
 			return {"outcome": "match_join_failed"}
-	return {"outcome": ProtocolScript.OUTCOME_OK, "match_id": resolved_match_id}
+	return {"outcome": ProtocolScript.OUTCOME_OK, "match_id": resolved_match_id, "socket": _socket}
+
+
+func available() -> bool:
+	return _socket != null and not _match_id.is_empty()
+
+
+func submit_input(payload: Dictionary, sequence: int = 0) -> Dictionary:
+	return submit_input_payload(payload, sequence)
+
+
+func submit_input_payload(payload: Dictionary, sequence: int = 0) -> Dictionary:
+	if _socket == null or _match_id.is_empty():
+		return {"outcome": "unavailable"}
+	if sequence <= 0:
+		_next_sequence += 1
+		sequence = _next_sequence
+	else:
+		_next_sequence = maxi(_next_sequence, sequence)
+	var message: Dictionary = ProtocolScript.build_input(_nakama_user_id, _character_id, sequence, payload)
+	var validation: Dictionary = ProtocolScript.validate(message, ProtocolScript.KIND_INPUT)
+	if validation["outcome"] != ProtocolScript.OUTCOME_OK:
+		return validation
+	_socket.send_match_state_async(_match_id, 1701, JSON.stringify(message))
+	return {"outcome": ProtocolScript.OUTCOME_OK, "message": message}
 
 
 func attach(socket: Object, match_id: String, nakama_user_id: String, character_id: String) -> Dictionary:
@@ -58,18 +82,6 @@ func attach(socket: Object, match_id: String, nakama_user_id: String, character_
 	_character_id = character_id
 	_socket.received_match_state.connect(_on_match_state)
 	return {"outcome": ProtocolScript.OUTCOME_OK}
-
-
-func submit_input(payload: Dictionary) -> Dictionary:
-	if _socket == null:
-		return {"outcome": "unavailable"}
-	_next_sequence += 1
-	var message: Dictionary = ProtocolScript.build_input(_nakama_user_id, _character_id, _next_sequence, payload)
-	var validation: Dictionary = ProtocolScript.validate(message, ProtocolScript.KIND_INPUT)
-	if validation["outcome"] != ProtocolScript.OUTCOME_OK:
-		return validation
-	_socket.send_match_state_async(_match_id, 1701, JSON.stringify(message))
-	return {"outcome": ProtocolScript.OUTCOME_OK, "message": message}
 
 
 func _on_match_state(data: Variant) -> void:

@@ -98,7 +98,9 @@ const TUNNEL_ENV_VAR: String = "PROJECT0_TUNNEL"
 const CLIENT_NAKAMA_LOGIN_ENV_VAR: String = "PROJECT0_CLIENT_NAKAMA_LOGIN"
 const NAKAMA_URL_ENV_VAR: String = "PROJECT0_NAKAMA_URL"
 const NAKAMA_SERVER_KEY_ENV_VAR: String = "PROJECT0_NAKAMA_SERVER_KEY"
+const CLIENT_NAKAMA_GAMEPLAY_ENV_VAR: String = "PROJECT0_CLIENT_NAKAMA_GAMEPLAY"
 const DEFAULT_NAKAMA_URL: String = "https://project0.valentin.vip:7350"
+const NAKAMA_MATCH_ID_ENV_VAR: String = "PROJECT0_NAKAMA_MATCH_ID"
 
 
 ## Public seam: resolves the address the headless server should bind to.
@@ -211,6 +213,10 @@ static func client_nakama_login_enabled() -> bool:
 	return OS.get_environment(CLIENT_NAKAMA_LOGIN_ENV_VAR).strip_edges() == "1"
 
 
+static func client_nakama_gameplay_enabled() -> bool:
+	return OS.get_environment(CLIENT_NAKAMA_GAMEPLAY_ENV_VAR).strip_edges() == "1"
+
+
 static func resolve_nakama_base_url() -> String:
 	var value: String = OS.get_environment(NAKAMA_URL_ENV_VAR).strip_edges().rstrip("/")
 	if value.is_empty():
@@ -220,6 +226,10 @@ static func resolve_nakama_base_url() -> String:
 
 static func resolve_nakama_server_key() -> String:
 	return OS.get_environment(NAKAMA_SERVER_KEY_ENV_VAR).strip_edges()
+
+
+static func resolve_nakama_match_id() -> String:
+	return OS.get_environment(NAKAMA_MATCH_ID_ENV_VAR).strip_edges()
 
 
 ## Returns a valid 1-65535 port parsed from `value`, or 0 when it is empty,
