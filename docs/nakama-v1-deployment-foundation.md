@@ -51,6 +51,14 @@ Secrets stay on the host, outside the repository and images:
 - `/etc/project0/nakama/nakama.yml`: Nakama configuration, including the
   database address, `socket.server_key`, `session.encryption_key`,
   `runtime.http_key`, and Console credentials.
+- `/etc/project0/nakama-relay.env`: optional `PROJECT0_NAKAMA_RELAY_TOKEN`
+  containing a dedicated Nakama user session token for the Project0 server's
+  shared-match relay. This token is never committed or passed to clients; omit
+  the file to keep the legacy ENet/RPC path active.
+
+The game container reaches the client API/socket through
+`PROJECT0_NAKAMA_URL`, defaulting to `http://192.168.1.254:7350` in the
+deployment compose. Override it when Nakama is hosted elsewhere.
 
 Rotate every Nakama default key/password before any playtest. The deployment is
 not playtest-ready if it uses `defaultkey`, `defaultencryptionkey`,

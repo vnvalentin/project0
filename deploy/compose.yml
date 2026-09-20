@@ -75,10 +75,15 @@ services:
       # validator must agree. Optional so the stack starts during bring-up.
       - path: /etc/project0/assertion.env
         required: false
+      # Nakama gameplay relay session token. Optional so the legacy ENet/RPC
+      # path remains bootable until the operator enables the Nakama bridge.
+      - path: /etc/project0/nakama-relay.env
+        required: false
     environment:
       PROJECT0_SERVER_BIND_ADDRESS: "0.0.0.0"
       PROJECT0_SERVER_PORT: "9999"
       PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
+      PROJECT0_NAKAMA_URL: "${PROJECT0_NAKAMA_URL:-http://192.168.1.254:7350}"
       PROJECT0_HEALTH_FILE: "/data/health.json"
       PROJECT0_REQUIRED_CLIENT_VERSION: "${PROJECT0_REQUIRED_CLIENT_VERSION:-}"
       PROJECT0_UPDATE_MANIFEST_BASE_URL: "${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://project0.valentin.vip/patches}"

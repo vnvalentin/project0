@@ -105,4 +105,4 @@ static func build_assertion_only_services(account_repository: Object, parent: No
 	var validator: Object = AssertionValidatorScript.new(assertion_secret, issuer_id, audience)
 	gateway.set_assertion_seams(issuer, validator)
 
-	return {"characters": characters, "gateway": gateway, "sessions": sessions}
+	return {"characters": characters, "gateway": gateway, "sessions": sessions, "issuer": issuer, "validator": validator}

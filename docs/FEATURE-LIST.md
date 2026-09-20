@@ -76,8 +76,10 @@ feature so future drift is easier to detect.
   (slices/179-nakama-sdk-proof.md) (pinned official Nakama Godot SDK import and
   isolated two-client socket proof).
   [Slice 180](slices/180-nakama-gameplay-bridge.md) (opt-in Nakama socket gameplay
-  bridge forwarding bound input into Project0 authority and returning authoritative
-  state through the Slice 170 envelope).
+  bridge adapter foundation forwarding bound input into Project0 authority and
+  returning authoritative state through the Slice 170 envelope), [Slice 181]
+  (slices/181-nakama-live-gameplay-bridge.md) (live world-entry wiring and
+  two-client runtime proof).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
@@ -96,6 +98,13 @@ feature so future drift is easier to detect.
     proof to Project0's existing authoritative simulation seam.
     Related work: [Slice 180](slices/180-nakama-gameplay-bridge.md), #372,
     #386, #371.
+  - Date: 2026-09-19
+    What changed: Delivered Slice 180's tested transport adapter foundation and
+    started Slice 181 for live world-entry and gameplay wiring.
+    Why: The adapter is validated in isolation; #372 still requires the real
+    server/client bridge path and two-client runtime evidence.
+    Related work: [Slice 180](slices/180-nakama-gameplay-bridge.md),
+    [Slice 181](slices/181-nakama-live-gameplay-bridge.md), #372.
 - Change history:
   - Date: 2026-09-19
     What changed: Delivered Slice 166 as the deployment foundation for Nakama
