@@ -28,6 +28,7 @@ const AccountCharacterRepositoryScript: Script = preload("res://server/account_c
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+const OpsSnapshotScript: Script = preload("res://server/ops_snapshot.gd")
 const LoginLoopbackHttpEndpointScript: Script = preload("res://server/login_loopback_http_endpoint.gd")
 
 const DEFAULT_LOGIN_ACCOUNTS_DB_PATH: String = "login_accounts.db"
@@ -47,6 +48,8 @@ var _peer: ENetMultiplayerPeer
 var _connected_peers: Dictionary = {}
 
 var _health_file_path: String = ""
+var _ops_snapshot_file_path: String = ""
+var _server_version: String = ""
 var _health_tick_rate: int = ServerHealthScript.DEFAULT_TICK_RATE
 var _health_status: String = ServerHealthScript.STATUS_STARTING
 var _boot_ticks_ms: int = 0
@@ -58,6 +61,10 @@ func _initialize() -> void:
 
 func _start_login_server() -> void:
 	_health_file_path = _resolve_health_file_path()
+	_ops_snapshot_file_path = HealthReporterScript.resolve_health_file_path(OS.get_environment("PROJECT0_OPS_SNAPSHOT_FILE"))
+	_server_version = OS.get_environment("PROJECT0_SERVER_VERSION").strip_edges()
+	if _server_version.is_empty():
+		_server_version = "development"
 	_health_tick_rate = ServerHealthScript.resolve_tick_rate(OS.get_environment("PROJECT0_TICK_RATE"))
 	# DT-013: keep the login process on the same authoritative cadence it reports.
 	Engine.physics_ticks_per_second = _health_tick_rate
@@ -159,7 +166,7 @@ func _write_health(status: String) -> void:
 		return
 	_health_status = status
 	var uptime_seconds: float = float(maxi(0, Time.get_ticks_msec() - _boot_ticks_ms)) / 1000.0
-	var built: Dictionary = ServerHealthScript.build_snapshot({
+	var health_inputs: Dictionary = {
 		"status": status,
 		"tick_rate": _health_tick_rate,
 		"uptime_seconds": uptime_seconds,
@@ -168,13 +175,34 @@ func _write_health(status: String) -> void:
 		"max_peers": MAX_LOGIN_PEERS,
 		"app_schema_version": APP_SCHEMA_VERSION,
 		"timestamp": int(Time.get_unix_time_from_system()),
-	})
+	}
+	var built: Dictionary = ServerHealthScript.build_snapshot(health_inputs)
 	if built["outcome"] != ServerHealthScript.OUTCOME_OK:
 		push_warning("Login health snapshot rejected: %s" % built.get("detail", ""))
 		return
 	var written: Dictionary = HealthReporterScript.write_snapshot(_health_file_path, built["snapshot"])
 	if written["outcome"] != HealthReporterScript.OUTCOME_OK:
 		push_warning("Login health file write failed: %s" % written.get("detail", ""))
+	_write_ops_snapshot(health_inputs)
+
+
+func _write_ops_snapshot(health_inputs: Dictionary) -> void:
+	if _ops_snapshot_file_path.is_empty():
+		return
+	var snapshot_inputs: Dictionary = health_inputs.duplicate()
+	snapshot_inputs["server_id"] = OS.get_environment("PROJECT0_SERVER_ID").strip_edges()
+	if String(snapshot_inputs["server_id"]).is_empty():
+		snapshot_inputs["server_id"] = "project0-login"
+	snapshot_inputs["server_type"] = OpsSnapshotScript.SERVER_TYPE_LOGIN
+	snapshot_inputs["server_version"] = _server_version
+	snapshot_inputs["extension"] = {}
+	var built: Dictionary = OpsSnapshotScript.build(snapshot_inputs)
+	if built["outcome"] != OpsSnapshotScript.OUTCOME_OK:
+		push_warning("Ops snapshot rejected: %s" % built.get("detail", ""))
+		return
+	var written: Dictionary = HealthReporterScript.write_ops_snapshot(_ops_snapshot_file_path, built["snapshot"])
+	if written["outcome"] != HealthReporterScript.OUTCOME_OK:
+		push_warning("Ops snapshot write failed: %s" % written.get("detail", ""))
 
 
 func _finalize() -> void:

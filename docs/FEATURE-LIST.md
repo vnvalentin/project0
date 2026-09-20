@@ -60,7 +60,9 @@ feature so future drift is easier to detect.
   (bounded control/result/audit contracts), [Slice 189](slices/189-operator-auth-seam.md)
   (independent operator assertion verification), and [Slice 190](slices/190-operator-console-proof-runbook.md)
   (operator runbook and proof boundary).
-  the capstone handoff for writers, registry, console, control, auth, and proof.
+  The capstone handoff for writers, registry, console, control, auth, and proof
+  also wires the world/login authorities to publish validated snapshots into
+  the console's shared read directory.
 - Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
   [ADR 0010](adr/0010-server-admin-console.md), and #165.
 - Change history:
@@ -69,6 +71,14 @@ feature so future drift is easier to detect.
     Why: The console needs a stable server-owned read model before transport,
     registry, or UI work can be implemented safely.
     Validation evidence: focused GUT 5/5 and no editor diagnostics.
+  - Date: 2026-09-20
+    What changed: Wired live world/login OpsSnapshot emitters and completed the
+    reversible authorized control proof through the private operator path.
+    Why: The console needs both an authoritative read model and a proven
+    authenticated repair seam before deployment cutover.
+    Validation evidence: focused GUT 13/13 with 30 assertions; deployed
+    `set_degraded` enable/clear both returned HTTP 200; invalid bearer returned
+    HTTP 403. Deployed read-side console proof remains open.
   - Date: 2026-09-20
     What changed: Delivered Slice 185's atomic OpsSnapshot writer.
     Why: Snapshot publication needs a stable file boundary before server emitters

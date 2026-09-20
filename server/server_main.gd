@@ -61,6 +61,7 @@ const OperatorControlAdapterScript: Script = preload("res://server/operator_cont
 const OperatorControlHttpEndpointScript: Script = preload("res://server/operator_control_http_endpoint.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
+const OpsSnapshotScript: Script = preload("res://server/ops_snapshot.gd")
 const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
 const TelemetrySinkScript: Script = preload("res://server/telemetry_sink.gd")
 const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
@@ -183,6 +184,7 @@ var _world_entry_tickets: Object = null
 var _nakama_gameplay_bridge: Object = null
 var _nakama_gameplay_relay: Node = null
 var _operator_control_endpoint: Node = null
+var _operator_control_service: Object = null
 var _canon_repository: Object = null
 var _canon_mutation_repository: Object = null
 var _canon_mutation_service: Object = null
@@ -216,6 +218,8 @@ var _monster_tick_delta: float = 1.0 / float(ServerHealthScript.DEFAULT_TICK_RAT
 ## starting -> healthy -> stopping over the server's life. Snapshot inputs are
 ## authoritative runtime values, never client-supplied.
 var _health_file_path: String = ""
+var _ops_snapshot_file_path: String = ""
+var _server_version: String = ""
 var _health_tick_rate: int = ServerHealthScript.DEFAULT_TICK_RATE
 var _health_status: String = ServerHealthScript.STATUS_STARTING
 var _boot_ticks_ms: int = 0
@@ -233,6 +237,10 @@ func _start_server() -> void:
 	# work (e.g. the opt-in LLM-at-boot town) so an orchestrator sees `starting`
 	# immediately. Path and reported tick rate come from the environment once.
 	_health_file_path = HealthReporterScript.resolve_health_file_path(OS.get_environment("PROJECT0_HEALTH_FILE"))
+	_ops_snapshot_file_path = HealthReporterScript.resolve_health_file_path(OS.get_environment("PROJECT0_OPS_SNAPSHOT_FILE"))
+	_server_version = OS.get_environment("PROJECT0_SERVER_VERSION").strip_edges()
+	if _server_version.is_empty():
+		_server_version = "development"
 	_health_tick_rate = ServerHealthScript.resolve_tick_rate(OS.get_environment("PROJECT0_TICK_RATE"))
 	# DT-013: ServerHealth resolves the contracted rate but Slice 055 deferred
 	# applying it, so the server ran at Godot's 60 Hz default while advertising
@@ -423,8 +431,8 @@ func _start_server() -> void:
 	var operator_validator: Object = AssertionValidatorScript.new(
 		LoginRuntimeScript.resolve_assertion_secret(), "project0-console", "project0-console"
 	)
-	var operator_control_service: Object = OperatorControlServiceScript.new()
-	var operator_adapter: Object = OperatorControlAdapterScript.new(operator_validator, operator_control_service)
+	_operator_control_service = OperatorControlServiceScript.new()
+	var operator_adapter: Object = OperatorControlAdapterScript.new(operator_validator, _operator_control_service)
 	_operator_control_endpoint = OperatorControlHttpEndpointScript.new(operator_adapter)
 	_operator_control_endpoint.name = "OperatorControlHttpEndpoint"
 	root.add_child(_operator_control_endpoint)
@@ -908,7 +916,7 @@ func _write_health(status: String) -> void:
 		return
 	_health_status = status
 	var uptime_seconds: float = float(maxi(0, Time.get_ticks_msec() - _boot_ticks_ms)) / 1000.0
-	var built: Dictionary = ServerHealthScript.build_snapshot({
+	var health_inputs: Dictionary = {
 		"status": status,
 		"tick_rate": _health_tick_rate,
 		"uptime_seconds": uptime_seconds,
@@ -917,13 +925,37 @@ func _write_health(status: String) -> void:
 		"max_peers": MAX_REPLICATED_PEERS,
 		"app_schema_version": APP_SCHEMA_VERSION,
 		"timestamp": int(Time.get_unix_time_from_system()),
-	})
+	}
+	var built: Dictionary = ServerHealthScript.build_snapshot(health_inputs)
 	if built["outcome"] != ServerHealthScript.OUTCOME_OK:
 		push_warning("Health snapshot rejected: %s" % built.get("detail", ""))
 		return
 	var written: Dictionary = HealthReporterScript.write_snapshot(_health_file_path, built["snapshot"])
 	if written["outcome"] != HealthReporterScript.OUTCOME_OK:
 		push_warning("Health file write failed: %s" % written.get("detail", ""))
+	_write_ops_snapshot(health_inputs)
+
+
+func _write_ops_snapshot(health_inputs: Dictionary) -> void:
+	if _ops_snapshot_file_path.is_empty():
+		return
+	var snapshot_inputs: Dictionary = health_inputs.duplicate()
+	snapshot_inputs["server_id"] = OS.get_environment("PROJECT0_SERVER_ID").strip_edges()
+	if String(snapshot_inputs["server_id"]).is_empty():
+		snapshot_inputs["server_id"] = "project0-game"
+	snapshot_inputs["server_type"] = OpsSnapshotScript.SERVER_TYPE_WORLD
+	snapshot_inputs["server_version"] = _server_version
+	snapshot_inputs["degraded_reason"] = _operator_control_service.degraded_reason() if _operator_control_service != null and _operator_control_service.is_degraded() else ""
+	snapshot_inputs["extension"] = {
+		"draining": _operator_control_service != null and _operator_control_service.is_draining(),
+	}
+	var built: Dictionary = OpsSnapshotScript.build(snapshot_inputs)
+	if built["outcome"] != OpsSnapshotScript.OUTCOME_OK:
+		push_warning("Ops snapshot rejected: %s" % built.get("detail", ""))
+		return
+	var written: Dictionary = HealthReporterScript.write_ops_snapshot(_ops_snapshot_file_path, built["snapshot"])
+	if written["outcome"] != HealthReporterScript.OUTCOME_OK:
+		push_warning("Ops snapshot write failed: %s" % written.get("detail", ""))
 
 
 ## Slice 067: on engine shutdown (e.g. SIGTERM -> graceful stop) publish a final

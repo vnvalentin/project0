@@ -84,6 +84,9 @@ services:
       PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
       PROJECT0_NAKAMA_URL: "${PROJECT0_NAKAMA_URL:-http://192.168.1.254:7350}"
       PROJECT0_HEALTH_FILE: "/data/health.json"
+      PROJECT0_OPS_SNAPSHOT_FILE: "/ops-snapshots/project0-game/ops_snapshot.json"
+      PROJECT0_SERVER_ID: "project0-game"
+      PROJECT0_SERVER_VERSION: "${PROJECT0_IMAGE_TAG:-main}"
       PROJECT0_REQUIRED_CLIENT_VERSION: "${PROJECT0_REQUIRED_CLIENT_VERSION:-}"
       PROJECT0_UPDATE_MANIFEST_BASE_URL: "${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://project0.valentin.vip/patches}"
       # Ollama runs on the HOST. The server's default of 127.0.0.1 resolves to
@@ -98,6 +101,7 @@ services:
       - "${GAME_BIND:-192.168.1.254}:9999:9999/udp"
     volumes:
       - "${GAME_DATA_DIR:-/var/lib/project0/game}:/data"
+      - "${OPERATOR_CONSOLE_SNAPSHOT_DIR:-/var/lib/project0/ops-snapshots}/project0-game:/ops-snapshots"
       - "${BACKUP_DIR:-/var/backups/project0}:/backup"
     mem_limit: 2g
     cpus: 4.0
@@ -120,6 +124,9 @@ services:
       PROJECT0_LOGIN_PORT: "9998"
       PROJECT0_LOGIN_ACCOUNTS_DB_PATH: "login_accounts.db"
       PROJECT0_HEALTH_FILE: "/data/health.json"
+      PROJECT0_OPS_SNAPSHOT_FILE: "/ops-snapshots/project0-login/ops_snapshot.json"
+      PROJECT0_SERVER_ID: "project0-login"
+      PROJECT0_SERVER_VERSION: "${PROJECT0_IMAGE_TAG:-main}"
     ports:
       - "${LOGIN_BIND:-192.168.1.254}:9998:9998/udp"
       # Published here, not on the enrollment service: enrollment shares this
@@ -128,6 +135,7 @@ services:
       - "${ENROLLMENT_BIND:-192.168.1.254}:8095:8095"
     volumes:
       - "${LOGIN_DATA_DIR:-/var/lib/project0/login}:/data"
+      - "${OPERATOR_CONSOLE_SNAPSHOT_DIR:-/var/lib/project0/ops-snapshots}/project0-login:/ops-snapshots"
     mem_limit: 1g
     cpus: 2.0
     stop_grace_period: 20s
