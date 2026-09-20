@@ -91,15 +91,15 @@ if [[ "${export_status}" -ne 0 ]]; then
 fi
 log "Building WAN launcher for Windows"
 mkdir -p "${OUT_DIR}"
-launcher_out="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.exe"
+launcher_out="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.exe"
 (cd native/windows_launcher && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "-H=windowsgui" -o "${launcher_out}" .)
 [[ -s "${launcher_out}" ]] || { echo "ERROR: launcher build produced no output" >&2; exit 1; }
 
-wan_package="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}"
+wan_package="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}"
 rm -rf "${wan_package}"
-cp "${launcher_out}" "${wan_package}/Project0-WAN-${VERSION}.exe"
+cp "${launcher_out}" "${wan_package}/Project0-Launcher-${VERSION}.exe"
 cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${wan_package}/"
-wan_zip="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.zip"
+wan_zip="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.zip"
 rm -f "${wan_zip}"
 (cd "${OUT_DIR}" && zip -q -r -X "$(basename "${wan_zip}")" "$(basename "${wan_package}")")
 

@@ -80,3 +80,7 @@ The parse command passed with no diagnostics. A no-credential invalid-role smoke
 run exited 1 and wrote only the redacted state fields. The harness parser fix is
 pending deployment; the live two-process proof was not run, and this record does
 not claim it passed.
+
+### Assertion-only Character CRUD evidence
+
+Root cause: the live bridge reached `character_list_account_authority_disabled` after Nakama session validation succeeded, because assertion-only account-authority gating did not recognize the validated peer. The local fix tracks peers after successful `bind_validated_nakama_session`, permits Character CRUD only for those peers, and erases authorization on `clear_session`. Validation: login_gateway parse 0, Nakama focused GUT 11/11, diff-check 0.
