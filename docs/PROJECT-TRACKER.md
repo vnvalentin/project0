@@ -217,6 +217,10 @@ Progress: **100%** (1 of 1 items done)
 
 Progress: **75%** (6 of 8 items done)
 
+- **Current slice:** [183 — Restore readable dashboard layout and correct closed Goal percentages](slices/183-restore-readable-dashboard-layout.md) — **delivered; restored the prior `app.py` Reality/detail layout and count closed Goal issues as complete instead of showing 0% from unbackfilled WGL checklists**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **GitHub issue:** #374
+
 - Features: `done` [F-005](FEATURE-LIST.md#f-005-automated-validation-gate-and-test-telemetry), [F-007](FEATURE-LIST.md#f-007-living-architecture-anchor), [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard), [P-004](FEATURE-LIST.md#p-004-agent-assisted-delivery-orchestration), [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard); `queued` [P-005](FEATURE-LIST.md#p-005-remote-ssh-server-workspace), [P-006](FEATURE-LIST.md#p-006-token-efficient-asset-quarantine).
 - Tech debt: `done` [DT-007](TECHNICAL-DEBT-TRACKER.md#dt-007-lan-config-tests-spawned-a-real-server-on-the-fixed-default-port-9999-non-hermetic) — resolved with a validated `--server-port` override, ephemeral-port tests, and a reimport-first validation gate.
 
@@ -908,6 +912,11 @@ the phase exit gate; it is not a count of completed slices.
   - **Planning ticket:** [World Scale map](../.scratch/world-scale/map.md) (ticket 04), [ADR 0003](adr/0003-imperial-world-scale.md)
 
 #### Phase 13 — Delivery workflow capabilities
+
+- **Slice:** [183 — Restore readable dashboard layout and correct closed Goal percentages](slices/183-restore-readable-dashboard-layout.md) — **delivered; restored the prior readable Reality/detail layout and count closed Goal issues as complete instead of showing 0% from unbackfilled WGL checklists**
+  - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
+  - **Tech debt:** none identified
+  - **Planning ticket:** [Dashboard restructure map](https://github.com/vnvalentin/project0/issues/374)
 
 - **Slice:** [178 — Reality page phase bars use real Outcome-label completion](slices/178-reality-page-outcome-percentages.md) — **delivered; `/` and `/detail` now report identical active-phase percentages from the same `phase_milestones()` source**
   - **Feature:** [F-025](FEATURE-LIST.md#f-025-project-flow-visual-management-dashboard)
