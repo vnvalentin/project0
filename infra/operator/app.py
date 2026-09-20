@@ -11,6 +11,7 @@ from __future__ import annotations
 import hmac
 import os
 from dataclasses import asdict
+from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 
@@ -20,6 +21,7 @@ from .audit_store import SqliteAuditLog
 from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
 from .operator_auth import verify_operator_token
+from .control_contract import ControlAction
 
 
 def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str, assertion_secret_hex: str | None = None) -> FastAPI:
@@ -93,6 +95,22 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
     @app.get("/jobs", dependencies=[Depends(require_operator)])
     def jobs() -> dict:
         return {"jobs": [job.to_dict() for job in operations_service.recent_jobs()]}
+
+    @app.post("/control")
+    def control(request: dict[str, Any], authorization: str | None = Header(default=None), x_operator: str | None = Header(default=None)) -> dict:
+        operator = require_operator(authorization)
+        action = str(request.get("action", ""))
+        target = str(request.get("target", ""))
+        if action in {ControlAction.START.value, ControlAction.STOP.value, ControlAction.RESTART.value}:
+            require_scope(authorization, "lifecycle") if assertion_secret_hex else None
+            try:
+                job = getattr(operations_service, action)(target, (x_operator or operator).strip() or operator)
+            except UnknownServiceError as exc:
+                raise HTTPException(status_code=404, detail="unknown service") from exc
+            return job.to_dict()
+        if action in {ControlAction.KICK_PEER.value, ControlAction.DRAIN.value, ControlAction.RELOAD_TUNING.value, ControlAction.SET_DEGRADED.value}:
+            return {"outcome": "rejected", "reason": "executor_unavailable", "action": action, "target": target}
+        return {"outcome": "rejected", "reason": "unsupported_action", "action": action, "target": target}
 
     return app
 

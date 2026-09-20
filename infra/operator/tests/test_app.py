@@ -61,3 +61,15 @@ def test_status_one_known_is_200(client):
     body = resp.json()
     assert body["name"] == "game-server"
     assert body["active"] is True
+
+
+def test_control_rejects_unwired_gameplay_executor(client):
+    response = client.post("/control", json={"action": "drain", "target": "game-server"}, headers=_auth())
+    assert response.status_code == 200
+    assert response.json()["reason"] == "executor_unavailable"
+
+
+def test_control_routes_lifecycle_into_audited_operations(client):
+    response = client.post("/control", json={"action": "restart", "target": "game-server"}, headers=_auth())
+    assert response.status_code == 200
+    assert response.json()["action"] == "restart"
