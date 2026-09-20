@@ -26,6 +26,7 @@ var _sessions: Object = null
 # out-of-process login service drives across the wire.
 var _issuer: Object = null
 var _validator: Object = null
+var _nakama_authorized_peers: Dictionary = {}
 
 const OUTCOME_OK: String = "ok"
 const REASON_NO_SESSION: String = "no_session"
@@ -95,36 +96,40 @@ func get_presence_identity(peer_id: int) -> Dictionary:
 ## Public seam (Slice 175). Binds only the bounded identity result returned by
 ## the server-side Nakama validator; no client identity field reaches this call.
 func bind_validated_nakama_session(peer_id: int, validated: Dictionary) -> Dictionary:
-	return _characters.bind_validated_nakama_session(peer_id, validated)
+	var result: Dictionary = _characters.bind_validated_nakama_session(peer_id, validated)
+	if result.get("outcome", "") == OUTCOME_OK:
+		_nakama_authorized_peers[peer_id] = true
+	return result
 
 
 func clear_session(peer_id: int) -> void:
 	_sessions.clear(peer_id)
+	_nakama_authorized_peers.erase(peer_id)
 
 
 ## Character operations (delegate to CharacterService, which derives the account
 ## from the peer's session — the client never supplies an account_id). Refused in
 ## assertion-only mode; the client performs these on the login process.
 func list_characters(peer_id: int) -> Dictionary:
-	if not _account_authority_enabled:
+	if not _account_authority_enabled and not _nakama_authorized_peers.has(peer_id):
 		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.list_characters(peer_id)
 
 
 func create_character(peer_id: int, character_name, cosmetic) -> Dictionary:
-	if not _account_authority_enabled:
+	if not _account_authority_enabled and not _nakama_authorized_peers.has(peer_id):
 		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.create_character(peer_id, character_name, cosmetic)
 
 
 func select_character(peer_id: int, character_id) -> Dictionary:
-	if not _account_authority_enabled:
+	if not _account_authority_enabled and not _nakama_authorized_peers.has(peer_id):
 		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.select_character(peer_id, character_id)
 
 
 func delete_character(peer_id: int, character_id) -> Dictionary:
-	if not _account_authority_enabled:
+	if not _account_authority_enabled and not _nakama_authorized_peers.has(peer_id):
 		return {"outcome": REASON_ACCOUNT_AUTHORITY_DISABLED}
 	return _characters.delete_character(peer_id, character_id)
 
