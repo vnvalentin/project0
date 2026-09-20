@@ -4,7 +4,7 @@
 # Runs ON the deployment host; the self-hosted CI runner executes it locally,
 # so there is no SSH hop and no deploy credential. This replaced the retired
 # `git archive` deploy (Slice 104), which depended on artifacts
-# (.godot import cache, wgnetstack .so, host venv) that only ever existed on
+# (.godot import cache, host venv) that only ever existed on
 # this one machine.
 #
 # Usage:

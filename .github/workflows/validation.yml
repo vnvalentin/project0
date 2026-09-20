@@ -72,23 +72,6 @@ jobs:
       - name: Run enrollment and operator tests
         run: python -m pytest infra/enrollment/tests infra/operator/tests -q
 
-  go:
-    name: wgnetstack build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.23"
-          cache-dependency-path: native/wgnetstack/go.sum
-
-      - name: Build wgnetstack bridge
-        working-directory: native/wgnetstack
-        run: go build ./...
-
   launcher:
     name: Windows launcher tests
     # Every file in native/windows_launcher is `//go:build windows`, so these

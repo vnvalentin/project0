@@ -25,31 +25,3 @@ class FakeServiceController:
         self.calls.append((kind, action, identifier))
         ok = self._systemd_ok if kind == "systemd" else self._docker_ok
         return (ok, "ok" if ok else f"{kind} boom")
-
-
-class FakeInviteAdmin:
-    def __init__(self, code: str = "invite-abc123", fail: bool = False) -> None:
-        self.calls: list[int | None] = []
-        self._code = code
-        self._fail = fail
-
-    def mint_invite(self, expires_in_seconds: int | None) -> str:
-        self.calls.append(expires_in_seconds)
-        if self._fail:
-            raise RuntimeError("mint boom")
-        return self._code
-
-
-class FakePeerAdmin:
-    def __init__(self, outcome: str = "REVOKED", reject_reason: str | None = None) -> None:
-        self.calls: list[str] = []
-        self._outcome = outcome
-        self._reject_reason = reject_reason
-
-    def revoke_peer(self, public_key: str) -> str:
-        self.calls.append(public_key)
-        if self._reject_reason is not None:
-            from infra.operator.peers import PeerRevocationError
-
-            raise PeerRevocationError(self._reject_reason)
-        return self._outcome

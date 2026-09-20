@@ -11,8 +11,6 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $dist = Join-Path $repo "dist"
 $current = Join-Path $dist "current"
 $payload = Join-Path $repo "native\windows_launcher\payload"
-$dllName = "libwgnetstack_gdext.windows.template_release.x86_64.dll"
-$dllSource = Join-Path $repo "native\wgnetstack\gdext\build\$dllName"
 $work = Join-Path $repo "build\deployment-work"
 $clientStage = Join-Path $work "client"
 $clientZip = Join-Path $current "Project0-client-windows-x64-$Version.zip"
@@ -26,8 +24,6 @@ function Require-File([string]$Path, [string]$Description) {
 }
 
 Set-Location $repo
-Require-File $dllSource "Windows wgnetstack DLL"
-
 Write-Output "Cleaning generated deployment artifacts..."
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 if (Test-Path $payload) { Remove-Item $payload -Recurse -Force }
@@ -48,8 +44,6 @@ if ($exportExitCode -ne 0) {
     $exportWarning = "Godot returned exit code $exportExitCode after producing complete export artifacts; known GDExtension load warnings were observed during headless export."
     Write-Warning $exportWarning
 }
-Copy-Item $dllSource (Join-Path $clientStage $dllName)
-
 Write-Output "Creating portable client archive..."
 Compress-Archive -Path (Join-Path $clientStage "*") -DestinationPath $clientZip -CompressionLevel Optimal
 

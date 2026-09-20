@@ -4,7 +4,7 @@
 depends on; tests substitute a fake so no real network call is ever made.
 `RealLoginAuthorityClient` is the only implementation that talks to the login
 process's loopback HTTP endpoint (`server/login_loopback_http_endpoint.gd`,
-`POST /internal/verify-and-mint`) — mirroring `opnsense_client.py`'s
+`POST /internal/verify-and-mint`).
 `Protocol` + `Real*` split.
 
 Delivered for Slice 088 (docs/slices/088-auth-gated-onboarding-login-delegation.md).

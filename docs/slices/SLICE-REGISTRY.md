@@ -196,8 +196,9 @@ contended range and everything after it is tracked explicitly:
 | 179 | Import pinned Nakama Godot SDK and prove two-client socket path (F-039, #354, #386) | interactive |
 | 180 | Nakama socket gameplay bridge adapter foundation (F-039, #372) | interactive |
 | 181 | Wire Nakama gameplay bridge into authoritative simulation and prove live exchange (F-039, #372) | interactive |
+| 182 | Prune obsolete game WireGuard implementation (#393) | interactive |
 
-Next free slice: **182** (verify against `docs/slices/` before reserving).
+Next free slice: **183** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices

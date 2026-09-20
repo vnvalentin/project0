@@ -83,13 +83,9 @@ const CLIENT_LOGIN_SPLIT_ENV_VAR: String = "PROJECT0_CLIENT_LOGIN_SPLIT"
 
 # Slice 093: opt-in client HTTPS login/character flow (ADR 0005 Option A, WAN).
 # When enabled the client authenticates and performs Character CRUD over the
-# public HTTPS enrollment surface (client/enrollment_http_client.gd), obtains a
-# signed Character assertion, then presents it to the assertion-only game server
-# through the tunnel — instead of the ENet login/character path (which stays for
-# LAN development). Defaults ON under tunnel mode so the WAN launcher, which
-# already sets PROJECT0_TUNNEL=1, needs no extra flag.
+# public HTTPS surface, obtains a signed Character assertion, then presents it
+# to the assertion-only game server instead of the ENet login/character path.
 const CLIENT_HTTPS_LOGIN_ENV_VAR: String = "PROJECT0_CLIENT_HTTPS_LOGIN"
-const TUNNEL_ENV_VAR: String = "PROJECT0_TUNNEL"
 
 # Slice 167: opt-in Nakama login/session entry. Defaults off until the Character
 # service and world-entry ticket slices exist. The Nakama server key is a client
@@ -194,19 +190,14 @@ static func client_login_split_enabled() -> bool:
 
 
 ## Public seam (Slice 093): whether the client runs the HTTPS account/character
-## flow (log in + list/create/select over the enrollment service, obtain a
-## Character assertion, present it to the game server through the tunnel) instead
-## of the ENet login/character path. Precedence: PROJECT0_CLIENT_HTTPS_LOGIN="1"
-## forces it on and "0" forces it off; when unset it defaults to tunnel mode
-## (PROJECT0_TUNNEL="1"), so the WAN launcher enables it implicitly while LAN
-## development (no tunnel) keeps the ENet path.
+## flow instead of the ENet login/character path. The launcher sets
+## PROJECT0_CLIENT_HTTPS_LOGIN=1 for the direct-WAN flow; unset remains the LAN
+## development default.
 static func client_https_login_enabled() -> bool:
 	var explicit: String = OS.get_environment(CLIENT_HTTPS_LOGIN_ENV_VAR).strip_edges()
 	if explicit == "1":
 		return true
-	if explicit == "0":
-		return false
-	return OS.get_environment(TUNNEL_ENV_VAR).strip_edges() == "1"
+	return false
 
 
 static func client_nakama_login_enabled() -> bool:

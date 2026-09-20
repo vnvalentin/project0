@@ -12,7 +12,6 @@ $launcher = Join-Path $PSScriptRoot "..\native\windows_launcher"
 $required = @(
     "Project0.exe",
     "Project0.pck",
-    "libwgnetstack_gdext.windows.template_release.x86_64.dll"
 )
 foreach ($name in $required) {
     $source = Join-Path $SourcePackage $name
@@ -27,10 +26,6 @@ New-Item -ItemType Directory -Force -Path $payload | Out-Null
 
 Copy-Item (Join-Path $SourcePackage "Project0.exe") $payload
 Copy-Item (Join-Path $SourcePackage "Project0.pck") $payload
-Copy-Item (Join-Path $SourcePackage "libwgnetstack_gdext.windows.template_release.x86_64.dll") $payload
-$nested = Join-Path $payload "native\wgnetstack\gdext\build"
-New-Item -ItemType Directory -Force -Path $nested | Out-Null
-Copy-Item (Join-Path $SourcePackage "libwgnetstack_gdext.windows.template_release.x86_64.dll") $nested
 
 $output = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
     [System.IO.Path]::GetFullPath($OutputPath)

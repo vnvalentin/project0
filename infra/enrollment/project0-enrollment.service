@@ -1,5 +1,5 @@
 [Unit]
-Description=Project0 WireGuard enrollment API
+Description=Project0 public HTTPS API
 After=network-online.target
 Wants=network-online.target
 

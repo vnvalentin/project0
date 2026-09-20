@@ -5,7 +5,7 @@ import itertools
 from infra.operator.audit_store import SqliteAuditLog
 from infra.operator.jobs import Job, JobState
 from infra.operator.operations import OperationsService
-from infra.operator.tests.fakes import FakeInviteAdmin, FakeServiceController
+from infra.operator.tests.fakes import FakeServiceController
 
 
 def _job(job_id: str, *, state: JobState = JobState.SUCCEEDED, detail: str = "") -> Job:
@@ -41,7 +41,6 @@ def test_audit_persists_across_reopen(tmp_path):
         assert jobs[0].detail == "systemd boom"
     finally:
         reopened.close()
-
 
 def test_recent_respects_limit_and_returns_newest_window_in_order(tmp_path):
     store = SqliteAuditLog(str(tmp_path / "audit.sqlite3"))
@@ -85,29 +84,5 @@ def test_operations_audit_survives_store_reopen(tmp_path):
         assert [j.job_id for j in recorded] == [job.job_id]
         assert recorded[0].action == "restart"
         assert recorded[0].state is JobState.SUCCEEDED
-    finally:
-        reopened.close()
-
-
-def test_persisted_mint_invite_never_contains_the_secret(tmp_path):
-    db_path = str(tmp_path / "audit.sqlite3")
-    clock = itertools.count(1000).__next__
-    ids = itertools.count(1)
-
-    store = SqliteAuditLog(db_path)
-    ops = OperationsService(
-        {}, FakeServiceController(), store,
-        clock=clock, id_factory=lambda: f"job-{next(ids)}",
-        invite_admin=FakeInviteAdmin(code="secret-code-xyz"),
-    )
-    _, code = ops.mint_invite("alice", 3600)
-    assert code == "secret-code-xyz"
-    store.close()
-
-    reopened = SqliteAuditLog(db_path)
-    try:
-        for recorded in reopened.recent():
-            assert "secret-code-xyz" not in recorded.detail
-            assert "secret-code-xyz" not in str(recorded.to_dict())
     finally:
         reopened.close()

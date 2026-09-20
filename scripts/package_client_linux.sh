@@ -5,11 +5,9 @@
 # which only ever ran on a Windows workstation with a hand-built DLL. Everything
 # here cross-compiles, so a Linux runner can produce the shipped artifacts:
 #
-#   1. wgnetstack Go bridge  -> Windows static c-archive (mingw-w64)
-#   2. wgnetstack GDExtension -> Windows DLL (scons + mingw-w64 g++)
-#   3. Godot client          -> Windows .exe + .pck (export templates)
-#   4. WAN launcher          -> Windows .exe with the above embedded (GOOS=windows)
-#   5. Portable ZIP + deployment-manifest.json with SHA256s
+#   1. Godot client          -> Windows .exe + .pck (export templates)
+#   2. WAN launcher          -> Windows .exe with the above embedded (GOOS=windows)
+#   3. Portable ZIP + deployment-manifest.json with SHA256s
 #
 # Host prerequisites (see docs/slices/103-linux-client-package-build.md):
 #   godot 4.3 + 4.3.stable export templates, go >= 1.23, scons,
@@ -24,13 +22,7 @@ repo="$(pwd)"
 
 VERSION="${1:-${PROJECT0_CLIENT_VERSION:-0.12.0}}"
 OUT_DIR="${PROJECT0_PACKAGE_DIR:-dist/current}"
-# Pinned to the revision the shipped Windows DLL was built against (Slice 035).
-GODOT_CPP_REF="${PROJECT0_GODOT_CPP_REF:-d5cc777a89d899665fb61f1650ef0dc0cf6488c4}"
-
-DLL_NAME="libwgnetstack_gdext.windows.template_release.x86_64.dll"
-GDEXT_DIR="native/wgnetstack/gdext"
 STAGE="build/client-package/stage"
-SCONS_JOBS="${SCONS_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 VERSION_CONTRACT="shared/client_build_version.gd"
 VERSION_CONTRACT_BACKUP="$(mktemp)"
 
@@ -51,13 +43,6 @@ require_tool() {
 log "Checking cross-build toolchain"
 require_tool godot "Install Godot 4.3 plus the 4.3.stable export templates."
 require_tool go "Install Go >= 1.23."
-require_tool scons "Install with 'pip install scons' or 'apt-get install scons'."
-# The host-side GDExtension and its cgo archive need a NATIVE toolchain, not
-# just the mingw cross-compilers.
-require_tool gcc "Install build-essential (native gcc is needed for the Linux host build)."
-require_tool g++ "Install build-essential (native g++ is needed for the Linux host build)."
-require_tool x86_64-w64-mingw32-gcc "Install mingw-w64."
-require_tool x86_64-w64-mingw32-g++ "Install g++-mingw-w64-x86-64."
 require_tool zip "Install zip."
 require_tool git "Install git."
 
@@ -85,35 +70,6 @@ ensure_export_templates() {
 }
 ensure_export_templates
 
-log "Preparing godot-cpp at ${GODOT_CPP_REF}"
-if [[ ! -d "${GDEXT_DIR}/godot-cpp/.git" ]]; then
-	rm -rf "${GDEXT_DIR}/godot-cpp"
-	git clone --quiet --branch 4.3 https://github.com/godotengine/godot-cpp.git "${GDEXT_DIR}/godot-cpp"
-fi
-git -C "${GDEXT_DIR}/godot-cpp" fetch --quiet origin
-git -C "${GDEXT_DIR}/godot-cpp" checkout --quiet "${GODOT_CPP_REF}"
-
-log "Building wgnetstack Windows c-archive"
-make -C native/wgnetstack cgoarchive-windows
-
-log "Building wgnetstack GDExtension Windows DLL"
-(cd "${GDEXT_DIR}" && scons -j"${SCONS_JOBS}" platform=windows target=template_release use_mingw=yes)
-dll_built="${GDEXT_DIR}/build/${DLL_NAME}"
-[[ -f "${dll_built}" ]] || { echo "ERROR: GDExtension DLL not produced at ${dll_built}" >&2; exit 1; }
-
-# Godot runs this export ON Linux, and addons/wgnetstack/wgnetstack.gdextension
-# maps linux.editor.x86_64 to the template_debug .so. Godot loads the HOST
-# platform's library before it will export any preset, so without this the
-# Windows export aborts with "configuration errors". Building it here is what
-# makes the package reproducible on a clean runner.
-log "Building wgnetstack Linux c-archive (export host)"
-make -C native/wgnetstack cgoarchive
-
-log "Building wgnetstack GDExtension Linux .so (export host)"
-(cd "${GDEXT_DIR}" && scons -j"${SCONS_JOBS}" platform=linux target=template_debug)
-host_so="${GDEXT_DIR}/build/libwgnetstack_gdext.linux.template_debug.x86_64.so"
-[[ -f "${host_so}" ]] || { echo "ERROR: host GDExtension not produced at ${host_so}" >&2; exit 1; }
-
 log "Exporting Godot Windows client"
 rm -rf "${STAGE}"
 mkdir -p "${STAGE}"
@@ -133,8 +89,6 @@ done
 if [[ "${export_status}" -ne 0 ]]; then
 	echo "WARNING: godot export exited ${export_status} but produced complete artifacts."
 fi
-cp "${dll_built}" "${STAGE}/${DLL_NAME}"
-
 log "Building WAN launcher for Windows"
 mkdir -p "${OUT_DIR}"
 launcher_out="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.exe"
@@ -143,10 +97,8 @@ launcher_out="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.exe"
 
 wan_package="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}"
 rm -rf "${wan_package}"
-mkdir -p "${wan_package}/native/wgnetstack/gdext/build"
 cp "${launcher_out}" "${wan_package}/Project0-WAN-${VERSION}.exe"
-cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${STAGE}/${DLL_NAME}" "${wan_package}/"
-cp "${STAGE}/${DLL_NAME}" "${wan_package}/native/wgnetstack/gdext/build/"
+cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${wan_package}/"
 wan_zip="${repo}/${OUT_DIR}/Project0-WAN-${VERSION}.zip"
 rm -f "${wan_zip}"
 (cd "${OUT_DIR}" && zip -q -r -X "$(basename "${wan_zip}")" "$(basename "${wan_package}")")
