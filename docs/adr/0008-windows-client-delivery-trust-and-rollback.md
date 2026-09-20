@@ -78,10 +78,22 @@ a trusted full re-release in v1. The launcher becomes the stable owner of mode,
 onboarding, update, and recovery state; the game client remains focused on
 runtime presentation and server-authoritative gameplay.
 
+## Release staging decision
+
+The initial release may ship the trusted packaged client, clean packaged boot,
+first-install path, mandatory version gate, and public gameplay path without
+enabling or advertising automatic updates. Live update, interrupted-swap
+recovery, failed-readiness rollback, and retry exhaustion are post-release
+hardening work. The existing updater code and unit tests remain in the tree, but
+the auto-update path must not be treated as release-proven until executable
+packaged-client evidence covers those transitions.
+
 ## Validation obligation
 
 Implementation slices must add public-seam tests for the handshake, manifest
 signature and hash failures, staging, atomic restart, interrupted-swap recovery,
 rollback exhaustion, LAN/WAN selection, onboarding, and XInput action parity.
-Packaged Windows runtime evidence is required before this ADR can move from
-`proposed` to `accepted`.
+Initial-release acceptance requires packaged Windows boot and first-install
+runtime evidence. This ADR cannot move to fully `accepted`, and automatic
+updates cannot be enabled, until packaged Windows runtime evidence also covers
+live update, interrupted-swap recovery, and rollback.

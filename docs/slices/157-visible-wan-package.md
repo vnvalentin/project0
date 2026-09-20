@@ -2,7 +2,7 @@
 
 GitHub issue: #100 (Goal: client-auto-update); also #182 (unified-launcher)
 
-Status: **in progress**
+Status: **in progress; initial release-ready, post-release update hardening deferred**
 
 Phase: 16 (Client delivery experience)
 
@@ -33,15 +33,19 @@ and world entry, shared match binding, movement submission, and
 Project0-authoritative state return. That evidence supersedes any earlier
 assumption that Slice 157 must prove the WAN gameplay transport itself.
 
-Slice 157 remains open only for the distinct Windows client-delivery contract:
-visible package contents, stable installation, explicit signed-update consent,
-and executable first-install, live-update, and rollback evidence. Nakama
-runtime validation does not by itself prove those launcher lifecycle gates.
+Slice 157 remains open only for the distinct Windows client-delivery contract.
+Initial release requires visible package contents, stable installation,
+explicit onboarding, clean packaged boot, and executable first-install evidence.
+Live update and rollback are deliberately deferred until after initial release
+and must be completed before automatic updates are enabled or advertised.
+Nakama runtime validation does not by itself prove those launcher lifecycle
+gates.
 
 ## Invariants
 
 - Signed manifest and PCK verification remain unchanged.
-- Updates still use the existing atomic swap and rollback transaction.
+- The existing atomic swap and rollback transaction remains disabled from the
+	initial-release claim until its packaged runtime proof is complete.
 - The enrollment container remains read-only over release artifacts.
 - LAN users continue using the portable client ZIP.
 
@@ -58,8 +62,12 @@ runtime validation does not by itself prove those launcher lifecycle gates.
 	`source_tree_dirty: false`, `godot_export_exit_code: 0`, and
 	`godot_cpp_ref: d5cc777`; the portable ZIP contained exactly
 	`Project0.exe` and `Project0.pck`. This proves release artifact production,
-	not the launcher lifecycle. First-install, live-update, and rollback runtime
-	evidence remain pending, so the slice is not complete.
+	not the deferred update transaction.
+- Native Windows runtime evidence for the current package completed with a clean
+	`Project0.exe --headless --quit-after 2` boot and a real launcher first install
+	into an isolated `%LOCALAPPDATA%/Project0/payload` directory; exit code was 0
+	and both payload files were present. Live update and rollback evidence remains
+	post-release work by decision.
 - [Slice 181](181-nakama-live-gameplay-bridge.md) provides the current WAN
 	gameplay evidence: both fresh clients exited 0 after Nakama session,
 	Character, world-entry, shared-match, movement, and authoritative-state

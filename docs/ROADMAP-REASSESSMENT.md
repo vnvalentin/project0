@@ -69,20 +69,22 @@ transaction and rollback, controller parity, the client-download-page map, and
 the remaining packaged-Windows evidence. The download page is part of this
 outcome, not a separate infrastructure phase.
 
-**Status (2026-09-19): nearly closed.** The gate (Slice 146), signed manifest
+**Status (2026-09-20): release-ready with post-release hardening deferred.** The gate (Slice 146), signed manifest
 (147), HTTPS staging (148), updater transaction (149), trusted signing key
 (150), export-metadata exclusion (151, closes DT-015), patch hosting (152),
 launcher orchestration (153), signed download/staging (154), the
 `CLIENT_OUTDATED` handoff (155), the release-publishes-downloads pipeline
-(156), and the visible-package/stable-directory follow-on (157, in-progress)
-are delivered or in flight. Remaining gap: end-to-end packaged-Windows runtime
-evidence for first install and a live update/rollback, plus the
-controller-integration slices (#118-120) which have not started.
+(156), and the visible-package/stable-directory follow-on (157) are delivered
+or in flight. Initial-release evidence now covers clean packaged boot and real
+first install. Live update/rollback proof is deliberately deferred until after
+initial release as a hardening slice; controller-integration slices (#118-120)
+remain separate and have not started.
 
-**Exit evidence:** public download surface, reproducible release manifest,
-packaged-client runtime proof for first install and update/rollback, explicit
-LAN/WAN onboarding, controller parity, and no unauthenticated path into
-gameplay.
+**Initial-release evidence:** public download surface, reproducible release
+manifest, clean packaged-client boot, first-install runtime proof, explicit
+LAN/WAN onboarding, and no unauthenticated path into gameplay. **Post-release
+hardening evidence:** live signed update, interrupted-swap recovery, failed
+readiness rollback, and controller parity.
 
 ### B. Reliable runtime and operator confidence
 
@@ -243,10 +245,11 @@ milestone instead.
 
 ## Immediate order
 
-1. Close A: capture packaged-Windows first-install and update/rollback
-  runtime evidence and land Slice 157's remaining evidence. Reconcile the
-  already-closed controller issues and download-page follow-ups afterward;
-  do not reopen the old controller sequence as new work without a live issue.
+1. Close A's initial-release gate with packaged-Windows first-install evidence
+  and ship the static/full-download path. Defer live update/rollback proof to a
+  post-release hardening slice, then reconcile the already-closed controller
+  issues and download-page follow-ups; do not reopen the old controller
+  sequence as new work without a live issue.
 2. Close B's production mutation/rollback evidence on the existing deploy
    path, decide DT-012, and resolve the nine open server-admin-console
    questions (#166-174) into a capstone spec before allocating any console

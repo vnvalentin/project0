@@ -440,9 +440,10 @@ feature so future drift is easier to detect.
   [Slice 157](slices/157-visible-wan-package.md) (visible launcher package,
   stable installation directory, and explicit update confirmation).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
-  telemetry; the update and rollback behavior additionally requires executable
-  packaged-client runtime evidence before this feature can become `Implemented`.
-  No update or rollback claim is accepted without that runtime evidence.
+  telemetry. Initial release requires executable packaged-client boot and
+  first-install evidence. The update and rollback behavior remains a deferred
+  post-release hardening requirement and cannot be enabled or claimed as
+  `Implemented` until executable packaged-client runtime evidence exists.
 - Related work: [Windows client delivery contract](../.scratch/client-auto-update/spec.md),
   [ADR 0008](adr/0008-windows-client-delivery-trust-and-rollback.md),
   [#100](https://github.com/vnvalentin/project0/issues/100),

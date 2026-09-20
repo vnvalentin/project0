@@ -550,7 +550,7 @@ the phase exit gate; it is not a count of completed slices.
   - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
   - **GitHub issue:** [#421](https://github.com/vnvalentin/project0/issues/421)
 
-- **Slice:** [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in-progress; Nakama Slice 181 now covers the validated public WAN gameplay path, while launcher payload installation and executable first-install/live-update/rollback evidence remain the separate F-037 gate.** Prior: [156](slices/156-release-client-downloads.md).
+- **Slice:** [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in-progress; initial release has clean packaged boot and first-install evidence, while live update/rollback proof is deliberately deferred as post-release hardening before automatic updates are enabled.** Prior: [156](slices/156-release-client-downloads.md).
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
 
