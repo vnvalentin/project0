@@ -28,7 +28,7 @@ def main() -> int:
 
     require("nakama-db:" in compose, "compose defines nakama-db service", failures)
     require("image: postgres:16.8-alpine" in compose, "nakama-db uses pinned PostgreSQL image", failures)
-    require('profiles: ["nakama"]' in compose, "Nakama services are profile-gated", failures)
+    require('profiles: ["nakama"]' not in compose, "Nakama services are mandatory default-stack services", failures)
     require("/var/lib/project0/nakama-postgres" in compose, "PostgreSQL data persists under /var/lib/project0", failures)
     require("/etc/project0/nakama-db.env" in compose, "PostgreSQL secrets come from /etc/project0", failures)
     require("registry.heroiclabs.com/heroiclabs/nakama" in compose, "compose uses official Nakama image", failures)
