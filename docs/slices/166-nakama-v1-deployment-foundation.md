@@ -36,16 +36,17 @@ any live server mutation.
 
 ## Falsifiable hypothesis
 
-If Nakama is added as a profile-scoped single-node service with durable
-PostgreSQL storage, private admin surfaces, host-side secrets, and an explicit
-backup-before-migration runbook, then the deployment foundation can be validated
-without starting a live Nakama service or exposing destructive admin surfaces.
+If Nakama is part of the single deployment stack as a single-node service with
+durable PostgreSQL storage, private admin surfaces, host-side secrets, and an
+explicit backup-before-migration runbook, then the deployment foundation can be
+validated without starting a live Nakama service or exposing destructive admin
+surfaces.
 
 ## BDD
 
-1. Given the compose deployment is rendered for the Nakama profile, when the
-   foundation is inspected, then Nakama depends on a durable PostgreSQL service
-   and stores data outside the image.
+1. Given the default compose deployment is rendered, when the foundation is
+  inspected, then Nakama depends on a durable PostgreSQL service and stores
+  data outside the image.
 2. Given the Nakama service is configured, when its public ports are inspected,
    then only the client API/socket surface is eligible for public binding while
    Console/admin/metrics surfaces stay private or unbound.
@@ -60,7 +61,7 @@ without starting a live Nakama service or exposing destructive admin surfaces.
 
 `scripts/check_nakama_deployment_foundation.py` is the executable public-seam
 check for this slice. It inspects the committed compose/runbook contract for
-the Nakama services, profile gating, durable PostgreSQL storage, private
+the Nakama services, mandatory default-stack membership, durable PostgreSQL storage, private
 Console/admin posture, host-side secret/config paths, explicit migrations, and
 documented backup/rollback expectations.
 

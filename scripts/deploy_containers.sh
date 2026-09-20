@@ -8,7 +8,8 @@
 # this one machine.
 #
 # Usage:
-#   scripts/deploy_containers.sh --tag <image-tag> [--profiles a,b] [--dry-run]
+#   scripts/deploy_containers.sh --tag <image-tag> [--profiles a,b]
+#                                [--nakama-tag <nakama-image-tag>] [--dry-run]
 #                                [--no-rollback]
 #
 # Safety model:
@@ -23,6 +24,7 @@ set -euo pipefail
 
 TAG=""
 PROFILES=""
+NAKAMA_TAG="${NAKAMA_IMAGE_TAG:-3.37.0}"
 DRY_RUN=false
 ROLLBACK=true
 
@@ -30,6 +32,7 @@ while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--tag) TAG="$2"; shift 2 ;;
 		--profiles) PROFILES="$2"; shift 2 ;;
+		--nakama-tag) NAKAMA_TAG="$2"; shift 2 ;;
 		--dry-run) DRY_RUN=true; shift ;;
 		--no-rollback) ROLLBACK=false; shift ;;
 		*) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
@@ -49,6 +52,7 @@ fi
 export PROJECT0_REQUIRED_CLIENT_VERSION
 export PROJECT0_UPDATE_MANIFEST_BASE_URL="${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://project0.valentin.vip/patches}"
 state_file="/var/lib/project0/deployed-tag"
+components_file="/var/lib/project0/deployed-components"
 
 log() { printf '\n== %s\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
@@ -60,20 +64,25 @@ if [[ -n "${PROFILES}" ]]; then
 fi
 
 previous_tag="$(cat "${state_file}" 2>/dev/null || echo "")"
+previous_nakama_tag="$(sed -n 's/^nakama_tag=//p' "${components_file}" 2>/dev/null || true)"
+if [[ -n "${previous_tag}" && -z "${previous_nakama_tag}" && "${ROLLBACK}" == true ]]; then
+	fail "No previous Nakama tag is recorded; refusing an unpaired rollback target"
+fi
 
 log "Deploy plan"
 echo "  compose file  : ${compose_file}"
 echo "  image tag     : ${TAG}"
 echo "  previous tag  : ${previous_tag:-<none recorded>}"
 echo "  profiles      : ${PROFILES:-<default>}"
+echo "  Nakama tag    : ${NAKAMA_TAG} (required)"
 echo "  dry run       : ${DRY_RUN}"
 
-services="$(PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" config --services | tr '\n' ' ')"
+services="$(PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" config --services | tr '\n' ' ')"
 echo "  services      : ${services}"
 
 if [[ "${DRY_RUN}" == true ]]; then
 	log "Dry run: resolving images and current state only; nothing is changed"
-	PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" config --images
+	PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" config --images
 	docker compose "${compose_args[@]}" ps 2>/dev/null || true
 	log "Dry run complete"
 	exit 0
@@ -87,7 +96,7 @@ log "Pulling images for tag ${TAG}"
 pull_attempts="${PULL_ATTEMPTS:-20}"
 pulled=false
 for ((attempt = 1; attempt <= pull_attempts; attempt++)); do
-	if PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" pull >/dev/null 2>&1; then
+	if PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" pull >/dev/null 2>&1; then
 		echo "  pulled tag ${TAG} (attempt ${attempt})"
 		pulled=true
 		break
@@ -102,7 +111,7 @@ if [[ "${pulled}" != true ]]; then
 fi
 
 log "Starting stack"
-PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" up -d --remove-orphans \
+PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" up -d --remove-orphans \
 	|| fail "compose up failed for tag '${TAG}'"
 
 # Health is what proves a deploy. Containers without a declared healthcheck are
@@ -138,7 +147,7 @@ if ! await_health; then
 	docker compose "${compose_args[@]}" ps
 	if [[ "${ROLLBACK}" == true && -n "${previous_tag}" ]]; then
 		log "ROLLBACK: redeploying previous tag ${previous_tag}"
-		PROJECT0_IMAGE_TAG="${previous_tag}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
+		PROJECT0_IMAGE_TAG="${previous_tag}" NAKAMA_IMAGE_TAG="${previous_nakama_tag:-${NAKAMA_TAG}}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
 		fail "deploy of '${TAG}' failed health; rolled back to '${previous_tag}'"
 	fi
 	fail "deploy of '${TAG}' failed health and no previous tag was recorded to roll back to"
@@ -153,7 +162,7 @@ rollback_and_fail() {
 	docker compose "${compose_args[@]}" ps
 	if [[ "${ROLLBACK}" == true && -n "${previous_tag}" ]]; then
 		log "ROLLBACK: redeploying previous tag ${previous_tag}"
-		PROJECT0_IMAGE_TAG="${previous_tag}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
+		PROJECT0_IMAGE_TAG="${previous_tag}" NAKAMA_IMAGE_TAG="${previous_nakama_tag:-${NAKAMA_TAG}}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
 		fail "${reason}; rolled back to '${previous_tag}'"
 	fi
 	fail "${reason} and no previous tag was recorded to roll back to"
@@ -201,6 +210,11 @@ fi
 # via sudo directly rather than relying on a failed redirect as control flow.
 sudo -n mkdir -p "$(dirname "${state_file}")"
 printf '%s\n' "${TAG}" | sudo -n tee "${state_file}" >/dev/null
+{
+	printf 'project0_tag=%s\n' "${TAG}"
+	printf 'nakama_tag=%s\n' "${NAKAMA_TAG}"
+	printf 'profiles=%s\n' "${PROFILES}"
+} | sudo -n tee "${components_file}" >/dev/null
 
 log "Deployed tag ${TAG}"
 docker compose "${compose_args[@]}" ps

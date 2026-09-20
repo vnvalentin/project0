@@ -8,8 +8,7 @@ bridge code depends on Nakama.
 
 ## Topology
 
-Run Nakama as an opt-in Docker Compose profile beside the existing Project0
-stack:
+Run Nakama as part of the single Docker Compose-managed Project0 stack:
 
 - `nakama-db`: PostgreSQL `16.8-alpine`, durable data under
   `/var/lib/project0/nakama-postgres` by default.
@@ -18,7 +17,22 @@ stack:
   `/etc/project0/nakama` by default.
 
 The v1 posture is single-node self-hosted Nakama. It is not a high-availability
-or clustered topology.
+or clustered topology. Nakama and its PostgreSQL dependency are always part of
+the same operator deployment unit as the Project0 services.
+
+The registry-driven deploy command keeps the Project0 and Nakama image tags
+explicit:
+
+```bash
+scripts/deploy_containers.sh \
+  --tag <project0-image-tag> \
+  --nakama-tag <nakama-image-tag>
+```
+
+The host ledger at `/var/lib/project0/deployed-components` records both image
+tags. A rollback refuses to proceed when a previous Nakama tag is not recorded,
+preventing an image-only rollback from being mistaken for a database-safe
+recovery.
 
 ## Pre-implementation database verification
 
@@ -73,7 +87,8 @@ modules, auth model, storage schema expectations, or database configuration:
    for small playtests.
 2. Back up `/etc/project0/nakama-db.env` and `/etc/project0/nakama/nakama.yml`
    into the operator's secured backup path.
-3. Record the current `NAKAMA_IMAGE_TAG` and Project0 image tag.
+3. Record the current `NAKAMA_IMAGE_TAG` and Project0 image tag in
+  `/var/lib/project0/deployed-components`.
 4. Run the migration and health/smoke checks.
 5. If rollback crosses a schema boundary, choose and document one of:
    restore database backup, run a verified `migrate down`, or switch to a

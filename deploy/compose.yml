@@ -23,10 +23,8 @@ services:
   # Nakama v1 platform foundation. Profile-gated so the existing stack does not
   # start a new database unless the operator explicitly opts in. Secrets and the
   # Nakama YAML config live under /etc/project0, not in this repo or image.
-  nakama-db:
     image: postgres:16.8-alpine
     container_name: project0-nakama-db
-    profiles: ["nakama"]
     env_file:
       - path: /etc/project0/nakama-db.env
         required: true
@@ -44,7 +42,6 @@ services:
   nakama:
     image: registry.heroiclabs.com/heroiclabs/nakama:${NAKAMA_IMAGE_TAG:-3.37.0}
     container_name: project0-nakama
-    profiles: ["nakama"]
     command: ["/bin/sh", "-ec", "nakama migrate up --config /nakama/data/nakama.yml && exec nakama --config /nakama/data/nakama.yml"]
     depends_on:
       nakama-db:
