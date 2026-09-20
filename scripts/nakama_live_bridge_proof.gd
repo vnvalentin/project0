@@ -189,7 +189,8 @@ func _game_port() -> int:
 
 func _proof_character_name() -> String:
 	var suffix: String = _player_identity.nakama_user_id.replace("-", "").substr(0, 8)
-	return "LiveBridge-%s-%s-%s" % [_role, suffix, str(Time.get_ticks_usec()).substr(-8)]
+	var run_suffix: String = str(Time.get_ticks_usec()).substr(-8)
+	return "L%s%s%s" % [_role, suffix, run_suffix]
 
 
 func _argument_value(prefix: String) -> String:
