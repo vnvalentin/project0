@@ -513,7 +513,7 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
 
 **Phase 17 — Fleet operations console**
 
-Progress: **29%** (2 of 7 implementation slices delivered/in progress)
+Progress: **43%** (3 of 7 implementation slices delivered/in progress)
 
 - Source goal: [server-admin-console map](../.scratch/server-admin-console/map.md).
 - Scope: a private, authenticated LAN console showing a versioned ops-snapshot
@@ -521,7 +521,7 @@ Progress: **29%** (2 of 7 implementation slices delivered/in progress)
   authorized, audited control-action catalog kept separate from public traffic.
   Extends the operator control plane (Slices 061–063).
 - Feature: `in-progress` [F-041](FEATURE-LIST.md#f-041-fleet-operations-console) — Slice 184 delivered; Slices 185-190 reserved by the capstone handoff.
-- Current slices: [184 — Server admin console OpsSnapshot contract](slices/184-ops-snapshot-contract.md) — **delivered; pure server-owned contract with focused GUT coverage.** [185 — Atomic OpsSnapshot writer](slices/185-ops-snapshot-writer.md) — **delivered; atomic temporary-write/publish seam with focused HealthReporter coverage.**
+- Current slices: [184 — Server admin console OpsSnapshot contract](slices/184-ops-snapshot-contract.md) — **delivered; pure server-owned contract with focused GUT coverage.** [185 — Atomic OpsSnapshot writer](slices/185-ops-snapshot-writer.md) — **delivered; atomic temporary-write/publish seam with focused HealthReporter coverage.** [186 — OpsSnapshot registry and freshness](slices/186-ops-registry-freshness.md) — **delivered; deterministic manifest scanner with healthy/stale/absent/unreadable classification.**
 
 **Phase 18 — Horizontal scale and zone sharding**
 

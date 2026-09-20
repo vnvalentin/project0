@@ -54,7 +54,8 @@ feature so future drift is easier to detect.
   registry, read-only console, and authenticated control seams.
 - Implementation slices: [Slice 184](slices/184-ops-snapshot-contract.md)
   (pure OpsSnapshot contract and validation), [Slice 185](slices/185-ops-snapshot-writer.md)
-  (atomic OpsSnapshot writer); Slices 186-190 are reserved in
+  (atomic OpsSnapshot writer), [Slice 186](slices/186-ops-registry-freshness.md)
+  (registry and freshness scanner); Slices 187-190 are reserved in
   the capstone handoff for writers, registry, console, control, auth, and proof.
 - Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
   [ADR 0010](adr/0010-server-admin-console.md), and #165.
@@ -70,6 +71,12 @@ feature so future drift is easier to detect.
     and registry discovery can consume it.
     Validation evidence: focused HealthReporter GUT 8/8 with no implementation
     diagnostics.
+  - Date: 2026-09-20
+    What changed: Delivered Slice 186's manifest-backed registry and freshness
+    scanner.
+    Why: The console needs deterministic healthy/stale/absent/unreadable
+    classification before it can render or control a fleet.
+    Validation evidence: focused pytest 3/3 and Python compilation passed.
 
 ### F-040: Server-only normalized World directive validation
 
