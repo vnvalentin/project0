@@ -84,7 +84,7 @@ services:
       PROJECT0_ACCOUNTS_DB_PATH: "accounts.db"
       PROJECT0_NAKAMA_URL: "${PROJECT0_NAKAMA_URL:-http://192.168.1.254:7350}"
       PROJECT0_HEALTH_FILE: "/data/health.json"
-      PROJECT0_OPS_SNAPSHOT_FILE: "/ops-snapshots/project0-game/ops_snapshot.json"
+      PROJECT0_OPS_SNAPSHOT_FILE: "/ops-snapshots/ops_snapshot.json"
       PROJECT0_SERVER_ID: "project0-game"
       PROJECT0_SERVER_VERSION: "${PROJECT0_IMAGE_TAG:-main}"
       PROJECT0_REQUIRED_CLIENT_VERSION: "${PROJECT0_REQUIRED_CLIENT_VERSION:-}"
@@ -124,7 +124,7 @@ services:
       PROJECT0_LOGIN_PORT: "9998"
       PROJECT0_LOGIN_ACCOUNTS_DB_PATH: "login_accounts.db"
       PROJECT0_HEALTH_FILE: "/data/health.json"
-      PROJECT0_OPS_SNAPSHOT_FILE: "/ops-snapshots/project0-login/ops_snapshot.json"
+      PROJECT0_OPS_SNAPSHOT_FILE: "/ops-snapshots/ops_snapshot.json"
       PROJECT0_SERVER_ID: "project0-login"
       PROJECT0_SERVER_VERSION: "${PROJECT0_IMAGE_TAG:-main}"
     ports:
