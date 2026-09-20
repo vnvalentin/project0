@@ -6,8 +6,21 @@ and Nakama surfaces.
 
 ## Read-only deployment
 
-The service is the `operator-console` Compose service, enabled with the
-`operator` profile. It binds to the LAN address on port 8090 by default and
+The services are `operator` and `operator-console`, enabled with the
+`operator` profile. On `okami`, port 8090 is occupied by an unrelated service,
+so the console binds to LAN port 18090. Start both services with the deployed
+Project0 image tag so the operator API includes the merged control adapter:
+
+```sh
+export PROJECT0_IMAGE_TAG=sha-7fdbb30c2f7a8cf16a37308588fdac99144ab300
+export OPERATOR_CONSOLE_PORT=18090
+sudo -n env PROJECT0_IMAGE_TAG="$PROJECT0_IMAGE_TAG" \
+	OPERATOR_CONSOLE_PORT="$OPERATOR_CONSOLE_PORT" \
+	docker compose -f deploy/compose.yml --profile operator \
+	up -d operator operator-console
+```
+
+The console binds to the LAN address on port 18090 and
 mounts these paths read-only:
 
 - `/etc/project0/operator-console/servers.json`
@@ -16,6 +29,10 @@ mounts these paths read-only:
 The console exposes `/healthz`, `/`, and `/server/<server_id>`. Unknown or stale
 snapshots are displayed as non-healthy states; they are never treated as live
 authority.
+
+The private operator API binds to loopback on port 8099. Invalid bearer
+assertions return HTTP 403; valid privileged action proofs remain a separate
+operator step and must never be run from public traffic.
 
 ## Control boundary
 
