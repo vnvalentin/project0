@@ -55,7 +55,8 @@ feature so future drift is easier to detect.
 - Implementation slices: [Slice 184](slices/184-ops-snapshot-contract.md)
   (pure OpsSnapshot contract and validation), [Slice 185](slices/185-ops-snapshot-writer.md)
   (atomic OpsSnapshot writer), [Slice 186](slices/186-ops-registry-freshness.md)
-  (registry and freshness scanner); Slices 187-190 are reserved in
+  (registry and freshness scanner), [Slice 187](slices/187-operator-console-read-only-surface.md)
+  (read-only LAN console surface); Slices 188-190 are reserved in
   the capstone handoff for writers, registry, console, control, auth, and proof.
 - Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
   [ADR 0010](adr/0010-server-admin-console.md), and #165.
@@ -77,6 +78,13 @@ feature so future drift is easier to detect.
     Why: The console needs deterministic healthy/stale/absent/unreadable
     classification before it can render or control a fleet.
     Validation evidence: focused pytest 3/3 and Python compilation passed.
+  - Date: 2026-09-20
+    What changed: Delivered Slice 187's read-only operator-console surface and
+    auxiliary Compose service.
+    Why: Operators need a safe fleet/detail view before privileged controls are
+    introduced.
+    Validation evidence: focused pytest 4/4, Python compilation, and diff check
+    passed; Docker was unavailable locally so the service was not started.
 
 ### F-040: Server-only normalized World directive validation
 
@@ -88,8 +96,6 @@ feature so future drift is easier to detect.
 - Implementation slices: Not allocated; the originating task issue must resolve before a slice is promoted to `Ready`.
 - Validation: Planned. The first slice must provide fixture-backed accepted, rejected, timeout, fallback, version-mismatch, and non-blocking public-seam evidence plus machine-readable validation telemetry.
 - Related work: [DM Guild map](../.scratch/dm-guild/map.md), [DM Guild specification](../.scratch/dm-guild/spec.md), [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md), [GitHub task #444](https://github.com/vnvalentin/project0/issues/444), and [governing issue #421](https://github.com/vnvalentin/project0/issues/421).
-
-### F-039: Nakama v1 entry and realtime foundation
 
 ### F-039: Nakama v1 entry and realtime foundation
 
