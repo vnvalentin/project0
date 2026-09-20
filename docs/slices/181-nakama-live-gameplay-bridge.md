@@ -77,5 +77,6 @@ godot --headless --path . --check-only -s scripts/nakama_live_bridge_proof.gd
 ```
 
 The parse command passed with no diagnostics. A no-credential invalid-role smoke
-run exited 1 and wrote only the redacted state fields. The live two-process
-proof was not run, and this record does not claim it passed.
+run exited 1 and wrote only the redacted state fields. The harness parser fix is
+pending deployment; the live two-process proof was not run, and this record does
+not claim it passed.
