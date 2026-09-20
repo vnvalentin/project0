@@ -151,3 +151,9 @@ assigned by GitHub itself. `docs/PROJECT-TRACKER.md` and
 `docs/TECHNICAL-DEBT-TRACKER.md` are unaffected and remain committed-file
 records owned by a single integrator, per
 [docs/RECORD-OWNERSHIP.md](docs/RECORD-OWNERSHIP.md).
+
+A Feature issue states the gap between the current condition and its parent
+Goal's ideal condition, resolved only by measurable proof the gap closed; a
+Slice issue names the root cause one step resolves toward that proof. See
+[Goal, Feature, and Slice semantics](docs/DEVELOPMENT-WORKFLOW.md#goal-feature-and-slice-semantics-2026-09-20)
+for the full definitions before opening either.
