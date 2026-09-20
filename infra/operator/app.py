@@ -25,16 +25,28 @@ from .operator_auth import verify_operator_token
 def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str, assertion_secret_hex: str | None = None) -> FastAPI:
     app = FastAPI(title="Project0 Operator Control Plane")
 
-    def require_operator(authorization: str | None = Header(default=None)) -> None:
+    def require_operator(authorization: str | None = Header(default=None)) -> str:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="missing bearer token")
         presented = authorization[len("Bearer "):]
         if assertion_secret_hex:
-            if verify_operator_token(presented, assertion_secret_hex) is None:
+            identity = verify_operator_token(presented, assertion_secret_hex)
+            if identity is None:
                 raise HTTPException(status_code=403, detail="invalid operator assertion")
-            return
+            return identity.identity
         if not hmac.compare_digest(presented, operator_token):
             raise HTTPException(status_code=403, detail="invalid operator token")
+        return "operator"
+
+    def require_scope(authorization: str | None, scope: str) -> str:
+        if assertion_secret_hex:
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(status_code=401, detail="missing bearer token")
+            identity = verify_operator_token(authorization[len("Bearer "):], assertion_secret_hex)
+            if identity is None or ("*" not in identity.scopes and scope not in identity.scopes):
+                raise HTTPException(status_code=403, detail="operator scope denied")
+            return identity.identity
+        return "operator"
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -52,7 +64,8 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
             raise HTTPException(status_code=404, detail="unknown service") from exc
 
     @app.post("/services/{name}/restart", dependencies=[Depends(require_operator)])
-    def restart(name: str, x_operator: str | None = Header(default=None)) -> dict:
+    def restart(name: str, authorization: str | None = Header(default=None), x_operator: str | None = Header(default=None)) -> dict:
+        require_scope(authorization, "lifecycle") if assertion_secret_hex else None
         try:
             job = operations_service.restart(name, (x_operator or "operator").strip() or "operator")
         except UnknownServiceError as exc:
@@ -60,7 +73,8 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
         return job.to_dict()
 
     @app.post("/services/{name}/start", dependencies=[Depends(require_operator)])
-    def start(name: str, x_operator: str | None = Header(default=None)) -> dict:
+    def start(name: str, authorization: str | None = Header(default=None), x_operator: str | None = Header(default=None)) -> dict:
+        require_scope(authorization, "lifecycle") if assertion_secret_hex else None
         try:
             job = operations_service.start(name, (x_operator or "operator").strip() or "operator")
         except UnknownServiceError as exc:
@@ -68,7 +82,8 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
         return job.to_dict()
 
     @app.post("/services/{name}/stop", dependencies=[Depends(require_operator)])
-    def stop(name: str, x_operator: str | None = Header(default=None)) -> dict:
+    def stop(name: str, authorization: str | None = Header(default=None), x_operator: str | None = Header(default=None)) -> dict:
+        require_scope(authorization, "lifecycle") if assertion_secret_hex else None
         try:
             job = operations_service.stop(name, (x_operator or "operator").strip() or "operator")
         except UnknownServiceError as exc:
