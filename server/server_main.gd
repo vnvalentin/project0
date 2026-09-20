@@ -55,6 +55,10 @@ const NakamaSessionValidatorScript: Script = preload("res://server/nakama_sessio
 const WorldEntryTicketServiceScript: Script = preload("res://server/world_entry_ticket_service.gd")
 const NakamaGameplayBridgeScript: Script = preload("res://server/nakama_gameplay_bridge.gd")
 const NakamaGameplayRelayScript: Script = preload("res://server/nakama_gameplay_relay.gd")
+const AssertionValidatorScript: Script = preload("res://server/assertion_validator.gd")
+const OperatorControlServiceScript: Script = preload("res://server/operator_control_service.gd")
+const OperatorControlAdapterScript: Script = preload("res://server/operator_control_adapter.gd")
+const OperatorControlHttpEndpointScript: Script = preload("res://server/operator_control_http_endpoint.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
 const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
@@ -178,6 +182,7 @@ var _nakama_session_validator: Node = null
 var _world_entry_tickets: Object = null
 var _nakama_gameplay_bridge: Object = null
 var _nakama_gameplay_relay: Node = null
+var _operator_control_endpoint: Node = null
 var _canon_repository: Object = null
 var _canon_mutation_repository: Object = null
 var _canon_mutation_service: Object = null
@@ -415,6 +420,20 @@ func _start_server() -> void:
 	_nakama_gameplay_relay.set_bridge(_nakama_gameplay_bridge)
 	root.add_child(_nakama_gameplay_relay)
 	_nakama_gameplay_relay.call_deferred("start_from_environment")
+	var operator_validator: Object = AssertionValidatorScript.new(
+		LoginRuntimeScript.resolve_assertion_secret(), "project0-console", "project0-console"
+	)
+	var operator_control_service: Object = OperatorControlServiceScript.new()
+	var operator_adapter: Object = OperatorControlAdapterScript.new(operator_validator, operator_control_service)
+	_operator_control_endpoint = OperatorControlHttpEndpointScript.new(operator_adapter)
+	_operator_control_endpoint.name = "OperatorControlHttpEndpoint"
+	root.add_child(_operator_control_endpoint)
+	var operator_control_port: int = int(OS.get_environment("PROJECT0_OPERATOR_CONTROL_PORT")) if OS.get_environment("PROJECT0_OPERATOR_CONTROL_PORT").is_valid_int() else 8097
+	var operator_control_bound_port: int = _operator_control_endpoint.start(operator_control_port)
+	if operator_control_bound_port < 0:
+		push_error("Operator control HTTP endpoint failed to bind internal port %d." % operator_control_port)
+	else:
+		print("Operator control HTTP endpoint listening on internal port %d." % operator_control_bound_port)
 	print("Accounts database ready at user://%s (schema ensured); assertion-only game server (accounts live on the login process)." % accounts_db_path)
 
 	# Slice 162 (telemetry map #282): open the dedicated telemetry database and
