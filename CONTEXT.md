@@ -29,6 +29,11 @@ server-authoritative, generated, canon-persisted content`.
   server-authoritative once networking exists.
   _Avoid_: character (the persistent persona is the Character; the Player is its
   in-world instantiation), user.
+- **Traversal action**: A player-directed movement activity used to explore,
+  evade, reach, manipulate, or solve a problem in the world, such as jumping,
+  swimming, dodging, sliding, crawling, climbing, wall-running, or falling.
+  Character state changes its physical execution profile, not the player's
+  ability to reason about or attempt the action.
 - **Party**: A persistent, server-owned cooperative association of one to five
   unique Characters, with its own identity, leader, mutable roster, and shared
   coordination history. A Party survives roster and presence changes until it
@@ -44,6 +49,19 @@ server-authoritative, generated, canon-persisted content`.
   Player, distinct from Party membership. Connection loss or movement between
   Sectors changes presence without itself expressing consent to leave.
   _Avoid_: membership status, online membership.
+- **World DM**: The campaign-level narrative authority that interprets global
+  timeline, faction, regional, and cross-Character consequences and publishes
+  bounded world context. A World DM proposes semantic changes; it does not own
+  authoritative gameplay state.
+- **Party DM**: The group-campaign narrative role that coordinates a Party's
+  shared objectives, history, relationships, and encounters while preserving
+  each Character's personal authority and progression.
+- **Personal DM**: The Character-level narrative role that uses personal
+  memory, Party context, and relevant World DM bulletins to propose immediate
+  stories, encounters, and locations for one Player.
+- **DM Guild**: The coordinated hierarchy of World DM, Party DM, and Personal
+  DM roles. It is a semantic proposal system, not a replacement for the
+  server-authoritative simulation or persistence boundary.
 - **Encounter**: A bounded, server-owned attempt to resolve a hostile or world
   objective. It begins and ends with authoritative objective state, may involve
   Party and non-Party Characters, and retains its own participation history
@@ -73,7 +91,7 @@ server-authoritative, generated, canon-persisted content`.
   _Avoid_: meter (Godot's default convention, which this project overrides),
   pixel.
 - **Sector**: A unit of JIT-generated world content produced by the local LLM,
-  validated, then written to the server-owned SQLite Canon store. Its nominal span is
+  validated, then committed through the server-owned Canon persistence service. Its nominal span is
   **≈ ¼ mile = 440 world units** (tunable via `WorldScale`, growing toward
   1 mile = 1760); a Sector is a **region container** whose fine Tile detail
   covers only a bounded sub-area, not every yard (see
@@ -82,10 +100,23 @@ server-authoritative, generated, canon-persisted content`.
   and only the stored Canon result is replicated.
   _Avoid_: chunk, tile map, level.
 - **Canon**: World state that has been validated and persisted to the
-  server-owned SQLite store, making it authoritative and durable across
+  server-owned persistence service, making it authoritative and durable across
   sessions. Canon sectors are immutable at their base revision; an append-only,
-  idempotent mutation log yields an effective blueprint for replication.
+  idempotent mutation history yields an effective blueprint for replication.
   _Avoid_: save data, world save.
+- **World blueprint**: A portable, structured description of semantic world
+  intent, including regions, relationships, landmarks, themes, puzzle intent,
+  entity roles, and bounded generation constraints. It is an intermediate
+  representation interpreted by replaceable deterministic builders, not a
+  renderer-specific scene or gameplay result.
+- **World builder**: A deterministic interpreter that turns an accepted World
+  blueprint into geometry, collision, navigation, entities, presentation, and
+  runtime state. A builder validates physical feasibility and never grants
+  authority to an LLM proposal.
+- **Player-built place**: A persistent player- or Party-owned modification to
+  the world, such as a home, workshop, shared base, settlement, or town. It is
+  Canon state with explicit ownership, permissions, spatial validation, and
+  history; it is not disposable client decoration.
 - **Structure**: A building placement within a sector blueprint (e.g. player
   `house`, villager `npc_house`, the `village_hall` leader's house, smithy,
   armor shop, inn, and the schema-v3 flavor kinds church, item shop, tavern,

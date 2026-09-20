@@ -29,11 +29,16 @@ def test_patches_are_not_mounted_when_unconfigured():
     assert client.get("/patches/manifest.json").status_code == 404
 
 
-def test_public_navigation_pages_are_available_without_auth():
-    client = TestClient(create_app(FakeLoginAuthorityClient()))
+def test_public_navigation_pages_link_to_newest_client(tmp_path):
+    patches = tmp_path / "patches"
+    (patches / "downloads" / "0.13.2").mkdir(parents=True)
+    (patches / "downloads" / "0.13.3").mkdir(parents=True)
+    (patches / "downloads" / "0.13.2" / "Project0-client-windows-x64-0.13.2.zip").write_bytes(b"old")
+    (patches / "downloads" / "0.13.3" / "Project0-client-windows-x64-0.13.3.zip").write_bytes(b"new")
+    client = TestClient(create_app(FakeLoginAuthorityClient(), patches_dir=str(patches)))
 
     assert client.get("/").status_code == 200
-    assert "/patches/downloads/0.13.2/Project0-client-windows-x64-0.13.2.zip" in client.get("/").text
+    assert "/patches/downloads/0.13.3/Project0-client-windows-x64-0.13.3.zip" in client.get("/").text
     assert client.get("/downloads/").status_code == 200
     assert client.get("/telemetry").status_code == 200
     assert client.get("/dashboard").status_code == 200

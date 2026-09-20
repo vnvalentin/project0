@@ -502,7 +502,7 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
 - Current slice: [154 — Phase 16 (F-037): launcher signed-update download and staging](slices/154-launcher-signed-update-download.md) — **delivered; native Go now fetches and verifies raw signed manifest bytes over HTTPS, follows only the signed pack URL, checks size/SHA-256, and stages the pack for the detached helper. `go vet` clean and `go test ./...` passed with HTTPS-fixture coverage; live `CLIENT_OUTDATED` wiring and packaged Windows evidence remain**. Prior: [153](slices/153-launcher-updater-orchestration.md).
 - Current slice: [155 — Phase 16 (F-037): `CLIENT_OUTDATED` handoff to launcher](slices/155-outdated-client-launcher-handoff.md) — **delivered; packaged-client rejection writes a bounded transient file and exits 20 only when that launcher handoff is configured, while the Go launcher reads/removes it, downloads/stages through Slice 154, and invokes Slice 153's helper with tunnel environment preserved. Go vet/test passed; full GUT 106/774/774; packaged Windows evidence remains**. Prior: [154](slices/154-launcher-signed-update-download.md).
 - Current slice: [155 — Phase 16 (F-037): `CLIENT_OUTDATED` handoff to launcher](slices/155-outdated-client-launcher-handoff.md) — **delivered; packaged client rejection writes a bounded transient file and exits 20 only when launched by the updater, while the Go launcher reads/removes it, downloads/stages through Slice 154, and invokes the Slice 153 helper with tunnel environment preserved. Go vet/test passed; full GUT regression required; packaged Windows evidence remains**. Prior: [154](slices/154-launcher-signed-update-download.md).
-- Current slice: [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in progress; CI produced and verified the versioned launcher/client artifacts and clean manifest; first-install, live-update, and rollback runtime evidence remains pending**. Prior: [155](slices/155-outdated-client-launcher-handoff.md).
+- Current slice: [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in progress; the public WAN gameplay path is separately delivered and validated by Nakama Slice 181, while Slice 157 retains only the Windows launcher package/install/update/rollback evidence gate**. Prior: [155](slices/155-outdated-client-launcher-handoff.md).
 - Tech debt: none.
 - GitHub issues: [#100](https://github.com/vnvalentin/project0/issues/100),
   [#182](https://github.com/vnvalentin/project0/issues/182), and
@@ -546,7 +546,11 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 16 — Client delivery experience
 
-- **Slice:** [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in-progress; launcher payloads are now external visible package files, installed under stable LocalAppData, and signed updates require explicit confirmation. Release and packaged-Windows runtime evidence remain pending.** Prior: [156](slices/156-release-client-downloads.md).
+- **Slice:** [183 — Goal A / F-002: client export filter debt remediation](slices/183-client-export-filter-debt-remediation.md) — **delivered; Windows exports now exclude the GUT framework, build validation artifacts, and `skills-lock.json`; rebuilt package contents and bounded packaged launch passed. DT-011 closed.**
+  - **Feature:** [F-002](FEATURE-LIST.md#f-002-portable-windows-client-package)
+  - **GitHub issue:** [#421](https://github.com/vnvalentin/project0/issues/421)
+
+- **Slice:** [157 — Phase 16 (F-037): visible WAN package and opt-in stable-directory updates](slices/157-visible-wan-package.md) — **in-progress; Nakama Slice 181 now covers the validated public WAN gameplay path, while launcher payload installation and executable first-install/live-update/rollback evidence remain the separate F-037 gate.** Prior: [156](slices/156-release-client-downloads.md).
   - **Feature:** [F-037](FEATURE-LIST.md#f-037-windows-client-delivery--version-identity-mandatory-gate-and-signed-patching)
   - **GitHub issue:** [#100](https://github.com/vnvalentin/project0/issues/100) (also [#182](https://github.com/vnvalentin/project0/issues/182))
 
@@ -1356,7 +1360,7 @@ the phase exit gate; it is not a count of completed slices.
 - **Slice:** [044 — Client login and character selection UI](slices/044-client-login-character-ui.md) — **delivered; server validation and Windows GUI lifecycle confirmed**
   - **Feature:** [F-033](FEATURE-LIST.md#f-033-character-world-entry-server-binding) (client half), [F-034](FEATURE-LIST.md#f-034-client-login-and-character-selection-screens) (new feature for the UI)
   - **Tech debt:** none identified
-  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 5), [handoff-044](../.scratch/player-accounts/handoff-044-client-login-character-screens.md) (if created)
+  - **Planning ticket:** [player-accounts spec](../.scratch/player-accounts/spec.md) (Implementation Slice 5); the optional handoff-044 ticket was not created
   - **Decision:** no new ADR; defensive refactor discovered spawn-deferral brittleness against e2e harnesses; reverted deferral, documented intended pattern (login manages connection, gameplay inherits it); Linux authoritative validation passes 315/315 tests across 44/44 scripts and 1224 assertions. Known limitation: spawn may misfire into login menu if Player RPC arrives mid-auth (low probability, low impact, documented as follow-up). GUI-confirmed behavior on Windows remains the final Slice 044 gate.
 
 ## Implementation slice acceptance

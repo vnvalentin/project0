@@ -69,6 +69,12 @@ mv "${STAGE_DIR}" "${PACKAGE_DIR}"
 echo "Packaging portable ZIP..."
 if command -v zip >/dev/null 2>&1; then
 	(cd dist && zip -r -X "$(basename "${ZIP_PATH}")" "${PACKAGE_NAME}")
+elif command -v powershell.exe >/dev/null 2>&1; then
+	powershell.exe -NoProfile -NonInteractive -Command \
+		"Compress-Archive -Path 'dist/${PACKAGE_NAME}' -DestinationPath 'dist/${PACKAGE_NAME}.zip' -Force"
+elif command -v pwsh >/dev/null 2>&1; then
+	pwsh -NoProfile -NonInteractive -Command \
+		"Compress-Archive -Path 'dist/${PACKAGE_NAME}' -DestinationPath 'dist/${PACKAGE_NAME}.zip' -Force"
 else
 	(cd dist && python3 -m zipfile -c "$(basename "${ZIP_PATH}")" "${PACKAGE_NAME}")
 fi

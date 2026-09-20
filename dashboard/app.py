@@ -279,7 +279,7 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
         open_count = total - github_closed
         child_percent = round(covered / total * 100) if total else 0
         criteria = goal_good_looks_like(issue.get("body", ""))
-        target_percent = 100 if issue.get("state") == "closed" else goal_target_coverage(criteria)
+        target_percent = goal_target_coverage(criteria)
         cards.append({
             **issue,
             "child_total": total,
@@ -956,11 +956,10 @@ def render_exec(view: str = "committed") -> str:
     ) or '<p class="empty">Nothing shipped yet.</p>'
 
     if issue_feed["available"]:
-        goal_coverage_label = lambda issue: "Goal closed" if issue["state"] == "closed" else f'Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria'
         issues_html = "".join(
             f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
             f'<div class="ititle">{esc(issue["title"])}</div>'
-            f'<div class="gstats"><span>{goal_coverage_label(issue)}</span>'
+            f'<div class="gstats"><span>Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria</span>'
             f'<span class="gdone">{issue["target_percent"]}%</span></div>'
             f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
             f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'

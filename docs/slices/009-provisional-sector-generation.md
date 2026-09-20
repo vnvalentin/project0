@@ -3,7 +3,7 @@ GitHub issue: #95
 
 Tracker context: Phase 8 — JIT world generation and local inference; advances
 [P-008](../FEATURE-LIST.md#p-008-just-in-time-sector-generation).
-Planning ticket: [game-vision issue 16](../.scratch/game-vision/issues/16-provisional-sector-generation.md).
+Planning ticket: [game-vision issue 16](../../.scratch/game-vision/issues/16-provisional-sector-generation.md).
 
 ## SDD
 

@@ -93,18 +93,14 @@ feature so future drift is easier to detect.
   and [deployment foundation issue #355](https://github.com/vnvalentin/project0/issues/355).
 - Change history:
   - Date: 2026-09-19
-    What changed: Started Slice 180 for the live Nakama socket gameplay bridge.
-    Why: Issue #372 is the remaining transport step from the validated SDK/socket
-    proof to Project0's existing authoritative simulation seam.
-    Related work: [Slice 180](slices/180-nakama-gameplay-bridge.md), #372,
-    #386, #371.
-  - Date: 2026-09-19
-    What changed: Delivered Slice 180's tested transport adapter foundation and
-    started Slice 181 for live world-entry and gameplay wiring.
-    Why: The adapter is validated in isolation; #372 still requires the real
-    server/client bridge path and two-client runtime evidence.
+    What changed: Delivered Slice 180's tested transport adapter foundation
+    and Slice 181's live world-entry and gameplay wiring.
+    Why: The adapter now forwards identity-bound input into Project0 authority,
+    and the live two-client proof confirms the complete Nakama gameplay path.
     Related work: [Slice 180](slices/180-nakama-gameplay-bridge.md),
     [Slice 181](slices/181-nakama-live-gameplay-bridge.md), #372.
+    Validation evidence: focused adapter tests passed; the deployed two-client
+    proof passed with both clients receiving authoritative state and exiting 0.
 - Change history:
   - Date: 2026-09-19
     What changed: Delivered Slice 166 as the deployment foundation for Nakama
@@ -479,8 +475,9 @@ feature so future drift is easier to detect.
     Validation: focused launcher tests/vet, enrollment patch-hosting tests,
     packaging syntax, workflow YAML checks, and GitHub Actions package run
     #35519933553 pass; the manifest is clean and the portable ZIP contents are
-    verified. First-install, live-update, and rollback runtime evidence
-    remains pending.
+    verified. The public WAN gameplay path is now separately validated by
+    F-039/Slice 181; first-install, live-update, and rollback runtime evidence
+    for the Windows launcher remains pending.
   - Date: 2026-09-18
     What changed: Delivered the eleventh F-037 slice (Slice 155) — live outdated
     client handoff. A packaged client with `PROJECT0_UPDATE_REJECTION_PATH` now
@@ -3552,6 +3549,13 @@ for a developer to pick up. No implementation has started.
     reproducible from a commit.
     Related work: [Slice 103](slices/103-linux-client-package-build.md),
     [DT-011](TECHNICAL-DEBT-TRACKER.md#dt-011-client-export-filter-ships-the-test-framework-and-build-artifacts)
+  - Date: 2026-09-20
+    What changed: Closed DT-011 by excluding the GUT test framework, build
+    validation artifacts, and `skills-lock.json` from the Windows export. The
+    package was rebuilt and the packaged client launched successfully.
+    Related work: [Slice 183](slices/183-client-export-filter-debt-remediation.md)
+    Validation: `scripts/export_windows_client.sh 0.12.0` passed; package
+    inspection found no excluded paths; bounded packaged launch exited 0.
   - Date: 2026-09-12
     What changed: Implemented Slice 006 — the Windows Desktop export preset
     was created with client-only files, the build script was added, and the

@@ -33,6 +33,29 @@ still fog, and research can change the shape of the next product capability.
 The roadmap therefore groups future work by the customer outcome it enables,
 not by the order in which implementation files happened to change.
 
+## Canonical outcome naming
+
+The master game vision in
+[`.scratch/game-vision/map.md`](../.scratch/game-vision/map.md) is now the
+canonical naming system for future outcome goals. Its letters are intentionally
+different from the historical A-F outcome tracks below, so existing milestones,
+issues, and completed evidence do not need to be renumbered.
+
+| Master vision goal | Canonical outcome | Historical roadmap reference |
+| --- | --- | --- |
+| A | Trusted access and playable client | Track A / Phase 16 |
+| B | Reliable authoritative runtime | Track B / Phases 12 and 17 |
+| C | Authoritative content systems | Track C |
+| D | Party campaign and shared encounters | Track F |
+| E | DM Guild and semantic world pipeline | New goal; use issue #421 until a dedicated map exists |
+| F | Player-shaped world | New goal; use issue #421 until a dedicated map exists |
+| G | Telemetry and operational observability | Track E / Phase 13 |
+| H | Scale and bounded simulation expansion | Track D / Phase 18 |
+
+Future issues, maps, features, and slices should name the master vision goal
+first, for example `Goal D / Party campaign`, and may include the historical
+Track or Phase reference second. Do not create a second A-F naming scheme.
+
 ## New forward phase model
 
 ### A. Trusted tester access and client delivery

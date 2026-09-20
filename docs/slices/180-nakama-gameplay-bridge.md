@@ -2,7 +2,7 @@
 
 GitHub issue: #372
 
-Status: **in-progress**
+Status: **delivered**
 
 Phase: 12 (Authoritative runtime and action input)
 
@@ -99,8 +99,11 @@ Validation run from the repository root:
   command wrapper timeout after reaching the repository's known six feature-name
   warnings, with no Slice 180-specific warning or exit code captured.
 
-The full suite was not used as Slice 180 evidence because the unfiltered run
-reported 13 unrelated failures and 123 risky/pending tests. A live two-client
-Nakama proof remains outstanding: this Windows/offline validation has no live
-Nakama credentials or server-side Nakama match handler, and this slice keeps
-the game server's existing ENet/RPC path as the default.
+The full suite was not used as the isolated adapter evidence because the
+unfiltered Windows run reported unrelated environment failures. The live
+integration requirement was completed by [Slice 181](181-nakama-live-gameplay-bridge.md):
+two fresh Nakama-authenticated clients completed world entry, shared-match
+binding, movement submission, and Project0-authoritative state return with
+both proof processes exiting 0. Slice 180 remains transport-adapter scope;
+the existing ENet/RPC path remains the default unless the Nakama gameplay flag
+is enabled.

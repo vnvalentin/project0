@@ -1,7 +1,10 @@
-# Project0 Flow Dashboard
+# Project0 Master Roadmap
 
-Read-only local Kanban and Andon dashboard for the authoritative markdown
-records in the parent repository.
+Read-only roadmap for the technology-neutral master game vision. It presents
+the player promise, outcome goals A-H, the Party/traversal vertical slice, the
+delivery order, and live GitHub planning focus. The roadmap is not an
+implementation status claim and does not choose storage, model, messaging, or
+map-builder technology.
 
 ## Run
 
@@ -26,16 +29,19 @@ permit TCP `18083` on the LAN interface. To expose the service on every host
 interface, explicitly set `DASHBOARD_BIND_ADDRESS=0.0.0.0`; this is not the
 default.
 
-The container mounts the repository read-only and has no write endpoint. It
-refreshes the tracker files every 15 seconds, so status changes appear without
-rebuilding the image.
+The master roadmap page is available at
+http://192.168.1.254:18083/roadmap. The root URL serves the same page for
+backward compatibility.
 
-The Reality page also reads open GitHub issues from `GITHUB_REPO` (default
+The container mounts the repository read-only and has no write endpoint. It
+refreshes the roadmap every 30 seconds, so charter and planning changes appear
+without rebuilding the image.
+
+The page reads GitHub issues from `GITHUB_REPO` (default
 `vnvalentin/project0`) and caches the result for `GITHUB_ISSUE_CACHE_SECONDS`
-(default `300`). This makes GitHub Issues the live planning board while the
-markdown records remain the evidence and delivery-history base. If GitHub is
-temporarily unreachable, the page shows a visible source warning rather than
-silently inventing a status.
+(default `300`). The markdown vision remains the local source of truth. If
+GitHub is temporarily unreachable, the page shows a visible source warning
+rather than silently inventing a status.
 
 ## Host deployment under `/apps/project0/dashboard`
 
@@ -43,7 +49,7 @@ The production host layout is self-contained and does not depend on a user's
 home directory:
 
 - `/apps/project0/dashboard/docker-compose.yml` — the compose project.
-- `/apps/project0/dashboard/Dockerfile` and `app.py` — the dashboard image
+- `/apps/project0/dashboard/Dockerfile` and `roadmap.py` — the dashboard image
   source/fallback.
 - `/apps/project0/dashboard/repo` — a dedicated clone of `origin/main`, mounted
   read-only into the container at `/repo`.

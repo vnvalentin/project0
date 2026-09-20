@@ -9,10 +9,17 @@ const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 ## WAN login flow (client_https_login_enabled). Null in the LAN ENet path.
 const EnrollmentHttpClientScript: Script = preload("res://client/enrollment_http_client.gd")
 const NakamaHttpClientScript: Script = preload("res://client/nakama_http_client.gd")
+const REMOTE_SERVER_HOST: String = "192.69.180.236"
+const LAN_SERVER_HOST: String = "192.168.1.254"
 
 @onready var username_input = $VBoxContainer/UsernameInput
 @onready var password_input = $VBoxContainer/PasswordInput
-@onready var host_input = $VBoxContainer/HostInput
+@onready var settings_panel = $VBoxContainer/SettingsPanel
+@onready var remote_server_checkbox = $VBoxContainer/RemoteServerCheckBox
+@onready var host_input = $VBoxContainer/SettingsPanel/SettingsBox/HostInput
+@onready var game_port_input = $VBoxContainer/SettingsPanel/SettingsBox/GamePortInput
+@onready var login_mode_option = $VBoxContainer/SettingsPanel/SettingsBox/LoginModeOption
+@onready var settings_button = $VBoxContainer/SettingsButton
 @onready var status_label = $VBoxContainer/StatusLabel
 @onready var login_button = $VBoxContainer/ButtonContainer/LoginButton
 @onready var register_button = $VBoxContainer/ButtonContainer/RegisterButton
@@ -27,6 +34,7 @@ var _pending_password: String = ""
 ## Slice 093: the HTTPS enrollment client instance, created only in the WAN flow.
 var _http_client: Object = null
 var _nakama_client: Object = null
+const SETTINGS_PATH: String = "user://project0-client-settings.cfg"
 
 func _ready() -> void:
 	# Connect to NetworkClient auth signals
@@ -36,8 +44,14 @@ func _ready() -> void:
 	# Login/Register stay enabled; a request disables them until it resolves.
 	
 	# Default host input to the resolved target (allows override)
-	var resolved_host = NetworkConfigScript.resolve_client_target_host()
-	host_input.text = resolved_host
+	_load_settings()
+	game_port_input.text = str(NetworkConfigScript.resolve_server_port())
+	login_mode_option.select(0 if NetworkConfigScript.client_https_login_enabled() else 1)
+	remote_server_checkbox.button_pressed = remote_server_checkbox.button_pressed
+	_on_remote_server_toggled(remote_server_checkbox.button_pressed)
+	settings_panel.visible = false
+	settings_button.pressed.connect(_on_settings_pressed)
+	remote_server_checkbox.toggled.connect(_on_remote_server_toggled)
 	
 	# Slice 093: in the WAN flow authentication happens over HTTPS; registration
 	# is not exposed on the public enrollment surface yet (DT-010), so log into an
@@ -54,6 +68,8 @@ func _ready() -> void:
 		register_button.tooltip_text = "Click to register an account."
 
 func _on_login_pressed() -> void:
+	if not _apply_settings():
+		return
 	var username = username_input.text.strip_edges()
 	var password = password_input.text
 	var host = host_input.text.strip_edges()
@@ -147,6 +163,8 @@ func _https_failure_reason(result: Dictionary) -> String:
 	return outcome
 
 func _on_register_pressed() -> void:
+	if not _apply_settings():
+		return
 	var username = username_input.text.strip_edges()
 	var password = password_input.text
 	var host = host_input.text.strip_edges()
@@ -252,3 +270,51 @@ func _validate_input(username: String, password: String) -> bool:
 		return false
 	
 	return true
+
+
+func _on_settings_pressed() -> void:
+	settings_panel.visible = not settings_panel.visible
+
+
+func _apply_settings() -> bool:
+	var host: String = host_input.text.strip_edges()
+	var port_text: String = game_port_input.text.strip_edges()
+	var port: int = port_text.to_int() if port_text.is_valid_int() else 0
+	if host.is_empty():
+		status_label.text = "Status: Enter a server host"
+		return false
+	if port < 1 or port > 65535:
+		status_label.text = "Status: Port must be 1-65535"
+		return false
+	remote_server_checkbox.button_pressed = login_mode_option.selected == 0
+	PlayerIdentity.target_host = host
+	OS.set_environment(NetworkConfigScript.SERVER_PORT_ENV_VAR, str(port))
+	OS.set_environment(NetworkConfigScript.CLIENT_HTTPS_LOGIN_ENV_VAR, "1" if remote_server_checkbox.button_pressed else "0")
+	OS.set_environment(NetworkConfigScript.CLIENT_LOGIN_SPLIT_ENV_VAR, "0" if remote_server_checkbox.button_pressed else "1")
+	OS.set_environment(NetworkConfigScript.TARGET_HOST_ENV_VAR, host)
+	if not remote_server_checkbox.button_pressed:
+		PlayerIdentity.target_host = "192.168.1.254"
+		OS.set_environment(NetworkConfigScript.TARGET_HOST_ENV_VAR, "192.168.1.254")
+	_save_settings()
+	return true
+
+
+func _on_remote_server_toggled(enabled: bool) -> void:
+	login_mode_option.select(0 if enabled else 1)
+	host_input.text = REMOTE_SERVER_HOST if enabled else LAN_SERVER_HOST
+
+
+func _load_settings() -> void:
+	host_input.text = REMOTE_SERVER_HOST
+	remote_server_checkbox.button_pressed = true
+	var settings := ConfigFile.new()
+	if settings.load(SETTINGS_PATH) != OK:
+		return
+	remote_server_checkbox.button_pressed = bool(settings.get_value("connection", "remote_enabled", true))
+
+
+func _save_settings() -> void:
+	var settings := ConfigFile.new()
+	settings.set_value("connection", "remote_host", host_input.text.strip_edges())
+	settings.set_value("connection", "remote_enabled", remote_server_checkbox.button_pressed)
+	settings.save(SETTINGS_PATH)

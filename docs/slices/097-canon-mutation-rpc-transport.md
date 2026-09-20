@@ -1,7 +1,7 @@
 # Slice 097 — Canon mutation intent RPC transport + headless round-trip e2e
 GitHub issue: #95
 
-Status: **in-progress**
+Status: **delivered**
 
 Phase: 9 (Canon persistence and world mutation), advancing
 [P-013](../FEATURE-LIST.md#p-013-dynamic-world-mutation-tracking). Fourth P-013

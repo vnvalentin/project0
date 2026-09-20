@@ -9,6 +9,9 @@ Delivered for Slice 088 (docs/slices/088-auth-gated-onboarding-login-delegation.
 """
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -99,7 +102,23 @@ class CharacterAssertionResponse(BaseModel):
     assertion: str
 
 
-LATEST_WINDOWS_CLIENT_PATH = "/patches/downloads/0.13.2/Project0-client-windows-x64-0.13.2.zip"
+def latest_windows_client_path(patches_dir: str | None) -> str:
+    if patches_dir:
+        downloads = Path(patches_dir) / "downloads"
+        candidates: list[tuple[tuple[int, int, int], str]] = []
+        if downloads.is_dir():
+            for version_dir in downloads.iterdir():
+                if not version_dir.is_dir():
+                    continue
+                version = version_dir.name
+                match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+                archive = version_dir / f"Project0-client-windows-x64-{version}.zip"
+                if match and archive.is_file():
+                    candidates.append((tuple(int(part) for part in match.groups()), version))
+        if candidates:
+            _, version = max(candidates)
+            return f"/patches/downloads/{version}/Project0-client-windows-x64-{version}.zip"
+    return "/patches/downloads/"
 
 
 def create_app(
@@ -118,11 +137,12 @@ def create_app(
 
     @app.get("/", response_class=HTMLResponse)
     def landing_page() -> str:
+        latest_client_path = latest_windows_client_path(patches_dir)
         return _public_page(
             "Project0",
             "A shared world for friends.",
             f"""
-            <a class="primary" href="{LATEST_WINDOWS_CLIENT_PATH}">Download the latest Windows client</a>
+            <a class="primary" href="{latest_client_path}">Download the latest Windows client</a>
             <p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p>
             <a href="/telemetry">Service status</a>
             <a href="/dashboard">Dashboard</a>
@@ -155,10 +175,11 @@ def create_app(
 
     @app.get("/game", response_class=HTMLResponse)
     def game_page() -> str:
+        latest_client_path = latest_windows_client_path(patches_dir)
         return _public_page(
             "Game connection",
             "Connect the latest launcher to the Project0 world.",
-            f'<p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p><a class="primary" href="{LATEST_WINDOWS_CLIENT_PATH}">Download the latest Windows client</a><a href="/">Back to Project0</a>',
+            f'<p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p><a class="primary" href="{latest_client_path}">Download the latest Windows client</a><a href="/">Back to Project0</a>',
         )
 
     # Public by design: an outdated client cannot authenticate before it patches.

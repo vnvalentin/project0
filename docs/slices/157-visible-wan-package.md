@@ -24,6 +24,20 @@ visible WAN folder.
 Out of scope: Authenticode certificate acquisition and Microsoft Defender
 submission, which require operator-owned identity and portal actions.
 
+## Reconciliation with Nakama delivery
+
+The public WAN gameplay path is now validated separately by [Slice 181](181-nakama-live-gameplay-bridge.md)
+under [F-039](../FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation):
+two fresh Nakama-authenticated clients completed session validation, Character
+and world entry, shared match binding, movement submission, and
+Project0-authoritative state return. That evidence supersedes any earlier
+assumption that Slice 157 must prove the WAN gameplay transport itself.
+
+Slice 157 remains open only for the distinct Windows client-delivery contract:
+visible package contents, stable installation, explicit signed-update consent,
+and executable first-install, live-update, and rollback evidence. Nakama
+runtime validation does not by itself prove those launcher lifecycle gates.
+
 ## Invariants
 
 - Signed manifest and PCK verification remain unchanged.
@@ -43,8 +57,14 @@ submission, which require operator-owned identity and portal actions.
 	(36,522,362 bytes), and manifest. The manifest recorded
 	`source_tree_dirty: false`, `godot_export_exit_code: 0`, and
 	`godot_cpp_ref: d5cc777`; the portable ZIP contained exactly
-	`Project0.exe` and `Project0.pck`. First-install, live-update, and rollback
-	runtime evidence remain pending, so the slice is not complete.
+	`Project0.exe` and `Project0.pck`. This proves release artifact production,
+	not the launcher lifecycle. First-install, live-update, and rollback runtime
+	evidence remain pending, so the slice is not complete.
+- [Slice 181](181-nakama-live-gameplay-bridge.md) provides the current WAN
+	gameplay evidence: both fresh clients exited 0 after Nakama session,
+	Character, world-entry, shared-match, movement, and authoritative-state
+	validation. This supports the public access boundary but does not substitute
+	for the Windows launcher lifecycle checks above.
 
 ## Root-cause learning
 

@@ -197,8 +197,9 @@ contended range and everything after it is tracked explicitly:
 | 180 | Nakama socket gameplay bridge adapter foundation (F-039, #372) | interactive |
 | 181 | Wire Nakama gameplay bridge into authoritative simulation and prove live exchange (F-039, #372) | interactive |
 | 182 | Prune obsolete game WireGuard implementation (#393) | interactive |
+| 183 | Goal A / F-002: client export filter debt remediation (#421, DT-011) | interactive |
 
-Next free slice: **183** (verify against `docs/slices/` before reserving).
+Next free slice: **184** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
