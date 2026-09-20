@@ -2,7 +2,7 @@
 
 GitHub issue: #507
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 17 (Fleet operations console)
 
@@ -13,7 +13,7 @@ Feature: [F-041](../FEATURE-LIST.md#f-041-fleet-operations-console)
 The fleet-operations design and implementation slices have a durable operator
 runbook and a final proof boundary. The authoritative control path is proven
 live, and both Godot authorities now emit validated OpsSnapshots for the
-read-only console. A deployed read-side proof remains.
+read-only console.
 
 ## Evidence boundary
 
@@ -43,7 +43,10 @@ Project0-native `project0-console` assertion with `control` scope set degraded
 state and was accepted with HTTP 200; the same path immediately cleared the
 state and was accepted with HTTP 200. No gameplay or Nakama service was
 restarted. Invalid bearer proof remains HTTP 403. Focused OpsSnapshot and
-HealthReporter validation passed 13/13 tests with 30 assertions.
+HealthReporter validation passed 13/13 tests with 30 assertions. After the
+merged snapshot-path fix, the LAN console showed fresh healthy rows for
+`project0-game` and `project0-login`, each with one-second snapshot age and
+image version `sha-91103a2921eec9d849330e5f93738dc516418d4d`.
 
 ## Runbook
 
@@ -52,14 +55,14 @@ secret, rollback, Nakama migration, and current validation rules.
 
 ## Non-goals
 
-This record does not claim a complete production operator-console cutover. The
-remaining gate is a deployed read-side proof showing fresh world/login rows in
-the LAN console.
+The operator-console read/control proof is complete for the bounded v1 action
+surface. Future control actions and additional server registrations require
+their own slices.
 
 ## Root-cause learning
 
 The full local GUT gate remains red on unrelated multi-peer/prediction tests
 and a pre-existing SQLite test parse/cache skip; the focused tests for this
 slice pass. Docker compose validation was unavailable on Windows because the
-Docker CLI is not installed. These limitations require remote deployment
-validation before the slice can be marked complete.
+Docker CLI is not installed. Remote deployment health, smoke checks, and live
+console read/control proof passed on `okami`.

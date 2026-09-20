@@ -2,7 +2,7 @@
 
 GitHub issue: #506
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 17 (Fleet operations console)
 
@@ -23,17 +23,18 @@ available for existing deterministic tests.
 
 ## Remaining work
 
-The host helper now independently verifies the same assertion and lifecycle
-scope in `infra/operator/host_helper.py`, then executes only fixed
+The host helper independently verifies the same assertion and lifecycle scope
+in `infra/operator/host_helper.py`, then executes only fixed
 `systemctl start|stop|restart` vectors for allowlisted units with
-`shell=False`. The authoritative Godot control seam and live host-helper
-deployment proof remain open; no full privileged-control capability is claimed
-implemented by this slice alone.
+`shell=False`. The authoritative Godot control seam is deployed and the
+reversible authorized control proof is recorded in Slice 190.
 
 ## Validation
 
 - Focused pytest: 10 passed for operator auth/app/host-helper coverage.
 - Python compilation and diff checks passed.
+- Deployed invalid bearer proof returned HTTP 403; authorized `set_degraded`
+	enable and clear both returned HTTP 200 without restarting gameplay services.
 
 ## Safety and rollback
 
