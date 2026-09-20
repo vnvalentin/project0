@@ -330,6 +330,10 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #371
 
+- **Current slice:** [180 — Nakama socket gameplay bridge](slices/180-nakama-gameplay-bridge.md) — **in-progress; wires the approved Nakama socket path to the existing Project0 authoritative simulation through validated Slice 170 envelopes**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#372](https://github.com/vnvalentin/project0/issues/372)
+
 - **Current slice:** [166 — Nakama v1 deployment foundation](slices/166-nakama-v1-deployment-foundation.md) — **delivered; adds the opt-in single-node Nakama/PostgreSQL compose profile, private Console/admin posture, host-side secrets/config runbook, backup-before-migration rule, and static validation seam; Linux validation passed record-sync 0 errors and full GUT 811/811**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #355
