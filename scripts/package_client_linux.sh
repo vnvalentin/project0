@@ -91,6 +91,8 @@ done
 if [[ "${export_status}" -ne 0 ]]; then
 	echo "WARNING: godot export exited ${export_status} but produced complete artifacts."
 fi
+restore_version_contract
+trap - EXIT
 log "Building WAN launcher for Windows"
 mkdir -p "${OUT_DIR}"
 launcher_out="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.exe"
