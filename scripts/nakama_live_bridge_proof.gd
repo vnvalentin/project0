@@ -146,7 +146,13 @@ func _run_proof() -> void:
 
 func _read_configuration() -> String:
 	_role = _argument_value("--role=")
+	if _role.is_empty():
+		_role = OS.get_environment("PROJECT0_NAKAMA_PROOF_ROLE").strip_edges()
 	_state_file = _argument_value("--state-file=")
+	if _state_file.is_empty() and not _role.is_empty():
+		_state_file = OS.get_environment("PROJECT0_NAKAMA_PROOF_STATE_FILE").strip_edges()
+	if _state_file.is_empty() and (_role == "a" or _role == "b"):
+		_state_file = "/data/nakama-proof-%s.json" % _role
 	if _role != "a" and _role != "b":
 		return "invalid_role"
 	if _state_file.is_empty():
