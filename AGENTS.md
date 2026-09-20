@@ -137,3 +137,17 @@ Do not create implementation slices or product code while this gate is open.
   number allocation and the delivery trackers; any parallel autonomous worker
   MUST use its reserved block (100–199) and disjoint files so concurrent work
   never collides on a slice/feature number.
+
+## Features and Slices are tracked as GitHub issues (2026-09-20)
+
+`docs/FEATURE-LIST.md` and `docs/slices/*.md` (including `SLICE-REGISTRY.md`)
+are a **frozen historical archive** of everything delivered before this date —
+do not add new entries to them. A new **Feature** is a GitHub issue labeled
+`Feature`, with `Parent goal: #N` in its body when it advances a Goal issue. A
+new **Slice** is a GitHub issue labeled `Slice`, with `Parent feature: #N` in
+its body when it advances a Feature issue. This removes the file-based
+number-allocation race for these two record types; GitHub issue numbers are
+assigned by GitHub itself. `docs/PROJECT-TRACKER.md` and
+`docs/TECHNICAL-DEBT-TRACKER.md` are unaffected and remain committed-file
+records owned by a single integrator, per
+[docs/RECORD-OWNERSHIP.md](docs/RECORD-OWNERSHIP.md).
