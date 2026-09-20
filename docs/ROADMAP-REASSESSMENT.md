@@ -91,7 +91,8 @@ readiness rollback, and controller parity.
 **Outcome:** the deployed authorities can be released, observed, repaired, and
 controlled without weakening gameplay or public-access boundaries.
 
-**Includes:** the remaining Phase 12 runtime mutation/rollback evidence, DT-012
+**Includes:** the remaining Phase 12 runtime mutation/rollback evidence, the
+paired Project0/Nakama deployment and database rollback boundary, DT-012
 login-image separation decision, the server-admin-console map, health/ops
 contracts, audit, bounded operator actions, and deployment rollback.
 
