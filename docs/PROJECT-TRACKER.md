@@ -540,7 +540,7 @@ Progress: **0%** (research-first; no `map.md` yet)
 Progress: **0%** (0 of 1 items done; handoff complete, implementation task open)
 
 - Source goal: [DM Guild map](../.scratch/dm-guild/map.md), governed by
-  [#421](https://github.com/vnvalentin/project0/issues/421).
+  [#495](https://github.com/vnvalentin/project0/issues/495).
 - Handoff: [Semantic World Pipeline specification](../.scratch/dm-guild/spec.md)
   and [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md).
 - Features: `queued` [F-040](FEATURE-LIST.md#f-040-server-only-normalized-world-directive-validation) — the normalized World directive validator is planned; raw LLM output remains provisional, inference remains asynchronous/server-only, and no implementation slice has started.
