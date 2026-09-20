@@ -148,8 +148,8 @@ func _run_proof() -> void:
 		_fail("authoritative_state_timeout")
 		_finish(1)
 		return
-	if _last_sequence <= 0:
-		_fail("authoritative_state_invalid_sequence")
+	if not _match_id_present or _state_count <= 0:
+		_fail("authoritative_state_missing_binding")
 		_finish(1)
 		return
 	_outcomes.append("authoritative_nakama_state_received")
