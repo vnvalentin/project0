@@ -75,6 +75,12 @@ gates.
 	The GUI-subsystem launcher did not expose a reliable process exit code through
 	the PowerShell harness; the on-disk restoration assertion passed. Signed
 	download and valid-update runtime evidence remain open.
+- The native launcher verifier was also exercised against the published HTTPS
+	patch host using its embedded trusted public key. The live manifest and
+	detached signature verified, the signed PCK downloaded, and the staged file
+	matched the signed byte count. The private signing key was not present on the
+	workstation and no new release artifact was generated. Valid-update relaunch
+	evidence remains open.
 - [Slice 181](181-nakama-live-gameplay-bridge.md) provides the current WAN
 	gameplay evidence: both fresh clients exited 0 after Nakama session,
 	Character, world-entry, shared-match, movement, and authoritative-state
@@ -121,3 +127,13 @@ gates.
 	trap, after manifest generation. Countermeasure: restore immediately after
 	export and disable the now-completed trap; the source is clean before the
 	remaining package steps.
+- Symptom: the bounded valid-update launcher probe did not complete its
+	readiness wait. The affected seam is `runUpdaterHelperWithEnv`, which treats
+	the relaunched `Project0.exe --project0-run-client` process exit as readiness.
+	Hypothesis: the interactive packaged client should exit after startup. The
+	discriminating check was a direct packaged run: headless mode exited 0, while
+	`--project0-run-client` remained running until the five-second bound killed it.
+	Confirmed root cause: the current readiness hook is process exit, but the
+	interactive client is intentionally long-lived. A bounded non-destructive
+	packaged readiness signal is required before claiming valid-update runtime
+	proof; automatic updates remain disabled until then.
