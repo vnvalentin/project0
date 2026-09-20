@@ -2,7 +2,7 @@
 
 GitHub issue: #372
 
-Status: **in-progress**
+Status: **delivered**
 
 Phase: 12 (Authoritative runtime and action input)
 
@@ -64,9 +64,8 @@ PROJECT0_GAME_PORT="9999" godot --headless --path . -s scripts/nakama_live_bridg
 ```
 
 The harness uses a fixed 30-second stage timeout, disconnects before exit, and
-writes only `outcomes`, `connection_status`, `match_id_present`,
-`state_received`, `last_sequence`, and `error_outcome`. It exits zero only
-after a valid authoritative bridge state sequence is received.
+writes only credential-free stage/outcome state. It exits zero only after a
+valid authoritative bridge state is received.
 
 ## Validation
 
@@ -76,11 +75,24 @@ Parse command:
 godot --headless --path . --check-only -s scripts/nakama_live_bridge_proof.gd
 ```
 
-The parse command passed with no diagnostics. A no-credential invalid-role smoke
-run exited 1 and wrote only the redacted state fields. The harness parser fix is
-pending deployment; the live two-process proof was not run, and this record does
-not claim it passed.
+The parse command passed with no diagnostics. The deployed two-client proof ran
+against the healthy Nakama/game stack with fresh temporary accounts. Both roles
+exited 0 and both redacted state files reported `match_id_present=true`,
+`state_received=true`, `stage=authoritative_state_received`, and the expected
+session, Character, world-entry, and authoritative-state outcomes.
 
 ### Assertion-only Character CRUD evidence
 
 Root cause: the live bridge reached `character_list_account_authority_disabled` after Nakama session validation succeeded, because assertion-only account-authority gating did not recognize the validated peer. The local fix tracks peers after successful `bind_validated_nakama_session`, permits Character CRUD only for those peers, and erases authorization on `clear_session`. Validation: login_gateway parse 0, Nakama focused GUT 11/11, diff-check 0.
+
+### Live two-client runtime evidence
+
+The proof ran on okami against the deployed proof-capable game image with a
+relay token validated through Nakama `/v2/account` (HTTP 200). Two fresh client
+accounts authenticated with HTTP 200. Both clients completed world entry,
+received a shared match id, submitted movement through the Nakama socket bridge,
+and received Project0-authoritative state. Both processes exited 0; temporary
+accounts and proof artifacts were removed after capture.
+
+Earlier attempts exposed stale-image, relay-credential, container-endpoint, and
+proof-harness assertion defects. Those were corrected before the passing run.

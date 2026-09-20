@@ -334,7 +334,7 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #371
 
-- **Current slice:** [181 — Live Nakama gameplay bridge](slices/181-nakama-live-gameplay-bridge.md) — **in-progress; wires the approved Nakama socket path at world entry to the existing Project0 authoritative simulation and requires live two-client evidence**
+- **Current slice:** [181 — Live Nakama gameplay bridge](slices/181-nakama-live-gameplay-bridge.md) — **delivered; two fresh clients completed Nakama session validation, Character/world entry, shared match binding, and Project0-authoritative state return with both proof processes exiting 0**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** [#372](https://github.com/vnvalentin/project0/issues/372)
 
