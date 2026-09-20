@@ -84,7 +84,7 @@ func _run_proof() -> void:
 		return
 
 	if _characters.is_empty():
-		_network_client.submit_create_character("LiveBridge-%s" % _role, {})
+		_network_client.submit_create_character(_proof_character_name(), {})
 		if not await _wait_until(func() -> bool: return _character_operation == "create"):
 			_fail("character_create_timeout")
 			_finish(1)
@@ -179,6 +179,11 @@ func _game_port() -> int:
 	if value.is_empty():
 		return NetworkConfigScript.resolve_server_port()
 	return value.to_int() if value.is_valid_int() else 0
+
+
+func _proof_character_name() -> String:
+	var suffix: String = _player_identity.nakama_user_id.replace("-", "").substr(0, 8)
+	return "LiveBridge-%s-%s" % [_role, suffix]
 
 
 func _argument_value(prefix: String) -> String:
