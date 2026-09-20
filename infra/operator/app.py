@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import hmac
 import os
+import json
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 from dataclasses import asdict
 from typing import Any
 
@@ -22,6 +25,8 @@ from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
 from .operator_auth import verify_operator_token
 from .control_contract import ControlAction
+
+CONTROL_URL = os.getenv("PROJECT0_CONTROL_URL", "").strip()
 
 
 def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str, assertion_secret_hex: str | None = None) -> FastAPI:
@@ -109,6 +114,18 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
                 raise HTTPException(status_code=404, detail="unknown service") from exc
             return job.to_dict()
         if action in {ControlAction.KICK_PEER.value, ControlAction.DRAIN.value, ControlAction.RELOAD_TUNING.value, ControlAction.SET_DEGRADED.value}:
+            if CONTROL_URL:
+                try:
+                    forward = Request(
+                        CONTROL_URL,
+                        data=json.dumps({**request, "operator_token": authorization[len("Bearer "):] if authorization and authorization.startswith("Bearer ") else ""}).encode(),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urlopen(forward, timeout=5) as response:
+                        return json.loads(response.read().decode())
+                except (OSError, ValueError, HTTPError, URLError):
+                    return {"outcome": "rejected", "reason": "executor_unavailable", "action": action, "target": target}
             return {"outcome": "rejected", "reason": "executor_unavailable", "action": action, "target": target}
         return {"outcome": "rejected", "reason": "unsupported_action", "action": action, "target": target}
 

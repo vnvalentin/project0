@@ -178,6 +178,8 @@ services:
     env_file:
       - path: /etc/project0/operator.env
         required: false
+    environment:
+      PROJECT0_CONTROL_URL: "http://game-server:8097/internal/control"
     ports:
       - "127.0.0.1:8099:8099"
     mem_limit: 512m
