@@ -29,6 +29,19 @@ world/login snapshots, stale/unreadable states remain non-authoritative, and
 each privileged executor independently rejects invalid or under-scoped
 assertions.
 
+### Deployment evidence
+
+On 2026-09-20, the merged control transport was deployed on `okami` with the
+paired Project0/Nakama stack. All five services passed the deployment health
+gate and the enrollment smoke checks returned HTTP 401 and HTTP 200 as
+expected. The game server logged `Operator control HTTP endpoint listening on
+internal port 8097`. A request with an invalid operator assertion reached
+`/internal/control` and returned HTTP 403 with no action execution.
+
+The operator-console forwarding service was not enabled during this proof, and
+no privileged action was executed. The remaining gap is an operator-managed
+`OPERATOR_TOKEN`/assertion configuration plus a live authorized action proof.
+
 ## Runbook
 
 See [fleet-operator-runbook.md](../fleet-operator-runbook.md) for bind/mount,
