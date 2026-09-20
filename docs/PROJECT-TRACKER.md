@@ -137,8 +137,9 @@ their previous numbers — see the change note under "Delivery order".)
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
 | 15. Biological progression and kinetic systems | done | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. **Exit gate met (Slice 140):** the versioned tuning + vessel redistribution + effective-snapshot foundation (P-016-A) and all five subsystems (P-016-B…F) are composed by a server-authoritative `EmbodimentProgressionService` into a deterministic, presentation-safe snapshot, proven end-to-end by 503/503 GUT tests. |
 | 16. Client delivery experience | in-progress | Design converged in the Phase 16 handoff spec and ADR: explicit LAN/WAN launcher modes, mandatory pre-auth version gating, RSA-signed manifest and full-pack trust, atomic restart/rollback, repair behavior, onboarding, and a separate XInput named-action controller slice. Implementation started — the client build version identity is delivered (Slice 144); the gate, signed patching, updater, launcher, and controller slices remain. |
-| 17. Fleet operations console | queued (design) | A capstone spec resolves the versioned ops snapshot, telemetry content, registry, operator-token control seam, bounded actions, audit, and standalone LAN console surface before implementation slices are allocated. |
+| 17. Fleet operations console | in-progress | Capstone handoff is complete; Slice 184 implements the pure OpsSnapshot contract, followed by the reserved writer, registry, console, control, auth, and proof slices. |
 | 18. Horizontal scale and zone sharding | queued (research-first) | A researched ownership and cross-shard handoff model plus ADR exists before any implementation feature or slice is created; until then this phase has no validated exit gate. |
+| 19. Semantic world pipeline | queued (design) | The DM Guild handoff is converted into a server-only, asynchronous normalized-directive seam with fixture-backed validation, bounded fallback, and no client or LLM authority over gameplay truth. |
 
 ### Phase work index
 
@@ -512,14 +513,15 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
 
 **Phase 17 — Fleet operations console**
 
-Progress: **0%** (design in `.scratch/server-admin-console`; no delivery items allocated yet)
+Progress: **29%** (2 of 7 implementation slices delivered/in progress)
 
 - Source goal: [server-admin-console map](../.scratch/server-admin-console/map.md).
 - Scope: a private, authenticated LAN console showing a versioned ops-snapshot
   for every Project0 server (login, game, and any later server) plus a bounded,
   authorized, audited control-action catalog kept separate from public traffic.
   Extends the operator control plane (Slices 061–063).
-- Features/tech debt: none allocated yet.
+- Feature: `in-progress` [F-041](FEATURE-LIST.md#f-041-fleet-operations-console) — Slice 184 delivered; Slices 185-190 reserved by the capstone handoff.
+- Current slices: [184 — Server admin console OpsSnapshot contract](slices/184-ops-snapshot-contract.md) — **delivered; pure server-owned contract with focused GUT coverage.** [185 — Atomic OpsSnapshot writer](slices/185-ops-snapshot-writer.md) — **delivered; atomic temporary-write/publish seam with focused HealthReporter coverage.**
 
 **Phase 18 — Horizontal scale and zone sharding**
 
@@ -532,6 +534,18 @@ Progress: **0%** (research-first; no `map.md` yet)
   a decided ownership and cross-shard handoff boundary, without weakening server
   authority.
 - Features/tech debt: none allocated yet.
+
+**Phase 19 — Semantic world pipeline**
+
+Progress: **0%** (0 of 1 items done; handoff complete, implementation task open)
+
+- Source goal: [DM Guild map](../.scratch/dm-guild/map.md), governed by
+  [#421](https://github.com/vnvalentin/project0/issues/421).
+- Handoff: [Semantic World Pipeline specification](../.scratch/dm-guild/spec.md)
+  and [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md).
+- Features: `queued` [F-040](FEATURE-LIST.md#f-040-server-only-normalized-world-directive-validation) — the normalized World directive validator is planned; raw LLM output remains provisional, inference remains asynchronous/server-only, and no implementation slice has started.
+- Current task: [#444 — Normalized World Directive Schema and Validator](https://github.com/vnvalentin/project0/issues/444) — open `wayfinder:task`; must resolve before a slice is promoted to `Ready`.
+- Tech debt: none allocated yet.
 
 ### Implementation slice index
 
