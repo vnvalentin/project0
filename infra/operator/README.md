@@ -4,7 +4,7 @@ Private, operator-authenticated **read-only status** service for the Project0
 host services, per the
 [operator control-plane decision](../../.scratch/container-platform/issues/04-operator-control-plane-and-telemetry.md).
 It is loopback-bound and separate from the public enrollment path. Mutating
-actions (restart, invites, revoke, update) are follow-up slices behind an
+actions (restart and update) are follow-up slices behind an
 audit/job model.
 
 ## Endpoints
@@ -19,15 +19,6 @@ audit/job model.
   (same auth/allowlist rules as restart).
 - `POST /services/{name}/stop` — stop an allowlisted service; audited job (same
   auth/allowlist rules as restart).
-- `POST /invites` — mint a single-use enrollment invite; returns an audited job
-  plus the secret `invite_code` (bearer token required; optional
-  `expires_in_seconds` body and `X-Operator` header). The code is returned only
-  in the response, never in the audit log.
-- `POST /peers/revoke` — revoke an enrolled WireGuard peer by `{public_key}`
-  body; returns an audited job (bearer token required; optional `X-Operator`
-  header). Revoking an absent peer is a successful `ALREADY_ABSENT` outcome.
-  Requires the enrollment OPNsense credentials; unavailable (failed job) when
-  they are unset.
 - `GET /jobs` — recent operator jobs (bearer token required).
 
 Authentication is a bearer token compared with `hmac.compare_digest`: missing →

@@ -3,7 +3,7 @@
 # Every service runs from an image published by .github/workflows/images.yml,
 # pinned by tag, so the deployed artifact is the one CI built. This replaces the
 # `git archive` + preserve-host-artifacts model, whose inputs (.godot import
-# cache, wgnetstack .so, host venv) existed only on the deployment host.
+# cache and host venv) existed only on the deployment host.
 #
 # Usage on the host:
 #   PROJECT0_IMAGE_TAG=v1.2.3 docker compose -f deploy/compose.yml up -d

@@ -3,7 +3,7 @@
 Mocks urllib.request.urlopen (the underlying transport RealLoginAuthorityClient
 uses to call the login authority's loopback endpoint) so its request shape and
 bounded reason mapping are proven correct without any real network access or a
-live Godot login process — mirroring test_opnsense_client.py's approach of
+live Godot login process.
 mocking the real client's underlying transport rather than the business logic.
 The real loopback socket contract itself is covered by the Godot-side GUT test
 tests/integration/test_login_loopback_http_endpoint.gd.

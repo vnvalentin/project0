@@ -94,7 +94,7 @@ updated live records and slice "Tracker context" stamps; dated change-history
 prose and ADRs keep their original numbers as append-only history.
 
 **Runs in parallel throughout (independent files):** public game access via
-WireGuard (P-024: `infra/`, `ci/`, the `native/wgnetstack/` GDExtension), and
+direct WAN/Nakama routing (P-024's replacement path), and
 the workflow fillers (P-005 Remote-SSH, P-006 asset quarantine; DT-006 test
 migration is now resolved — Slice 041).
 
@@ -131,7 +131,7 @@ their previous numbers — see the change note under "Delivery order".)
 | 8. JIT world generation and local inference | done | The server requests non-blocking sector generation, validates local Ollama JSON blueprints, and exposes bounded failures without interrupting the multiplayer loop. |
 | 9. Canon persistence and world mutation | done | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
-| 11. Public game access | done | A new remote player can safely self-register, authenticate, select a Character, provision a least-privilege WireGuard peer, and enter the authoritative server from a real WAN Windows client; public-route abuse controls are validated, and no VPS, client OS admin rights, or LAN exposure is required. |
+| 11. Public game access | done | A new remote player can safely self-register, authenticate, select a Character, and enter the authoritative server over the supported direct WAN/Nakama path; the superseded game WireGuard implementation is retired by Slice 182. |
 | 12. Authoritative runtime and action input | in-progress | Production deployment mutation and rollback evidence are recorded, login and game images have an explicit release boundary, and the server resolves a bounded action set authoritatively beyond the first melee seam. |
 | 13. Delivery workflow capabilities | in-progress | Agent orchestration and CI/dashboard foundations remain synchronized; Remote-SSH and asset quarantine are either delivered with evidence or explicitly retained as planned non-blockers. |
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
@@ -160,6 +160,10 @@ Progress: **100%** (1 of 1 items done)
 **Phase 1 — First playable vertical slice**
 
 Progress: **100%** (3 of 3 items done)
+
+- **Current slice:** [182 — Prune obsolete game WireGuard implementation](slices/182-prune-obsolete-game-wireguard.md) — **in progress; removing the superseded game tunnel, peer enrollment, and packaging paths while retaining HTTPS authentication/character/patch routes.**
+  - **GitHub issue:** [#393](https://github.com/vnvalentin/project0/issues/393)
+  - **Feature:** [P-024](FEATURE-LIST.md#p-024-public-game-access-via-opnsense-native-wireguard)
 
 - Features: `done` [F-001](FEATURE-LIST.md#f-001-local-identity-gate-flat-plane-scene-and-player-movement) — local identity gate, flat-plane scene, and player movement.
 - Tech debt: `done` [DT-002](TECHNICAL-DEBT-TRACKER.md#dt-002-no-automated-gdscript-test-framework) — GUT framework installed and Slice 001's smoke test migrated; `done` [DT-006](TECHNICAL-DEBT-TRACKER.md#dt-006-remaining-hand-rolled-smoke-tests-not-yet-migrated-to-gut) — remaining hand-rolled scripts migrated/wrapped/reclassified (Slice 041).

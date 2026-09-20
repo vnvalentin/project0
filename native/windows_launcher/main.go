@@ -18,7 +18,6 @@ import (
 const (
 	updateRequiredExitCode = 20
 	launcherClientVersion  = "0.6.0"
-	directWANEnvVar        = "PROJECT0_DIRECT_WAN"
 	directWANHost          = "project0.valentin.vip"
 	directWANEnrollmentURL = "https://project0.valentin.vip"
 )
@@ -31,16 +30,6 @@ func main() {
 		return
 	}
 
-	directWAN := directWANEnabled()
-	var config peerConfig
-	var privateKey []byte
-	var err error
-	if !directWAN {
-		config, privateKey, err = ensurePeerConfig()
-		if err != nil {
-			fail(err)
-		}
-	}
 	payloadDirectory, err := payloadDirectory()
 	if err != nil {
 		fail(err)
@@ -62,28 +51,11 @@ func main() {
 	command := exec.Command(filepath.Join(payloadDirectory, "Project0.exe"), forwardedArgs(os.Args[1:])...)
 	command.Dir = payloadDirectory
 	clientEnv := filteredEnvironment()
-	if directWAN {
-		clientEnv = append(clientEnv,
-			"PROJECT0_CLIENT_HTTPS_LOGIN=1",
-			"PROJECT0_ENROLLMENT_URL="+directWANEnrollmentURL,
-			"PROJECT0_SERVER_HOST="+directWANHost,
-		)
-	} else {
-		keyPath, keyErr := privateKeyFile(privateKey)
-		if keyErr != nil {
-			fail(keyErr)
-		}
-		defer os.Remove(keyPath)
-		clientEnv = append(clientEnv,
-			"PROJECT0_TUNNEL=1",
-			"PROJECT0_TUNNEL_SERVER_PUBKEY="+config.ServerPublicKey,
-			"PROJECT0_TUNNEL_ENDPOINT="+config.Endpoint,
-			"PROJECT0_TUNNEL_GAME_HOST="+strings.TrimSuffix(config.AllowedIPs, "/32")+":9999",
-			"PROJECT0_TUNNEL_CLIENT_ADDRESS="+config.AssignedAddress,
-			"PROJECT0_TUNNEL_KEY_PATH="+keyPath,
-			"PROJECT0_TUNNEL_KEEPALIVE="+fmt.Sprint(config.Keepalive),
-		)
-	}
+	clientEnv = append(clientEnv,
+		"PROJECT0_CLIENT_HTTPS_LOGIN=1",
+		"PROJECT0_ENROLLMENT_URL="+directWANEnrollmentURL,
+		"PROJECT0_SERVER_HOST="+directWANHost,
+	)
 	clientEnv = append(clientEnv, "PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath)
 	command.Env = clientEnv
 	command.Stdout = nil
@@ -102,10 +74,6 @@ func main() {
 		}
 		fail(err)
 	}
-}
-
-func directWANEnabled() bool {
-	return os.Getenv(directWANEnvVar) != "0"
 }
 
 func hasArg(args []string, wanted string) bool {
@@ -127,6 +95,14 @@ func payloadDirectory() (string, error) {
 		return "", fmt.Errorf("create payload directory: %w", err)
 	}
 	return directory, nil
+}
+
+func appDataDirectory() (string, error) {
+	root := os.Getenv("LOCALAPPDATA")
+	if root == "" {
+		return "", errors.New("LOCALAPPDATA is not set")
+	}
+	return filepath.Join(root, "Project0"), nil
 }
 
 func runUpdaterHelper(args []string) error {
@@ -208,8 +184,6 @@ func seedPayloadFromPackage(destination string) error {
 	files := []string{
 		"Project0.exe",
 		"Project0.pck",
-		"libwgnetstack_gdext.windows.template_release.x86_64.dll",
-		filepath.Join("native", "wgnetstack", "gdext", "build", "libwgnetstack_gdext.windows.template_release.x86_64.dll"),
 	}
 	for _, name := range files {
 		contents, readErr := os.ReadFile(filepath.Join(sourceDir, name))
@@ -228,7 +202,7 @@ func seedPayloadFromPackage(destination string) error {
 }
 
 func payloadInstalled(directory string) bool {
-	for _, name := range []string{"Project0.exe", "Project0.pck", "libwgnetstack_gdext.windows.template_release.x86_64.dll"} {
+	for _, name := range []string{"Project0.exe", "Project0.pck"} {
 		if _, err := os.Stat(filepath.Join(directory, name)); err != nil {
 			return false
 		}

@@ -9,26 +9,15 @@ touch a real systemctl/docker call.
 from __future__ import annotations
 
 import hmac
-import os
 from dataclasses import asdict
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from pydantic import BaseModel
 
 from .config import load_config
 from .control import RealServiceController
-from .invites import RealInviteAdmin
 from .audit_store import SqliteAuditLog
 from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
-
-
-class MintInviteRequest(BaseModel):
-    expires_in_seconds: int | None = None
-
-
-class RevokePeerRequest(BaseModel):
-    public_key: str
 
 
 def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str) -> FastAPI:
@@ -84,61 +73,13 @@ def create_app(status_service: StatusService, operations_service: OperationsServ
     def jobs() -> dict:
         return {"jobs": [job.to_dict() for job in operations_service.recent_jobs()]}
 
-    @app.post("/invites", dependencies=[Depends(require_operator)])
-    def mint_invite(body: MintInviteRequest | None = None, x_operator: str | None = Header(default=None)) -> dict:
-        expires = body.expires_in_seconds if body else None
-        job, code = operations_service.mint_invite((x_operator or "operator").strip() or "operator", expires)
-        result: dict = {"job": job.to_dict()}
-        if code:
-            # The invite code is a secret returned to the operator only; it is
-            # never in the job/audit log.
-            result["invite_code"] = code
-        return result
-
-    @app.post("/peers/revoke", dependencies=[Depends(require_operator)])
-    def revoke_peer(body: RevokePeerRequest, x_operator: str | None = Header(default=None)) -> dict:
-        # A WireGuard public key is base64 (not URL-path-safe), so it travels in
-        # the body rather than the path.
-        if not body.public_key.strip():
-            raise HTTPException(status_code=422, detail="public_key is required")
-        job = operations_service.revoke_peer((x_operator or "operator").strip() or "operator", body.public_key)
-        return job.to_dict()
-
     return app
 
 
 def build_production_app() -> FastAPI:
     config = load_config()
     status_service = StatusService(config.services, RealServiceInspector())
-    from infra.enrollment.config import DEFAULT_DB_PATH as ENROLLMENT_DEFAULT_DB_PATH
-    from infra.enrollment.store import EnrollmentStore
-
-    enrollment_db = os.getenv("ENROLLMENT_DB_PATH", ENROLLMENT_DEFAULT_DB_PATH)
-    invite_admin = RealInviteAdmin(EnrollmentStore(enrollment_db))
-    peer_admin = _build_peer_admin(enrollment_db)
     operations_service = OperationsService(
         config.services, RealServiceController(), SqliteAuditLog(config.audit_db_path),
-        invite_admin=invite_admin, peer_admin=peer_admin,
     )
     return create_app(status_service, operations_service, config.operator_token)
-
-
-def _build_peer_admin(enrollment_db: str):
-    """Wire the OPNsense-backed peer revocation admin. Optional: when the
-    enrollment OPNsense credentials are unset, revoke is unavailable and the rest
-    of the operator service still runs."""
-    try:
-        from infra.enrollment.config import load_config as load_enrollment_config
-        from infra.enrollment.opnsense_client import RealOpnsenseWireguardClient
-        from infra.enrollment.service import RevocationService
-        from infra.enrollment.store import EnrollmentStore
-
-        from .peers import RealPeerAdmin
-
-        enrollment_config = load_enrollment_config()
-        opnsense = RealOpnsenseWireguardClient(
-            enrollment_config.opnsense_api_key, enrollment_config.opnsense_api_secret
-        )
-        return RealPeerAdmin(RevocationService(EnrollmentStore(enrollment_db), opnsense))
-    except RuntimeError:
-        return None

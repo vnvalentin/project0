@@ -2,8 +2,7 @@
 
 Append-only and WAL-backed; survives control-plane restarts. Mirrors the
 in-memory AuditLog interface (record/recent) so it drops in wherever the
-OperationsService expects an audit sink. Never stores a secret: the invite code
-is already kept out of the Job (Slice 063), so persisting the Job is safe.
+OperationsService expects an audit sink.
 """
 from __future__ import annotations
 

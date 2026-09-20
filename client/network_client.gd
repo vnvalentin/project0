@@ -301,12 +301,6 @@ func _process(_delta: float) -> void:
 	rpc_id(1, "receive_client_telemetry_batch_on_server", batch, _telemetry_sequence)
 
 
-## Slice 034: holds the in-process wgnetstack WireGuard tunnel (a WgNetstack
-## GDExtension instance) for the lifetime of the connection when tunnel mode
-## is on, so it is not freed while the ENet client uses its loopback port.
-var _tunnel: Object = null
-
-
 ## Public seam: starts an ENet client connection attempt to the given host
 ## and port. When host is left as the default, it resolves via
 ## NetworkConfig.resolve_client_target_host() (CLI arg, then env var, then
@@ -322,14 +316,6 @@ func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER
 	var target_host: String = host.strip_edges()
 	if target_host.is_empty():
 		target_host = NetworkConfigScript.resolve_client_target_host()
-
-	# Slice 034: when PROJECT0_TUNNEL=1, open the in-process userspace WireGuard
-	# tunnel and connect to its loopback port instead of target_host directly,
-	# so a remote tester needs no WireGuard app and no admin/TUN driver.
-	var tunnel_port: int = _maybe_start_tunnel()
-	if tunnel_port > 0:
-		target_host = NetworkConfigScript.SERVER_ADDRESS
-		port = tunnel_port
 
 	_peer = ENetMultiplayerPeer.new()
 	var connect_error: Error = _peer.create_client(target_host, port)
@@ -347,48 +333,7 @@ func disconnect_from_server() -> void:
 		multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = null
 	_peer = null
-	if _tunnel != null:
-		_tunnel.stop()
-		_tunnel = null
 	_set_status("disconnected")
-
-
-## Slice 034: when PROJECT0_TUNNEL=1, starts the in-process wgnetstack tunnel
-## from PROJECT0_TUNNEL_* env config and returns its loopback UDP port. Returns
-## 0 when tunnel mode is off, the GDExtension is not loaded, or startup fails,
-## so the caller then connects directly exactly as before. The private key is
-## referenced only by file path (PROJECT0_TUNNEL_KEY_PATH); it is never read or
-## logged here.
-func _maybe_start_tunnel() -> int:
-	if OS.get_environment("PROJECT0_TUNNEL") != "1":
-		return 0
-	if not ClassDB.class_exists("WgNetstack"):
-		push_warning("PROJECT0_TUNNEL=1 but the WgNetstack GDExtension is not loaded; connecting directly.")
-		return 0
-	var config: Dictionary = {
-		"client_private_key_path": OS.get_environment("PROJECT0_TUNNEL_KEY_PATH"),
-		"client_address": OS.get_environment("PROJECT0_TUNNEL_CLIENT_ADDRESS"),
-		"server_public_key": OS.get_environment("PROJECT0_TUNNEL_SERVER_PUBKEY"),
-		"server_endpoint": OS.get_environment("PROJECT0_TUNNEL_ENDPOINT"),
-		"game_host": OS.get_environment("PROJECT0_TUNNEL_GAME_HOST"),
-	}
-	var keepalive: String = OS.get_environment("PROJECT0_TUNNEL_KEEPALIVE")
-	if keepalive.is_valid_int():
-		config["persistent_keepalive_interval"] = keepalive.to_int()
-	var mtu: String = OS.get_environment("PROJECT0_TUNNEL_MTU")
-	if mtu.is_valid_int():
-		config["mtu"] = mtu.to_int()
-	_tunnel = ClassDB.instantiate("WgNetstack")
-	if _tunnel == null:
-		push_error("wgnetstack: could not instantiate WgNetstack; connecting directly.")
-		return 0
-	var tunnel_port: int = _tunnel.start(config)
-	if tunnel_port <= 0:
-		push_error("wgnetstack: tunnel failed to start; connecting directly.")
-		_tunnel = null
-		return 0
-	print("wgnetstack tunnel up on 127.0.0.1:%d -> %s via %s" % [tunnel_port, config["game_host"], config["server_endpoint"]])
-	return tunnel_port
 
 
 func _on_connected_to_server() -> void:
@@ -1553,7 +1498,7 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 ## Character entirely over HTTPS (client/enrollment_http_client.gd) with NO ENet
 ## login connection, so it already holds a signed CHARACTER assertion and starts
 ## disconnected. This connects to the game server (bringing up the in-process
-## tunnel when PROJECT0_TUNNEL=1), presents that assertion via the existing
+## direct WAN connection, presents that assertion via the existing
 ## establish_session_from_assertion path, and enters the world — reusing the same
 ## bounded per-step waits and the login_to_game_handoff_finished signal. The
 ## server owns every outcome; a tampered/expired assertion binds nothing.

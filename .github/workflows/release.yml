@@ -50,7 +50,6 @@ jobs:
         with:
           go-version: "1.23"
           cache-dependency-path: |
-            native/wgnetstack/go.sum
             native/windows_launcher/go.sum
 
       - name: Resolve version

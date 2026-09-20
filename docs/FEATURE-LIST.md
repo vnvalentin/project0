@@ -1942,6 +1942,9 @@ for a developer to pick up. No implementation has started.
 ### P-024: Public game access via OPNsense-native WireGuard
 
 - Status: `Implemented`
+- Lifecycle note: The original WireGuard implementation is superseded by the
+  direct-WAN/Nakama game path. Slice 182 removes its application and deployment
+  code; the historical delivery record below remains for traceability.
 - Feature: Remote players reach the home-hosted authoritative server over a
   split-tunnel WireGuard connection — an in-process userspace netstack
   GDExtension in the Godot client, an invite-code enrollment service, and
