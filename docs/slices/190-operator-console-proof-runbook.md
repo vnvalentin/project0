@@ -11,9 +11,9 @@ Feature: [F-041](../FEATURE-LIST.md#f-041-fleet-operations-console)
 ## Outcome
 
 The fleet-operations design and implementation slices have a durable operator
-runbook and a final proof boundary. Read-only telemetry is ready for an
-end-to-end deployment proof; privileged control remains explicitly gated on the
-host helper and authoritative Godot seam.
+runbook and a final proof boundary. The authoritative control path is proven
+live, and both Godot authorities now emit validated OpsSnapshots for the
+read-only console. A deployed read-side proof remains.
 
 ## Evidence boundary
 
@@ -23,11 +23,10 @@ routes lifecycle actions through the audited operator service and fails closed
 with `executor_unavailable` for gameplay actions until the Godot transport is
 wired. The authoritative `OperatorControlService` and `OperatorControlAdapter`
 are covered by focused tests for drain, degraded state, peer-target validation,
-assertion rejection, scope rejection, and authorized dispatch. The remaining
-proof must wire that adapter to the running server and show the LAN console reads real
-world/login snapshots, stale/unreadable states remain non-authoritative, and
-each privileged executor independently rejects invalid or under-scoped
-assertions.
+assertion rejection, scope rejection, and authorized dispatch. The privileged
+control transport proof is complete. World and login snapshot emitters are
+wired to the existing atomic writer and share the console's snapshot directory;
+stale/unreadable states remain non-authoritative.
 
 ### Deployment evidence
 
@@ -38,9 +37,13 @@ expected. The game server logged `Operator control HTTP endpoint listening on
 internal port 8097`. A request with an invalid operator assertion reached
 `/internal/control` and returned HTTP 403 with no action execution.
 
-The operator-console forwarding service was not enabled during this proof, and
-no privileged action was executed. The remaining gap is an operator-managed
-`OPERATOR_TOKEN`/assertion configuration plus a live authorized action proof.
+The operator-console forwarding service was enabled on LAN port 18090 with the
+deployed Project0 image and host-managed assertion configuration. A
+Project0-native `project0-console` assertion with `control` scope set degraded
+state and was accepted with HTTP 200; the same path immediately cleared the
+state and was accepted with HTTP 200. No gameplay or Nakama service was
+restarted. Invalid bearer proof remains HTTP 403. Focused OpsSnapshot and
+HealthReporter validation passed 13/13 tests with 30 assertions.
 
 ## Runbook
 
@@ -49,9 +52,14 @@ secret, rollback, Nakama migration, and current validation rules.
 
 ## Non-goals
 
-This record does not claim privileged control or a production operator-console
-cutover. Those require the remaining executor implementation and live proof.
+This record does not claim a complete production operator-console cutover. The
+remaining gate is a deployed read-side proof showing fresh world/login rows in
+the LAN console.
 
 ## Root-cause learning
 
-No unexpected runtime failure occurred in this planning/runbook increment.
+The full local GUT gate remains red on unrelated multi-peer/prediction tests
+and a pre-existing SQLite test parse/cache skip; the focused tests for this
+slice pass. Docker compose validation was unavailable on Windows because the
+Docker CLI is not installed. These limitations require remote deployment
+validation before the slice can be marked complete.
