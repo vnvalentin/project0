@@ -7,6 +7,9 @@ build
 .scratch
 docs
 dashboard
+!dashboard/
+dashboard/*
+!dashboard/ops_registry.py
 tests
 ci
 infra
