@@ -198,8 +198,15 @@ contended range and everything after it is tracked explicitly:
 | 181 | Wire Nakama gameplay bridge into authoritative simulation and prove live exchange (F-039, #372) | interactive |
 | 182 | Prune obsolete game WireGuard implementation (#393) | interactive |
 | 183 | Goal A / F-002: client export filter debt remediation (#421, DT-011) | interactive |
+| 184 | Server admin console: OpsSnapshot contract and validation (#165) | interactive |
+| 185 | Server admin console: atomic snapshot writers and emitters (#165) | interactive |
+| 186 | Server admin console: registry and freshness scanner (#165) | interactive |
+| 187 | Server admin console: read-only console surface and packaging (#165) | interactive |
+| 188 | Server admin console: ControlAction/ControlResult and audit contract (#165) | interactive |
+| 189 | Server admin console: authenticated control seam and host helper (#165) | interactive |
+| 190 | Server admin console: end-to-end proof and operator runbook (#165) | interactive |
 
-Next free slice: **184** (verify against `docs/slices/` before reserving).
+Next free slice: **191** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
