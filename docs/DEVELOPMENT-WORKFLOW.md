@@ -25,9 +25,9 @@ feature group into a large implementation batch.
 ## Delivery lifecycle
 
 Every capability moves through one lifecycle with a single authoritative status
-at each stage. The stage lives in exactly one place at a time and is mirrored,
-not duplicated, across `FEATURE-LIST.md`, `PROJECT-TRACKER.md`, and the flow
-dashboard.
+at each stage. As of 2026-09-20, a Feature's authoritative status lives on its
+GitHub issue (label `Feature`), not in a file; `PROJECT-TRACKER.md` and the
+flow dashboard mirror that status rather than duplicating it.
 
 ### Stages
 
@@ -38,8 +38,8 @@ dashboard.
    (`grilling`, `research`, `architecture`) resolve into an ADR or recorded
    decision, not a feature.
 2. **Ready** — a `resolved` *implementation* (`task`) issue graduates to a
-   feature in `FEATURE-LIST.md` with `Status: Ready`. Its design is complete and
-   a developer can pick it up, but no implementation has started.
+   GitHub issue labeled `Feature` (`Parent goal: #N` in its body). Its design is
+   complete and a developer can pick it up, but no implementation has started.
 3. **Active** — a developer has started the slice. Feature `Status: In Progress`
    (equivalently *Active*). The slice follows SDD → BDD → TDD → verification.
 4. **Awaiting evidence** — the slice's code is complete but its focused

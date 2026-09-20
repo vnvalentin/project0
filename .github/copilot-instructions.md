@@ -16,8 +16,13 @@ Use the delivery records together:
 
 - [Project Tracker](../docs/PROJECT-TRACKER.md) owns phase exit gates and the
   cross-index for features, liabilities, and slices.
-- [Feature List](../docs/FEATURE-LIST.md) owns validated capabilities and their
-  change history.
+- [Feature List](../docs/FEATURE-LIST.md) is a **frozen historical archive**
+  (as of 2026-09-20) of capabilities delivered before Features moved to GitHub
+  issues. A Feature is now a GitHub issue labeled `Feature`, with
+  `Parent goal: #N` in its body when it advances a Goal issue. Likewise
+  `docs/slices/*.md` and `SLICE-REGISTRY.md` are frozen; a Slice is now a
+  GitHub issue labeled `Slice`, with `Parent feature: #N` in its body when it
+  advances a Feature issue. See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
 - [Technical Debt Tracker](../docs/TECHNICAL-DEBT-TRACKER.md) owns every
   liability through resolution, reclassification, or permanent acceptance.
 
