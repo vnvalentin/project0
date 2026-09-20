@@ -37,4 +37,4 @@ func test_rejects_ticket_reuse_and_socket_backpressure() -> void:
 	socket.accepting = false
 	var result: Dictionary = bridge.receive_match_state("a", ProtocolScript.build_input("user", "character", 1, {"move_x": 1.0}), 1)
 	assert_eq(result["outcome"], BridgeScript.REASON_BACKPRESSURE)
-	assert_eq(state.input_calls.size(), 1)
+	assert_eq(state.input_calls.size(), 0)
