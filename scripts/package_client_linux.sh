@@ -23,8 +23,10 @@ repo="$(pwd)"
 VERSION="${1:-${PROJECT0_CLIENT_VERSION:-0.12.0}}"
 OUT_DIR="${PROJECT0_PACKAGE_DIR:-dist/current}"
 STAGE="build/client-package/stage"
+GODOT_CPP_REF="${GODOT_CPP_REF:-d5cc777}"
 VERSION_CONTRACT="shared/client_build_version.gd"
 VERSION_CONTRACT_BACKUP="$(mktemp)"
+cp "${VERSION_CONTRACT}" "${VERSION_CONTRACT_BACKUP}"
 
 restore_version_contract() {
 	mv -f "${VERSION_CONTRACT_BACKUP}" "${VERSION_CONTRACT}"
@@ -89,6 +91,8 @@ done
 if [[ "${export_status}" -ne 0 ]]; then
 	echo "WARNING: godot export exited ${export_status} but produced complete artifacts."
 fi
+restore_version_contract
+trap - EXIT
 log "Building WAN launcher for Windows"
 mkdir -p "${OUT_DIR}"
 launcher_out="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.exe"
@@ -97,6 +101,7 @@ launcher_out="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.exe"
 
 wan_package="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}"
 rm -rf "${wan_package}"
+mkdir -p "${wan_package}"
 cp "${launcher_out}" "${wan_package}/Project0-Launcher-${VERSION}.exe"
 cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${wan_package}/"
 wan_zip="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.zip"

@@ -440,7 +440,9 @@ feature so future drift is easier to detect.
   [Slice 154](slices/154-launcher-signed-update-download.md) (native Go signed
   update download and staging integration),
   [Slice 155](slices/155-outdated-client-launcher-handoff.md) (live
-  `CLIENT_OUTDATED` handoff from packaged client to launcher update loop).
+  `CLIENT_OUTDATED` handoff from packaged client to launcher update loop),
+  [Slice 157](slices/157-visible-wan-package.md) (visible launcher package,
+  stable installation directory, and explicit update confirmation).
 - Validation: Each slice must add public-seam GUT coverage and full-suite
   telemetry; the update and rollback behavior additionally requires executable
   packaged-client runtime evidence before this feature can become `Implemented`.
@@ -465,6 +467,20 @@ feature so future drift is easier to detect.
     Validation: Go vet/test passed; full GUT 106 scripts / 774 tests / 774
     passing, 2451 asserts, exit 0; record-sync exit 0. Packaged Windows
     end-to-end evidence remains the final proof.
+  - Date: 2026-09-20
+    What changed: Started Slice 157's packaged-client evidence follow-up and
+    repaired four release-path defects found by executable validation: version
+    contract cleanup, launcher package-directory creation, the manifest's
+    pinned godot-cpp default, and slash-safe CI artifact naming.
+    Why: The visible package and stable-directory implementation existed, but
+    the release path could not yet produce a trustworthy artifact from a clean
+    branch checkout.
+    Related work: [Slice 157](slices/157-visible-wan-package.md), #100, #182.
+    Validation: focused launcher tests/vet, enrollment patch-hosting tests,
+    packaging syntax, workflow YAML checks, and GitHub Actions package run
+    #35519933553 pass; the manifest is clean and the portable ZIP contents are
+    verified. First-install, live-update, and rollback runtime evidence
+    remains pending.
   - Date: 2026-09-18
     What changed: Delivered the eleventh F-037 slice (Slice 155) — live outdated
     client handoff. A packaged client with `PROJECT0_UPDATE_REJECTION_PATH` now
@@ -3107,16 +3123,6 @@ for a developer to pick up. No implementation has started.
     invoked against live data show identical Phase 12/13 percentages and
     outcome counts; `scripts/check_record_sync.sh` — 0 errors; see
     [Slice 178](slices/178-reality-page-outcome-percentages.md).
-  - Date: 2026-09-20
-    What changed: Slice 183 restores the prior readable `dashboard/app.py`
-    layout after the uncommitted roadmap replacement proved hard to scan and
-    removes that replacement entrypoint. Closed Goal issues now count as 100%
-    complete even when their WGL checklist was not backfilled with checked
-    boxes, fixing Goal #100's misleading 0% display.
-    Why: The replacement layout reduced readability, and parent Goal closure
-    was being contradicted by an empty checklist-derived percentage.
-    Validation: AST parse and live `render_exec()` passed; Goal #100 reports
-    100%; see [Slice 183](slices/183-restore-readable-dashboard-layout.md).
 
 ### F-022: Player house allocation
 

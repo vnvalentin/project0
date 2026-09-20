@@ -221,16 +221,18 @@ milestone instead.
 ## Immediate order
 
 1. Close A: capture packaged-Windows first-install and update/rollback
-   runtime evidence, land Slice 157's remaining evidence, then start the
-   controller-integration slices (#118-120) and the download-page follow-ups.
+  runtime evidence and land Slice 157's remaining evidence. Reconcile the
+  already-closed controller issues and download-page follow-ups afterward;
+  do not reopen the old controller sequence as new work without a live issue.
 2. Close B's production mutation/rollback evidence on the existing deploy
    path, decide DT-012, and resolve the nine open server-admin-console
    questions (#166-174) into a capstone spec before allocating any console
    slice.
 3. Decide E's correlation/session identity model (#289) before locking B's
-   console telemetry-content decisions, then implement the Slice 160
-   telemetry sink (#332) so B and future balance work have real data instead
-   of ad hoc log-scraping.
+  console telemetry-content decisions. The telemetry sink, transport,
+  connection/combat emission, and dashboard route from Slices 159-165 are
+  already delivered; the next E work must use that data rather than recreate
+  Slice 160.
 4. Resolve C's four open maps (#302-305) to handoff-ready specs, item/loot
    first since equipment and quest reward transactions depend on its
    ownership model, before allocating any implementation slice or feature id.

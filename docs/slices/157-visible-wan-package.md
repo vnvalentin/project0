@@ -37,3 +37,52 @@ submission, which require operator-owned identity and portal actions.
 - `GOOS=windows GOARCH=amd64 go vet ./...` passes.
 - `bash -n scripts/package_client_linux.sh scripts/publish_client_downloads.sh` passes.
 - `git diff --check` passes.
+- GitHub Actions run [35519933553](https://github.com/vnvalentin/project0/actions/runs/35519933553)
+	completed successfully for version `0.12.0`. It produced the portable client
+	ZIP (31,833,880 bytes), launcher EXE (8,282,112 bytes), launcher ZIP
+	(36,522,362 bytes), and manifest. The manifest recorded
+	`source_tree_dirty: false`, `godot_export_exit_code: 0`, and
+	`godot_cpp_ref: d5cc777`; the portable ZIP contained exactly
+	`Project0.exe` and `Project0.pck`. First-install, live-update, and rollback
+	runtime evidence remain pending, so the slice is not complete.
+
+## Root-cause learning
+
+- Symptom: the first Linux package attempt left the stamped client-version
+	contract modified after export. The affected seam was
+	`scripts/package_client_linux.sh`'s version-stamping cleanup.
+	Hypothesis: the exit trap could not restore the source because the backup
+	path was never populated. The discriminating check was inspection of the
+	backup setup and a post-failure comparison with `HEAD`.
+	Confirmed root cause: the script created a temporary backup filename but
+	omitted the copy into it. Countermeasure: copy the contract before stamping;
+	the focused syntax and cleanup checks now pass. The corrected package
+	workflow produced the expected artifacts; runtime evidence remains pending.
+- Symptom: the package script exported the client but failed while assembling
+	the launcher archive. The affected seam was the versioned launcher package
+	directory. Hypothesis: the destination directory was absent. The
+	discriminating check was the first failing copy command in the package
+	step. Confirmed root cause: the script removed the directory and copied into
+	it without recreating it. Countermeasure: create the directory before the
+	copies; the focused script and launcher tests pass.
+- Symptom: CI failed at manifest generation with an unbound `GODOT_CPP_REF`.
+	The affected seam was the release workflow's package manifest. Hypothesis:
+	the script assumed a locally exported variable that CI did not provide. The
+	discriminating check was the failed line under `set -u`. Confirmed root
+	cause: no default existed despite the documented pinned revision.
+	Countermeasure: default to `d5cc777` while preserving an explicit override.
+- Symptom: branch validation failed while uploading an otherwise completed
+	package because the artifact name contained `/`. The affected seam was the
+	release workflow artifact handoff. Hypothesis: `github.ref_name` was used
+	directly for a slash-bearing branch. The discriminating check was the
+	Actions error naming the invalid artifact. Confirmed root cause: branch names
+	are not valid artifact-name components. Countermeasure: use the unique
+	numeric workflow run ID for upload and download names.
+- Symptom: the successful CI manifest reported `source_tree_dirty: true` on a
+	clean checkout. The affected seam was manifest provenance. Hypothesis: the
+	temporary export stamp was still present when the manifest inspected Git.
+	The discriminating check was the manifest value plus the script's restore
+	order. Confirmed root cause: restoration was deferred to the process exit
+	trap, after manifest generation. Countermeasure: restore immediately after
+	export and disable the now-completed trap; the source is clean before the
+	remaining package steps.
