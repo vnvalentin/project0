@@ -56,7 +56,8 @@ feature so future drift is easier to detect.
   (pure OpsSnapshot contract and validation), [Slice 185](slices/185-ops-snapshot-writer.md)
   (atomic OpsSnapshot writer), [Slice 186](slices/186-ops-registry-freshness.md)
   (registry and freshness scanner), [Slice 187](slices/187-operator-console-read-only-surface.md)
-  (read-only LAN console surface); Slices 188-190 are reserved in
+  (read-only LAN console surface), [Slice 188](slices/188-control-contract.md)
+  (bounded control/result/audit contracts); Slices 189-190 are reserved in
   the capstone handoff for writers, registry, console, control, auth, and proof.
 - Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
   [ADR 0010](adr/0010-server-admin-console.md), and #165.
@@ -85,6 +86,13 @@ feature so future drift is easier to detect.
     introduced.
     Validation evidence: focused pytest 4/4, Python compilation, and diff check
     passed; Docker was unavailable locally so the service was not started.
+  - Date: 2026-09-20
+    What changed: Delivered Slice 188's bounded ControlRequest,
+    ControlResult, and AuditRecord contracts.
+    Why: Host and authoritative in-process executors need one idempotent,
+    auditable action shape before privileged behavior is added.
+    Validation evidence: focused pytest 2/2, Python compilation, and diff check
+    passed.
 
 ### F-040: Server-only normalized World directive validation
 
