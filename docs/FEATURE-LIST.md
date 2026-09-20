@@ -43,7 +43,7 @@ feature so future drift is easier to detect.
 
 ### F-039: Nakama v1 entry and realtime foundation
 
-- Status: `In Progress`
+- Status: `Implemented`
 - Feature: Project0 uses Nakama as the v1 Account/session root and
   client-facing realtime socket entry while Project0 remains authoritative for
   Character semantics, gameplay simulation, and Canon/Sector writes.
@@ -78,8 +78,8 @@ feature so future drift is easier to detect.
   [Slice 180](slices/180-nakama-gameplay-bridge.md) (opt-in Nakama socket gameplay
   bridge adapter foundation forwarding bound input into Project0 authority and
   returning authoritative state through the Slice 170 envelope), [Slice 181]
-  (slices/181-nakama-live-gameplay-bridge.md) (live world-entry wiring and
-  two-client runtime proof).
+  (slices/181-nakama-live-gameplay-bridge.md) (delivered live world-entry
+  wiring and two-client authoritative runtime proof).
   Remaining implementation issues are tracked by the parent Goal
   [#354](https://github.com/vnvalentin/project0/issues/354): auth/session
   [#356](https://github.com/vnvalentin/project0/issues/356), Character service
