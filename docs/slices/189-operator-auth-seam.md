@@ -1,6 +1,6 @@
 # Slice 189 - Operator assertion authentication seam
 
-GitHub issue: #165
+GitHub issue: #506
 
 Status: **in progress**
 

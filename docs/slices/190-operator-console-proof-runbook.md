@@ -1,6 +1,6 @@
 # Slice 190 - Operator console proof and runbook
 
-GitHub issue: #165
+GitHub issue: #507
 
 Status: **in progress**
 
