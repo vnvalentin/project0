@@ -21,6 +21,7 @@ var _last_sequence: int = 0
 var _match_id_present: bool = false
 var _error_outcome: String = ""
 var _outcomes: Array[String] = []
+var _stage: String = "starting"
 var _network_client: Node
 var _player_identity: Node
 
@@ -43,6 +44,7 @@ func _run_proof() -> void:
 		_fail(setup_error)
 		_finish(1)
 		return
+	_set_stage("configuration_ready")
 
 	_player_identity.nakama_auth_token = _token
 	_player_identity.nakama_user_id = String(NakamaHttpClientScript.parse_jwt_payload(_token).get("uid", ""))
@@ -52,6 +54,7 @@ func _run_proof() -> void:
 		return
 
 	_network_client.connect_to_server(_game_host(), _game_port())
+	_set_stage("connecting_to_game")
 	if not await _wait_until(func() -> bool: return _connection_status == "connected" or not _version_rejection.is_empty()):
 		_fail("connect_timeout")
 		_finish(1)
@@ -61,8 +64,10 @@ func _run_proof() -> void:
 		_finish(1)
 		return
 	_outcomes.append("connected_and_version_handshake_sent")
+	_set_stage("version_accepted")
 
 	_network_client.submit_nakama_session(_token)
+	_set_stage("validating_nakama_session")
 	if not await _wait_until(func() -> bool: return not _nakama_outcome.is_empty() or not _version_rejection.is_empty()):
 		_fail("nakama_session_timeout")
 		_finish(1)
@@ -72,8 +77,10 @@ func _run_proof() -> void:
 		_finish(1)
 		return
 	_outcomes.append("nakama_session_established")
+	_set_stage("nakama_session_established")
 
 	_network_client.submit_list_characters()
+	_set_stage("listing_characters")
 	if not await _wait_until(func() -> bool: return _character_operation == "list"):
 		_fail("character_list_timeout")
 		_finish(1)
@@ -85,6 +92,7 @@ func _run_proof() -> void:
 
 	if _characters.is_empty():
 		_network_client.submit_create_character(_proof_character_name(), {})
+		_set_stage("creating_character")
 		if not await _wait_until(func() -> bool: return _character_operation == "create"):
 			_fail("character_create_timeout")
 			_finish(1)
@@ -102,6 +110,7 @@ func _run_proof() -> void:
 		return
 	_player_identity.selected_character_id = character_id
 	_network_client.submit_select_character(character_id)
+	_set_stage("selecting_character")
 	if not await _wait_until(func() -> bool: return _character_operation == "select"):
 		_fail("character_select_timeout")
 		_finish(1)
@@ -112,6 +121,7 @@ func _run_proof() -> void:
 		return
 
 	_network_client.submit_enter_world()
+	_set_stage("entering_world")
 	if not await _wait_until(func() -> bool: return not _world_outcome.is_empty()):
 		_fail("world_entry_timeout")
 		_finish(1)
@@ -126,12 +136,14 @@ func _run_proof() -> void:
 		_finish(1)
 		return
 	_outcomes.append("world_entry_submitted")
+	_set_stage("world_entry_complete")
 
 	# World entry starts the bridge asynchronously; this input is the first
 	# bridge state request and the response is the authoritative proof signal.
 	await process_frame
 	var sequence: int = 1
 	_network_client.submit_input_intent(Vector2(1.0, 0.0), sequence)
+	_set_stage("waiting_for_authoritative_state")
 	if not await _wait_until(func() -> bool: return _state_count > 0):
 		_fail("authoritative_state_timeout")
 		_finish(1)
@@ -141,6 +153,7 @@ func _run_proof() -> void:
 		_finish(1)
 		return
 	_outcomes.append("authoritative_nakama_state_received")
+	_set_stage("authoritative_state_received")
 	_finish(0)
 
 
@@ -242,6 +255,30 @@ func _on_authoritative_position(_position: Vector3, sequence: int) -> void:
 func _fail(outcome: String) -> void:
 	_error_outcome = outcome
 	_outcomes.append("failed")
+	_write_state()
+
+
+func _set_stage(stage: String) -> void:
+	_stage = stage
+	_write_state()
+
+
+func _write_state() -> void:
+	if _state_file.is_empty():
+		return
+	var file: FileAccess = FileAccess.open(_state_file, FileAccess.WRITE)
+	if file == null:
+		return
+	file.store_string(JSON.stringify({
+		"stage": _stage,
+		"outcomes": _outcomes,
+		"connection_status": _connection_status,
+		"match_id_present": _match_id_present,
+		"state_received": _state_count > 0,
+		"last_sequence": _last_sequence,
+		"error_outcome": _error_outcome,
+	}))
+	file.close()
 
 
 func _finish(exit_code: int) -> void:
@@ -249,6 +286,7 @@ func _finish(exit_code: int) -> void:
 		_network_client.disconnect_from_server()
 	_connection_status = _network_client.status
 	var state: Dictionary = {
+		"stage": _stage,
 		"outcomes": _outcomes,
 		"connection_status": _connection_status,
 		"match_id_present": _match_id_present,
