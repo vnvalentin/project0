@@ -63,7 +63,7 @@ if [[ -n "${PROFILES}" ]]; then
 	for p in "${_profiles[@]}"; do compose_args+=(--profile "${p}"); done
 fi
 
-previous_tag="$(cat "${state_file}" 2>/dev/null || echo "")"
+previous_tag="$(sed -n 's/^project0_tag=//p' "${components_file}" 2>/dev/null || true)"
 previous_nakama_tag="$(sed -n 's/^nakama_tag=//p' "${components_file}" 2>/dev/null || true)"
 if [[ -n "${previous_tag}" && -z "${previous_nakama_tag}" && "${ROLLBACK}" == true ]]; then
 	fail "No previous Nakama tag is recorded; refusing an unpaired rollback target"
