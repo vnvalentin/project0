@@ -58,7 +58,8 @@ feature so future drift is easier to detect.
   (registry and freshness scanner), [Slice 187](slices/187-operator-console-read-only-surface.md)
   (read-only LAN console surface), [Slice 188](slices/188-control-contract.md)
   (bounded control/result/audit contracts), [Slice 189](slices/189-operator-auth-seam.md)
-  (independent operator assertion verification); Slice 190 is reserved in
+  (independent operator assertion verification), and [Slice 190](slices/190-operator-console-proof-runbook.md)
+  (operator runbook and proof boundary).
   the capstone handoff for writers, registry, console, control, auth, and proof.
 - Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
   [ADR 0010](adr/0010-server-admin-console.md), and #165.
@@ -99,6 +100,13 @@ feature so future drift is easier to detect.
     Why: Privileged executors must verify operator identity and scopes
     independently of the console before actions are enabled.
     Validation evidence: focused pytest 8/8 and Python compilation passed.
+  - Date: 2026-09-20
+    What changed: Added Slice 190's fleet operator runbook and explicit final
+    proof boundary.
+    Why: The read-only surface and control contracts need durable operational
+    instructions without claiming privileged control before both executors are
+    live-tested.
+    Validation evidence: documentation and record synchronization checks pass.
 
 ### F-040: Server-only normalized World directive validation
 
