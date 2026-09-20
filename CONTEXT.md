@@ -173,6 +173,20 @@ server-authoritative, generated, canon-persisted content`.
 - **Version handshake**: The first client/server message after connection and
   before authentication, where the client presents its build version and the
   server accepts or rejects it.
+- **Ops snapshot**: A versioned, server-owned, bounded current-state read model
+  for operator telemetry. It is not gameplay authority or historical metrics.
+- **Operator console**: The standalone LAN service that reads Ops snapshots and
+  submits bounded authenticated control actions.
+- **Control action**: A versioned request for one bounded operator operation;
+  gameplay and Canon/progression mutation are excluded.
+- **Operator token**: A signed credential carrying operator identity and scopes,
+  independently verified by each control executor.
+- **Server registry**: The manifest-backed mapping from server id/type to its
+  snapshot location and control metadata.
+- **Drain**: A server-authoritative mode that refuses new connections while
+  allowing existing sessions to finish or disconnect normally.
+- **Degraded**: An explicit server health state with a bounded reason, visible
+  to operators and never inferred from arbitrary player-facing text.
 
 ## External contexts
 

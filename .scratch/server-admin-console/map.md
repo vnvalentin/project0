@@ -16,10 +16,10 @@ sharp enough to open implementation slices safely, captured in a capstone ADR + 
 
 ## What Good Looks Like
 
-- [ ] A versioned ops-snapshot contract defines current-state telemetry for every Project0 server.
-- [ ] Tier-1 transport, server registry, and per-server telemetry content are decided.
-- [ ] Authenticated control actions are bounded, authorized, audited, and separated from public traffic.
-- [ ] The operator-console surface is specified and captured in a capstone ADR/spec for downstream slices.
+- [x] A versioned ops-snapshot contract defines current-state telemetry for every Project0 server.
+- [x] Tier-1 transport, server registry, and per-server telemetry content are decided.
+- [x] Authenticated control actions are bounded, authorized, audited, and separated from public traffic.
+- [x] The operator-console surface is specified and captured in a capstone ADR/spec for downstream slices.
 
 ## Notes
 
@@ -49,6 +49,10 @@ sharp enough to open implementation slices safely, captured in a capstone ADR + 
     reload, degraded toggle. Auth via a **single bounded operator-token control seam**
     from day one, shaped so production RBAC is a later extension.
   - **Dev/LAN-only now** (single host `192.168.1.254`), not precluding production later.
+
+  The capstone handoff is locked in [spec.md](spec.md) and
+  [ADR 0010](../../docs/adr/0010-server-admin-console.md). Downstream work is
+  reserved as Slices 184-190.
 - **Existing anchors (go-and-see):**
   - `ServerHealth` snapshot — status / tick_rate / uptime / connected_peers /
     max_peers / app_schema_version / timestamp (`server/server_health.gd`).
