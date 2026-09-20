@@ -208,3 +208,29 @@ services:
     cpus: 0.5
     restart: unless-stopped
     profiles: ["dashboard"]
+
+  operator-console:
+    build:
+      context: ..
+      dockerfile: operator_console/Dockerfile
+    container_name: project0-operator-console
+    ports:
+      - "${OPERATOR_CONSOLE_BIND:-192.168.1.254}:${OPERATOR_CONSOLE_PORT:-8090}:8090"
+    environment:
+      SERVER_MANIFEST: /config/servers.json
+      SNAPSHOT_ROOT: /snapshots
+    volumes:
+      - "${OPERATOR_CONSOLE_CONFIG_DIR:-/etc/project0/operator-console}:/config:ro"
+      - "${OPERATOR_CONSOLE_SNAPSHOT_DIR:-/var/lib/project0/ops-snapshots}:/snapshots:ro"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+    profiles: ["operator"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
