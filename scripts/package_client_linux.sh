@@ -25,6 +25,7 @@ OUT_DIR="${PROJECT0_PACKAGE_DIR:-dist/current}"
 STAGE="build/client-package/stage"
 VERSION_CONTRACT="shared/client_build_version.gd"
 VERSION_CONTRACT_BACKUP="$(mktemp)"
+cp "${VERSION_CONTRACT}" "${VERSION_CONTRACT_BACKUP}"
 
 restore_version_contract() {
 	mv -f "${VERSION_CONTRACT_BACKUP}" "${VERSION_CONTRACT}"
