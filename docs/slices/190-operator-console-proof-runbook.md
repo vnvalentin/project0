@@ -17,10 +17,13 @@ host helper and authoritative Godot seam.
 
 ## Evidence boundary
 
-Slices 184-188 are focused-tested. Slice 189 verifies the Python assertion and
-scope seam. The remaining proof must show the LAN console reads real world/login
-snapshots, stale/unreadable states remain non-authoritative, and each privileged
-executor independently rejects an invalid or under-scoped assertion.
+Slices 184-188 are focused-tested. Slice 189 verifies the Python assertion,
+scope seam, and fixed-allowlist host helper. The authoritative
+`OperatorControlService` is covered by focused tests for drain, degraded state,
+and peer-target validation. The remaining proof must wire transport to the
+running server and show the LAN console reads real world/login snapshots,
+stale/unreadable states remain non-authoritative, and each privileged executor
+independently rejects an invalid or under-scoped assertion.
 
 ## Runbook
 
