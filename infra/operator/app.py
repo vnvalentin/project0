@@ -9,6 +9,7 @@ touch a real systemctl/docker call.
 from __future__ import annotations
 
 import hmac
+import os
 from dataclasses import asdict
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -18,15 +19,20 @@ from .control import RealServiceController
 from .audit_store import SqliteAuditLog
 from .operations import OperationsService
 from .services import RealServiceInspector, StatusService, UnknownServiceError
+from .operator_auth import verify_operator_token
 
 
-def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str) -> FastAPI:
+def create_app(status_service: StatusService, operations_service: OperationsService, operator_token: str, assertion_secret_hex: str | None = None) -> FastAPI:
     app = FastAPI(title="Project0 Operator Control Plane")
 
     def require_operator(authorization: str | None = Header(default=None)) -> None:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="missing bearer token")
         presented = authorization[len("Bearer "):]
+        if assertion_secret_hex:
+            if verify_operator_token(presented, assertion_secret_hex) is None:
+                raise HTTPException(status_code=403, detail="invalid operator assertion")
+            return
         if not hmac.compare_digest(presented, operator_token):
             raise HTTPException(status_code=403, detail="invalid operator token")
 
@@ -82,4 +88,7 @@ def build_production_app() -> FastAPI:
     operations_service = OperationsService(
         config.services, RealServiceController(), SqliteAuditLog(config.audit_db_path),
     )
-    return create_app(status_service, operations_service, config.operator_token)
+    return create_app(
+        status_service, operations_service, config.operator_token,
+        os.getenv("PROJECT0_ASSERTION_SECRET_HEX", "").strip() or None,
+    )

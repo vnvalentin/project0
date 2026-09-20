@@ -57,7 +57,8 @@ feature so future drift is easier to detect.
   (atomic OpsSnapshot writer), [Slice 186](slices/186-ops-registry-freshness.md)
   (registry and freshness scanner), [Slice 187](slices/187-operator-console-read-only-surface.md)
   (read-only LAN console surface), [Slice 188](slices/188-control-contract.md)
-  (bounded control/result/audit contracts); Slices 189-190 are reserved in
+  (bounded control/result/audit contracts), [Slice 189](slices/189-operator-auth-seam.md)
+  (independent operator assertion verification); Slice 190 is reserved in
   the capstone handoff for writers, registry, console, control, auth, and proof.
 - Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
   [ADR 0010](adr/0010-server-admin-console.md), and #165.
@@ -93,6 +94,11 @@ feature so future drift is easier to detect.
     auditable action shape before privileged behavior is added.
     Validation evidence: focused pytest 2/2, Python compilation, and diff check
     passed.
+  - Date: 2026-09-20
+    What changed: Started Slice 189's independent operator assertion seam.
+    Why: Privileged executors must verify operator identity and scopes
+    independently of the console before actions are enabled.
+    Validation evidence: focused pytest 8/8 and Python compilation passed.
 
 ### F-040: Server-only normalized World directive validation
 
