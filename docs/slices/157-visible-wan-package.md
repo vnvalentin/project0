@@ -75,6 +75,12 @@ gates.
 	The GUI-subsystem launcher did not expose a reliable process exit code through
 	the PowerShell harness; the on-disk restoration assertion passed. Signed
 	download and valid-update runtime evidence remain open.
+- The native launcher verifier was also exercised against the published HTTPS
+	patch host using its embedded trusted public key. The live manifest and
+	detached signature verified, the signed PCK downloaded, and the staged file
+	matched the signed byte count. The private signing key was not present on the
+	workstation and no new release artifact was generated. Valid-update relaunch
+	evidence remains open.
 - [Slice 181](181-nakama-live-gameplay-bridge.md) provides the current WAN
 	gameplay evidence: both fresh clients exited 0 after Nakama session,
 	Character, world-entry, shared-match, movement, and authoritative-state
