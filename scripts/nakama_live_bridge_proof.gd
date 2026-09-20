@@ -182,7 +182,7 @@ func _game_port() -> int:
 
 
 func _argument_value(prefix: String) -> String:
-	for argument: String in OS.get_cmdline_user_args():
+	for argument: String in OS.get_cmdline_args() + OS.get_cmdline_user_args():
 		if argument.begins_with(prefix):
 			return argument.substr(prefix.length()).strip_edges()
 	return ""
