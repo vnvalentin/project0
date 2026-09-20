@@ -1,7 +1,12 @@
 # Goal E Map: DM Guild and Semantic World Pipeline
 
-Status: chartering
+Status: handoff-ready
 Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
+## Handoff artifacts
+
+- [Semantic World Pipeline specification](spec.md)
+- [ADR 0009 — DM Guild semantic world pipeline](../../docs/adr/0009-dm-guild-semantic-world-pipeline.md)
 
 ## Destination
 
@@ -49,3 +54,6 @@ run inside frame-critical simulation loops.
 - No LLM-authored physics, combat, inventory, persistence, or multiplayer truth.
 - No full quest, dungeon, faction, or content implementation before this map
   produces a stable contract.
+
+The decision route is complete. Fixture-backed proofs and bounded
+implementation slices remain future delivery work under the handoff artifacts.
