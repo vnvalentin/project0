@@ -43,7 +43,7 @@ services:
   nakama:
     image: registry.heroiclabs.com/heroiclabs/nakama:${NAKAMA_IMAGE_TAG:-3.37.0}
     container_name: project0-nakama
-    command: ["/bin/sh", "-ec", "nakama migrate up --config /nakama/data/nakama.yml && exec nakama --config /nakama/data/nakama.yml"]
+    command: ["/bin/sh", "-ec", "nakama migrate up --config /nakama.yml && exec nakama --config /nakama.yml"]
     depends_on:
       nakama-db:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
       # Console/admin UI stays private. Do not bind this to WAN/public IPs.
       - "${NAKAMA_CONSOLE_BIND:-127.0.0.1}:7351:7351"
     volumes:
-      - "${NAKAMA_CONFIG_DIR:-/etc/project0/nakama}:/nakama/data:ro"
+      - "${NAKAMA_CONFIG_DIR:-/etc/project0/nakama}/nakama.yml:/nakama.yml:ro"
     healthcheck:
       test: ["CMD", "/nakama/nakama", "healthcheck"]
       interval: 15s
