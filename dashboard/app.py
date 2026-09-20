@@ -279,7 +279,7 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
         open_count = total - github_closed
         child_percent = round(covered / total * 100) if total else 0
         criteria = goal_good_looks_like(issue.get("body", ""))
-        target_percent = goal_target_coverage(criteria)
+        target_percent = 100 if issue.get("state") == "closed" else goal_target_coverage(criteria)
         cards.append({
             **issue,
             "child_total": total,
