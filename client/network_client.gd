@@ -165,6 +165,8 @@ signal resume_assertion_result_received(outcome: String, assertion: String)
 signal return_to_character_select_finished(outcome: String)
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const NakamaGameplayBridgeClientScript: Script = preload("res://client/nakama_gameplay_bridge_client.gd")
+const NakamaScript: Script = preload("res://addons/com.heroiclabs.nakama/Nakama.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
@@ -235,6 +237,7 @@ var _latest_remote_players: Dictionary = {}
 ## Slice 087: the account resume token obtained at handoff, kept in memory so the
 ## in-world return can re-establish a login session without re-authenticating.
 var _resume_assertion: String = ""
+var _nakama_gameplay_bridge: Object = null
 
 ## Slice 094: latest replicated authoritative HP, retained so a HUD element
 ## created after the first receive_health_update (scene-entry ordering) reads
@@ -711,6 +714,9 @@ func _get_or_create_monsters_container(gameplay_root: Node) -> Node3D:
 func submit_input_intent(intent: Vector2, sequence: int) -> void:
 	if not status.begins_with("connected"):
 		return
+	if _nakama_gameplay_bridge != null and _nakama_gameplay_bridge.available():
+		_nakama_gameplay_bridge.submit_input({"move_x": intent.x, "move_z": intent.y}, sequence)
+		return
 	rpc_id(1, "receive_input_intent_on_server", intent, sequence)
 
 
@@ -790,6 +796,9 @@ func receive_remote_player_identity(peer_id: int, display_name: String, cosmetic
 ## no-op before this client is connected, matching submit_input_intent.
 func submit_action_intent(sequence: int, client_tick: int, action_kind: String, aim_direction: Vector3) -> void:
 	if not status.begins_with("connected"):
+		return
+	if _nakama_gameplay_bridge != null and _nakama_gameplay_bridge.available():
+		_nakama_gameplay_bridge.submit_input({"action_kind": action_kind, "aim_x": aim_direction.x, "aim_y": aim_direction.y, "aim_z": aim_direction.z}, sequence)
 		return
 	rpc_id(1, "receive_action_intent_on_server", sequence, client_tick, action_kind, aim_direction)
 
@@ -1391,6 +1400,37 @@ func receive_nakama_session_result(outcome: String) -> void:
 	nakama_session_established_received.emit(outcome)
 
 
+func _start_nakama_gameplay(match_id: String) -> void:
+	if not NetworkConfigScript.client_nakama_gameplay_enabled() or PlayerIdentity.nakama_auth_token.is_empty() or match_id.is_empty():
+		return
+	var nakama: Node = NakamaScript.new()
+	add_child(nakama)
+	var bridge: Object = NakamaGameplayBridgeClientScript.new()
+	var connected: Dictionary = await bridge.connect_shared_match(nakama, PlayerIdentity.nakama_auth_token, match_id)
+	if connected.get("outcome", "") != "ok":
+		nakama.queue_free()
+		return
+	if bridge.attach(connected["socket"], String(connected["match_id"]), PlayerIdentity.nakama_user_id, PlayerIdentity.selected_character_id)["outcome"] != "ok":
+		nakama.queue_free()
+		return
+	bridge.state_received.connect(_on_nakama_state)
+	bridge.error_received.connect(_on_nakama_error)
+	_nakama_gameplay_bridge = bridge
+
+
+func _on_nakama_state(message: Dictionary) -> void:
+	var payload: Dictionary = message.get("payload", {})
+	var position_wire: Dictionary = payload.get("position", {})
+	var position: Vector3 = Vector3(float(position_wire.get("x", 0.0)), float(position_wire.get("y", 0.0)), float(position_wire.get("z", 0.0)))
+	authoritative_position_received.emit(position, int(message.get("sequence", 0)))
+	if payload.has("action_result"):
+		action_resolution_received.emit(int(message.get("sequence", 0)), String(payload["action_result"]), String(payload.get("action_rejection_reason", "")), int(payload.get("server_tick", 0)))
+
+
+func _on_nakama_error(_message: Dictionary) -> void:
+	_nakama_gameplay_bridge = null
+
+
 ## Slice 043: emitted on the requesting client with the outcome of its own
 ## world-entry request. On success `character` is the selected CharacterRecord
 ## wire dict the authoritative Player was bound to; on rejection it is empty and
@@ -1423,6 +1463,15 @@ func receive_enter_world_request_on_server() -> void:
 	if result["outcome"] == "ok":
 		var record: Object = result["character"]
 		player_state.bind_character(record.character_id, record.display_name, record.cosmetic)
+		var ticket_service: Object = get_tree().root.get_meta("world_entry_tickets", null)
+		var relay: Node = get_tree().root.get_node_or_null("NakamaGameplayRelay")
+		if ticket_service != null and relay != null and relay.available():
+			var issued: Dictionary = ticket_service.issue(sender_id, int(Time.get_unix_time_from_system()), 30)
+			if issued.get("outcome", "") == "ok":
+				var consumed: Dictionary = ticket_service.consume(sender_id, String(issued["ticket"]), int(Time.get_unix_time_from_system()))
+				if consumed.get("outcome", "") == "ok":
+					var identity: Dictionary = login_gateway.get_presence_identity(sender_id)
+					relay.bind_world_entry(sender_id, String(identity.get("account_id", "")), record.character_id, String(issued["ticket"]), player_state)
 	_reply_enter_world_result(sender_id, result)
 
 
@@ -1436,6 +1485,9 @@ func _reply_enter_world_result(peer_id: int, result: Dictionary) -> void:
 	var character_wire: Dictionary = {}
 	if result.has("character"):
 		character_wire = (result["character"] as Object).to_wire_dict()
+	var relay: Node = get_tree().root.get_node_or_null("NakamaGameplayRelay")
+	if relay != null and relay.available():
+		character_wire["nakama_match_id"] = relay.match_id()
 	network_client.rpc_id(peer_id, "receive_enter_world_result", String(result["outcome"]), character_wire)
 
 
@@ -1445,6 +1497,8 @@ func _reply_enter_world_result(peer_id: int, result: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func receive_enter_world_result(outcome: String, character: Dictionary) -> void:
 	world_entry_received.emit(outcome, character)
+	if outcome == "ok":
+		_start_nakama_gameplay(String(character.get("nakama_match_id", "")))
 
 
 ## Slice 077: emitted when perform_login_to_game_handoff finishes, with the final

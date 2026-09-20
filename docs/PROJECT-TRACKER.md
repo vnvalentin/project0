@@ -334,7 +334,11 @@ Progress: **50%** (3 of 6 items done)
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** #371
 
-- **Current slice:** [180 — Nakama socket gameplay bridge](slices/180-nakama-gameplay-bridge.md) — **in-progress; wires the approved Nakama socket path to the existing Project0 authoritative simulation through validated Slice 170 envelopes**
+- **Current slice:** [181 — Live Nakama gameplay bridge](slices/181-nakama-live-gameplay-bridge.md) — **in-progress; wires the approved Nakama socket path at world entry to the existing Project0 authoritative simulation and requires live two-client evidence**
+  - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
+  - **GitHub issue:** [#372](https://github.com/vnvalentin/project0/issues/372)
+
+- **Prior slice:** [180 — Nakama socket gameplay bridge adapter foundation](slices/180-nakama-gameplay-bridge.md) — **delivered; validated server/client adapter seams, identity-bound envelopes, authoritative state return, duplicate rejection, ticket reuse rejection, and fail-closed backpressure behavior**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** [#372](https://github.com/vnvalentin/project0/issues/372)
 

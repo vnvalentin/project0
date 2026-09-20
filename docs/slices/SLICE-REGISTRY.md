@@ -193,9 +193,9 @@ contended range and everything after it is tracked explicitly:
 | 176 | Dashboard Phase/Outcome/Slice/Goal roadmap rebuild (#374-#380) | interactive |
 | 177 | Dashboard per-slice Goal alignment (real data, not phase-level) (#374) | interactive |
 | 178 | Reality (/) page phase bars use real Outcome-label completion (#374) | interactive |
-| 180 | Nakama socket gameplay bridge into authoritative simulation (#372) | interactive |
 | 179 | Import pinned Nakama Godot SDK and prove two-client socket path (F-039, #354, #386) | interactive |
-| 181 | Nakama live gameplay bridge (#372) | interactive |
+| 180 | Nakama socket gameplay bridge adapter foundation (F-039, #372) | interactive |
+| 181 | Wire Nakama gameplay bridge into authoritative simulation and prove live exchange (F-039, #372) | interactive |
 | 182 | Prune obsolete game WireGuard implementation (#393) | interactive |
 
 Next free slice: **183** (verify against `docs/slices/` before reserving).

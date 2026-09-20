@@ -52,6 +52,9 @@ const SectorBoundaryDetectorScript: Script = preload("res://server/sector_bounda
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const NakamaSessionValidatorScript: Script = preload("res://server/nakama_session_validator.gd")
+const WorldEntryTicketServiceScript: Script = preload("res://server/world_entry_ticket_service.gd")
+const NakamaGameplayBridgeScript: Script = preload("res://server/nakama_gameplay_bridge.gd")
+const NakamaGameplayRelayScript: Script = preload("res://server/nakama_gameplay_relay.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
 const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
@@ -172,6 +175,9 @@ var _account_repository: Object = null
 var _character_service: Object = null
 var _login_gateway: Object = null
 var _nakama_session_validator: Node = null
+var _world_entry_tickets: Object = null
+var _nakama_gameplay_bridge: Object = null
+var _nakama_gameplay_relay: Node = null
 var _canon_repository: Object = null
 var _canon_mutation_repository: Object = null
 var _canon_mutation_service: Object = null
@@ -399,6 +405,16 @@ func _start_server() -> void:
 	_nakama_session_validator = NakamaSessionValidatorScript.new()
 	_nakama_session_validator.name = "NakamaSessionValidator"
 	root.add_child(_nakama_session_validator)
+	_world_entry_tickets = WorldEntryTicketServiceScript.new(
+		login_services["issuer"], login_services["validator"], login_services["sessions"], _character_service
+	)
+	root.set_meta("world_entry_tickets", _world_entry_tickets)
+	_nakama_gameplay_relay = NakamaGameplayRelayScript.new(null)
+	_nakama_gameplay_relay.name = "NakamaGameplayRelay"
+	_nakama_gameplay_bridge = NakamaGameplayBridgeScript.new(_nakama_gameplay_relay)
+	_nakama_gameplay_relay.set_bridge(_nakama_gameplay_bridge)
+	root.add_child(_nakama_gameplay_relay)
+	_nakama_gameplay_relay.call_deferred("start_from_environment")
 	print("Accounts database ready at user://%s (schema ensured); assertion-only game server (accounts live on the login process)." % accounts_db_path)
 
 	# Slice 162 (telemetry map #282): open the dedicated telemetry database and
@@ -606,6 +622,9 @@ func _admit_peer(peer_id: int) -> void:
 func _on_peer_disconnected(peer_id: int) -> void:
 	# A peer can drop while still awaiting the version gate; it owns nothing else.
 	_pending_version_gate.erase(peer_id)
+	var disconnected_identity: Dictionary = _login_gateway.get_presence_identity(peer_id) if _login_gateway != null else {}
+	if _nakama_gameplay_relay != null:
+		_nakama_gameplay_relay.unbind_world_entry(String(disconnected_identity.get("account_id", "")))
 	# Slice 040: clear this peer's in-memory session, if any. Sessions are
 	# never persisted, so a reconnecting peer always finds no session and must
 	# fully re-authenticate — see server/session_registry.gd.
