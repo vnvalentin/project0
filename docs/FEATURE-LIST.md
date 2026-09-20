@@ -3123,16 +3123,6 @@ for a developer to pick up. No implementation has started.
     invoked against live data show identical Phase 12/13 percentages and
     outcome counts; `scripts/check_record_sync.sh` — 0 errors; see
     [Slice 178](slices/178-reality-page-outcome-percentages.md).
-  - Date: 2026-09-20
-    What changed: Slice 183 restores the prior readable `dashboard/app.py`
-    layout after the uncommitted roadmap replacement proved hard to scan and
-    removes that replacement entrypoint. Closed Goal issues now count as 100%
-    complete even when their WGL checklist was not backfilled with checked
-    boxes, fixing Goal #100's misleading 0% display.
-    Why: The replacement layout reduced readability, and parent Goal closure
-    was being contradicted by an empty checklist-derived percentage.
-    Validation: AST parse and live `render_exec()` passed; Goal #100 reports
-    100%; see [Slice 183](slices/183-restore-readable-dashboard-layout.md).
 
 ### F-022: Player house allocation
 

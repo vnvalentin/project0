@@ -187,10 +187,9 @@ contended range and everything after it is tracked explicitly:
 | 169 | Project0 world-entry ticket contract for Nakama sessions (F-039, #354, #358) | interactive |
 | 170 | Nakama socket gameplay bridge protocol contract (F-039, #354, #359) | interactive |
 | 171 | Default shared playtest world routing and presence (F-039, #354, #360) | interactive |
-| 182 | Nakama v1 smoke and operations gate (F-039, #354, #361) | interactive |
-| 183 | Restore readable dashboard layout and correct closed Goal percentages (#374) | interactive |
+| 172 | Nakama v1 smoke and operations gate (F-039, #354, #361) | interactive |
 | 173 | Server-side Nakama session validation seam (F-039, #354, #381) | interactive |
-Next free slice: **184** (verify against `docs/slices/` before reserving).
+| 175 | Nakama Character and world-entry client path (F-039, #354, #371) | interactive |
 | 176 | Dashboard Phase/Outcome/Slice/Goal roadmap rebuild (#374-#380) | interactive |
 | 177 | Dashboard per-slice Goal alignment (real data, not phase-level) (#374) | interactive |
 | 178 | Reality (/) page phase bars use real Outcome-label completion (#374) | interactive |
