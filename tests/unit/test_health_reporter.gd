@@ -9,11 +9,14 @@ const HealthReporterScript: Script = preload("res://server/health_reporter.gd")
 const ServerHealthScript: Script = preload("res://server/server_health.gd")
 
 const TEMP_HEALTH_PATH: String = "user://test_health_reporter.json"
+const TEMP_OPS_PATH: String = "user://test_ops_snapshot.json"
 
 
 func after_each() -> void:
 	if FileAccess.file_exists(TEMP_HEALTH_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEMP_HEALTH_PATH))
+	if FileAccess.file_exists(TEMP_OPS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(TEMP_OPS_PATH))
 
 
 func _valid_snapshot(status: String) -> Dictionary:
@@ -71,3 +74,18 @@ func test_healthy_snapshot_lands_on_disk_end_to_end() -> void:
 	HealthReporterScript.write_snapshot(TEMP_HEALTH_PATH, snapshot)
 	var text: String = FileAccess.get_file_as_string(TEMP_HEALTH_PATH)
 	assert_string_contains(text, "\"status\":\"healthy\"", "the on-disk file reports the healthy status the healthcheck greps for")
+
+
+func test_ops_snapshot_writer_round_trips_atomically() -> void:
+	var snapshot: Dictionary = {"snapshot_schema_version": 1, "server_id": "project0-game", "status": "healthy"}
+	var result: Dictionary = HealthReporterScript.write_ops_snapshot(TEMP_OPS_PATH, snapshot)
+	assert_eq(result["outcome"], HealthReporterScript.OUTCOME_OK, "ops snapshot write reports ok")
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(TEMP_OPS_PATH))
+	assert_true(parsed is Dictionary, "ops snapshot parses as JSON")
+	assert_eq((parsed as Dictionary)["server_id"], "project0-game", "ops snapshot round-trips")
+	assert_false(FileAccess.file_exists(TEMP_OPS_PATH + ".tmp"), "temporary file is not left behind")
+
+
+func test_ops_snapshot_writer_fails_closed_on_unwritable_path() -> void:
+	var result: Dictionary = HealthReporterScript.write_ops_snapshot("user://no_such_dir/ops.json", {"status": "healthy"})
+	assert_eq(result["outcome"], HealthReporterScript.OUTCOME_ERROR, "ops snapshot write fails closed")

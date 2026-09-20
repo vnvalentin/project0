@@ -15,6 +15,7 @@ const OUTCOME_ERROR: String = "error"
 ## Default location for dev/local runs; the container overrides this with an
 ## absolute path via PROJECT0_HEALTH_FILE so the healthcheck can find it.
 const DEFAULT_HEALTH_FILE_PATH: String = "user://health.json"
+const DEFAULT_OPS_SNAPSHOT_FILE_PATH: String = "user://ops_snapshot.json"
 
 
 ## Public seam. Resolves the health-file path from a raw configuration string
@@ -39,4 +40,23 @@ static func write_snapshot(path: String, snapshot: Dictionary) -> Dictionary:
 		return {"outcome": OUTCOME_ERROR, "detail": "cannot open %s: %d" % [path, FileAccess.get_open_error()]}
 	file.store_string(JSON.stringify(snapshot))
 	file.close()
+	return {"outcome": OUTCOME_OK}
+
+
+static func write_ops_snapshot(path: String, snapshot: Dictionary) -> Dictionary:
+	var temporary_path: String = path + ".tmp"
+	var file: FileAccess = FileAccess.open(temporary_path, FileAccess.WRITE)
+	if file == null:
+		return {"outcome": OUTCOME_ERROR, "detail": "cannot open %s: %d" % [temporary_path, FileAccess.get_open_error()]}
+	file.store_string(JSON.stringify(snapshot))
+	file.flush()
+	file.close()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	var renamed: Error = DirAccess.rename_absolute(
+		ProjectSettings.globalize_path(temporary_path),
+		ProjectSettings.globalize_path(path)
+	)
+	if renamed != OK:
+		return {"outcome": OUTCOME_ERROR, "detail": "cannot publish %s: %s" % [path, error_string(renamed)]}
 	return {"outcome": OUTCOME_OK}

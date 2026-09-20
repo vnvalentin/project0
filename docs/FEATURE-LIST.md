@@ -41,6 +41,49 @@ feature so future drift is easier to detect.
 
 ## Planned Features
 
+### F-041: Fleet operations console
+
+- Status: `In Progress`
+- Feature: Project0 exposes a private LAN operator console with bounded,
+  versioned current-state telemetry and authenticated control actions while
+  preserving server and gameplay authority.
+- Problem solved: operators currently lack one authoritative current-state view
+  and bounded repair seam across the Project0 services.
+- Phase: 17. Fleet operations console
+- Public seam: `server/ops_snapshot.gd` first, followed by the snapshot writer,
+  registry, read-only console, and authenticated control seams.
+- Implementation slices: [Slice 184](slices/184-ops-snapshot-contract.md)
+  (pure OpsSnapshot contract and validation), [Slice 185](slices/185-ops-snapshot-writer.md)
+  (atomic OpsSnapshot writer); Slices 186-190 are reserved in
+  the capstone handoff for writers, registry, console, control, auth, and proof.
+- Related work: [server-admin-console map](../.scratch/server-admin-console/map.md),
+  [ADR 0010](adr/0010-server-admin-console.md), and #165.
+- Change history:
+  - Date: 2026-09-20
+    What changed: Started F-041 with Slice 184's pure OpsSnapshot contract.
+    Why: The console needs a stable server-owned read model before transport,
+    registry, or UI work can be implemented safely.
+    Validation evidence: focused GUT 5/5 and no editor diagnostics.
+  - Date: 2026-09-20
+    What changed: Delivered Slice 185's atomic OpsSnapshot writer.
+    Why: Snapshot publication needs a stable file boundary before server emitters
+    and registry discovery can consume it.
+    Validation evidence: focused HealthReporter GUT 8/8 with no implementation
+    diagnostics.
+
+### F-040: Server-only normalized World directive validation
+
+- Status: `Planned`
+- Feature: The authoritative server asynchronously validates raw World DM/LLM proposals into bounded, version-pinned normalized World directives before deterministic builder use.
+- Problem solved: Semantic world proposals need a stable, fail-closed public seam that rejects malformed, unsupported, stale, or out-of-range model output without allowing raw LLM data into world realization or blocking the multiplayer loop.
+- Phase: 19. Semantic world pipeline
+- Public seam: A server-only normalized-directive validator and bounded outcome result; the client never contacts the LLM, and inference remains asynchronous and outside the frame-critical simulation loop.
+- Implementation slices: Not allocated; the originating task issue must resolve before a slice is promoted to `Ready`.
+- Validation: Planned. The first slice must provide fixture-backed accepted, rejected, timeout, fallback, version-mismatch, and non-blocking public-seam evidence plus machine-readable validation telemetry.
+- Related work: [DM Guild map](../.scratch/dm-guild/map.md), [DM Guild specification](../.scratch/dm-guild/spec.md), [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md), [GitHub task #444](https://github.com/vnvalentin/project0/issues/444), and [governing issue #421](https://github.com/vnvalentin/project0/issues/421).
+
+### F-039: Nakama v1 entry and realtime foundation
+
 ### F-039: Nakama v1 entry and realtime foundation
 
 - Status: `Implemented`
