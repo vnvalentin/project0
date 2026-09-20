@@ -479,8 +479,9 @@ feature so future drift is easier to detect.
     Validation: focused launcher tests/vet, enrollment patch-hosting tests,
     packaging syntax, workflow YAML checks, and GitHub Actions package run
     #35519933553 pass; the manifest is clean and the portable ZIP contents are
-    verified. First-install, live-update, and rollback runtime evidence
-    remains pending.
+    verified. The public WAN gameplay path is now separately validated by
+    F-039/Slice 181; first-install, live-update, and rollback runtime evidence
+    for the Windows launcher remains pending.
   - Date: 2026-09-18
     What changed: Delivered the eleventh F-037 slice (Slice 155) — live outdated
     client handoff. A packaged client with `PROJECT0_UPDATE_REJECTION_PATH` now
