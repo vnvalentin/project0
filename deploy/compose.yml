@@ -20,9 +20,10 @@ x-infra-image: &infra-image
   image: ghcr.io/vnvalentin/project0-infra:${PROJECT0_IMAGE_TAG:-main}
 
 services:
-  # Nakama v1 platform foundation. Profile-gated so the existing stack does not
-  # start a new database unless the operator explicitly opts in. Secrets and the
-  # Nakama YAML config live under /etc/project0, not in this repo or image.
+  # Nakama v1 platform foundation. Nakama is part of the one Project0 runtime
+  # stack; secrets and the Nakama YAML config live under /etc/project0, not in
+  # this repo or image.
+  nakama-db:
     image: postgres:16.8-alpine
     container_name: project0-nakama-db
     env_file:
