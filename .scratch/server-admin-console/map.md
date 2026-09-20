@@ -1,5 +1,7 @@
 # Map: Server Admin & Telemetry Console
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 A locked, handoff-ready **spec + decision set for a fleet operator console**: a

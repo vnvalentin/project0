@@ -1,3 +1,5 @@
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 Produce a validated, handoff-ready plan for a controller integration placeholder in the Godot client: preserve keyboard/mouse behavior, route supported controller input through the existing named actions, and define the smallest safe implementation seam without changing server authority or network contracts.

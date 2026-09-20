@@ -1,5 +1,7 @@
 # Map: Organic LLM Village
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 Replace the single 17×17 square hub with a large, organic, districted, walled

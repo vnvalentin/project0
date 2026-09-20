@@ -1,5 +1,7 @@
 # Map: World Scale & Measurement System
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 A locked, handoff-ready **world-scale decision + Imperial measurement contract**:
