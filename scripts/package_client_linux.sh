@@ -98,6 +98,7 @@ launcher_out="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.exe"
 
 wan_package="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}"
 rm -rf "${wan_package}"
+mkdir -p "${wan_package}"
 cp "${launcher_out}" "${wan_package}/Project0-Launcher-${VERSION}.exe"
 cp "${STAGE}/Project0.exe" "${STAGE}/Project0.pck" "${wan_package}/"
 wan_zip="${repo}/${OUT_DIR}/Project0-Launcher-${VERSION}.zip"
