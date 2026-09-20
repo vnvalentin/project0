@@ -18,6 +18,12 @@ components, and no credentials. This package only replays the same identity
 gate, movement, and networking behavior already validated on the development
 build; it adds no new gameplay.
 
+The portable client ZIP is the primary distribution. The optional Project0
+launcher is a separate updater/bootstrapper around the same `Project0.exe` and
+`Project0.pck` payload. Release launchers should be Authenticode-signed;
+unsigned local builds may trigger Windows SmartScreen or antivirus reputation
+warnings because the launcher downloads updates and starts a child process.
+
 ## 1. Extract the package
 
 Right-click the ZIP file and choose **Extract All...** (or use any archive

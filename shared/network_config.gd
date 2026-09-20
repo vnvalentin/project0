@@ -190,14 +190,11 @@ static func client_login_split_enabled() -> bool:
 
 
 ## Public seam (Slice 093): whether the client runs the HTTPS account/character
-## flow instead of the ENet login/character path. The launcher sets
-## PROJECT0_CLIENT_HTTPS_LOGIN=1 for the direct-WAN flow; unset remains the LAN
-## development default.
+## flow instead of the ENet login/character path. HTTPS is the normal portable
+## client path; set PROJECT0_CLIENT_HTTPS_LOGIN=0 only for legacy LAN servers.
 static func client_https_login_enabled() -> bool:
 	var explicit: String = OS.get_environment(CLIENT_HTTPS_LOGIN_ENV_VAR).strip_edges()
-	if explicit == "1":
-		return true
-	return false
+	return explicit != "0"
 
 
 static func client_nakama_login_enabled() -> bool:

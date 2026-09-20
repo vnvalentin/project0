@@ -13,23 +13,35 @@ if [[ ! "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; 
 	exit 2
 fi
 
-launcher="${SOURCE_DIR}/Project0-WAN-${VERSION}.exe"
-launcher_archive="${SOURCE_DIR}/Project0-WAN-${VERSION}.zip"
+launcher="${SOURCE_DIR}/Project0-Launcher-${VERSION}.exe"
+launcher_archive="${SOURCE_DIR}/Project0-Launcher-${VERSION}.zip"
 archive="${SOURCE_DIR}/Project0-client-windows-x64-${VERSION}.zip"
 manifest="${SOURCE_DIR}/deployment-manifest.json"
-for artifact in "${launcher}" "${launcher_archive}" "${archive}" "${manifest}"; do
+for artifact in "${archive}" "${manifest}"; do
 	[[ -s "${artifact}" ]] || {
 		echo "publish: missing artifact: ${artifact}" >&2
 		exit 1
 	}
 done
 
+publish_launcher="${PROJECT0_PUBLISH_SIGNED_LAUNCHER:-0}"
+if [[ "${publish_launcher}" == "1" ]]; then
+	for artifact in "${launcher}" "${launcher_archive}"; do
+		[[ -s "${artifact}" ]] || {
+			echo "publish: signed launcher requested but artifact is missing: ${artifact}" >&2
+			exit 1
+		}
+	done
+fi
+
 download_dir="${PATCHES_DIR}/downloads/${VERSION}"
 sudo -n install -d -m 0755 "${download_dir}"
-sudo -n install -m 0644 "${launcher}" "${download_dir}/"
-sudo -n install -m 0644 "${launcher_archive}" "${download_dir}/"
 sudo -n install -m 0644 "${archive}" "${download_dir}/"
 sudo -n install -m 0644 "${manifest}" "${download_dir}/"
+if [[ "${publish_launcher}" == "1" ]]; then
+	sudo -n install -m 0644 "${launcher}" "${download_dir}/"
+	sudo -n install -m 0644 "${launcher_archive}" "${download_dir}/"
+fi
 
 tmp_page="$(mktemp)"
 trap 'rm -f "${tmp_page}"' EXIT
@@ -42,9 +54,15 @@ cat >"${tmp_page}" <<EOF
 <h1>Project0 downloads</h1>
 <p>Windows client ${VERSION}</p>
 <ul>
-<li><a href="${VERSION}/Project0-WAN-${VERSION}.exe">Download Windows launcher</a></li>
-<li><a href="${VERSION}/Project0-WAN-${VERSION}.zip">Download launcher ZIP</a></li>
 <li><a href="${VERSION}/Project0-client-windows-x64-${VERSION}.zip">Download portable client ZIP</a></li>
+EOF
+if [[ "${publish_launcher}" == "1" ]]; then
+cat >>"${tmp_page}" <<EOF
+<li><a href="${VERSION}/Project0-Launcher-${VERSION}.exe">Download Project0 launcher</a></li>
+<li><a href="${VERSION}/Project0-Launcher-${VERSION}.zip">Download launcher ZIP</a></li>
+EOF
+fi
+cat >>"${tmp_page}" <<EOF
 </ul>
 </main>
 </body>

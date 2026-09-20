@@ -99,6 +99,9 @@ class CharacterAssertionResponse(BaseModel):
     assertion: str
 
 
+LATEST_WINDOWS_CLIENT_PATH = "/patches/downloads/0.13.2/Project0-client-windows-x64-0.13.2.zip"
+
+
 def create_app(
     login_authority_client: LoginAuthorityClient,
     character_client: CharacterClient | None = None,
@@ -118,8 +121,8 @@ def create_app(
         return _public_page(
             "Project0",
             "A shared world for friends.",
-            """
-            <a class="primary" href="/downloads/">Download the client</a>
+            f"""
+            <a class="primary" href="{LATEST_WINDOWS_CLIENT_PATH}">Download the latest Windows client</a>
             <p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p>
             <a href="/telemetry">Service status</a>
             <a href="/dashboard">Dashboard</a>
@@ -155,7 +158,7 @@ def create_app(
         return _public_page(
             "Game connection",
             "Connect the latest launcher to the Project0 world.",
-            '<p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p><a class="primary" href="/downloads/">Get the launcher</a><a href="/">Back to Project0</a>',
+            f'<p class="endpoint">project0.valentin.vip:9999<br><small>UDP game endpoint</small></p><a class="primary" href="{LATEST_WINDOWS_CLIENT_PATH}">Download the latest Windows client</a><a href="/">Back to Project0</a>',
         )
 
     # Public by design: an outdated client cannot authenticate before it patches.

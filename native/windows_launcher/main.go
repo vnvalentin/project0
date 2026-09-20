@@ -18,8 +18,7 @@ import (
 const (
 	updateRequiredExitCode = 20
 	launcherClientVersion  = "0.6.0"
-	directWANHost          = "project0.valentin.vip"
-	directWANEnrollmentURL = "https://project0.valentin.vip"
+	publicEnrollmentURL    = "https://project0.valentin.vip"
 )
 
 func main() {
@@ -53,10 +52,9 @@ func main() {
 	clientEnv := filteredEnvironment()
 	clientEnv = append(clientEnv,
 		"PROJECT0_CLIENT_HTTPS_LOGIN=1",
-		"PROJECT0_ENROLLMENT_URL="+directWANEnrollmentURL,
-		"PROJECT0_SERVER_HOST="+directWANHost,
+		"PROJECT0_ENROLLMENT_URL="+publicEnrollmentURL,
+		"PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath,
 	)
-	clientEnv = append(clientEnv, "PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath)
 	command.Env = clientEnv
 	command.Stdout = nil
 	command.Stderr = nil

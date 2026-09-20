@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourcePackage,
 
-    [string]$OutputPath = "dist\Project0-WAN.exe"
+    [string]$OutputPath = "dist\Project0-Launcher.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,7 +11,7 @@ $launcher = Join-Path $PSScriptRoot "..\native\windows_launcher"
 
 $required = @(
     "Project0.exe",
-    "Project0.pck",
+    "Project0.pck"
 )
 foreach ($name in $required) {
     $source = Join-Path $SourcePackage $name
