@@ -211,6 +211,30 @@ def goal_good_looks_like(body: str) -> dict:
     return {"total": total, "done": done, "missing": total == 0}
 
 
+def _feature_resolved(feature: dict) -> bool:
+    if feature.get("state") == "closed":
+        return True
+    return feature["slice_total"] > 0 and feature["slice_closed"] == feature["slice_total"]
+
+
+def goal_wgl_feature_coverage(criteria: dict, features: list[dict]) -> dict:
+    """A WGL item only counts as covered when >=1 Feature explicitly claims it
+    ('Advances: #<goal issue> item <k>') and that Feature is actually resolved
+    (closed, or every one of its Slices is closed) -- a hand-ticked checkbox
+    with no Feature behind it is not evidence the gap closed."""
+    total = criteria.get("total", 0)
+    resolved_items: set[int] = set()
+    claimed_items: set[int] = set()
+    for feature in features:
+        for _goal, item in re.findall(r"^Advances:\s*#(\d+)\s+item\s+(\d+)", feature.get("body", ""), re.M | re.I):
+            item_num = int(item)
+            claimed_items.add(item_num)
+            if _feature_resolved(feature):
+                resolved_items.add(item_num)
+    percent = round(len(resolved_items) / total * 100) if total else 0
+    return {"total": total, "resolved": len(resolved_items), "claimed": len(claimed_items), "percent": percent}
+
+
 def goal_target_coverage(criteria: dict) -> int:
     total = criteria.get("total", 0)
     if total <= 0:
@@ -270,7 +294,12 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
         open_count = total - github_closed
         child_percent = round(covered / total * 100) if total else 0
         criteria = goal_good_looks_like(issue.get("body", ""))
-        target_percent = 100 if issue.get("state") == "closed" else goal_target_coverage(criteria)
+        features = goal_feature_slices(issues, issue["number"])
+        wgl_coverage = goal_wgl_feature_coverage(criteria, features)
+        # A Goal is only as done as its WGL items with a resolved Feature behind
+        # them, never just because the Goal issue itself was closed or a
+        # checkbox was hand-ticked with no Feature closing that gap.
+        target_percent = wgl_coverage["percent"]
         cards.append({
             **issue,
             "child_total": total,
@@ -282,8 +311,10 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
             "criteria_total": criteria["total"],
             "criteria_done": criteria["done"],
             "criteria_missing": criteria["missing"],
+            "wgl_resolved": wgl_coverage["resolved"],
+            "wgl_claimed": wgl_coverage["claimed"],
             "percent": target_percent,
-            "features": goal_feature_slices(issues, issue["number"]),
+            "features": features,
         })
     cards.sort(key=lambda card: (-card["percent"], card["title"]))
     return cards
@@ -754,9 +785,7 @@ def phase_activity_label(phase: dict) -> str:
 
 
 def _goal_coverage_label(issue: dict) -> str:
-    if issue["state"] == "closed":
-        return "Goal closed"
-    return f'Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria'
+    return f'Feature-backed coverage: {issue["wgl_resolved"]}/{issue["criteria_total"]} "What Good Looks Like" items'
 
 
 def _feature_slice_html(card: dict) -> str:
@@ -791,7 +820,7 @@ def goal_cards_section(issue_feed: dict) -> tuple[str, str, list[dict]]:
         f'<div class="gstats"><span>{_goal_coverage_label(issue)}</span>'
         f'<span class="gdone">{issue["target_percent"]}%</span></div>'
         f'<div class="gbar"><i style="width:{issue["target_percent"]}%"></i></div>'
-        f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
+        f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">{issue["wgl_claimed"]}/{issue["criteria_total"]} items claimed by a Feature</span><span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
         f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
         f'</div></a>'
         f'{_feature_slice_html(issue)}'
