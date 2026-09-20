@@ -23,13 +23,16 @@ available for existing deterministic tests.
 
 ## Remaining work
 
-The host helper and authoritative Godot control seam still need to independently
-verify the same assertion and enforce action scopes. No privileged action is
-claimed implemented by this slice alone.
+The host helper now independently verifies the same assertion and lifecycle
+scope in `infra/operator/host_helper.py`, then executes only fixed
+`systemctl start|stop|restart` vectors for allowlisted units with
+`shell=False`. The authoritative Godot control seam and live host-helper
+deployment proof remain open; no full privileged-control capability is claimed
+implemented by this slice alone.
 
 ## Validation
 
-- Focused pytest: 8 passed for operator auth/app coverage.
+- Focused pytest: 10 passed for operator auth/app/host-helper coverage.
 - Python compilation and diff checks passed.
 
 ## Safety and rollback
