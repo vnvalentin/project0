@@ -21,9 +21,10 @@ Slices 184-188 are focused-tested. Slice 189 verifies the Python assertion,
 scope seam, and fixed-allowlist host helper. The private `/control` adapter now
 routes lifecycle actions through the audited operator service and fails closed
 with `executor_unavailable` for gameplay actions until the Godot transport is
-wired. The authoritative `OperatorControlService` is covered by focused tests
-for drain, degraded state, and peer-target validation. The remaining proof must
-wire that adapter to the running server and show the LAN console reads real
+wired. The authoritative `OperatorControlService` and `OperatorControlAdapter`
+are covered by focused tests for drain, degraded state, peer-target validation,
+assertion rejection, scope rejection, and authorized dispatch. The remaining
+proof must wire that adapter to the running server and show the LAN console reads real
 world/login snapshots, stale/unreadable states remain non-authoritative, and
 each privileged executor independently rejects invalid or under-scoped
 assertions.
