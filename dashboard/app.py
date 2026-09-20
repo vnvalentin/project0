@@ -257,14 +257,44 @@ def goal_target_coverage(criteria: dict) -> int:
     return round(criteria.get("done", 0) / total * 100)
 
 
+def _parent_link(issue: dict, prefix: str) -> int | None:
+    match = re.search(rf"^{prefix}:\s*#(\d+)\b", issue.get("body", ""), re.M)
+    return int(match.group(1)) if match else None
+
+
+def goal_feature_slices(issues: list[dict], goal_number: int) -> list[dict]:
+    features = [
+        issue for issue in issues
+        if "Feature" in issue.get("labels", []) and _parent_link(issue, "Parent goal") == goal_number
+    ]
+    slices_by_feature: dict[int, list[dict]] = {}
+    for issue in issues:
+        if "Slice" not in issue.get("labels", []):
+            continue
+        parent = _parent_link(issue, "Parent feature")
+        if parent is not None:
+            slices_by_feature.setdefault(parent, []).append(issue)
+
+    result = []
+    for feature in features:
+        slices = slices_by_feature.get(feature["number"], [])
+        result.append({
+            **feature,
+            "slices": slices,
+            "slice_total": len(slices),
+            "slice_closed": sum(1 for s in slices if s.get("state") == "closed"),
+        })
+    result.sort(key=lambda f: (-f["slice_closed"], f["title"]))
+    return result
+
+
 def goal_issue_cards(issue_feed: dict) -> list[dict]:
     issues = issue_feed.get("issues", [])
     children_by_parent: dict[int, list[dict]] = {}
     for issue in issues:
-        match = re.search(r"^Parent goal:\s*#(\d+)\b", issue.get("body", ""), re.M)
-        if not match:
+        parent = _parent_link(issue, "Parent goal")
+        if parent is None:
             continue
-        parent = int(match.group(1))
         children_by_parent.setdefault(parent, []).append(issue)
 
     cards = []
@@ -292,6 +322,7 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
             "criteria_done": criteria["done"],
             "criteria_missing": criteria["missing"],
             "percent": target_percent,
+            "features": goal_feature_slices(issues, issue["number"]),
         })
     cards.sort(key=lambda card: (-card["percent"], card["title"]))
     return cards
@@ -869,6 +900,14 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 .issue .gbar{height:8px;background:#0e141b;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:8px 0 10px}
 .issue .gbar>i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan))}
 .issue .gdone{font-weight:800;color:var(--green)}
+.issue-block{display:flex;flex-direction:column;gap:6px}
+.gfeatures{display:flex;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--line);border-left:5px solid var(--amber);border-radius:10px;padding:10px 14px}
+.gfeature{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.gfeature>a{color:var(--text);text-decoration:none;font-weight:700}
+.gfeature>a:hover{color:var(--cyan)}
+.gfstats{color:var(--muted)}
+.gslice{display:inline-block;margin-left:12px;color:var(--muted);text-decoration:none;font-size:11px;font-family:monospace}
+.gslice:hover{color:var(--green)}
 .sourcewarn{background:#332619;border:1px solid var(--amber);color:#ffe0a0;border-radius:10px;padding:12px 14px}
 .legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-top:14px;flex-wrap:wrap}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -957,7 +996,24 @@ def render_exec(view: str = "committed") -> str:
 
     if issue_feed["available"]:
         goal_coverage_label = lambda issue: "Goal closed" if issue["state"] == "closed" else f'Target coverage: {issue["criteria_done"]}/{issue["criteria_total"]} criteria'
+
+        def feature_slice_html(card: dict) -> str:
+            if not card["features"]:
+                return ""
+            rows = "".join(
+                f'<div class="gfeature"><a href="{esc(feature["url"])}">#{feature["number"]} {esc(_exec_short(feature["title"], 40))}</a>'
+                f'<span class="gfstats">{feature["slice_closed"]}/{feature["slice_total"]} slices closed</span>'
+                + "".join(
+                    f'<a class="gslice" href="{esc(s["url"])}">#{s["number"]} {"\u2713" if s.get("state") == "closed" else "\u25cb"} {esc(_exec_short(s["title"], 34))}</a>'
+                    for s in feature["slices"]
+                )
+                + "</div>"
+                for feature in card["features"]
+            )
+            return f'<div class="gfeatures">{rows}</div>'
+
         issues_html = "".join(
+            f'<div class="issue-block">'
             f'<a class="issue" href="{esc(issue["url"])}"><div class="inum">#{issue["number"]}</div>'
             f'<div class="ititle">{esc(issue["title"])}</div>'
             f'<div class="gstats"><span>{goal_coverage_label(issue)}</span>'
@@ -966,6 +1022,8 @@ def render_exec(view: str = "committed") -> str:
             f'<div class="labels">{("<span class=\"label\">criteria missing</span>" if issue["criteria_missing"] else "")}<span class="label">known child coverage {issue["target_covered"]}/{issue["child_total"]}</span><span class="label">{issue["child_closed"]} closed</span><span class="label">{issue["child_open"]} open</span>'
             f'{"".join(f"<span class=\"label\">{esc(label)}</span>" for label in issue["labels"])}'
             f'</div></a>'
+            f'{feature_slice_html(issue)}'
+            f'</div>'
             for issue in goal_cards
         ) or '<p class="empty">No Goal issues found.</p>'
         issue_status = f'{len(goal_cards)} goal issue(s), {open_goal_children} open child issue(s) from {esc(issue_feed["repo"])}'
