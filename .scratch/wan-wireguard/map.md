@@ -1,5 +1,7 @@
 # Public Game Access via OPNsense-Native WireGuard
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 Public game access for Project0 via OPNsense-native WireGuard (embedded userspace netstack GDExtension client in Godot 4.3, HTTPS invite-code enrollment service, OPNsense WireGuard API peer management, LAN-isolated firewall rules, split-tunneling `192.168.1.254:9999` on public IP `192.69.180.236` / `game.valentin.vip`).

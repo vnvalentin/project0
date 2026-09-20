@@ -1,5 +1,7 @@
 # Project0 Runtime Platform and Service Boundaries
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 Produce a handoff-ready architecture and staged delivery route for a controlled

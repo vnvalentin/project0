@@ -1,5 +1,7 @@
 # Map: Player Accounts and Characters
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 A handoff-ready spec (SDD/BDD-shaped) describing how a person authenticates into

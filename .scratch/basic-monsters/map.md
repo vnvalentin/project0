@@ -1,5 +1,7 @@
 # Map: Basic Monsters
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 A handoff-ready spec (SDD/BDD-shaped) describing a minimal server-authoritative

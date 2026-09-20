@@ -1,5 +1,7 @@
 # Map: Unified Character and NPC Generalization
 
+Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+
 ## Destination
 
 Generalize the current Monster into a server-authoritative NPC while making
