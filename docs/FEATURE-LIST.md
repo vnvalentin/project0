@@ -93,18 +93,14 @@ feature so future drift is easier to detect.
   and [deployment foundation issue #355](https://github.com/vnvalentin/project0/issues/355).
 - Change history:
   - Date: 2026-09-19
-    What changed: Started Slice 180 for the live Nakama socket gameplay bridge.
-    Why: Issue #372 is the remaining transport step from the validated SDK/socket
-    proof to Project0's existing authoritative simulation seam.
-    Related work: [Slice 180](slices/180-nakama-gameplay-bridge.md), #372,
-    #386, #371.
-  - Date: 2026-09-19
-    What changed: Delivered Slice 180's tested transport adapter foundation and
-    started Slice 181 for live world-entry and gameplay wiring.
-    Why: The adapter is validated in isolation; #372 still requires the real
-    server/client bridge path and two-client runtime evidence.
+    What changed: Delivered Slice 180's tested transport adapter foundation
+    and Slice 181's live world-entry and gameplay wiring.
+    Why: The adapter now forwards identity-bound input into Project0 authority,
+    and the live two-client proof confirms the complete Nakama gameplay path.
     Related work: [Slice 180](slices/180-nakama-gameplay-bridge.md),
     [Slice 181](slices/181-nakama-live-gameplay-bridge.md), #372.
+    Validation evidence: focused adapter tests passed; the deployed two-client
+    proof passed with both clients receiving authoritative state and exiting 0.
 - Change history:
   - Date: 2026-09-19
     What changed: Delivered Slice 166 as the deployment foundation for Nakama
