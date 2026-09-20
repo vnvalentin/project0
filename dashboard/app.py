@@ -1063,7 +1063,7 @@ def render_exec(view: str = "committed") -> str:
 
     <section class="sec charter"><h2>Charter \u2192 Goal \u2192 Feature \u2192 Slice</h2>
     <p class="charter-note">Every Goal below must trace to and advance the master vision charter,
-    <a href="https://github.com/{esc(issue_feed["repo"])}/issues/421">governing issue #421</a>.
+    <a href="https://github.com/{esc(issue_feed["repo"])}/issues/495">governing issue #495</a>.
     A Goal is its ideal, measurable condition; a Feature is the measurable gap between that ideal and
     today; a Slice is one root-cause step that closes part of that gap.</p>
     <div class="issues">{issues_html}</div></section>

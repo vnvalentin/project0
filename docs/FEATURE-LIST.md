@@ -117,7 +117,7 @@ feature so future drift is easier to detect.
 - Public seam: A server-only normalized-directive validator and bounded outcome result; the client never contacts the LLM, and inference remains asynchronous and outside the frame-critical simulation loop.
 - Implementation slices: Not allocated; the originating task issue must resolve before a slice is promoted to `Ready`.
 - Validation: Planned. The first slice must provide fixture-backed accepted, rejected, timeout, fallback, version-mismatch, and non-blocking public-seam evidence plus machine-readable validation telemetry.
-- Related work: [DM Guild map](../.scratch/dm-guild/map.md), [DM Guild specification](../.scratch/dm-guild/spec.md), [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md), [GitHub task #444](https://github.com/vnvalentin/project0/issues/444), and [governing issue #421](https://github.com/vnvalentin/project0/issues/421).
+- Related work: [DM Guild map](../.scratch/dm-guild/map.md), [DM Guild specification](../.scratch/dm-guild/spec.md), [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md), [GitHub task #444](https://github.com/vnvalentin/project0/issues/444), and [governing issue #495](https://github.com/vnvalentin/project0/issues/495).
 
 ### F-039: Nakama v1 entry and realtime foundation
 

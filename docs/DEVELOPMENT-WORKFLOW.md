@@ -51,9 +51,9 @@ Grilling and research on a Goal exist precisely to produce that `## What Good
 Looks Like` condition; they are not exempt from eventually stating one.
 
 Every Goal must also trace to and advance the master vision charter in the
-governing issue [#421](https://github.com/vnvalentin/project0/issues/421). A
+governing issue [#495](https://github.com/vnvalentin/project0/issues/495). A
 Goal map or Goal issue states which part of that charter it closes distance
-toward; a Goal with no traceable line to #421 is out of scope until it is
+toward; a Goal with no traceable line to #495 is out of scope until it is
 re-chartered or retired.
 
 ## Delivery lifecycle

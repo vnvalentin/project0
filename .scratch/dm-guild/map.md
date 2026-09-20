@@ -1,7 +1,7 @@
 # Goal E Map: DM Guild and Semantic World Pipeline
 
 Status: handoff-ready
-Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
 
 ## Handoff artifacts
 
@@ -57,3 +57,7 @@ run inside frame-critical simulation loops.
 
 The decision route is complete. Fixture-backed proofs and bounded
 implementation slices remain future delivery work under the handoff artifacts.
+
+## Implementation frontier
+
+- [Normalized World Directive Schema and Validator](https://github.com/vnvalentin/project0/issues/444): define the first server-only, asynchronous validator seam for raw DM/LLM proposals, including bounded fields, version pins, whole-proposal rejection, deterministic fallback, and outcome telemetry.

@@ -1,6 +1,6 @@
 # Project0 Runtime Platform and Service Boundaries
 
-Governing issue: [#421](https://github.com/vnvalentin/project0/issues/421)
+Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
 
 ## Destination
 
