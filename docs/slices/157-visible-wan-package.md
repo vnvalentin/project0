@@ -37,10 +37,14 @@ submission, which require operator-owned identity and portal actions.
 - `GOOS=windows GOARCH=amd64 go vet ./...` passes.
 - `bash -n scripts/package_client_linux.sh scripts/publish_client_downloads.sh` passes.
 - `git diff --check` passes.
-- The packaging workflow is being rerun on the delivery branch after fixing
-	cleanup, package-directory creation, manifest defaulting, and branch-safe
-	artifact naming. Slice completion remains blocked until that run produces
-	the ZIP, launcher, and manifest artifacts.
+- GitHub Actions run [35519933553](https://github.com/vnvalentin/project0/actions/runs/35519933553)
+	completed successfully for version `0.12.0`. It produced the portable client
+	ZIP (31,833,880 bytes), launcher EXE (8,282,112 bytes), launcher ZIP
+	(36,522,362 bytes), and manifest. The manifest recorded
+	`source_tree_dirty: false`, `godot_export_exit_code: 0`, and
+	`godot_cpp_ref: d5cc777`; the portable ZIP contained exactly
+	`Project0.exe` and `Project0.pck`. First-install, live-update, and rollback
+	runtime evidence remain pending, so the slice is not complete.
 
 ## Root-cause learning
 
@@ -52,8 +56,8 @@ submission, which require operator-owned identity and portal actions.
 	backup setup and a post-failure comparison with `HEAD`.
 	Confirmed root cause: the script created a temporary backup filename but
 	omitted the copy into it. Countermeasure: copy the contract before stamping;
-	the focused syntax and cleanup checks now pass. Remaining limitation: the
-	complete package workflow still needs to produce its artifacts.
+	the focused syntax and cleanup checks now pass. The corrected package
+	workflow produced the expected artifacts; runtime evidence remains pending.
 - Symptom: the package script exported the client but failed while assembling
 	the launcher archive. The affected seam was the versioned launcher package
 	directory. Hypothesis: the destination directory was absent. The

@@ -477,8 +477,10 @@ feature so future drift is easier to detect.
     branch checkout.
     Related work: [Slice 157](slices/157-visible-wan-package.md), #100, #182.
     Validation: focused launcher tests/vet, enrollment patch-hosting tests,
-    packaging syntax, and workflow YAML checks pass; the package workflow is
-    still awaiting a successful artifact-producing run.
+    packaging syntax, workflow YAML checks, and GitHub Actions package run
+    #35519933553 pass; the manifest is clean and the portable ZIP contents are
+    verified. First-install, live-update, and rollback runtime evidence
+    remains pending.
   - Date: 2026-09-18
     What changed: Delivered the eleventh F-037 slice (Slice 155) — live outdated
     client handoff. A packaged client with `PROJECT0_UPDATE_REJECTION_PATH` now
