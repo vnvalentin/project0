@@ -513,7 +513,7 @@ Progress: **design complete; implementation started** (F-037 `in-progress`; firs
 
 **Phase 17 — Fleet operations console**
 
-Progress: **100%** (7 of 7 planned slices delivered/in progress; privileged executor proof remains explicitly gated)
+Progress: **71%** (5 of 7 planned slices delivered; Slices 189-190 in progress, privileged executor proof remains explicitly gated)
 
 - Source goal: [server-admin-console map](../.scratch/server-admin-console/map.md).
 - Scope: a private, authenticated LAN console showing a versioned ops-snapshot
