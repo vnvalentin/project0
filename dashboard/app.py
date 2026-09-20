@@ -908,6 +908,9 @@ main{padding:26px 34px;max-width:1180px;margin:auto}
 .gfstats{color:var(--muted)}
 .gslice{display:inline-block;margin-left:12px;color:var(--muted);text-decoration:none;font-size:11px;font-family:monospace}
 .gslice:hover{color:var(--green)}
+.charter-note{color:var(--muted);font-size:13px;max-width:900px;margin:6px 0 16px}
+.charter-note a{color:var(--cyan);text-decoration:none}
+.charter-note a:hover{text-decoration:underline}
 .sourcewarn{background:#332619;border:1px solid var(--amber);color:#ffe0a0;border-radius:10px;padding:12px 14px}
 .legend{display:flex;gap:18px;font-size:11px;color:var(--muted);margin-top:14px;flex-wrap:wrap}
 .legend span{display:inline-flex;align-items:center;gap:6px}
@@ -1058,7 +1061,12 @@ def render_exec(view: str = "committed") -> str:
     </div>
   </section>
 
-    <section class="sec"><h2>GitHub source of truth</h2><div class="issues">{issues_html}</div></section>
+    <section class="sec charter"><h2>Charter \u2192 Goal \u2192 Feature \u2192 Slice</h2>
+    <p class="charter-note">Every Goal below must trace to and advance the master vision charter,
+    <a href="https://github.com/{esc(issue_feed["repo"])}/issues/421">governing issue #421</a>.
+    A Goal is its ideal, measurable condition; a Feature is the measurable gap between that ideal and
+    today; a Slice is one root-cause step that closes part of that gap.</p>
+    <div class="issues">{issues_html}</div></section>
 
   <section class="sec"><h2>\u25b6 Focused on now</h2><div class="focus">{focus_html}</div></section>
 
