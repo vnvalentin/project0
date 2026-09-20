@@ -43,7 +43,7 @@ services:
   nakama:
     image: registry.heroiclabs.com/heroiclabs/nakama:${NAKAMA_IMAGE_TAG:-3.37.0}
     container_name: project0-nakama
-    command: ["/bin/sh", "-ec", "/nakama/nakama migrate up --config /nakama.yml && exec /nakama/nakama --config /nakama.yml"]
+    command: ["/bin/sh", "-ec", "/nakama/nakama --config /nakama.yml migrate up && exec /nakama/nakama --config /nakama.yml"]
     depends_on:
       nakama-db:
         condition: service_healthy
