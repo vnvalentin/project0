@@ -22,6 +22,28 @@ observable and reversible slice that can test one hypothesis, deliver it, and
 learn from its evidence before planning the next slice. Do not turn a phase or
 feature group into a large implementation batch.
 
+## Goal, Feature, and Slice semantics (2026-09-20)
+
+These three record types form one causal chain, not three independent lists:
+
+- A **Goal** states an ideal, measurable end condition — not a task list or a
+  work item. Its `## What Good Looks Like` criteria (in the
+  `.scratch/<goal>/map.md` and mirrored in the Goal issue body) *are* that ideal
+  condition, written so evidence can confirm it holds or does not.
+- A **Feature** is the defined, measurable gap between the current condition
+  and its parent Goal's ideal condition. A Feature issue must state both
+  sides of that gap: the current condition (what is true today) and the ideal
+  condition it is closing distance toward (`Parent goal: #N`). The Feature
+  resolves only when measurable proof shows the stated gap is closed — code
+  merging is not, by itself, resolution.
+- A **Slice** is one step, or one bounded group of steps, that resolves a root
+  cause standing between the current condition and the Feature's target
+  condition. A Slice issue must name the root cause it addresses
+  (`Parent feature: #N`) and the evidence that step closes that portion of the
+  gap. A Slice that does not reduce the Feature's stated gap is scope creep,
+  not delivery. A Feature closes only when its Slices' combined evidence
+  satisfies the Feature's resolution proof.
+
 ## Delivery lifecycle
 
 Every capability moves through one lifecycle with a single authoritative status
