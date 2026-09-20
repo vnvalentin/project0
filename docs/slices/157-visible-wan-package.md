@@ -127,3 +127,13 @@ gates.
 	trap, after manifest generation. Countermeasure: restore immediately after
 	export and disable the now-completed trap; the source is clean before the
 	remaining package steps.
+- Symptom: the bounded valid-update launcher probe did not complete its
+	readiness wait. The affected seam is `runUpdaterHelperWithEnv`, which treats
+	the relaunched `Project0.exe --project0-run-client` process exit as readiness.
+	Hypothesis: the interactive packaged client should exit after startup. The
+	discriminating check was a direct packaged run: headless mode exited 0, while
+	`--project0-run-client` remained running until the five-second bound killed it.
+	Confirmed root cause: the current readiness hook is process exit, but the
+	interactive client is intentionally long-lived. A bounded non-destructive
+	packaged readiness signal is required before claiming valid-update runtime
+	proof; automatic updates remain disabled until then.
