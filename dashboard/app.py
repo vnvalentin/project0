@@ -22,12 +22,17 @@ GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "3
 # repository checkout.
 TELEMETRY_DB_PATH = os.environ.get("TELEMETRY_DB_PATH", "/gamedata/telemetry.db")
 TELEMETRY_ROW_LIMIT = 200
+# TBP View (Hoshin->Theme->Feature->Epic->Experiment tree via GitHub sub-issues).
+# GraphQL always requires auth, unlike the REST issue list above.
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "") or os.environ.get("GH_TOKEN", "")
+TBP_HOSHIN_ISSUE = os.environ.get("TBP_HOSHIN_ISSUE", "").strip()
 SELF_PATH = Path(__file__).resolve()
 try:
     _SELF_MTIME = SELF_PATH.stat().st_mtime
 except OSError:
     _SELF_MTIME = None
 _ISSUE_CACHE = {"at": 0.0, "data": {"available": False, "issues": [], "error": "not loaded"}}
+_TBP_TREE_CACHE = {"at": 0.0, "key": None, "data": None}
 
 
 def restart_if_source_changed() -> None:
@@ -71,6 +76,7 @@ def github_issues() -> dict:
                     "url": str(item.get("html_url", "")),
                     "state": str(item.get("state", "open")),
                     "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
+                    "assignees": [str(a.get("login", "")) for a in item.get("assignees", []) if a.get("login")],
                     "body": str(item.get("body", "")),
                     "updated_at": str(item.get("updated_at", "")),
                     "milestone_number": milestone.get("number"),
@@ -84,6 +90,116 @@ def github_issues() -> dict:
         data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
     _ISSUE_CACHE.update({"at": now, "data": data})
     return data
+
+
+TBP_HOSHIN_TREE_QUERY = """
+query GetTBPHoshinTree($owner: String!, $repo: String!, $hoshinNumber: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $hoshinNumber) {
+      number
+      title
+      state
+      body
+      labels(first: 10) { nodes { name } }
+      trackedIssues(first: 20) { # Child Themes
+        nodes {
+          number
+          title
+          state
+          body
+          labels(first: 10) { nodes { name } }
+          assignees(first: 5) { nodes { login } }
+          trackedIssues(first: 20) { # Child Features
+            nodes {
+              number
+              title
+              state
+              body
+              labels(first: 10) { nodes { name } }
+              assignees(first: 5) { nodes { login } }
+              trackedIssues(first: 20) { # Child Epics
+                nodes {
+                  number
+                  title
+                  state
+                  body
+                  labels(first: 10) { nodes { name } }
+                  assignees(first: 5) { nodes { login } }
+                  trackedIssues(first: 20) { # Child Experiments
+                    nodes {
+                      number
+                      title
+                      state
+                      body
+                      labels(first: 10) { nodes { name } }
+                      assignees(first: 5) { nodes { login } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+
+def fetch_tbp_hoshin_tree(hoshin_number: int) -> dict:
+    """POST the Hoshin->Theme->Feature->Epic->Experiment sub-issue tree via GraphQL.
+    Requires GITHUB_TOKEN/GH_TOKEN -- GraphQL has no anonymous access."""
+    now = time.time()
+    cache_key = (GITHUB_REPO, hoshin_number)
+    if _TBP_TREE_CACHE["key"] == cache_key and now - float(_TBP_TREE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
+        return _TBP_TREE_CACHE["data"]
+    if not GITHUB_TOKEN:
+        data = {"available": False, "error": "GITHUB_TOKEN/GH_TOKEN not configured", "issue": None}
+        _TBP_TREE_CACHE.update({"at": now, "key": cache_key, "data": data})
+        return data
+    owner, _, repo = GITHUB_REPO.partition("/")
+    payload = json.dumps({
+        "query": TBP_HOSHIN_TREE_QUERY,
+        "variables": {"owner": owner, "repo": repo, "hoshinNumber": hoshin_number},
+    }).encode("utf-8")
+    req = Request(
+        "https://api.github.com/graphql",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {GITHUB_TOKEN}",
+            "Content-Type": "application/json",
+            "User-Agent": "project0-flow-dashboard",
+        },
+    )
+    try:
+        with urlopen(req, timeout=10) as response:
+            raw = response.read().decode("utf-8")
+        parsed = json.loads(raw)
+        if parsed.get("errors"):
+            data = {"available": False, "error": str(parsed["errors"]), "issue": None}
+        else:
+            issue = (parsed.get("data") or {}).get("repository", {}).get("issue")
+            data = {"available": issue is not None, "error": "" if issue else "issue not found", "issue": issue}
+    except Exception as exc:
+        data = {"available": False, "error": str(exc), "issue": None}
+    _TBP_TREE_CACHE.update({"at": now, "key": cache_key, "data": data})
+    return data
+
+
+def _tbp_node(raw: dict) -> dict:
+    """Normalize a GraphQL sub-issue node into the flat shape classify_tbp_state expects."""
+    number = raw.get("number")
+    return {
+        "number": number,
+        "title": str(raw.get("title", "")),
+        "state": str(raw.get("state", "OPEN")).lower(),
+        "body": raw.get("body") or "",
+        "labels": [n["name"] for n in (raw.get("labels") or {}).get("nodes", []) if n.get("name")],
+        "assignees": [n["login"] for n in (raw.get("assignees") or {}).get("nodes", []) if n.get("login")],
+        "url": f"https://github.com/{GITHUB_REPO}/issues/{number}",
+        "children": [_tbp_node(c) for c in (raw.get("trackedIssues") or {}).get("nodes", [])],
+    }
 
 
 def issue_covers_goal_target(issue: dict) -> bool:
@@ -259,7 +375,7 @@ def render_vision(view: str = "committed") -> str:
 <style>{EXEC_CSS}{VISION_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Vision &amp; Roadmap</h1><div class="sub">Build a world worth changing \u00b7 {issue_status}</div></div>
-  <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
+  <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
   <section class="vhero">
@@ -610,7 +726,7 @@ def render_overview(view: str = "committed") -> str:
 <style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
   <div><h1>Project0</h1><div class="sub">{esc(issue_status)}</div></div>
-  <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a></div>
+  <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a></div>
 </header>
 <main>
   <section class="sec northstar">
@@ -797,7 +913,7 @@ def render_tests() -> str:
 <style>{EXEC_CSS}{TESTS_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Tests</h1><div class="sub">Every automated test and its last recorded result \u00b7 build/validation/gut.xml \u00b7 auto-refreshes</div></div>
-  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a><a href="/telemetry">Telemetry</a></div>
+  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a></div>
 </header>
 <main>
   <section class="sec">{body_html}</section>
@@ -942,10 +1058,142 @@ def render_telemetry(filters: dict) -> str:
 <style>{EXEC_CSS}{TELEMETRY_CSS}</style></head><body>
 <header>
   <div><h1>Project0 — Telemetry</h1><div class="sub">Client interactions, connections, and combat outcomes · telemetry.db · query on demand</div></div>
-  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a class="on" href="/telemetry">Telemetry</a></div>
+  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a class="on" href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a></div>
 </header>
 <main>
   <section class="sec">{body_html}</section>
+</main></body></html>'''
+
+
+TBP_CSS = """
+.tbp-layout{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.tbp-panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.tbp-badge{font-size:10px;font-weight:700;border-radius:12px;padding:3px 9px;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
+.tbp-badge.NEEDS_GRILLING{background:#3a2e13;color:var(--amber)}
+.tbp-badge.READY_TO_PULL{background:#123524;color:var(--green)}
+.tbp-badge.IN_PROGRESS{background:#12303a;color:var(--cyan)}
+.tbp-badge.DONE{background:#232d38;color:var(--muted)}
+.tbp-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.tbp-row a{color:var(--text);text-decoration:none;font-size:13px}
+.tbp-row a:hover{color:var(--cyan)}
+.tbp-goal{border-left:3px solid var(--line);padding-left:14px;margin-bottom:16px}
+.tbp-children{margin-left:16px;border-left:1px dashed var(--line);padding-left:14px}
+.tbp-slice{margin-left:16px}
+.tbp-section{margin-bottom:22px}
+.tbp-section h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.tbp-card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px}
+.tbp-card a{color:var(--text);text-decoration:none}
+.tbp-card a:hover{color:var(--cyan)}
+@media(max-width:900px){.tbp-layout{grid-template-columns:1fr}}
+"""
+
+
+def classify_tbp_state(issue: dict) -> str:
+    """TBP gatekeeper rule engine: grilling gaps > in-flight work > ready backlog > done."""
+    if issue.get("state") == "closed":
+        return "DONE"
+    body = issue.get("body", "") or ""
+    labels = issue.get("labels", [])
+    if "tbp:needs-refinement" in labels or "[TBP GAP" in body or "Needs Definition" in body:
+        return "NEEDS_GRILLING"
+    if "tbp:epic" in labels and not all(k in body.upper() for k in ["WHO", "WHEN", "WHERE", "WHAT"]):
+        return "NEEDS_GRILLING"
+    if issue.get("assignees") or "in-progress" in labels:
+        return "IN_PROGRESS"
+    return "READY_TO_PULL"
+
+
+def _tbp_row(issue: dict) -> str:
+    state = classify_tbp_state(issue)
+    return (
+        f'<div class="tbp-row"><span class="tbp-badge {state}">{state.replace("_", " ")}</span>'
+        f'<a href="{esc(issue["url"])}">#{issue["number"]} {esc(issue["title"])}</a></div>'
+    )
+
+
+def _tbp_render_node(node: dict, buckets: dict[str, list[dict]]) -> str:
+    """Recursively render one node of the Hoshin->Theme->Feature->Epic->Experiment
+    tree, bucketing every node it visits for the pipeline panel."""
+    state = classify_tbp_state(node)
+    if state in buckets:
+        buckets[state].append(node)
+    children_html = "".join(_tbp_render_node(child, buckets) for child in node.get("children", []))
+    wrapped = f'<div class="tbp-children">{children_html}</div>' if children_html else ""
+    return f'<div class="tbp-goal">{_tbp_row(node)}{wrapped}</div>'
+
+
+def _tbp_tree_from_rest(issue_feed: dict) -> list[dict]:
+    """Fallback tree when the GraphQL sub-issue tree is unavailable: build the same
+    node shape (with 'children') from the REST issue list's Parent goal/Parent
+    feature body links instead of GitHub sub-issues."""
+    goal_cards = goal_issue_cards(issue_feed)
+    nodes = []
+    for goal in goal_cards:
+        feature_nodes = []
+        for feature in goal["features"]:
+            feature_nodes.append({**feature, "children": feature["slices"]})
+        nodes.append({**goal, "children": feature_nodes})
+    return nodes
+
+
+def render_tbp() -> str:
+    """TBP gatekeeper view: the live Hoshin->Theme->Feature->Epic->Experiment
+    sub-issue tree (GraphQL) plus a pipeline summary of what needs grilling, is
+    ready to pull, or is in progress. Falls back to the REST Goal/Feature/Slice
+    tree when no GITHUB_TOKEN/GH_TOKEN or no Hoshin issue is configured."""
+    buckets: dict[str, list[dict]] = {"NEEDS_GRILLING": [], "READY_TO_PULL": [], "IN_PROGRESS": []}
+    tree_html = ""
+    issue_status = ""
+
+    if TBP_HOSHIN_ISSUE:
+        try:
+            hoshin_number = int(TBP_HOSHIN_ISSUE)
+        except ValueError:
+            hoshin_number = None
+        tree_feed = fetch_tbp_hoshin_tree(hoshin_number) if hoshin_number else {"available": False, "error": "TBP_HOSHIN_ISSUE is not a number"}
+        if tree_feed["available"]:
+            root = _tbp_node(tree_feed["issue"])
+            tree_html = _tbp_render_node(root, buckets)
+            issue_status = f'Hoshin #{root["number"]} sub-issue tree from {esc(GITHUB_REPO)} (GraphQL)'
+
+    if not tree_html:
+        issue_feed = github_issues()
+        if not issue_feed["available"]:
+            tree_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
+            issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
+        else:
+            nodes = _tbp_tree_from_rest(issue_feed)
+            tree_html = "".join(_tbp_render_node(n, buckets) for n in nodes) or '<p class="empty">No Goal issues found.</p>'
+            fallback_reason = "no TBP_HOSHIN_ISSUE/GITHUB_TOKEN configured" if not TBP_HOSHIN_ISSUE or not GITHUB_TOKEN else "GraphQL tree unavailable"
+            issue_status = f'{len(nodes)} goal issue(s) from {esc(issue_feed["repo"])} \u00b7 Parent goal/feature links ({fallback_reason})'
+
+    def _section(title: str, key: str) -> str:
+        cards = "".join(
+            f'<div class="tbp-card"><a href="{esc(i["url"])}">#{i["number"]} {esc(i["title"])}</a></div>'
+            for i in buckets[key]
+        ) or '<p class="empty">None.</p>'
+        return f'<div class="tbp-section"><h3>{esc(title)} ({len(buckets[key])})</h3>{cards}</div>'
+
+    pipeline_html = (
+        _section("Needs grilling", "NEEDS_GRILLING")
+        + _section("Ready to pull", "READY_TO_PULL")
+        + _section("In progress", "IN_PROGRESS")
+    )
+
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — TBP View</title>
+<style>{EXEC_CSS}{TBP_CSS}</style></head><body>
+<header>
+  <div><h1>Project0 — TBP View</h1><div class="sub">Grilling gate: what still needs definition, what's ready to pull, what's in flight · {issue_status}</div></div>
+  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a class="on" href="/tbp">TBP View</a></div>
+</header>
+<main>
+  <section class="sec">
+    <div class="tbp-layout">
+      <div class="tbp-panel"><h2>Backlog structure</h2>{tree_html}</div>
+      <div class="tbp-panel">{pipeline_html}</div>
+    </div>
+  </section>
 </main></body></html>'''
 
 
@@ -980,6 +1228,10 @@ class Handler(BaseHTTPRequestHandler):
                 "peer_id": query.get("peer_id", [""])[0].strip(),
             }
             body = render_telemetry(filters).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/tbp":
+            body = render_tbp().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:
