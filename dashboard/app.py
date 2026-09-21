@@ -22,17 +22,12 @@ GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "3
 # repository checkout.
 TELEMETRY_DB_PATH = os.environ.get("TELEMETRY_DB_PATH", "/gamedata/telemetry.db")
 TELEMETRY_ROW_LIMIT = 200
-# TBP View (Hoshin->Theme->Feature->Epic->Experiment tree via GitHub sub-issues).
-# GraphQL always requires auth, unlike the REST issue list above.
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "") or os.environ.get("GH_TOKEN", "")
-TBP_HOSHIN_ISSUE = os.environ.get("TBP_HOSHIN_ISSUE", "").strip()
 SELF_PATH = Path(__file__).resolve()
 try:
     _SELF_MTIME = SELF_PATH.stat().st_mtime
 except OSError:
     _SELF_MTIME = None
 _ISSUE_CACHE = {"at": 0.0, "data": {"available": False, "issues": [], "error": "not loaded"}}
-_TBP_TREE_CACHE = {"at": 0.0, "key": None, "data": None}
 
 
 def restart_if_source_changed() -> None:
@@ -90,116 +85,6 @@ def github_issues() -> dict:
         data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
     _ISSUE_CACHE.update({"at": now, "data": data})
     return data
-
-
-TBP_HOSHIN_TREE_QUERY = """
-query GetTBPHoshinTree($owner: String!, $repo: String!, $hoshinNumber: Int!) {
-  repository(owner: $owner, name: $repo) {
-    issue(number: $hoshinNumber) {
-      number
-      title
-      state
-      body
-      labels(first: 10) { nodes { name } }
-      trackedIssues(first: 20) { # Child Themes
-        nodes {
-          number
-          title
-          state
-          body
-          labels(first: 10) { nodes { name } }
-          assignees(first: 5) { nodes { login } }
-          trackedIssues(first: 20) { # Child Features
-            nodes {
-              number
-              title
-              state
-              body
-              labels(first: 10) { nodes { name } }
-              assignees(first: 5) { nodes { login } }
-              trackedIssues(first: 20) { # Child Epics
-                nodes {
-                  number
-                  title
-                  state
-                  body
-                  labels(first: 10) { nodes { name } }
-                  assignees(first: 5) { nodes { login } }
-                  trackedIssues(first: 20) { # Child Experiments
-                    nodes {
-                      number
-                      title
-                      state
-                      body
-                      labels(first: 10) { nodes { name } }
-                      assignees(first: 5) { nodes { login } }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-"""
-
-
-def fetch_tbp_hoshin_tree(hoshin_number: int) -> dict:
-    """POST the Hoshin->Theme->Feature->Epic->Experiment sub-issue tree via GraphQL.
-    Requires GITHUB_TOKEN/GH_TOKEN -- GraphQL has no anonymous access."""
-    now = time.time()
-    cache_key = (GITHUB_REPO, hoshin_number)
-    if _TBP_TREE_CACHE["key"] == cache_key and now - float(_TBP_TREE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
-        return _TBP_TREE_CACHE["data"]
-    if not GITHUB_TOKEN:
-        data = {"available": False, "error": "GITHUB_TOKEN/GH_TOKEN not configured", "issue": None}
-        _TBP_TREE_CACHE.update({"at": now, "key": cache_key, "data": data})
-        return data
-    owner, _, repo = GITHUB_REPO.partition("/")
-    payload = json.dumps({
-        "query": TBP_HOSHIN_TREE_QUERY,
-        "variables": {"owner": owner, "repo": repo, "hoshinNumber": hoshin_number},
-    }).encode("utf-8")
-    req = Request(
-        "https://api.github.com/graphql",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {GITHUB_TOKEN}",
-            "Content-Type": "application/json",
-            "User-Agent": "project0-flow-dashboard",
-        },
-    )
-    try:
-        with urlopen(req, timeout=10) as response:
-            raw = response.read().decode("utf-8")
-        parsed = json.loads(raw)
-        if parsed.get("errors"):
-            data = {"available": False, "error": str(parsed["errors"]), "issue": None}
-        else:
-            issue = (parsed.get("data") or {}).get("repository", {}).get("issue")
-            data = {"available": issue is not None, "error": "" if issue else "issue not found", "issue": issue}
-    except Exception as exc:
-        data = {"available": False, "error": str(exc), "issue": None}
-    _TBP_TREE_CACHE.update({"at": now, "key": cache_key, "data": data})
-    return data
-
-
-def _tbp_node(raw: dict) -> dict:
-    """Normalize a GraphQL sub-issue node into the flat shape classify_tbp_state expects."""
-    number = raw.get("number")
-    return {
-        "number": number,
-        "title": str(raw.get("title", "")),
-        "state": str(raw.get("state", "OPEN")).lower(),
-        "body": raw.get("body") or "",
-        "labels": [n["name"] for n in (raw.get("labels") or {}).get("nodes", []) if n.get("name")],
-        "assignees": [n["login"] for n in (raw.get("assignees") or {}).get("nodes", []) if n.get("login")],
-        "url": f"https://github.com/{GITHUB_REPO}/issues/{number}",
-        "children": [_tbp_node(c) for c in (raw.get("trackedIssues") or {}).get("nodes", [])],
-    }
 
 
 def issue_covers_goal_target(issue: dict) -> bool:
@@ -1136,36 +1021,70 @@ def _tbp_tree_from_rest(issue_feed: dict) -> list[dict]:
     return nodes
 
 
+def _tbp_label_tree(issue_feed: dict) -> tuple[list[dict], list[dict]]:
+    """The real TBP tree: Hoshin->Theme->Feature->Epic->Experiment, built from
+    the `tbp:*` labels and `Parent Hoshin/Theme/Feature/Epic: #N` body links
+    this repo actually uses (GitHub native sub-issues/trackedIssues are unused
+    here -- every tbp:hoshin issue has trackedIssuesCount 0). Returns
+    (root nodes, unlinked tbp:*-labeled issues whose parent link is missing or
+    unresolved, so a broken link is visible instead of silently dropped)."""
+    issues = issue_feed.get("issues", [])
+    by_label = {
+        level: [i for i in issues if f"tbp:{level}" in i.get("labels", [])]
+        for level in ("hoshin", "theme", "feature", "epic", "experiment")
+    }
+    parent_prefix = {"theme": "Parent Hoshin", "feature": "Parent Theme", "epic": "Parent Feature", "experiment": "Parent Epic"}
+    children_by_parent: dict[str, dict[int, list[dict]]] = {}
+    unlinked: list[dict] = []
+    for level, prefix in parent_prefix.items():
+        by_parent: dict[int, list[dict]] = {}
+        for issue in by_label[level]:
+            parent = _parent_link(issue, prefix)
+            if parent is None:
+                unlinked.append(issue)
+            else:
+                by_parent.setdefault(parent, []).append(issue)
+        children_by_parent[level] = by_parent
+
+    def _build(issue: dict, child_level: str | None) -> dict:
+        children = children_by_parent.get(child_level, {}).get(issue["number"], []) if child_level else []
+        next_level = {"theme": "feature", "feature": "epic", "epic": "experiment", "experiment": None}.get(child_level)
+        return {**issue, "children": [_build(c, next_level) for c in children]}
+
+    roots = [_build(hoshin, "theme") for hoshin in by_label["hoshin"]]
+    return roots, unlinked
+
+
 def render_tbp() -> str:
-    """TBP gatekeeper view: the live Hoshin->Theme->Feature->Epic->Experiment
-    sub-issue tree (GraphQL) plus a pipeline summary of what needs grilling, is
-    ready to pull, or is in progress. Falls back to the REST Goal/Feature/Slice
-    tree when no GITHUB_TOKEN/GH_TOKEN or no Hoshin issue is configured."""
+    """TBP gatekeeper view: the real Hoshin->Theme->Feature->Epic->Experiment
+    tree (tbp:* labels + Parent Hoshin/Theme/Feature/Epic body links) plus a
+    pipeline summary of what needs grilling, is ready to pull, or is in
+    progress. Falls back to the Goal/Feature/Slice tree only when no tbp:*
+    backlog exists yet."""
     buckets: dict[str, list[dict]] = {"NEEDS_GRILLING": [], "READY_TO_PULL": [], "IN_PROGRESS": []}
-    tree_html = ""
-    issue_status = ""
-
-    if TBP_HOSHIN_ISSUE:
-        try:
-            hoshin_number = int(TBP_HOSHIN_ISSUE)
-        except ValueError:
-            hoshin_number = None
-        tree_feed = fetch_tbp_hoshin_tree(hoshin_number) if hoshin_number else {"available": False, "error": "TBP_HOSHIN_ISSUE is not a number"}
-        if tree_feed["available"]:
-            root = _tbp_node(tree_feed["issue"])
-            tree_html = _tbp_render_node(root, buckets)
-            issue_status = f'Hoshin #{root["number"]} sub-issue tree from {esc(GITHUB_REPO)} (GraphQL)'
-
-    if not tree_html:
-        issue_feed = github_issues()
-        if not issue_feed["available"]:
-            tree_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
-            issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
+    issue_feed = github_issues()
+    if not issue_feed["available"]:
+        tree_html = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed["error"])}</div>'
+        issue_status = f'GitHub issues unavailable for {esc(issue_feed["repo"])}'
+    else:
+        roots, unlinked = _tbp_label_tree(issue_feed)
+        if roots:
+            tree_html = "".join(_tbp_render_node(n, buckets) for n in roots)
+            if unlinked:
+                tree_html += (
+                    '<div class="tbp-section"><h3>Unlinked (missing Parent link)</h3>'
+                    + "".join(_tbp_row(i) for i in unlinked)
+                    + "</div>"
+                )
+                for i in unlinked:
+                    _bucket = classify_tbp_state(i)
+                    if _bucket in buckets:
+                        buckets[_bucket].append(i)
+            issue_status = f'{len(roots)} Hoshin root(s), {len(unlinked)} unlinked tbp: issue(s) from {esc(issue_feed["repo"])}'
         else:
             nodes = _tbp_tree_from_rest(issue_feed)
             tree_html = "".join(_tbp_render_node(n, buckets) for n in nodes) or '<p class="empty">No Goal issues found.</p>'
-            fallback_reason = "no TBP_HOSHIN_ISSUE/GITHUB_TOKEN configured" if not TBP_HOSHIN_ISSUE or not GITHUB_TOKEN else "GraphQL tree unavailable"
-            issue_status = f'{len(nodes)} goal issue(s) from {esc(issue_feed["repo"])} \u00b7 Parent goal/feature links ({fallback_reason})'
+            issue_status = f'{len(nodes)} goal issue(s) from {esc(issue_feed["repo"])} \u00b7 Parent goal/feature links (no tbp:hoshin issue found)'
 
     def _section(title: str, key: str) -> str:
         cards = "".join(
