@@ -78,10 +78,9 @@ func _test_prediction_and_reconciliation() -> void:
 
 	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.SERVER_PORT)
 
-	var connect_waited_ticks: int = 0
-	while network_client.status != "connected: player spawned" and connect_waited_ticks < 180:
+	var connect_deadline_msec: int = Time.get_ticks_msec() + 5000
+	while network_client.status != "connected: player spawned" and Time.get_ticks_msec() < connect_deadline_msec:
 		await process_frame
-		connect_waited_ticks += 1
 
 	_assert(network_client.status == "connected: player spawned", "client connects and its NetworkedPlayer is spawned")
 
