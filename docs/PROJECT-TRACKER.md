@@ -132,7 +132,7 @@ their previous numbers — see the change note under "Delivery order".)
 | 9. Canon persistence and world mutation | done | Validated sectors and authorized player mutations are durable, uniquely identified, and recovered consistently from SQLite. |
 | 10. Player accounts and characters | done | A person registers or logs in over the WireGuard tunnel, manages up to five durable Characters across restarts, and enters the world as the selected Character — all server-authoritative and fail-closed. |
 | 11. Public game access | done | A new remote player can safely self-register, authenticate, select a Character, and enter the authoritative server over the supported direct WAN/Nakama path; the superseded game WireGuard implementation is retired by Slice 182. |
-| 12. Authoritative runtime and action input | in-progress | Production deployment mutation and rollback evidence are recorded, login and game images have an explicit release boundary, and the server resolves a bounded action set authoritatively beyond the first melee seam. |
+| 12. Authoritative runtime and action input | in-progress | Production deployment mutation and rollback evidence are recorded, login and game images have an explicit release boundary, and the server resolves a bounded action set authoritatively beyond the first melee seam. [Slice #532](https://github.com/vnvalentin/project0/issues/532) restored deterministic real-socket Character world-entry validation with bounded wall-clock deadlines. |
 | 13. Delivery workflow capabilities | in-progress | Agent orchestration and CI/dashboard foundations remain synchronized; Remote-SSH and asset quarantine are either delivered with evidence or explicitly retained as planned non-blockers. |
 | 14. NPC generalization and shared Character | done | F-036's shared Character seam is implemented and validated for Player/NPC state, fixed baseline, organic development, techniques, equipment, movement, combat/status, disposition, relevance, and role-based spawning without duplicating Monster logic. **Exit gate met (Slice 131):** the seam is live in the running server for the Player, the combat Monster, and the town NPCs (route-consistent activity movement + anchored population), validated by 632/632 GUT tests incl. the socket E2E harnesses. |
 | 15. Biological progression and kinetic systems | done | Phase 15 layers kinetic/friction effects, Meridians, Burnout, and magic equilibrium onto the validated Phase 14 Character/progression seam while preserving hidden state and server authority. **Exit gate met (Slice 140):** the versioned tuning + vessel redistribution + effective-snapshot foundation (P-016-A) and all five subsystems (P-016-B…F) are composed by a server-authoritative `EmbodimentProgressionService` into a deterministic, presentation-safe snapshot, proven end-to-end by 503/503 GUT tests. |
@@ -326,6 +326,9 @@ Progress: **50%** (3 of 6 items done)
 
 - Features: `in-progress` [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime) — runtime foundations delivered; production-cutover evidence remains; `in-progress` [IP-015](FEATURE-LIST.md#ip-015-authoritative-action-input) — the server now resolves a bounded action set beyond the first melee seam (Heavy Strike, Slice 141); client input binding, damage differentiation, and PvP remain; `in-progress` [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation) — Nakama v1 entry/realtime foundation starts with the deployment foundation; `done` [IP-023](FEATURE-LIST.md#ip-023-basic-monster-combat), `done` [F-027](FEATURE-LIST.md#f-027-server-authoritative-movement-collision), `done` [P-016](FEATURE-LIST.md#p-016-biological-progression-and-kinetic-combat-systems) (cross-cutting contract; Implemented in Phase 15).
 - Tech debt: `open` [DT-012](TECHNICAL-DEBT-TRACKER.md#dt-012-login-authority-shares-the-game-servers-image-and-codebase) — login authority shares the game server's image and codebase; `done` [DT-013](TECHNICAL-DEBT-TRACKER.md#dt-013-advertised-tick_rate-does-not-match-the-actual-authoritative-tick-rate) — engine now runs at the advertised rate (Slice 107); `done` [DT-014](TECHNICAL-DEBT-TRACKER.md#dt-014-container-images-ship-without-the-wgnetstack-gdextension) — the Linux GDExtension now ships in the server image (Slice 110).
+
+- **Current slice:** [#532 — Restore ENet Character world-entry regression](https://github.com/vnvalentin/project0/issues/532) — **delivered; both real-socket harnesses use bounded wall-clock admission deadlines and pass end to end; full Linux GUT passes 126/126 scripts, 883 tests, and 2,731 assertions.**
+  - **Feature:** [#457 — Character world entry](https://github.com/vnvalentin/project0/issues/457)
 
 - **Current slice:** [141 — Phase 12 (IP-015): second authoritative action kind — Heavy Strike](slices/141-heavy-strike-action.md) — **delivered; a second action kind (`HEAVY_STRIKE`) with its own data-driven archetype (slower/wider/longer-reach, multi-target) routed through the existing action machine + reach/arc test — the server now resolves a bounded action set beyond the first melee seam; new `test_heavy_strike_action` 7/7, melee regression `test_melee_combat_contracts` 21/21 + integration `test_authoritative_melee_strike` 9/9 unchanged; full cumulative tree 712/712 across 97/97, exit 0 on the Linux host**
   - **Feature:** [P-014](FEATURE-LIST.md#p-014-containerized-fixed-tick-authoritative-server-runtime)
@@ -1044,6 +1047,12 @@ the phase exit gate; it is not a count of completed slices.
 
 #### Phase 12 — Authoritative runtime and action input
 
+- **Slice:** [#532 — Restore ENet Character world-entry regression](https://github.com/vnvalentin/project0/issues/532) — **delivered; replaced nondeterministic 180-headless-frame connection waits with five-second monotonic wall-clock deadlines in both real-socket harnesses; focused harnesses print `ALL PASS`, and full Linux GUT passes 126/126 scripts, 883 tests, 880 passing plus 3 risky, 2,731 assertions, exit 0.**
+  - **Feature:** [#457 — Character world entry](https://github.com/vnvalentin/project0/issues/457)
+  - **Public seam:** real ENet connection through version admission, server-authored Player/presence replication, and client scene representation
+  - **Decision:** no new ADR; restore the existing authority and validation contracts without changing authentication, combat, prediction, or transport design
+  - **Root-cause learning:** the frame-count wait expired before real server startup and version admission as headless frames outpaced wall time; [#533](https://github.com/vnvalentin/project0/issues/533) separately tracks the non-causal malformed presence warning for an unbound peer
+
 - **Slice:** [166 — Nakama v1 deployment foundation](slices/166-nakama-v1-deployment-foundation.md) — **delivered; opt-in Nakama/PostgreSQL compose profile, private Console/admin posture, host-side secrets/config runbook, backup-before-migration rule, and static validation seam; Linux record-sync 0 errors and full GUT 811/811**
   - **Feature:** [F-039](FEATURE-LIST.md#f-039-nakama-v1-entry-and-realtime-foundation)
   - **GitHub issue:** [#355](https://github.com/vnvalentin/project0/issues/355)
@@ -1394,6 +1403,13 @@ Every slice links:
 This section lists planned work with no implementation slice started yet. An
 item only becomes a tracked, in-progress slice (and moves out of this queue)
 once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
+
+- [x] Delivered — Restore ENet Character world entry and the real-socket
+  regression gate (Phase 12, [Slice #532](https://github.com/vnvalentin/project0/issues/532),
+  [Feature #457](https://github.com/vnvalentin/project0/issues/457)): preserve
+  server authority while making the existing melee and prediction/reconciliation
+  harnesses pass on the current runtime contract; focused and full Linux GUT
+  evidence is green.
 
 - [x] Delivered — Telemetry envelope + validation (Phase 13,
   [F-038](FEATURE-LIST.md#f-038-cross-cutting-telemetry-pipeline-envelope-transport-storage-dashboard),
