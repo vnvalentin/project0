@@ -956,8 +956,10 @@ TBP_CSS = """
 .tbp-badge{font-size:10px;font-weight:700;border-radius:12px;padding:3px 9px;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
 .tbp-badge.NEEDS_GRILLING{background:#3a2e13;color:var(--amber)}
 .tbp-badge.READY_TO_PULL{background:#123524;color:var(--green)}
-.tbp-badge.IN_PROGRESS{background:#12303a;color:var(--cyan)}
+.tbp-badge.IN_PROGRESS{background:#12303a;color:var(--cyan);animation:tbp-pulse 1.6s ease-in-out infinite}
 .tbp-badge.DONE{background:#232d38;color:var(--muted)}
+@keyframes tbp-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.tbp-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted);margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .tbp-row{display:flex;align-items:center;gap:10px;padding:6px 0}
 .tbp-row a{color:var(--text);text-decoration:none;font-size:13px}
 .tbp-row a:hover{color:var(--cyan)}
@@ -980,12 +982,27 @@ TBP_CSS = """
 """
 
 
+TBP_STATE_ICON = {
+    "NEEDS_GRILLING": "\U0001F7E1\U0001F525",  # yellow circle + flame
+    "READY_TO_PULL": "\U0001F7E2\u25B6\uFE0F",  # green circle + play
+    "IN_PROGRESS": "\U0001F535\U0001F501",  # blue circle + pulse/loop
+    "DONE": "\u26AA\u2705",  # gray circle + check
+}
+
+
 def classify_tbp_state(issue: dict) -> str:
-    """TBP gatekeeper rule engine: grilling gaps > in-flight work > ready backlog > done."""
-    if issue.get("state") == "closed":
-        return "DONE"
+    """TBP gatekeeper rule engine: grilling gaps > in-flight work > ready backlog > done.
+    Needs Grilling: OPEN and has a [TBP GAP] marker, tbp:needs-refinement label,
+    or (for an Epic) is missing a required 4Ws heading.
+    Ready to Pull: OPEN, no gap markers, and unassigned/not in flight.
+    In Progress: OPEN with an active assignee or an in-progress label.
+    Done: CLOSED (an Experiment closed without a logged Pass is still a gap)."""
     body = issue.get("body", "") or ""
     labels = issue.get("labels", [])
+    if issue.get("state") == "closed":
+        if "tbp:experiment" in labels and not re.search(r"-\s*\[x\]\s*pass\b", body, re.I):
+            return "NEEDS_GRILLING"
+        return "DONE"
     if "tbp:needs-refinement" in labels or "[TBP GAP" in body or "Needs Definition" in body:
         return "NEEDS_GRILLING"
     if "tbp:epic" in labels and not all(k in body.upper() for k in ["WHO", "WHEN", "WHERE", "WHAT"]):
@@ -998,7 +1015,7 @@ def classify_tbp_state(issue: dict) -> str:
 def _tbp_row(issue: dict) -> str:
     state = classify_tbp_state(issue)
     return (
-        f'<div class="tbp-row"><span class="tbp-badge {state}">{state.replace("_", " ")}</span>'
+        f'<div class="tbp-row"><span class="tbp-badge {state}">{TBP_STATE_ICON[state]} {state.replace("_", " ")}</span>'
         f'<a href="{esc(issue["url"])}">#{issue["number"]} {esc(issue["title"])}</a></div>'
     )
 
@@ -1111,12 +1128,21 @@ def render_tbp() -> str:
             f'<div class="tbp-card"><a href="{esc(i["url"])}">#{i["number"]} {esc(i["title"])}</a></div>'
             for i in buckets[key]
         ) or '<p class="empty">None.</p>'
-        return f'<div class="tbp-section"><h3>{esc(title)} ({len(buckets[key])})</h3>{cards}</div>'
+        return f'<div class="tbp-section"><h3>{TBP_STATE_ICON[key]} {esc(title)} ({len(buckets[key])})</h3>{cards}</div>'
 
     pipeline_html = (
         _section("Needs grilling", "NEEDS_GRILLING")
         + _section("Ready to pull", "READY_TO_PULL")
         + _section("In progress", "IN_PROGRESS")
+    )
+
+    legend_html = (
+        '<div class="tbp-legend">'
+        f'<span>{TBP_STATE_ICON["NEEDS_GRILLING"]} Needs grilling</span>'
+        f'<span>{TBP_STATE_ICON["READY_TO_PULL"]} Ready to pull</span>'
+        f'<span>{TBP_STATE_ICON["IN_PROGRESS"]} In progress</span>'
+        f'<span>{TBP_STATE_ICON["DONE"]} Done</span>'
+        '</div>'
     )
 
     return f'''<!doctype html>
@@ -1130,7 +1156,7 @@ def render_tbp() -> str:
   <section class="sec">
     <div class="tbp-layout">
       <div class="tbp-panel"><h2>Backlog structure</h2>{tree_html}</div>
-      <div class="tbp-panel">{pipeline_html}</div>
+      <div class="tbp-panel">{legend_html}{pipeline_html}</div>
     </div>
   </section>
 </main></body></html>'''
