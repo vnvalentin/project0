@@ -2,7 +2,7 @@
 
 GitHub issue: #517
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 19 (Semantic world pipeline)
 
