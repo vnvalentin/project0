@@ -4,7 +4,6 @@ import json
 import os
 import re
 import sqlite3
-import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -50,26 +49,6 @@ def read_repo_file(name: str) -> str:
         return ""
 
 
-RECORD_FILES = (
-    "docs/FEATURE-LIST.md",
-    "docs/PROJECT-TRACKER.md",
-    "docs/TECHNICAL-DEBT-TRACKER.md",
-    "docs/slices/SLICE-REGISTRY.md",
-)
-
-
-def _git(args: list[str]) -> tuple[int, str]:
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(REPO), "-c", "safe.directory=*", *args],
-            capture_output=True, text=True, timeout=5,
-            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", "HOME": "/tmp"},
-        )
-        return proc.returncode, proc.stdout
-    except (OSError, subprocess.SubprocessError):
-        return 1, ""
-
-
 def github_issues() -> dict:
     now = time.time()
     if now - float(_ISSUE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
@@ -93,6 +72,7 @@ def github_issues() -> dict:
                     "state": str(item.get("state", "open")),
                     "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
                     "body": str(item.get("body", "")),
+                    "updated_at": str(item.get("updated_at", "")),
                     "milestone_number": milestone.get("number"),
                     "milestone_title": str(milestone.get("title", "")),
                 })
@@ -104,91 +84,6 @@ def github_issues() -> dict:
         data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
     _ISSUE_CACHE.update({"at": now, "data": data})
     return data
-
-
-_MILESTONE_CACHE = {"at": 0.0, "data": {"available": False, "milestones": [], "error": "not loaded"}}
-
-
-def github_milestones() -> dict:
-    # Phases ("Phase N: <title>") live as GitHub milestones (2026-09-19
-    # convention change, see issue #374); Outcomes are labels, not milestones.
-    now = time.time()
-    if now - float(_MILESTONE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
-        return _MILESTONE_CACHE["data"]
-    try:
-        milestones = []
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&sort=title&direction=asc"
-        req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
-        with urlopen(req, timeout=5) as response:
-            raw = response.read().decode("utf-8")
-        for item in json.loads(raw):
-            open_n = int(item.get("open_issues", 0))
-            closed_n = int(item.get("closed_issues", 0))
-            total = open_n + closed_n
-            milestones.append({
-                "number": int(item.get("number", 0)),
-                "title": str(item.get("title", "")),
-                "description": str(item.get("description", "")),
-                "url": str(item.get("html_url", "")),
-                "state": str(item.get("state", "open")),
-                "open_issues": open_n,
-                "closed_issues": closed_n,
-                "percent": round(closed_n / total * 100) if total else 0,
-            })
-        milestones.sort(key=lambda ms: ms["title"])
-        data = {"available": True, "repo": GITHUB_REPO, "milestones": milestones, "error": ""}
-    except Exception as exc:
-        data = {"available": False, "repo": GITHUB_REPO, "milestones": [], "error": str(exc)}
-    _MILESTONE_CACHE.update({"at": now, "data": data})
-    return data
-
-
-def read_committed_file(name: str) -> str:
-    # Render last-committed truth, not the live half-merged working tree.
-    path = (REPO / name).resolve()
-    if REPO.resolve() not in path.parents:
-        return ""
-    rc, out = _git(["show", f"HEAD:{name}"])
-    return out if rc == 0 else read_repo_file(name)
-
-
-def calibration() -> dict:
-    rc, out = _git(["log", "-1", "--format=%h\t%s"])
-    sha, subject = "", ""
-    if rc == 0 and "\t" in out:
-        sha, subject = out.strip().split("\t", 1)
-    _, diff = _git(["diff", "--name-only", "HEAD", "--", *RECORD_FILES])
-    dirty = [line.strip() for line in diff.splitlines() if line.strip()]
-    _, others = _git(["ls-files", "--others", "--exclude-standard"])
-    _, tracked = _git(["diff", "--name-only", "HEAD"])
-    in_flight = sum(1 for line in others.splitlines() if line.strip())
-    in_flight += sum(1 for line in tracked.splitlines() if line.strip())
-    return {"sha": sha, "subject": subject, "dirty_records": dirty,
-            "in_flight": in_flight, "available": bool(sha)}
-
-
-def list_repo_dir(rel: str) -> list[str]:
-    base = (REPO / rel).resolve()
-    root = REPO.resolve()
-    if base != root and root not in base.parents:
-        return []
-    try:
-        return sorted(child.name for child in base.iterdir())
-    except OSError:
-        return []
-
-
-def slice_issue_stats() -> dict:
-    total, missing = 0, []
-    for name in list_repo_dir("docs/slices"):
-        if not re.match(r"^\d{3}-.+\.md$", name):
-            continue
-        total += 1
-        text = read_repo_file(f"docs/slices/{name}")
-        if not re.search(r"^GitHub issue:\s*(#[0-9]+|https://github\.com/[^/]+/[^/]+/issues/[0-9]+)", text, re.M | re.I):
-            missing.append(name)
-    return {"total": total, "missing": missing, "linked": total - len(missing)}
-
 
 
 def issue_covers_goal_target(issue: dict) -> bool:
@@ -209,6 +104,23 @@ def goal_good_looks_like(body: str) -> dict:
         elif bullet:
             total += 1
     return {"total": total, "done": done, "missing": total == 0}
+
+
+def goal_wgl_items(body: str) -> list[str]:
+    """The Goal's ideal-condition items in order, 1-based position == the 'item
+    <n>' a Feature's 'Advances:' line refers to."""
+    match = re.search(r"^##\s+What Good Looks Like\s*\n+([\s\S]*?)(?=\n##\s|\Z)", body, re.M | re.I)
+    if not match:
+        return []
+    items = []
+    for line in match.group(1).splitlines():
+        checked = re.match(r"^\s*-\s*\[([ xX])\]\s+(.+)$", line)
+        bullet = re.match(r"^\s*-\s+(.+)$", line) if not checked else None
+        if checked:
+            items.append(checked.group(2).strip())
+        elif bullet:
+            items.append(bullet.group(1).strip())
+    return items
 
 
 def _feature_resolved(feature: dict) -> bool:
@@ -232,7 +144,8 @@ def goal_wgl_feature_coverage(criteria: dict, features: list[dict]) -> dict:
             if _feature_resolved(feature):
                 resolved_items.add(item_num)
     percent = round(len(resolved_items) / total * 100) if total else 0
-    return {"total": total, "resolved": len(resolved_items), "claimed": len(claimed_items), "percent": percent}
+    return {"total": total, "resolved": len(resolved_items), "claimed": len(claimed_items), "percent": percent,
+            "resolved_items": resolved_items, "claimed_items": claimed_items}
 
 
 def goal_target_coverage(criteria: dict) -> int:
@@ -294,12 +207,18 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
         open_count = total - github_closed
         child_percent = round(covered / total * 100) if total else 0
         criteria = goal_good_looks_like(issue.get("body", ""))
+        wgl_texts = goal_wgl_items(issue.get("body", ""))
         features = goal_feature_slices(issues, issue["number"])
         wgl_coverage = goal_wgl_feature_coverage(criteria, features)
         # A Goal is only as done as its WGL items with a resolved Feature behind
         # them, never just because the Goal issue itself was closed or a
         # checkbox was hand-ticked with no Feature closing that gap.
         target_percent = wgl_coverage["percent"]
+        unclaimed_items = [text for i, text in enumerate(wgl_texts, start=1) if i not in wgl_coverage["claimed_items"]]
+        unresolved_claimed_items = [
+            text for i, text in enumerate(wgl_texts, start=1)
+            if i in wgl_coverage["claimed_items"] and i not in wgl_coverage["resolved_items"]
+        ]
         cards.append({
             **issue,
             "child_total": total,
@@ -313,6 +232,8 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
             "criteria_missing": criteria["missing"],
             "wgl_resolved": wgl_coverage["resolved"],
             "wgl_claimed": wgl_coverage["claimed"],
+            "unclaimed_items": unclaimed_items,
+            "unresolved_claimed_items": unresolved_claimed_items,
             "percent": target_percent,
             "features": features,
         })
@@ -320,175 +241,8 @@ def goal_issue_cards(issue_feed: dict) -> list[dict]:
     return cards
 
 
-def feature_stage(status: str) -> str:
-    normalized = status.lower().strip()
-    if normalized.startswith(("implemented", "done")):
-        return "Done"
-    if normalized.startswith(("in progress", "active")):
-        return "Active"
-    if normalized.startswith("ready"):
-        return "Ready"
-    return "Planned"
-
-
-def feature_cards(reader=read_committed_file) -> list[dict]:
-    text = reader("docs/FEATURE-LIST.md")
-    cards, seen_ids = [], set()
-    for match in re.finditer(r"^### ((?:IP|P|F)-\d+):\s*(.+?)[ \t]*$\n([\s\S]*?)(?=^### |\Z)", text, re.M):
-        fid, title, body = match.group(1), match.group(2).strip(), match.group(3)
-        if fid in seen_ids:  # Count repeated feature headings once.
-            continue
-        seen_ids.add(fid)
-        status_match = re.search(r"^- Status:\s*`?([^`\n]+?)`?\s*$", body, re.M)
-        status = status_match.group(1).strip() if status_match else "Planned"
-        tags, seen = [], set()
-        for ref in re.finditer(r"\.scratch/([^/)]+)/issues/(\d+)", body):
-            tag = f'{ref.group(1)} #{ref.group(2)}'
-            if tag not in seen:
-                seen.add(tag)
-                tags.append(tag)
-        if not tags:
-            for ref in re.finditer(r"\.scratch/([^/)]+)/map\.md", body):
-                if ref.group(1) not in seen:
-                    seen.add(ref.group(1))
-                    tags.append(ref.group(1))
-        cards.append({"id": fid, "title": title, "status": status, "issue_tags": tags})
-    return cards
-
-
-def phase_rows(text: str) -> list[dict[str, str]]:
-    rows = []
-    for match in re.finditer(r"^\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|$", text, re.M):
-        phase, status, gate = (part.strip() for part in match.groups())
-        if phase == "Phase" or phase == "---":
-            continue
-        if re.match(r"^\d+\.", phase):
-            rows.append({"phase": phase, "status": status, "gate": gate})
-    return rows
-
-
-def normalize_tracker_text(text: str) -> str:
-    return text.replace("â€”", "—").replace("â€“", "–").replace("â€¦", "…")
-
-
-def phase_progress_map(tracker: str) -> dict:
-    tracker = normalize_tracker_text(tracker)
-    out = {}
-    for m in re.finditer(
-        r"\*\*Phase (\d+)\s*(?:—|–|□|-)\s*([^*]+?)\*\*\s+Progress:\s*\*\*(\d+)%\*\*"
-        r"(?:\s*\((\d+) of (\d+) items done\))?",
-        tracker,
-    ):
-        out[int(m.group(1))] = {
-            "title": m.group(2).strip(), "progress": int(m.group(3)),
-            "done_items": int(m.group(4)) if m.group(4) else None,
-            "total_items": int(m.group(5)) if m.group(5) else None,
-        }
-    return out
-
-
-def _slice_done(status: str) -> bool:
-    # Accept both completion labels used by the tracker.
-    s = status.lower()
-    if any(k in s for k in ("in progress", "in-progress", "awaiting", "outstanding", "blocked")):
-        return False
-    return "100% complete" in s or "delivered" in s
-
-
-def current_slice_numbers(tracker: str) -> set:
-    nums = set()
-    for line in tracker.splitlines():
-        if re.match(r"^-\s*\*{0,2}(?:Current s|S)lices?:\*{0,2}", line):
-            nums.update(int(n) for n in re.findall(r"\[(\d+)\s*[—-]", line))
-    return nums
-
-
-def slice_index_rows(tracker: str) -> list[dict]:
-    tracker = normalize_tracker_text(tracker)
-    # Walk the whole tracker, tracking phase context from both the work-index
-    # (**Phase N — Title**) and slice-index (#### Phase N — Title) headers, and
-    # collect every Slice/Current slice entry deduped by number. A single
-    # '- Current slices:' line may list many slices (each with its own
-    # bracketed title/status), not just one.
-    rows: dict[int, dict] = {}
-    phase_num, phase_title, last = 0, "", None
-    for line in tracker.splitlines():
-        h = re.match(r"^#{3,4} Phase (\d+)\s*[—-]\s*(.+)$", line) or re.match(r"^\*\*Phase (\d+)\s*[—-]\s*(.+?)\*\*", line)
-        if h:
-            phase_num, phase_title, last = int(h.group(1)), h.group(2).strip(), None
-            continue
-        if re.match(r"^-\s*\*{0,2}(?:Current s|S)lices?:\*{0,2}", line):
-            for s in re.finditer(r"\[(\d+)\s*[—-]\s*([^\]]+)\]\([^)]*\)(?:\s*[—-]\s*\*\*([^*]+)\*\*)?", line):
-                num, status = int(s.group(1)), (s.group(3) or "").strip()
-                row = rows.get(num)
-                if row is None:
-                    rows[num] = {"num": num, "title": s.group(2).strip(), "status_text": status,
-                                 "phase_num": phase_num, "phase_title": phase_title,
-                                 "feature": "", "done": _slice_done(status)}
-                elif status and not row["status_text"]:
-                    row["status_text"], row["done"] = status, _slice_done(status)
-                last = num
-            continue
-        f = re.match(r"^\s*- \*\*Features?:\*\* \[([A-Za-z]+-\d+)\]", line)
-        if f and last is not None and not rows[last]["feature"]:
-            rows[last]["feature"] = f.group(1)
-    return list(rows.values())
-
-
 def esc(value: str) -> str:
     return html.escape(value, quote=True)
-
-
-def card(title: str, body: str, css: str = "") -> str:
-    return f'<article class="card {css}"><h3>{esc(title)}</h3><p>{esc(body)}</p></article>'
-
-
-# Phase = GitHub milestone ("Phase N: <title>"), Outcome = GitHub label
-# ("Outcome: <name>", renamed from the old Track A-F milestones). A phase's
-# completion is the fraction of the Outcomes touching it that are fully
-# closed (every Outcome-labeled issue across the repo, not just this phase),
-# per the 2026-09-19 convention change recorded on issue #374.
-def outcome_completion(issue_feed: dict) -> dict[str, dict]:
-    by_label: dict[str, list[dict]] = {}
-    for issue in issue_feed.get("issues", []):
-        for label in issue["labels"]:
-            if label.startswith("Outcome:"):
-                by_label.setdefault(label, []).append(issue)
-    return {
-        label: {
-            "total": len(issues),
-            "closed": sum(1 for i in issues if i["state"] == "closed"),
-            "complete": all(i["state"] == "closed" for i in issues),
-        }
-        for label, issues in by_label.items()
-    }
-
-
-def phase_milestones(issue_feed: dict) -> list[dict]:
-    ms_feed = github_milestones()
-    outcomes = outcome_completion(issue_feed)
-    by_ms: dict[int, list[dict]] = {}
-    for issue in issue_feed.get("issues", []):
-        n = issue.get("milestone_number")
-        if n:
-            by_ms.setdefault(n, []).append(issue)
-
-    phases = []
-    for ms in ms_feed.get("milestones", []):
-        m = re.match(r"^Phase (\d+):\s*(.+)$", ms["title"])
-        if not m:
-            continue
-        issues = sorted(by_ms.get(ms["number"], []), key=lambda i: i["number"])
-        touching = sorted({label for i in issues for label in i["labels"] if label.startswith("Outcome:")})
-        complete = sum(1 for label in touching if outcomes[label]["complete"])
-        phases.append({
-            "num": int(m.group(1)), "title": m.group(2), "url": ms["url"],
-            "issues": issues, "outcomes": touching, "outcome_completion": outcomes,
-            "outcomes_complete": complete, "outcomes_total": len(touching),
-            "pct": round(complete / len(touching) * 100) if touching else ms["percent"],
-        })
-    phases.sort(key=lambda p: p["num"])
-    return phases
 
 
 def render_vision(view: str = "committed") -> str:
@@ -505,7 +259,7 @@ def render_vision(view: str = "committed") -> str:
 <style>{EXEC_CSS}{VISION_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Vision &amp; Roadmap</h1><div class="sub">Build a world worth changing \u00b7 {issue_status}</div></div>
-  <div class="nav"><a href="/">Reality</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
+  <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
   <section class="vhero">
@@ -546,112 +300,6 @@ def render_vision(view: str = "committed") -> str:
 def _exec_short(text: str, limit: int = 44) -> str:
     text = " ".join(text.split())
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
-
-
-def _pcol(pct: int) -> str:
-    return "var(--green)" if pct >= 100 else ("var(--amber)" if pct > 0 else "var(--grey)")
-
-
-def _donut(pct: int, size: int = 190, stroke: int = 20) -> str:
-    import math
-    pct = max(0, min(100, int(pct)))
-    r = (size - stroke) / 2
-    circ = 2 * math.pi * r
-    off = circ * (1 - pct / 100)
-    ctr = size / 2
-    return (
-        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" role="img" aria-label="{pct}% complete">'
-        '<defs><linearGradient id="eg" x1="0" y1="0" x2="1" y2="1">'
-        '<stop offset="0" stop-color="#5ad78f"/><stop offset="1" stop-color="#5ad0e6"/></linearGradient></defs>'
-        f'<circle cx="{ctr}" cy="{ctr}" r="{r:.1f}" fill="none" stroke="#22303d" stroke-width="{stroke}"/>'
-        f'<circle cx="{ctr}" cy="{ctr}" r="{r:.1f}" fill="none" stroke="url(#eg)" stroke-width="{stroke}" '
-        f'stroke-linecap="round" stroke-dasharray="{circ:.1f}" stroke-dashoffset="{off:.1f}" '
-        f'transform="rotate(-90 {ctr} {ctr})"/>'
-        f'<text x="50%" y="50%" text-anchor="middle" dy="-2" font-size="46" font-weight="800" fill="#e9eff6">{pct}%</text>'
-        '<text x="50%" y="50%" text-anchor="middle" dy="26" font-size="12" fill="#93a4b5">complete</text></svg>'
-    )
-
-
-def executive_model(reader, phase_outcomes: dict[int, dict] | None = None) -> dict:
-    tracker = reader("docs/PROJECT-TRACKER.md")
-    features = feature_cards(reader)
-    rows = slice_index_rows(tracker)
-    prog = phase_progress_map(tracker)
-    currents = current_slice_numbers(tracker)
-
-    # Per-feature slice completion (the most concrete "based on what we know now").
-    fstats: dict[str, dict] = {}
-    fphase: dict[str, int] = {}
-    for r in rows:
-        fid = r["feature"]
-        if not fid:
-            continue
-        st = fstats.setdefault(fid, {"done": 0, "total": 0})
-        st["total"] += 1
-        st["done"] += 1 if r["done"] else 0
-        if fid not in fphase and r["phase_num"]:
-            fphase[fid] = r["phase_num"]
-
-    done_f, active_f, other_f = [], [], []
-    for f in features:
-        stage = feature_stage(f["status"])
-        if stage == "Done":
-            done_f.append(f)
-        elif stage == "Active":
-            st = fstats.get(f["id"])
-            if st and st["total"]:
-                pct = round(st["done"] / st["total"] * 100)
-            else:
-                pct = (prog.get(fphase.get(f["id"], -1), {}) or {}).get("progress", 40)
-            active_f.append({**f, "pct": max(15, min(90, pct))})  # in progress is never 0 or 100
-        else:
-            other_f.append(f)
-    active_f.sort(key=lambda x: -x["pct"])
-
-    status_by_num: dict[int, str] = {}
-    for p in phase_rows(tracker):
-        mnum = re.match(r"(\d+)", p["phase"])
-        if mnum:
-            status_by_num[int(mnum.group(1))] = p["status"].lower()
-    slice_counts: dict[int, dict[str, int]] = {}
-    for row in rows:
-        counts = slice_counts.setdefault(row["phase_num"], {"total": 0, "delivered": 0})
-        counts["total"] += 1
-        counts["delivered"] += 1 if row["done"] else 0
-    phases = []
-    for n, meta in sorted(prog.items()):
-        counts = slice_counts.get(n, {"total": 0, "delivered": 0})
-        outcome = (phase_outcomes or {}).get(n)
-        pct = outcome["pct"] if outcome else meta["progress"]
-        phases.append({"num": n, "title": meta["title"], "pct": pct,
-                       "status": status_by_num.get(n, ""),
-                       "slice_total": counts["total"],
-                       "slice_delivered": counts["delivered"],
-                       "outcomes_complete": outcome["outcomes_complete"] if outcome else None,
-                       "outcomes_total": outcome["outcomes_total"] if outcome else None})
-    # Weight overall completion by tracked phase items.
-    done_items = sum(m["done_items"] for m in prog.values() if m.get("done_items") is not None)
-    total_items = sum(m["total_items"] for m in prog.values() if m.get("total_items") is not None)
-    if total_items:
-        overall = round(done_items / total_items * 100)
-    else:
-        overall = round(sum(p["pct"] for p in phases) / len(phases)) if phases else 0
-
-    # Focus = the current, not-yet-done slice of each still-unfinished phase.
-    focus, seen = [], set()
-    for r in rows:
-        pn = r["phase_num"]
-        meta = prog.get(pn) or {}
-        pct = meta.get("progress")
-        if r["num"] not in currents or pct is None or pct >= 100 or pn in seen or r["done"]:
-            continue
-        seen.add(pn)
-        focus.append({"phase_num": pn, "phase_title": meta.get("title") or r["phase_title"],
-                      "title": r["title"], "pct": pct})
-    focus.sort(key=lambda x: -x["pct"])
-
-    return {"overall": overall, "phases": phases, "done": done_f,
-            "active": active_f, "not_started": other_f, "focus": focus}
 
 
 EXEC_CSS = """
@@ -745,6 +393,42 @@ VISION_CSS = """
 @media(max-width:900px){.vhero,.vtwo{grid-template-columns:1fr}}
 """
 
+OVERVIEW_CSS = """
+.northstar{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px 28px}
+.charter-text{font-size:17px;line-height:1.6;color:var(--text);max-width:900px;margin:0}
+.charter-link{display:inline-block;margin-top:14px;color:var(--cyan);text-decoration:none;font-size:13px}
+.charter-link:hover{text-decoration:underline}
+.goalrows{display:flex;flex-direction:column;gap:2px}
+.goalrow{display:grid;grid-template-columns:1fr 140px 46px 110px 60px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.goalrow:first-child{border-top:1px solid var(--line)}
+.gr-name{color:var(--text);text-decoration:none;font-size:14px}
+.gr-name:hover{color:var(--cyan)}
+.gr-bar{height:10px;background:#0e141b;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.gr-bar>i{display:block;height:100%}
+.gr-bar>i.done{background:var(--green)}
+.gr-bar>i.progress{background:var(--amber)}
+.gr-bar>i.notstarted,.gr-bar>i.notchartered{background:var(--grey)}
+.gr-pct{font-size:13px;font-variant-numeric:tabular-nums;text-align:right;color:var(--muted)}
+.gr-status{font-size:11px;padding:3px 9px;border-radius:12px;text-align:center;white-space:nowrap}
+.gr-status.done{background:#123524;color:var(--green)}
+.gr-status.progress{background:#3a2e13;color:var(--amber)}
+.gr-status.notstarted,.gr-status.notchartered{background:#232d38;color:var(--muted)}
+.gr-gaps{font-size:11px;color:var(--muted);text-align:right;white-space:nowrap}
+.worklist{display:flex;flex-direction:column;gap:2px}
+.workrow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px}
+.workrow:first-child{border-top:1px solid var(--line)}
+.workrow a{color:var(--text);text-decoration:none}
+.workrow a:hover{color:var(--cyan)}
+.workrow .breadcrumb{color:var(--muted);font-size:12px;white-space:nowrap}
+.gaplist{display:flex;flex-direction:column;gap:14px}
+.gapblock{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--grey);border-radius:10px;padding:14px 16px}
+.gapblock>a{color:var(--text);text-decoration:none;font-weight:700;font-size:13px}
+.gapblock>a:hover{color:var(--cyan)}
+.gapblock ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
+.gapblock li{margin:4px 0}
+@media(max-width:760px){.goalrow{grid-template-columns:1fr;gap:6px}.gr-bar{order:3}.gr-pct,.gr-status,.gr-gaps{text-align:left}}
+"""
+
 
 TESTS_CSS = """
 .trunbar{border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:22px;font-size:13px;background:var(--panel)}
@@ -773,15 +457,6 @@ TESTS_CSS = """
 .ttime{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px}
 .tmsg{width:100%;margin:2px 0 0 24px;padding:8px 10px;background:#0e141b;border:1px solid var(--line);border-radius:6px;color:#f7b0b0;font-family:monospace;font-size:11px;white-space:pre-wrap;overflow-x:auto}
 """
-
-
-def phase_activity_label(phase: dict) -> str:
-    bits = []
-    if phase["slice_total"]:
-        bits.append(f'{phase["slice_delivered"]}/{phase["slice_total"]} slices delivered')
-    if phase.get("outcomes_total"):
-        bits.append(f'{phase["outcomes_complete"]}/{phase["outcomes_total"]} outcomes')
-    return f' <span class="phase-slices">{" \u00b7 ".join(bits)}</span>' if bits else ""
 
 
 def _goal_coverage_label(issue: dict) -> str:
@@ -831,89 +506,144 @@ def goal_cards_section(issue_feed: dict) -> tuple[str, str, list[dict]]:
     return issues_html, issue_status, goal_cards
 
 
-def render_exec(view: str = "committed") -> str:
-    reader = read_repo_file if view == "working" else read_committed_file
+def goal_status(card: dict) -> tuple[str, str]:
+    """(css class, label) for a Goal's status pill."""
+    if card["criteria_total"] == 0:
+        return "notchartered", "Not yet chartered"
+    if card["percent"] == 100:
+        return "done", "Done"
+    if card["wgl_claimed"] > 0:
+        return "progress", "In progress"
+    return "notstarted", "Not started"
+
+
+def active_work(issue_feed: dict, goal_cards: list[dict]) -> list[dict]:
+    """Open Slices whose chain (Slice -> Feature -> Goal) is fully live-linked,
+    newest-updated first -- this is 'what is being worked on right now'."""
+    feature_by_number: dict[int, dict] = {}
+    goal_by_feature: dict[int, dict] = {}
+    for card in goal_cards:
+        for feature in card["features"]:
+            feature_by_number[feature["number"]] = feature
+            goal_by_feature[feature["number"]] = card
+
+    work = []
+    for issue in issue_feed.get("issues", []):
+        if "Slice" not in issue.get("labels", []) or issue.get("state") != "open":
+            continue
+        parent = _parent_link(issue, "Parent feature")
+        if parent not in goal_by_feature:
+            continue
+        work.append({"slice": issue, "feature": feature_by_number[parent], "goal": goal_by_feature[parent]})
+    work.sort(key=lambda w: w["slice"].get("updated_at", ""), reverse=True)
+    return work
+
+
+CHARTER_URL = "https://github.com/vnvalentin/project0/issues/495"
+CHARTER_STATEMENT = (
+    "Project0 is a persistent cooperative action-adventure in which players inhabit an "
+    "evolving world, make consequential choices, solve problems with their own judgment, "
+    "develop physically distinct Characters, form lasting Parties, build places of their "
+    "own, and experience personal and shared stories shaped by a hierarchy of Dungeon "
+    "Masters. The world is not only generated for players to visit \u2014 it is a foundation "
+    "they can explore, alter, inhabit, build upon, and eventually help govern."
+)
+
+
+def render_overview(view: str = "committed") -> str:
+    """The one page that answers: what's the goal, what's done, what's being
+    worked on, and where the gaps are. Everything here is live from GitHub
+    issues (Goals/Features/Slices) -- no repo-file parsing, no stale text."""
     issue_feed = github_issues()
-    phase_outcomes = {p["num"]: p for p in phase_milestones(issue_feed)}
-    m = executive_model(reader, phase_outcomes)
-    all_issues = issue_feed["issues"]
-    open_issues = [issue for issue in all_issues if issue.get("state") == "open"]
-    issues_html, issue_status, goal_cards = goal_cards_section(issue_feed)
-    open_goal_children = sum(goal["child_open"] for goal in goal_cards)
+    if not issue_feed["available"]:
+        goal_cards, work = [], []
+    else:
+        goal_cards = goal_issue_cards(issue_feed)
+        work = active_work(issue_feed, goal_cards)
 
-    focus_html = "".join(
-        f'<div class="fcard"><div class="ph">Phase {c["phase_num"]} \u00b7 {c["pct"]}%</div>'
-        f'<div class="ti">{esc(_exec_short(c["phase_title"], 40))}</div>'
-        f'<div class="mini"><i style="width:{c["pct"]}%"></i></div>'
-        f'<div class="pc">Now: {esc(_exec_short(c["title"], 48))}</div></div>'
-        for c in m["focus"]
-    ) or '<p class="empty">Nothing marked in progress.</p>'
+    chartered = [c for c in goal_cards if c["criteria_total"] > 0]
+    done = [c for c in chartered if c["percent"] == 100]
+    in_progress = [c for c in chartered if c["percent"] < 100 and c["wgl_claimed"] > 0]
+    not_started = [c for c in chartered if c["wgl_claimed"] == 0]
+    total_items = sum(c["criteria_total"] for c in chartered)
+    resolved_items = sum(c["wgl_resolved"] for c in chartered)
+    overall_pct = round(resolved_items / total_items * 100) if total_items else 0
 
-    active_html = "".join(
-        f'<div class="brow"><div class="bl"><small>{esc(f["id"])}</small>{esc(_exec_short(f["title"]))}</div>'
-        f'<div class="track"><i style="width:{f["pct"]}%;background:var(--amber)"></i></div>'
-        f'<div class="bp" style="color:var(--amber)">{f["pct"]}%</div></div>'
-        for f in m["active"]
-    ) or '<p class="empty">No features in progress.</p>'
+    goal_rows_html = "".join(
+        f'<div class="goalrow">'
+        f'<a class="gr-name" href="{esc(card["url"])}">{esc(_exec_short(card["title"].split("\u2014", 1)[-1].strip() or card["title"], 42))}</a>'
+        f'<div class="gr-bar"><i class="{goal_status(card)[0]}" style="width:{card["percent"]}%"></i></div>'
+        f'<span class="gr-pct">{card["percent"]}%</span>'
+        f'<span class="gr-status {goal_status(card)[0]}">{goal_status(card)[1]}</span>'
+        f'<span class="gr-gaps">{len(card["unclaimed_items"])} gap{"s" if len(card["unclaimed_items"]) != 1 else ""}</span>'
+        f'</div>'
+        for card in sorted(goal_cards, key=lambda c: (-c["percent"], c["title"]))
+    ) or '<p class="empty">No Goals found.</p>'
 
-    phase_html = "".join(
-        f'<div class="brow"><div class="bl"><small>P{p["num"]:02d}</small>{esc(_exec_short(p["title"]))}'
-        f'{phase_activity_label(p)}</div>'
-        f'<div class="track"><i style="width:{p["pct"]}%;background:{_pcol(p["pct"])}"></i></div>'
-        f'<div class="bp" style="color:{_pcol(p["pct"])}">{p["pct"]}%</div></div>'
-        for p in m["phases"]
+    work_html = "".join(
+        f'<div class="workrow">'
+        f'<a href="{esc(w["slice"]["url"])}">#{w["slice"]["number"]} {esc(_exec_short(w["slice"]["title"], 52))}</a>'
+        f'<span class="breadcrumb">{esc(_exec_short(w["goal"]["title"].split("\u2014", 1)[-1].strip(), 24))} '
+        f'\u203a {esc(_exec_short(w["feature"]["title"], 30))}</span>'
+        f'</div>'
+        for w in work[:10]
+    ) or '<p class="empty">Nothing currently in flight against a tracked Goal.</p>'
+
+    gap_blocks = []
+    for card in sorted(goal_cards, key=lambda c: -len(c["unclaimed_items"])):
+        if not card["unclaimed_items"]:
+            continue
+        items_html = "".join(f'<li>{esc(item)}</li>' for item in card["unclaimed_items"])
+        gap_blocks.append(
+            f'<div class="gapblock"><a href="{esc(card["url"])}">{esc(_exec_short(card["title"].split("\u2014", 1)[-1].strip(), 40))}</a>'
+            f'<ul>{items_html}</ul></div>'
+        )
+    gaps_html = "".join(gap_blocks) or '<p class="empty">Every chartered Goal item has at least one Feature.</p>'
+
+    issue_status = (
+        f'{len(chartered)} chartered goals \u00b7 {len(done)} done \u00b7 {len(in_progress)} in progress \u00b7 {len(not_started)} not started'
+        if issue_feed["available"] else f'GitHub issues unavailable: {esc(issue_feed["error"])}'
     )
 
-    done_html = "".join(
-        f'<span class="pill"><span class="dot">\u2713</span><small>{esc(f["id"])}</small>{esc(_exec_short(f["title"]))}</span>'
-        for f in m["done"]
-    ) or '<p class="empty">Nothing shipped yet.</p>'
-
-    other = "?view=working" if view != "working" else "?view=committed"
-    other_lbl = "Working tree" if view != "working" else "Committed"
-    src = "live working tree" if view == "working" else "last committed state"
-
-    cal = calibration()
-    prov = f'@{esc(cal["sha"])}' if cal.get("sha") else "no git"
-    if view != "working" and cal.get("in_flight"):
-        prov += (f' \u00b7 <b style="color:var(--amber)">{cal["in_flight"]} uncommitted '
-                 f'change(s) not shown</b>')
-
     return f'''<!doctype html>
-<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Project0 \u2014 Reality</title>
-<style>{EXEC_CSS}</style></head><body>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0</title>
+<style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
-    <div><h1>Project0 \u2014 Reality</h1><div class="sub">Where the product actually stands \u00b7 {esc(src)} \u00b7 {prov} \u00b7 {issue_status} \u00b7 auto-refreshes</div></div>
-  <div class="nav"><a class="on" href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/{other}">{esc(other_lbl)}</a></div>
+  <div><h1>Project0</h1><div class="sub">{esc(issue_status)}</div></div>
+  <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a></div>
 </header>
 <main>
-  <section class="hero">
-    <div>{_donut(m["overall"])}</div>
+  <section class="sec northstar">
+    <h2>The goal</h2>
+    <p class="charter-text">{esc(CHARTER_STATEMENT)}</p>
+    <a class="charter-link" href="{CHARTER_URL}">Read the full charter (#495) \u2192</a>
+  </section>
+
+  <section class="sec">
+    <h2>Where things stand</h2>
     <div class="tiles">
-      <div class="tile done"><div class="num">{len(m["done"])}</div><div class="lbl">Shipped</div></div>
-      <div class="tile active"><div class="num">{len(m["active"])}</div><div class="lbl">In progress</div></div>
-        <div class="tile todo"><div class="num">{open_goal_children if issue_feed["available"] else len(m["not_started"])}</div><div class="lbl">Open goal child issues</div></div>
+      <div class="tile done"><div class="num">{overall_pct}%</div><div class="lbl">Overall progress</div></div>
+      <div class="tile active"><div class="num">{len(in_progress)}</div><div class="lbl">Goals in progress</div></div>
+      <div class="tile todo"><div class="num">{sum(len(c["unclaimed_items"]) for c in chartered)}</div><div class="lbl">Open gaps</div></div>
     </div>
   </section>
 
-    <section class="sec charter"><h2>Charter \u2192 Goal \u2192 Feature \u2192 Slice</h2>
-    <p class="charter-note">Every Goal below must trace to and advance the master vision charter,
-    <a href="https://github.com/{esc(issue_feed["repo"])}/issues/495">governing issue #495</a>.
-    A Goal is its ideal, measurable condition; a Feature is the measurable gap between that ideal and
-    today; a Slice is one root-cause step that closes part of that gap.</p>
-    <div class="issues">{issues_html}</div></section>
-
-  <section class="sec"><h2>\u25b6 Focused on now</h2><div class="focus">{focus_html}</div></section>
-
-  <section class="sec"><h2>In progress \u2014 how far</h2><div class="bars">{active_html}</div></section>
-
-  <section class="sec"><h2>Delivery by phase <span style="font-weight:400;text-transform:none;letter-spacing:0">\u00b7 active phases % from Outcome-label completion, see /detail</span></h2><div class="bars">{phase_html}</div>
-    <div class="legend"><span><i style="background:var(--green)"></i>Complete</span>
-    <span><i style="background:var(--amber)"></i>In progress</span>
-    <span><i style="background:var(--grey)"></i>Not started</span></div>
+  <section class="sec">
+    <h2>Goals \u2014 the ideal condition each one describes</h2>
+    <div class="goalrows">{goal_rows_html}</div>
   </section>
 
-  <section class="sec"><h2>Shipped \u2014 working functionality ({len(m["done"])})</h2><div class="pills">{done_html}</div></section>
+  <section class="sec">
+    <h2>Being worked on right now</h2>
+    <div class="worklist">{work_html}</div>
+  </section>
+
+  <section class="sec">
+    <h2>Where the gaps are \u2014 goal outcomes with no Feature yet</h2>
+    <div class="gaplist">{gaps_html}</div>
+  </section>
+
+  <div class="footer">Live from GitHub Issues \u00b7 refreshes every 60 seconds \u00b7 <a href="/detail">full Goal/Feature/Slice traceability \u2192</a></div>
 </main></body></html>'''
 
 
@@ -1230,7 +960,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
         elif path in ("/", "/index.html"):
             view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
-            body = render_exec(view).encode("utf-8")
+            body = render_overview(view).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/detail":
