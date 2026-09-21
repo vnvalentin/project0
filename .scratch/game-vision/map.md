@@ -1,7 +1,7 @@
 # Project0 Master Game Vision
 
 Status: charter refreshed; domain maps and delivery gates remain open
-Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
+Parent vision: [#495](https://github.com/vnvalentin/project0/issues/495)
 
 This map captures the intended game outcome and the order in which the idea can
 be made real. It is deliberately technology-neutral. Existing Godot, Nakama,

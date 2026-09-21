@@ -16,7 +16,7 @@ date. Do not add new entries to them. Going forward:
 - `docs/PROJECT-TRACKER.md` and `docs/TECHNICAL-DEBT-TRACKER.md` are unaffected
   by this change and remain live, committed-file records (see the rules below).
 
-See [Goal, Feature, and Slice semantics](DEVELOPMENT-WORKFLOW.md#goal-feature-and-slice-semantics-2026-09-20)
+See [Vision, Goal, Feature, and Slice semantics](DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
 for what a Feature and a Slice issue must each state (the gap they close and
 the root cause they resolve) before creating one.
 

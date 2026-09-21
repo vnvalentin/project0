@@ -1,7 +1,7 @@
 # DM Guild and Semantic World Pipeline
 
 Status: handoff-ready
-Governing issue: [Revisit game vision and establish technology-neutral master delivery charter](https://github.com/vnvalentin/project0/issues/495)
+Governing issue: [Revisit game vision and establish technology-neutral master delivery vision](https://github.com/vnvalentin/project0/issues/495)
 
 ## Destination
 
