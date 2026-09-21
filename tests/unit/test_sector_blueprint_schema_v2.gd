@@ -62,6 +62,69 @@ func test_v2_payload_with_empty_structures_and_spawn_points_is_valid() -> void:
 	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "v2 payload with empty structures/spawn_points arrays is valid")
 
 
+## Feature #710 / Epic #713 / Experiment #717: schema v4 requires parametric
+## footprint/roof_style fields on `house`-kind structures only.
+func _house_structure_v4(structure_id: String, footprint_width: float, footprint_depth: float, roof_style: String) -> Dictionary:
+	return {
+		"structure_id": structure_id,
+		"kind": "house",
+		"x": 3,
+		"y": 4,
+		"facing_degrees": 90.0,
+		"footprint_width": footprint_width,
+		"footprint_depth": footprint_depth,
+		"roof_style": roof_style,
+	}
+
+
+func test_v4_house_accepts_three_distinct_footprint_style_combinations() -> void:
+	var data: Dictionary = _base_v1(4)
+	data["structures"] = [
+		_house_structure_v4("house-1", 3.0, 3.0, "flat_roof"),
+		_house_structure_v4("house-2", 6.0, 8.0, "gable_roof"),
+		_house_structure_v4("house-3", 12.0, 12.0, "hip_roof"),
+	]
+	var result: Dictionary = SectorBlueprintSchemaScript.validate(data)
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "3 distinct valid (footprint, roof_style) combinations validate")
+	assert_eq((result["blueprint"]["structures"] as Array).size(), 3, "all 3 house entries are retained")
+	assert_eq(result["blueprint"]["structures"][1]["roof_style"], "gable_roof", "roof_style is preserved unchanged")
+
+
+func test_v4_house_footprint_below_minimum_is_out_of_bounds() -> void:
+	var data: Dictionary = _base_v1(4)
+	data["structures"] = [_house_structure_v4("house-1", 0.0, 6.0, "gable_roof")]
+	var result: Dictionary = SectorBlueprintSchemaScript.validate(data)
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_OUT_OF_BOUNDS, "footprint_width below the minimum is OUTCOME_OUT_OF_BOUNDS")
+
+
+func test_v4_house_unsupported_roof_style_is_unsupported_kind() -> void:
+	var data: Dictionary = _base_v1(4)
+	data["structures"] = [_house_structure_v4("house-1", 6.0, 6.0, "dome")]
+	var result: Dictionary = SectorBlueprintSchemaScript.validate(data)
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_UNSUPPORTED_KIND, "an unsupported roof_style is OUTCOME_UNSUPPORTED_KIND")
+
+
+func test_v4_house_missing_footprint_fields_is_incomplete() -> void:
+	var data: Dictionary = _base_v1(4)
+	data["structures"] = [_valid_structure("house-1")]
+	var result: Dictionary = SectorBlueprintSchemaScript.validate(data)
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_INCOMPLETE, "a v4 house entry missing footprint/roof_style fields is OUTCOME_INCOMPLETE")
+
+
+func test_v3_house_without_footprint_fields_stays_valid_backward_compatible() -> void:
+	var data: Dictionary = _base_v1(3)
+	data["structures"] = [_valid_structure("house-1")]
+	var result: Dictionary = SectorBlueprintSchemaScript.validate(data)
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "a v3 house entry without footprint/roof_style fields stays valid (backward compatibility)")
+
+
+func test_v4_non_house_structure_does_not_require_footprint_fields() -> void:
+	var data: Dictionary = _base_v1(4)
+	data["structures"] = [{"structure_id": "smithy-1", "kind": "smithy", "x": -10, "y": 10, "facing_degrees": 0.0}]
+	var result: Dictionary = SectorBlueprintSchemaScript.validate(data)
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "a v4 non-house structure does not require footprint/roof_style fields")
+
+
 func test_structure_missing_required_field_is_incomplete() -> void:
 	var data: Dictionary = _base_v1(2)
 	var bad_structure: Dictionary = _valid_structure()
