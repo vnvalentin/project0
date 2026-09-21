@@ -1009,27 +1009,50 @@ TBP_STATE_ICON = {
 }
 
 
-def classify_tbp_state(issue: dict) -> str:
-    """TBP gatekeeper rule engine: grilling gaps > in-flight work > ready backlog > done.
-    Needs Grilling: OPEN and has a [TBP GAP] marker, tbp:needs-refinement label,
-    or (for an Epic) is missing a required 4Ws heading.
-    Ready to Pull: OPEN, no gap markers, and unassigned/not in flight.
-    In Progress: OPEN with an active assignee or an in-progress label.
-    Done: CLOSED (an Experiment closed without a logged Pass is still a gap)."""
-    body = issue.get("body", "") or ""
-    labels = issue.get("labels", [])
-    if issue.get("state") == "closed":
-        if "tbp:experiment" in labels and not re.search(r"-\s*\[x\]\s*pass\b", body, re.I):
-            return "NEEDS_GRILLING"
-        return "DONE"
-    if "tbp:needs-refinement" in labels or "[TBP GAP" in body or "Needs Definition" in body:
-        return "NEEDS_GRILLING"
-    if "tbp:epic" in labels and not all(k in body.upper() for k in ["WHO", "WHEN", "WHERE", "WHAT"]):
-        return "NEEDS_GRILLING"
-    if issue.get("assignees") or "in-progress" in labels:
-        return "IN_PROGRESS"
-    return "READY_TO_PULL"
+def _tbp_outcomes(issue: dict) -> tuple[bool, bool]:
+    """Return (has_required_outcomes, all_checked) for the canonical checklist."""
+    import re
+    body = issue.get("body") or ""
+    match = re.search(r"(?ims)^##\s+Outcomes\s*$\n(.*?)(?=^##\s|\Z)", body)
+    if not match:
+        return False, False
+    checks = re.findall(r"(?im)^\s*-\s+\[([ xX])\]\s+.+$", match.group(1))
+    return bool(checks), bool(checks) and all(x.lower() == "x" for x in checks)
 
+
+def _tbp_outcomes_satisfied(issue: dict) -> bool:
+    has, complete = _tbp_outcomes(issue)
+    if has:
+        return complete
+    # Compatibility is deliberately limited to pre-contract closed records.
+    # Current/new records without ## Outcomes are never complete.
+    return (issue.get("state") or "").lower() == "closed" and (issue.get("createdAt") or "9999") < "2025-01-01"
+
+
+def classify_tbp_state(issue: dict, children: list[dict] | None = None) -> str:
+    """Classify one TBP node, applying the recursive child/outcome gate."""
+    children = children or []
+    child_states = [c.get("tbp_state") or classify_tbp_state(c) for c in children]
+    labels = {str(x.get("name", x) if isinstance(x, dict) else x) for x in issue.get("labels", [])}
+    # Features require an Epic child and Epics require an Experiment child.
+    # This structural gate takes precedence over the node's own lifecycle data.
+    if not children and labels & {"tbp:feature", "tbp:epic"}:
+        return "NEEDS_GRILLING"
+    if any(x == "NEEDS_GRILLING" for x in child_states):
+        return "NEEDS_GRILLING"
+    if any(x == "IN_PROGRESS" for x in child_states):
+        return "IN_PROGRESS"
+    state = (issue.get("state") or "open").lower()
+    if state == "closed":
+        has_pass = any("pass" in line.lower() and "[x]" in line.lower() for line in (issue.get("body") or "").splitlines())
+        return "DONE" if _tbp_outcomes_satisfied(issue) and (not issue.get("type") == "experiment" or has_pass) and all(x == "DONE" for x in child_states) else "NEEDS_GRILLING"
+    if any(x not in ("DONE",) for x in child_states):
+        return "READY_TO_PULL" if "tbp:in-progress" not in labels else "IN_PROGRESS"
+    if "tbp:in-progress" in labels or "in progress" in {x.lower() for x in labels}:
+        return "IN_PROGRESS"
+    if "tbp:needs-grilling" in labels or "needs grilling" in {x.lower() for x in labels}:
+        return "NEEDS_GRILLING"
+    return "READY_TO_PULL"
 
 def _tbp_row(issue: dict) -> str:
     state = classify_tbp_state(issue)
