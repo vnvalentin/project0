@@ -1041,7 +1041,7 @@ def _tbp_render_node(node: dict, buckets: dict[str, list[dict]]) -> str:
         buckets[state].append(node)
     children_html = "".join(_tbp_render_node(child, buckets) for child in node.get("children", []))
     if children_html:
-        return f'<details class="tbp-goal" open><summary>{_tbp_row(node)}</summary><div class="tbp-children">{children_html}</div></details>'
+        return f'<details class="tbp-goal"><summary>{_tbp_row(node)}</summary><div class="tbp-children">{children_html}</div></details>'
     return f'<div class="tbp-goal">{_tbp_row(node)}</div>'
 
 
