@@ -537,15 +537,15 @@ Progress: **0%** (research-first; no `map.md` yet)
 
 **Phase 19 — Semantic world pipeline**
 
-Progress: **in progress** (Slice 191 implementation started; handoff complete)
+Progress: **in progress** (Slice 191 delivered; follow-on ordering and builder work remains)
 
 - Source goal: [DM Guild map](../.scratch/dm-guild/map.md), governed by
   [#495](https://github.com/vnvalentin/project0/issues/495).
 - Handoff: [Semantic World Pipeline specification](../.scratch/dm-guild/spec.md)
   and [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md).
 - Features: `in-progress` [F-040](FEATURE-LIST.md#f-040-server-only-normalized-world-directive-validation) — Slice 191 defines the first pure validator seam; raw LLM output remains provisional and inference remains asynchronous/server-only.
-- Current task: [#444 — Normalized World Directive Schema and Validator](https://github.com/vnvalentin/project0/issues/444) — open `wayfinder:task`; Slice 191 is tracked under [#517](https://github.com/vnvalentin/project0/issues/517).
-- Current slice: [191 — Normalized World directive validator](slices/191-world-directive-validator.md) — **in progress; pure bounded validator and deterministic fallback implemented with focused GUT coverage.**
+- Current task: [#444 — Normalized World Directive Schema and Validator](https://github.com/vnvalentin/project0/issues/444) — resolved by Slice 191; follow-on work remains under the semantic pipeline handoff.
+- Current slice: [191 — Normalized World directive validator](slices/191-world-directive-validator.md) — **delivered; pure bounded validator and deterministic fallback implemented with focused GUT coverage.**
 - Tech debt: none allocated yet.
 
 ### Implementation slice index
