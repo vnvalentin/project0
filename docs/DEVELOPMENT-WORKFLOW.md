@@ -68,6 +68,41 @@ Goal map or Goal issue states which part of that charter it closes distance
 toward; a Goal with no traceable line to #495 is out of scope until it is
 re-chartered or retired.
 
+### Goal shape (2026-09-20)
+
+Every Goal issue and every `.scratch/<goal>/map.md` must state all four of
+these, in this order, before it can carry a `## What Good Looks Like` list or
+spawn a Feature:
+
+1. **Targets** — the one specific part of the charter (#495) this Goal picks.
+   A Goal is not a grab-bag of everything vision-adjacent; it names one
+   focused area of the vision (one principle, one player promise clause, one
+   system boundary) and stops there. If a Goal can't name the one part of the
+   charter it targets, it isn't chartered yet.
+2. **Ideal condition** — one paragraph stating the end state that targeted
+   part of the vision demands, in the present tense as if already true. This
+   is the single sentence-or-two a stranger could read to know what "done"
+   means for this Goal, before ever reading a WGL bullet.
+3. **Measurable outcome** — the test that decides completion, stated as four
+   explicit fields:
+   - **What**: the observable fact or artifact that must exist or hold true.
+   - **How much**: the quantifiable threshold (a count, a percentage, a
+     pass/fail on a fixture, a binary yes/no with no fuzziness).
+   - **Who**: the actor or beneficiary the outcome is measured against (a
+     playtester, the server, an operator, two Characters, etc.) — a Goal
+     without a "who" is measuring nothing real.
+   - **By when**: a bound — a phase, a dependency, or an explicit "no fixed
+     date, gated on evidence X" — never left implicit.
+4. **What Good Looks Like** — the existing checklist, now understood as the
+   itemized, individually Feature-trackable breakdown of the single ideal
+   condition and measurable outcome above, not a second, separate list of
+   unrelated asks. Every WGL item must be traceable back to the Measurable
+   outcome; an item that doesn't move that outcome doesn't belong on the list.
+
+A Goal missing any of Targets/Ideal condition/Measurable outcome is
+under-specified regardless of how many WGL boxes are checked — fix the frame
+before trusting the percentage.
+
 ## Delivery lifecycle
 
 Every capability moves through one lifecycle with a single authoritative status
