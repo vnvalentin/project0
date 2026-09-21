@@ -21,10 +21,11 @@ class_name SectorBlueprintSchema
 ## accepted. Version 1 is the original tiles-only shape (Slice 008); version 2
 ## additionally allows the optional "structures" and "spawn_points" arrays
 ## (Slice 014); version 3 adds the organic tile/structure vocabulary
-## (Slice 025). All versions remain supported going forward — newer versions
-## are not hard replacements, since ordinary non-town sectors keep generating
-## tiles-only v1 payloads.
-const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3]
+## (Slice 025); version 4 adds required parametric geometry fields on
+## `house`-kind structures (Feature #710). All versions remain supported
+## going forward — newer versions are not hard replacements, since ordinary
+## non-town sectors keep generating tiles-only v1 payloads.
+const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3, 4]
 
 ## Bounds the tile array so a single sector response cannot request unbounded
 ## work; this is a contract-validation bound only, not a gameplay/world-size
@@ -55,6 +56,25 @@ const _ORGANIC_STRUCTURE_KINDS: PackedStringArray = ["church", "item_shop", "tav
 ## versioning stays meaningful (v1/v2 payloads keep their original vocabulary).
 const ORGANIC_VOCABULARY_MIN_VERSION: int = 3
 const MAX_FACING_DEGREES: float = 360.0
+
+## Schema v4 gates required parametric geometry fields (footprint_width,
+## footprint_depth, roof_style) on `house`-kind structures, replacing fixed
+## per-kind prefab selection with schema-driven procedural generation
+## (Feature #710, Epic #713). Other kinds are unaffected and keep the
+## existing enum+prefab path; earlier schema versions keep the pre-v4 shape
+## (backward compatibility).
+const PROCEDURAL_GEOMETRY_MIN_VERSION: int = 4
+
+## Bounds for house footprint dimensions, in world units (1 unit = 1 yard,
+## ADR-0003 imperial world scale). 3 matches today's placeholder
+## client/structures/house.tscn box; 12 stays well inside the 440-unit
+## sector edge. A contract-validation bound only, not a gameplay-balance
+## constant.
+const MIN_FOOTPRINT_UNITS: float = 3.0
+const MAX_FOOTPRINT_UNITS: float = 12.0
+
+## Roof styles a procedurally-generated house may specify (Feature #710).
+const SUPPORTED_ROOF_STYLES: PackedStringArray = ["gable_roof", "hip_roof", "flat_roof"]
 
 ## Bounds the spawn_points array. 16 is a small, auditable bound sized for
 ## the Starting Town hub sector's near-term needs (see Slice 014's SDD for
@@ -188,6 +208,33 @@ static func _validate_structure(value: Variant, index: int, seen_ids: Dictionary
 	var facing_degrees: float = float(structure["facing_degrees"])
 	if facing_degrees < 0.0 or facing_degrees >= MAX_FACING_DEGREES:
 		return _result(OUTCOME_OUT_OF_BOUNDS, "structures[%d].facing_degrees must be in [0, %s)." % [index, MAX_FACING_DEGREES])
+
+	if kind == "house" and schema_version >= PROCEDURAL_GEOMETRY_MIN_VERSION:
+		var footprint_check: Dictionary = _validate_house_footprint(structure, index)
+		if footprint_check["outcome"] != OUTCOME_VALID:
+			return footprint_check
+
+	return _result(OUTCOME_VALID, "")
+
+
+## Required only for `house`-kind entries at schema_version >=
+## PROCEDURAL_GEOMETRY_MIN_VERSION (Feature #710, Epic #713). Earlier
+## versions and every other structure kind are unaffected — they keep
+## selecting a fixed per-kind prefab (backward compatibility).
+static func _validate_house_footprint(structure: Dictionary, index: int) -> Dictionary:
+	for field: String in ["footprint_width", "footprint_depth"]:
+		if not structure.has(field):
+			return _result(OUTCOME_INCOMPLETE, "structures[%d].%s is required for procedurally-generated houses." % [index, field])
+		if not (structure[field] is int) and not (structure[field] is float):
+			return _result(OUTCOME_INCOMPLETE, "structures[%d].%s must be a number." % [index, field])
+		var value: float = float(structure[field])
+		if value < MIN_FOOTPRINT_UNITS or value > MAX_FOOTPRINT_UNITS:
+			return _result(OUTCOME_OUT_OF_BOUNDS, "structures[%d].%s must be in [%s, %s]." % [index, field, MIN_FOOTPRINT_UNITS, MAX_FOOTPRINT_UNITS])
+
+	if not structure.has("roof_style"):
+		return _result(OUTCOME_INCOMPLETE, "structures[%d].roof_style is required for procedurally-generated houses." % index)
+	if not (structure["roof_style"] is String) or not SUPPORTED_ROOF_STYLES.has(structure["roof_style"]):
+		return _result(OUTCOME_UNSUPPORTED_KIND, "structures[%d].roof_style '%s' is not a supported style (%s)." % [index, structure.get("roof_style"), ", ".join(SUPPORTED_ROOF_STYLES)])
 
 	return _result(OUTCOME_VALID, "")
 
