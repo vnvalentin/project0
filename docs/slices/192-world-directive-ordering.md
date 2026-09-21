@@ -2,7 +2,7 @@
 
 GitHub issue: #521
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 19 (Semantic world pipeline)
 
@@ -24,4 +24,4 @@ LLM services, builders, or runtime state.
 ## Validation
 
 Focused GUT coverage proves event/priority/scope/ID tie-breaking, stable replay
-identity, and rejection of missing identity inputs.
+identity, and rejection of missing identity inputs: 3/3 tests and 7 assertions.
