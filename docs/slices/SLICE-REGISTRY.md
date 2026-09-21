@@ -208,8 +208,9 @@ contended range and everything after it is tracked explicitly:
 | 191 | Normalized World directive validator (F-040, #517) | interactive |
 | 192 | Deterministic World directive ordering and replay identity (F-040, #521) | interactive |
 | 193 | Deterministic POI feasibility selection (F-040, #525) | interactive |
+| 194 | Deterministic builder feasibility contract (F-040, #528) | interactive |
 
-Next free slice: **194** (verify against `docs/slices/` before reserving).
+Next free slice: **195** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
