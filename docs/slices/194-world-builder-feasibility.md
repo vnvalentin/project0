@@ -2,7 +2,7 @@
 
 GitHub issue: #528
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 19 (Semantic world pipeline)
 
@@ -23,4 +23,4 @@ or access runtime services.
 ## Validation
 
 Focused GUT fixtures cover accepted feasibility, slope and clearance rejection,
-malformed directives, and bounded metric rejection.
+malformed directives, and bounded metric rejection: 4/4 tests and 9 assertions.
