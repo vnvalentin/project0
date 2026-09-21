@@ -129,11 +129,14 @@ gates.
 	remaining package steps.
 - Symptom: the bounded valid-update launcher probe did not complete its
 	readiness wait. The affected seam is `runUpdaterHelperWithEnv`, which treats
-	the relaunched `Project0.exe --project0-run-client` process exit as readiness.
-	Hypothesis: the interactive packaged client should exit after startup. The
-	discriminating check was a direct packaged run: headless mode exited 0, while
-	`--project0-run-client` remained running until the five-second bound killed it.
-	Confirmed root cause: the current readiness hook is process exit, but the
-	interactive client is intentionally long-lived. A bounded non-destructive
-	packaged readiness signal is required before claiming valid-update runtime
-	proof; automatic updates remain disabled until then.
+	the relaunched client process exit as readiness. Hypothesis: the interactive
+	packaged client should exit after startup. The discriminating check was a
+	direct packaged run: headless mode exited 0, while the interactive process
+	remained running until the five-second bound killed it. Confirmed root cause:
+	the interactive client is intentionally long-lived. Countermeasure: the
+	updater now runs `Project0.exe --headless --quit-after 2` and bounds the wait
+	to 15 seconds, killing an unresponsive probe so rollback is deterministic.
+	The signed valid-update probe installed a PCK matching the manifest, but the
+	PowerShell GUI harness did not expose a reliable launcher exit observation;
+	valid-update runtime evidence remains open until that observation is made
+	reliable.

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -19,6 +20,7 @@ const (
 	updateRequiredExitCode = 20
 	launcherClientVersion  = "0.6.0"
 	publicEnrollmentURL    = "https://project0.valentin.vip"
+	readinessTimeout       = 15 * time.Second
 )
 
 func main() {
@@ -124,16 +126,32 @@ func runUpdaterHelperWithEnv(args []string, clientEnv []string) error {
 		return err
 	}
 
-	client := exec.Command(filepath.Join(values["payload-dir"], "Project0.exe"), "--project0-run-client")
+	client := exec.Command(filepath.Join(values["payload-dir"], "Project0.exe"), "--headless", "--quit-after", "2")
 	client.Dir = values["payload-dir"]
 	client.Env = clientEnv
-	if err := client.Run(); err != nil {
+	if err := runReadinessProbe(client); err != nil {
 		if rollbackErr := Rollback(values["payload-dir"]); rollbackErr != nil {
 			return fmt.Errorf("client readiness failed: %v; rollback failed: %w", err, rollbackErr)
 		}
 		return fmt.Errorf("client readiness failed; update rolled back: %w", err)
 	}
 	return nil
+}
+
+func runReadinessProbe(client *exec.Cmd) error {
+	if err := client.Start(); err != nil {
+		return err
+	}
+	done := make(chan error, 1)
+	go func() { done <- client.Wait() }()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(readinessTimeout):
+		_ = client.Process.Kill()
+		<-done
+		return fmt.Errorf("timed out after %s", readinessTimeout)
+	}
 }
 
 func runUpdateFromRejection(rejectionPath, payloadDir string, clientEnv []string) error {
