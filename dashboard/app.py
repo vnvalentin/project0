@@ -164,8 +164,16 @@ def goal_target_coverage(criteria: dict) -> int:
 
 
 def _parent_link(issue: dict, prefix: str) -> int | None:
-    match = re.search(rf"^{prefix}:\s*#(\d+)\b", issue.get("body", ""), re.M)
+    match = re.search(rf"^{prefix}:\s*#(\d+)\b", issue.get("body", ""), re.M | re.I)
     return int(match.group(1)) if match else None
+
+
+def _parent_link_any(issue: dict, prefixes: list[str]) -> int | None:
+    for prefix in prefixes:
+        parent = _parent_link(issue, prefix)
+        if parent is not None:
+            return parent
+    return None
 
 
 def goal_feature_slices(issues: list[dict], goal_number: int) -> list[dict]:
@@ -1074,23 +1082,31 @@ def _tbp_tree_from_rest(issue_feed: dict) -> list[dict]:
 
 def _tbp_label_tree(issue_feed: dict) -> tuple[list[dict], list[dict]]:
     """The real TBP tree: Hoshin->Theme->Feature->Epic->Experiment, built from
-    the `tbp:*` labels and `Parent Hoshin/Theme/Feature/Epic: #N` body links
-    this repo actually uses (GitHub native sub-issues/trackedIssues are unused
-    here -- every tbp:hoshin issue has trackedIssuesCount 0). Returns
-    (root nodes, unlinked tbp:*-labeled issues whose parent link is missing or
-    unresolved, so a broken link is visible instead of silently dropped)."""
+    the `tbp:*` labels and `Parent Vision/Hoshin/Theme/Feature/Epic: #N` body
+    links this repo actually uses (GitHub native sub-issues/trackedIssues are
+    unused here -- every tbp:hoshin issue has trackedIssuesCount 0). Matching
+    is case-insensitive and accepts multiple accepted prefixes per level since
+    the convention drifted (older issues: 'Parent Hoshin'; newer: 'Parent
+    vision'). Returns (root nodes, unlinked tbp:*-labeled issues whose parent
+    link is missing or unresolved, so a broken link is visible instead of
+    silently dropped)."""
     issues = issue_feed.get("issues", [])
     by_label = {
         level: [i for i in issues if f"tbp:{level}" in i.get("labels", [])]
         for level in ("hoshin", "theme", "feature", "epic", "experiment")
     }
-    parent_prefix = {"theme": "Parent Hoshin", "feature": "Parent Theme", "epic": "Parent Feature", "experiment": "Parent Epic"}
+    parent_prefixes = {
+        "theme": ["Parent Hoshin", "Parent vision"],
+        "feature": ["Parent Theme"],
+        "epic": ["Parent Feature"],
+        "experiment": ["Parent Epic"],
+    }
     children_by_parent: dict[str, dict[int, list[dict]]] = {}
     unlinked: list[dict] = []
-    for level, prefix in parent_prefix.items():
+    for level, prefixes in parent_prefixes.items():
         by_parent: dict[int, list[dict]] = {}
         for issue in by_label[level]:
-            parent = _parent_link(issue, prefix)
+            parent = _parent_link_any(issue, prefixes)
             if parent is None:
                 unlinked.append(issue)
             else:
