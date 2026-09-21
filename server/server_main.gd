@@ -703,13 +703,9 @@ func _broadcast_presence_snapshot() -> void:
 	for peer_id: int in _player_states.keys():
 		var player_state: Node = _player_states[peer_id]
 		var identity: Dictionary = _login_gateway.get_presence_identity(peer_id) if _login_gateway != null else {}
-		entries.append(NakamaPresenceScript.entry(
-			peer_id,
-			String(identity.get("account_id", "unknown-%d" % peer_id)),
-			String(identity.get("character_id", player_state.character_id)),
-			String(player_state.character_display_name),
-			"online"
-		))
+		var peer_entry: Dictionary = NakamaPresenceScript.bound_entry(peer_id, identity, String(player_state.character_display_name))
+		if not peer_entry.is_empty():
+			entries.append(peer_entry)
 	var snapshot: Dictionary = NakamaPresenceScript.build(entries, true)
 	for peer_id: int in _player_states.keys():
 		network_client.rpc_id(peer_id, "receive_presence_snapshot", snapshot)
@@ -744,6 +740,7 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 		if other_peer_id == peer_id:
 			continue
 		network_client.rpc_id(other_peer_id, "receive_remote_player_identity", peer_id, display_name, cosmetic)
+	_broadcast_presence_snapshot()
 
 
 func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
