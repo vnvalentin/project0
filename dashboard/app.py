@@ -964,6 +964,10 @@ TBP_CSS = """
 .tbp-row a{color:var(--text);text-decoration:none;font-size:13px}
 .tbp-row a:hover{color:var(--cyan)}
 .tbp-goal{border-left:3px solid var(--line);padding-left:14px;margin-bottom:16px}
+.tbp-goal>summary{cursor:pointer;list-style:none;display:flex;align-items:center}
+.tbp-goal>summary::-webkit-details-marker{display:none}
+.tbp-goal>summary::before{content:'\25B6';display:inline-block;flex:none;color:var(--muted);font-size:9px;margin-right:8px;transition:transform .15s}
+.tbp-goal[open]>summary::before{transform:rotate(90deg)}
 .tbp-children{margin-left:16px;border-left:1px dashed var(--line);padding-left:14px}
 .tbp-slice{margin-left:16px}
 .tbp-section{margin-bottom:22px}
@@ -977,7 +981,7 @@ TBP_CSS = """
 .tbp-theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
 .tbp-theme-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
 .tbp-theme-card>.tbp-goal{border-left:none;padding-left:0;margin-bottom:0}
-.tbp-theme-card>.tbp-goal>.tbp-row a{font-weight:700}
+.tbp-theme-card>.tbp-goal .tbp-row a{font-weight:700}
 @media(max-width:900px){.tbp-layout{grid-template-columns:1fr}}
 """
 
@@ -1022,13 +1026,16 @@ def _tbp_row(issue: dict) -> str:
 
 def _tbp_render_node(node: dict, buckets: dict[str, list[dict]]) -> str:
     """Recursively render one node of the Hoshin->Theme->Feature->Epic->Experiment
-    tree, bucketing every node it visits for the pipeline panel."""
+    tree, bucketing every node it visits for the pipeline panel. Nodes with
+    children (Themes, Features, and any Epic with linked Experiments) render as
+    a collapsible <details> so a Theme's/Feature's subtree can be folded away."""
     state = classify_tbp_state(node)
     if state in buckets:
         buckets[state].append(node)
     children_html = "".join(_tbp_render_node(child, buckets) for child in node.get("children", []))
-    wrapped = f'<div class="tbp-children">{children_html}</div>' if children_html else ""
-    return f'<div class="tbp-goal">{_tbp_row(node)}{wrapped}</div>'
+    if children_html:
+        return f'<details class="tbp-goal" open><summary>{_tbp_row(node)}</summary><div class="tbp-children">{children_html}</div></details>'
+    return f'<div class="tbp-goal">{_tbp_row(node)}</div>'
 
 
 def _tbp_render_root(root: dict, buckets: dict[str, list[dict]]) -> str:
