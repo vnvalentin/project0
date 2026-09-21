@@ -956,8 +956,10 @@ TBP_CSS = """
 .tbp-badge{font-size:10px;font-weight:700;border-radius:12px;padding:3px 9px;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em}
 .tbp-badge.NEEDS_GRILLING{background:#3a2e13;color:var(--amber)}
 .tbp-badge.READY_TO_PULL{background:#123524;color:var(--green)}
-.tbp-badge.IN_PROGRESS{background:#12303a;color:var(--cyan)}
+.tbp-badge.IN_PROGRESS{background:#12303a;color:var(--cyan);animation:tbp-pulse 1.6s ease-in-out infinite}
 .tbp-badge.DONE{background:#232d38;color:var(--muted)}
+@keyframes tbp-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.tbp-legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted);margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .tbp-row{display:flex;align-items:center;gap:10px;padding:6px 0}
 .tbp-row a{color:var(--text);text-decoration:none;font-size:13px}
 .tbp-row a:hover{color:var(--cyan)}
@@ -969,16 +971,38 @@ TBP_CSS = """
 .tbp-card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px}
 .tbp-card a{color:var(--text);text-decoration:none}
 .tbp-card a:hover{color:var(--cyan)}
+.tbp-hoshin{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:12px;padding:16px 18px;margin-bottom:18px}
+.tbp-hoshin>.tbp-row{padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tbp-hoshin>.tbp-row a{font-size:15px;font-weight:700}
+.tbp-theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.tbp-theme-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tbp-theme-card>.tbp-goal{border-left:none;padding-left:0;margin-bottom:0}
+.tbp-theme-card>.tbp-goal>.tbp-row a{font-weight:700}
 @media(max-width:900px){.tbp-layout{grid-template-columns:1fr}}
 """
 
 
+TBP_STATE_ICON = {
+    "NEEDS_GRILLING": "\U0001F7E1\U0001F525",  # yellow circle + flame
+    "READY_TO_PULL": "\U0001F7E2\u25B6\uFE0F",  # green circle + play
+    "IN_PROGRESS": "\U0001F535\U0001F501",  # blue circle + pulse/loop
+    "DONE": "\u26AA\u2705",  # gray circle + check
+}
+
+
 def classify_tbp_state(issue: dict) -> str:
-    """TBP gatekeeper rule engine: grilling gaps > in-flight work > ready backlog > done."""
-    if issue.get("state") == "closed":
-        return "DONE"
+    """TBP gatekeeper rule engine: grilling gaps > in-flight work > ready backlog > done.
+    Needs Grilling: OPEN and has a [TBP GAP] marker, tbp:needs-refinement label,
+    or (for an Epic) is missing a required 4Ws heading.
+    Ready to Pull: OPEN, no gap markers, and unassigned/not in flight.
+    In Progress: OPEN with an active assignee or an in-progress label.
+    Done: CLOSED (an Experiment closed without a logged Pass is still a gap)."""
     body = issue.get("body", "") or ""
     labels = issue.get("labels", [])
+    if issue.get("state") == "closed":
+        if "tbp:experiment" in labels and not re.search(r"-\s*\[x\]\s*pass\b", body, re.I):
+            return "NEEDS_GRILLING"
+        return "DONE"
     if "tbp:needs-refinement" in labels or "[TBP GAP" in body or "Needs Definition" in body:
         return "NEEDS_GRILLING"
     if "tbp:epic" in labels and not all(k in body.upper() for k in ["WHO", "WHEN", "WHERE", "WHAT"]):
@@ -991,7 +1015,7 @@ def classify_tbp_state(issue: dict) -> str:
 def _tbp_row(issue: dict) -> str:
     state = classify_tbp_state(issue)
     return (
-        f'<div class="tbp-row"><span class="tbp-badge {state}">{state.replace("_", " ")}</span>'
+        f'<div class="tbp-row"><span class="tbp-badge {state}">{TBP_STATE_ICON[state]} {state.replace("_", " ")}</span>'
         f'<a href="{esc(issue["url"])}">#{issue["number"]} {esc(issue["title"])}</a></div>'
     )
 
@@ -1005,6 +1029,19 @@ def _tbp_render_node(node: dict, buckets: dict[str, list[dict]]) -> str:
     children_html = "".join(_tbp_render_node(child, buckets) for child in node.get("children", []))
     wrapped = f'<div class="tbp-children">{children_html}</div>' if children_html else ""
     return f'<div class="tbp-goal">{_tbp_row(node)}{wrapped}</div>'
+
+
+def _tbp_render_root(root: dict, buckets: dict[str, list[dict]]) -> str:
+    """Render a root (Hoshin, or a Goal in the REST fallback) as a master
+    container card-grid: the root's own row on top, then each direct child
+    (Theme/Feature) as its own card holding that child's full subtree."""
+    state = classify_tbp_state(root)
+    if state in buckets:
+        buckets[state].append(root)
+    children = root.get("children", [])
+    cards = "".join(f'<div class="tbp-theme-card">{_tbp_render_node(child, buckets)}</div>' for child in children)
+    grid = f'<div class="tbp-theme-grid">{cards}</div>' if cards else '<p class="empty">No children linked yet.</p>'
+    return f'<div class="tbp-hoshin">{_tbp_row(root)}{grid}</div>'
 
 
 def _tbp_tree_from_rest(issue_feed: dict) -> list[dict]:
@@ -1069,7 +1106,7 @@ def render_tbp() -> str:
     else:
         roots, unlinked = _tbp_label_tree(issue_feed)
         if roots:
-            tree_html = "".join(_tbp_render_node(n, buckets) for n in roots)
+            tree_html = "".join(_tbp_render_root(n, buckets) for n in roots)
             if unlinked:
                 tree_html += (
                     '<div class="tbp-section"><h3>Unlinked (missing Parent link)</h3>'
@@ -1083,7 +1120,7 @@ def render_tbp() -> str:
             issue_status = f'{len(roots)} Hoshin root(s), {len(unlinked)} unlinked tbp: issue(s) from {esc(issue_feed["repo"])}'
         else:
             nodes = _tbp_tree_from_rest(issue_feed)
-            tree_html = "".join(_tbp_render_node(n, buckets) for n in nodes) or '<p class="empty">No Goal issues found.</p>'
+            tree_html = "".join(_tbp_render_root(n, buckets) for n in nodes) or '<p class="empty">No Goal issues found.</p>'
             issue_status = f'{len(nodes)} goal issue(s) from {esc(issue_feed["repo"])} \u00b7 Parent goal/feature links (no tbp:hoshin issue found)'
 
     def _section(title: str, key: str) -> str:
@@ -1091,12 +1128,21 @@ def render_tbp() -> str:
             f'<div class="tbp-card"><a href="{esc(i["url"])}">#{i["number"]} {esc(i["title"])}</a></div>'
             for i in buckets[key]
         ) or '<p class="empty">None.</p>'
-        return f'<div class="tbp-section"><h3>{esc(title)} ({len(buckets[key])})</h3>{cards}</div>'
+        return f'<div class="tbp-section"><h3>{TBP_STATE_ICON[key]} {esc(title)} ({len(buckets[key])})</h3>{cards}</div>'
 
     pipeline_html = (
         _section("Needs grilling", "NEEDS_GRILLING")
         + _section("Ready to pull", "READY_TO_PULL")
         + _section("In progress", "IN_PROGRESS")
+    )
+
+    legend_html = (
+        '<div class="tbp-legend">'
+        f'<span>{TBP_STATE_ICON["NEEDS_GRILLING"]} Needs grilling</span>'
+        f'<span>{TBP_STATE_ICON["READY_TO_PULL"]} Ready to pull</span>'
+        f'<span>{TBP_STATE_ICON["IN_PROGRESS"]} In progress</span>'
+        f'<span>{TBP_STATE_ICON["DONE"]} Done</span>'
+        '</div>'
     )
 
     return f'''<!doctype html>
@@ -1110,7 +1156,7 @@ def render_tbp() -> str:
   <section class="sec">
     <div class="tbp-layout">
       <div class="tbp-panel"><h2>Backlog structure</h2>{tree_html}</div>
-      <div class="tbp-panel">{pipeline_html}</div>
+      <div class="tbp-panel">{legend_html}{pipeline_html}</div>
     </div>
   </section>
 </main></body></html>'''
