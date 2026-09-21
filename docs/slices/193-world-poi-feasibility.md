@@ -2,7 +2,7 @@
 
 GitHub issue: #525
 
-Status: **in progress**
+Status: **delivered**
 
 Phase: 19 (Semantic world pipeline)
 
@@ -23,4 +23,5 @@ geometry, Canon, persistence, or runtime state.
 ## Validation
 
 Focused GUT fixtures cover peak, valley, flat-area feasibility, deterministic
-ties, malformed candidates, and no-feasible fallback.
+ties, malformed candidates, and no-feasible fallback: 5/5 tests and 8
+assertions.
