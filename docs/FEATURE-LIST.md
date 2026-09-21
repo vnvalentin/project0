@@ -120,13 +120,18 @@ feature so future drift is easier to detect.
 
 ### F-040: Server-only normalized World directive validation
 
-- Status: `Planned`
+- Status: `In Progress`
 - Feature: The authoritative server asynchronously validates raw World DM/LLM proposals into bounded, version-pinned normalized World directives before deterministic builder use.
 - Problem solved: Semantic world proposals need a stable, fail-closed public seam that rejects malformed, unsupported, stale, or out-of-range model output without allowing raw LLM data into world realization or blocking the multiplayer loop.
 - Phase: 19. Semantic world pipeline
 - Public seam: A server-only normalized-directive validator and bounded outcome result; the client never contacts the LLM, and inference remains asynchronous and outside the frame-critical simulation loop.
-- Implementation slices: Not allocated; the originating task issue must resolve before a slice is promoted to `Ready`.
-- Validation: Planned. The first slice must provide fixture-backed accepted, rejected, timeout, fallback, version-mismatch, and non-blocking public-seam evidence plus machine-readable validation telemetry.
+- Implementation slices: [Slice 191](slices/191-world-directive-validator.md)
+  (bounded server-only normalization and deterministic fallback); follow-on
+  slices must cover ordering, builder feasibility, Canon integration, and
+  replay.
+- Validation: Slice 191 provides fixture-backed accepted, rejected, fallback,
+  vocabulary, range, and version-mismatch evidence. Timeout scheduling and
+  machine-readable outcome telemetry remain follow-on work.
 - Related work: [DM Guild map](../.scratch/dm-guild/map.md), [DM Guild specification](../.scratch/dm-guild/spec.md), [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md), [GitHub task #444](https://github.com/vnvalentin/project0/issues/444), and [governing issue #495](https://github.com/vnvalentin/project0/issues/495).
 
 ### F-039: Nakama v1 entry and realtime foundation

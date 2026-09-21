@@ -205,8 +205,9 @@ contended range and everything after it is tracked explicitly:
 | 188 | Server admin console: ControlAction/ControlResult and audit contract (#165) | interactive |
 | 189 | Server admin console: authenticated control seam and host helper (#165) | interactive |
 | 190 | Server admin console: end-to-end proof and operator runbook (#165) | interactive |
+| 191 | Normalized World directive validator (F-040, #517) | interactive |
 
-Next free slice: **191** (verify against `docs/slices/` before reserving).
+Next free slice: **192** (verify against `docs/slices/` before reserving).
 
 > Collision history: on 2026-09-13 the interactive and autonomous workstreams
 > each allocated 027 and 028. Resolved by renumbering the **interactive** slices
