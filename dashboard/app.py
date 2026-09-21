@@ -107,7 +107,7 @@ def goal_good_looks_like(body: str) -> dict:
 
 
 def goal_wgl_items(body: str) -> list[str]:
-    """The Goal's ideal-condition items in order, 1-based position == the 'item
+    """The Goal's capability breakdown items in order, 1-based position == the 'item
     <n>' a Feature's 'Advances:' line refers to."""
     match = re.search(r"^##\s+What Good Looks Like\s*\n+([\s\S]*?)(?=\n##\s|\Z)", body, re.M | re.I)
     if not match:
@@ -246,7 +246,7 @@ def esc(value: str) -> str:
 
 
 def render_vision(view: str = "committed") -> str:
-    """Detailed view: the charter/vision narrative plus every Goal's real,
+    """Detailed view: the vision narrative plus every Goal's real,
     live Goal->Feature->Slice progress (no more hardcoded Track A-F letters
     or stale Outcome-label matching)."""
     issue_feed = github_issues()
@@ -266,7 +266,7 @@ def render_vision(view: str = "committed") -> str:
     <article class="vstatement"><h2>The world is not only generated for players to visit.</h2>
       <p>It is a foundation they can explore, alter, inhabit, build upon, and eventually help govern.
       Meaning comes from the DM Guild; truth comes from deterministic, authoritative execution.</p>
-      <span class="vsource">Technology-neutral charter \u00b7 <a href="https://github.com/{esc(issue_feed["repo"])}/issues/495">Charter #495</a></span>
+      <span class="vsource">Technology-neutral vision · <a href="https://github.com/{esc(issue_feed["repo"])}/issues/495">Vision #495</a></span>
     </article>
     <aside class="vsignal">
       <div><div class="vlabel">Current planning signal</div><div class="vbig">{len(goal_cards)} goals</div>
@@ -278,7 +278,7 @@ def render_vision(view: str = "committed") -> str:
   <section class="sec"><h2>Goals \u2192 Features \u2192 Slices <span style="font-weight:400;text-transform:none;letter-spacing:0">\u00b7 live from GitHub, see docs/DEVELOPMENT-WORKFLOW.md#goal-feature-and-slice-semantics-2026-09-20</span></h2>
     <div class="issues">{issues_html}</div></section>
   <section class="sec vtwo">
-    <article class="vpanel"><h3>Next proof</h3><p>The Vision-to-Play vertical slice is the bridge from charter to playable evidence.</p>
+    <article class="vpanel"><h3>Next proof</h3><p>The Vision-to-Play vertical slice is the bridge from vision to playable evidence.</p>
       <ul><li>Two Characters form a Party.</li><li>Players use traversal to solve one shared puzzle.</li>
       <li>The authoritative server grants one reward.</li><li>A later revisit exposes the accepted world mutation.</li></ul></article>
     <article class="vpanel"><h3>Delivery order</h3>
@@ -539,8 +539,8 @@ def active_work(issue_feed: dict, goal_cards: list[dict]) -> list[dict]:
     return work
 
 
-CHARTER_URL = "https://github.com/vnvalentin/project0/issues/495"
-CHARTER_STATEMENT = (
+VISION_URL = "https://github.com/vnvalentin/project0/issues/495"
+VISION_STATEMENT = (
     "Project0 is a persistent cooperative action-adventure in which players inhabit an "
     "evolving world, make consequential choices, solve problems with their own judgment, "
     "develop physically distinct Characters, form lasting Parties, build places of their "
@@ -614,9 +614,9 @@ def render_overview(view: str = "committed") -> str:
 </header>
 <main>
   <section class="sec northstar">
-    <h2>The goal</h2>
-    <p class="charter-text">{esc(CHARTER_STATEMENT)}</p>
-    <a class="charter-link" href="{CHARTER_URL}">Read the full charter (#495) \u2192</a>
+    <h2>The Vision</h2>
+    <p class="charter-text">{esc(VISION_STATEMENT)}</p>
+    <a class="charter-link" href="{VISION_URL}">Read the full Vision (#495) →</a>
   </section>
 
   <section class="sec">

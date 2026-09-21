@@ -1,7 +1,7 @@
 # Goal H Map: Scale and Bounded Simulation Expansion
 
 Status: research-first
-Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
+Parent vision: [#495](https://github.com/vnvalentin/project0/issues/495)
 Research goal: [#204](https://github.com/vnvalentin/project0/issues/204)
 Seed issue: [#205](https://github.com/vnvalentin/project0/issues/205)
 

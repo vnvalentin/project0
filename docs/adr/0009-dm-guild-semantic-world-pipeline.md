@@ -19,7 +19,7 @@ Tick and Deterministic Ordering](https://github.com/vnvalentin/project0/issues/4
 [Narrative POI Anchoring and Persistent Deltas](https://github.com/vnvalentin/project0/issues/434),
 and [World Directive Arbitration and Multiplayer Handoff](https://github.com/vnvalentin/project0/issues/435).
 The governing planning issue is [Revisit game vision and establish
-technology-neutral master delivery charter](https://github.com/vnvalentin/project0/issues/495).
+technology-neutral master delivery vision](https://github.com/vnvalentin/project0/issues/495).
 
 ## Decision
 

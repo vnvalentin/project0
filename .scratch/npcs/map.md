@@ -1,6 +1,6 @@
 # Map: Unified Character and NPC Generalization
 
-Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
+Parent vision: [#495](https://github.com/vnvalentin/project0/issues/495)
 
 ## Destination
 

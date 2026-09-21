@@ -1,7 +1,7 @@
 # Goal E Map: DM Guild and Semantic World Pipeline
 
 Status: handoff-ready
-Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
+Parent vision: [#495](https://github.com/vnvalentin/project0/issues/495)
 
 ## Handoff artifacts
 

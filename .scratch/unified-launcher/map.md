@@ -1,7 +1,7 @@
 # Unified Windows Launcher: LAN/WAN Selection, Patching, and Onboarding
 
 Label: wayfinder:map
-Governing issue: [#495](https://github.com/vnvalentin/project0/issues/495)
+Parent vision: [#495](https://github.com/vnvalentin/project0/issues/495)
 
 ## Destination
 

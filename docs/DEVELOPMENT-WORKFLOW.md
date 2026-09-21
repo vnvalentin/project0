@@ -22,31 +22,41 @@ observable and reversible slice that can test one hypothesis, deliver it, and
 learn from its evidence before planning the next slice. Do not turn a phase or
 feature group into a large implementation batch.
 
-## Goal, Feature, and Slice semantics (2026-09-20)
+## Vision, Goal, Feature, and Slice semantics (2026-09-20)
 
-These three record types form one causal chain, not three independent lists:
+Four record types form one causal chain, top to bottom:
 
-- A **Goal** states an ideal, measurable end condition — not a task list or a
-  work item. Its `## What Good Looks Like` criteria (in the
-  `.scratch/<goal>/map.md` and mirrored in the Goal issue body) *are* that ideal
-  condition, written so evidence can confirm it holds or does not.
-- A **Feature** is the defined, measurable gap between the current condition
-  and its parent Goal's ideal condition. A Feature issue must state both
-  sides of that gap: the current condition (what is true today) and the ideal
-  condition it is closing distance toward (`Parent goal: #N`), **and which
-  specific `## What Good Looks Like` item it advances**
+- The **Vision** is the single, permanent north star: the unchanging statement
+  of what Project0 ultimately is (issue [#495](https://github.com/vnvalentin/project0/issues/495),
+  mirrored in [.scratch/game-vision/map.md](../.scratch/game-vision/map.md)).
+  It does not get rewritten to fit current work; work gets planned to close
+  distance toward it.
+- A **Goal** is a large, concrete, testable capability statement that is one
+  focused slice of the Vision — for example "up to 10 players can occupy the
+  same shared world at once." Not a task list, not an abstract principle, not
+  a design document to produce: a capability someone could watch happen or
+  fail to happen. Its `## What Good Looks Like` items (in the
+  `.scratch/<goal>/map.md` and mirrored in the Goal issue body) are the
+  itemized, individually Feature-trackable breakdown of that one capability.
+- A **Feature** solves one specific problem that stands between today and a
+  Goal's capability being true. A Feature issue must state both sides of that
+  gap: the current condition (what is true today) and which capability it is
+  closing distance toward (`Parent goal: #N`), **and which specific
+  `## What Good Looks Like` item it advances**
   (`Advances: #<goal issue> item <n>`, where `<n>` is that item's 1-based
   position in the Goal's WGL list). A Feature with no `Advances:` line is not
-  yet justified: if it doesn't close distance toward a named ideal-condition
-  item, why does it exist? The Feature resolves only when measurable proof
-  shows the stated gap is closed — code merging is not, by itself, resolution.
+  yet justified: if it doesn't close distance toward a named capability item,
+  why does it exist? The Feature resolves only when measurable proof shows
+  the stated gap is closed — code merging is not, by itself, resolution.
 - A **Slice** is one step, or one bounded group of steps, that resolves a root
   cause standing between the current condition and the Feature's target
-  condition. A Slice issue must name the root cause it addresses
-  (`Parent feature: #N`) and the evidence that step closes that portion of the
-  gap. A Slice that does not reduce the Feature's stated gap is scope creep,
-  not delivery. A Feature closes only when its Slices' combined evidence
-  satisfies the Feature's resolution proof.
+  condition. Slices are not experiments run to see whether a gap closes --
+  they are where the code that closes it actually gets written. A Slice issue
+  must name the root cause it addresses (`Parent feature: #N`) and the
+  evidence that step closes that portion of the gap. A Slice that does not
+  reduce the Feature's stated gap is scope creep, not delivery. A Feature
+  closes only when its Slices' combined evidence satisfies the Feature's
+  resolution proof.
 
 A Goal's percent-complete is **never** derived from the Goal issue's own
 open/closed state or a hand-ticked WGL checkbox — both are unreliable signals
@@ -58,32 +68,29 @@ got closed.
 
 This applies to every Goal regardless of its current status, including
 `chartering`, `research-first`, and `design gate` ones: a Goal without a stated
-ideal condition cannot yet spawn a Feature, because there is no gap to define.
-Grilling and research on a Goal exist precisely to produce that `## What Good
-Looks Like` condition; they are not exempt from eventually stating one.
+capability cannot yet spawn a Feature, because there is no gap to define.
+Grilling and research on a Goal exist precisely to produce that capability
+statement and its `## What Good Looks Like` breakdown; they are not exempt
+from eventually stating one.
 
-Every Goal must also trace to and advance the master vision charter in the
-governing issue [#495](https://github.com/vnvalentin/project0/issues/495). A
-Goal map or Goal issue states which part of that charter it closes distance
-toward; a Goal with no traceable line to #495 is out of scope until it is
-re-chartered or retired.
+Every Goal must also trace to and advance the Vision. A Goal map or Goal issue
+states `Parent vision: #495`; a Goal with no traceable line here is out of
+scope until it is re-chartered or retired.
 
 ### Goal shape (2026-09-20)
 
-Every Goal issue and every `.scratch/<goal>/map.md` must state all four of
+Every Goal issue and every `.scratch/<goal>/map.md` must state all three of
 these, in this order, before it can carry a `## What Good Looks Like` list or
 spawn a Feature:
 
-1. **Targets** — the one specific part of the charter (#495) this Goal picks.
-   A Goal is not a grab-bag of everything vision-adjacent; it names one
-   focused area of the vision (one principle, one player promise clause, one
-   system boundary) and stops there. If a Goal can't name the one part of the
-   charter it targets, it isn't chartered yet.
-2. **Ideal condition** — one paragraph stating the end state that targeted
-   part of the vision demands, in the present tense as if already true. This
-   is the single sentence-or-two a stranger could read to know what "done"
-   means for this Goal, before ever reading a WGL bullet.
-3. **Measurable outcome** — the test that decides completion, stated as four
+1. **Capability statement** — one sentence naming the concrete, observable
+   thing players or the system can do when this Goal is met (e.g. "up to 10
+   players can occupy the same shared world at once"). Not a design-document
+   deliverable ("a handoff-ready spec exists"), not an abstract principle: a
+   capability someone could watch hold true or fail. This replaces naming
+   which abstract part of the Vision a Goal "targets" — the capability
+   statement itself is the concrete slice of the Vision.
+2. **Measurable outcome** — the test that decides completion, stated as four
    explicit fields:
    - **What**: the observable fact or artifact that must exist or hold true.
    - **How much**: the quantifiable threshold (a count, a percentage, a
@@ -93,13 +100,13 @@ spawn a Feature:
      without a "who" is measuring nothing real.
    - **By when**: a bound — a phase, a dependency, or an explicit "no fixed
      date, gated on evidence X" — never left implicit.
-4. **What Good Looks Like** — the existing checklist, now understood as the
-   itemized, individually Feature-trackable breakdown of the single ideal
-   condition and measurable outcome above, not a second, separate list of
+3. **What Good Looks Like** — the existing checklist, now understood as the
+   itemized, individually Feature-trackable breakdown of the single capability
+   statement and measurable outcome above, not a second, separate list of
    unrelated asks. Every WGL item must be traceable back to the Measurable
    outcome; an item that doesn't move that outcome doesn't belong on the list.
 
-A Goal missing any of Targets/Ideal condition/Measurable outcome is
+A Goal missing its Capability statement or Measurable outcome is
 under-specified regardless of how many WGL boxes are checked — fix the frame
 before trusting the percentage.
 

@@ -155,5 +155,5 @@ records owned by a single integrator, per
 A Feature issue states the gap between the current condition and its parent
 Goal's ideal condition, resolved only by measurable proof the gap closed; a
 Slice issue names the root cause one step resolves toward that proof. See
-[Goal, Feature, and Slice semantics](docs/DEVELOPMENT-WORKFLOW.md#goal-feature-and-slice-semantics-2026-09-20)
+[Vision, Goal, Feature, and Slice semantics](docs/DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
 for the full definitions before opening either.
