@@ -16,6 +16,10 @@ REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "vnvalentin/project0")
 GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "300"))
+# Optional: authenticated requests get 5000/hr instead of the 60/hr GitHub
+# gives anonymous REST calls from a single IP, which the dashboard alone can
+# exhaust after a few container restarts clear its in-memory cache.
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "") or os.environ.get("GH_TOKEN", "")
 # Slice 165 (telemetry map #282, decision #290): the game server's telemetry.db,
 # read-only. Mounted separately from /repo (see deploy/compose.yml's dashboard
 # service) since it lives in the game server's user:// data directory, not the
@@ -57,7 +61,10 @@ def github_issues() -> dict:
         issues = []
         for page in range(1, 6):
             url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
-            req = Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"})
+            headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
+            if GITHUB_TOKEN:
+                headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+            req = Request(url, headers=headers)
             with urlopen(req, timeout=5) as response:
                 raw = response.read().decode("utf-8")
             parsed = json.loads(raw)
