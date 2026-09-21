@@ -545,7 +545,7 @@ Progress: **in progress** (Slice 191 delivered; follow-on ordering and builder w
   and [ADR 0009](adr/0009-dm-guild-semantic-world-pipeline.md).
 - Features: `in-progress` [F-040](FEATURE-LIST.md#f-040-server-only-normalized-world-directive-validation) — Slice 191 defines the first pure validator seam; raw LLM output remains provisional and inference remains asynchronous/server-only.
 - Current task: [#444 — Normalized World Directive Schema and Validator](https://github.com/vnvalentin/project0/issues/444) — resolved by Slice 191; follow-on work remains under the semantic pipeline handoff.
-- Current slice: [191 — Normalized World directive validator](slices/191-world-directive-validator.md) — **delivered; pure bounded validator and deterministic fallback implemented with focused GUT coverage.**
+- Current slice: [191 — Normalized World directive validator](slices/191-world-directive-validator.md) — **delivered; pure bounded validator and deterministic fallback implemented with focused GUT coverage.** [192 — Deterministic World directive ordering and replay identity](slices/192-world-directive-ordering.md) — **in progress; pure deterministic ordering and replay identity seam under implementation.**
 - Tech debt: none allocated yet.
 
 ### Implementation slice index
