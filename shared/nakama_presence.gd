@@ -30,6 +30,14 @@ static func entry(peer_id: int, account_id: String, character_id: String, displa
 	}
 
 
+static func bound_entry(peer_id: int, identity: Dictionary, display_name: String) -> Dictionary:
+	var account_id: String = String(identity.get("account_id", ""))
+	var character_id: String = String(identity.get("character_id", ""))
+	if account_id.is_empty() or character_id.is_empty():
+		return {}
+	return entry(peer_id, account_id, character_id, display_name)
+
+
 static func validate(snapshot: Variant) -> Dictionary:
 	if not snapshot is Dictionary:
 		return {"outcome": REASON_MALFORMED}
