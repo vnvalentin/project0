@@ -969,6 +969,13 @@ TBP_CSS = """
 .tbp-card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:6px;font-size:12px}
 .tbp-card a{color:var(--text);text-decoration:none}
 .tbp-card a:hover{color:var(--cyan)}
+.tbp-hoshin{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cyan);border-radius:12px;padding:16px 18px;margin-bottom:18px}
+.tbp-hoshin>.tbp-row{padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tbp-hoshin>.tbp-row a{font-size:15px;font-weight:700}
+.tbp-theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.tbp-theme-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tbp-theme-card>.tbp-goal{border-left:none;padding-left:0;margin-bottom:0}
+.tbp-theme-card>.tbp-goal>.tbp-row a{font-weight:700}
 @media(max-width:900px){.tbp-layout{grid-template-columns:1fr}}
 """
 
@@ -1005,6 +1012,19 @@ def _tbp_render_node(node: dict, buckets: dict[str, list[dict]]) -> str:
     children_html = "".join(_tbp_render_node(child, buckets) for child in node.get("children", []))
     wrapped = f'<div class="tbp-children">{children_html}</div>' if children_html else ""
     return f'<div class="tbp-goal">{_tbp_row(node)}{wrapped}</div>'
+
+
+def _tbp_render_root(root: dict, buckets: dict[str, list[dict]]) -> str:
+    """Render a root (Hoshin, or a Goal in the REST fallback) as a master
+    container card-grid: the root's own row on top, then each direct child
+    (Theme/Feature) as its own card holding that child's full subtree."""
+    state = classify_tbp_state(root)
+    if state in buckets:
+        buckets[state].append(root)
+    children = root.get("children", [])
+    cards = "".join(f'<div class="tbp-theme-card">{_tbp_render_node(child, buckets)}</div>' for child in children)
+    grid = f'<div class="tbp-theme-grid">{cards}</div>' if cards else '<p class="empty">No children linked yet.</p>'
+    return f'<div class="tbp-hoshin">{_tbp_row(root)}{grid}</div>'
 
 
 def _tbp_tree_from_rest(issue_feed: dict) -> list[dict]:
@@ -1069,7 +1089,7 @@ def render_tbp() -> str:
     else:
         roots, unlinked = _tbp_label_tree(issue_feed)
         if roots:
-            tree_html = "".join(_tbp_render_node(n, buckets) for n in roots)
+            tree_html = "".join(_tbp_render_root(n, buckets) for n in roots)
             if unlinked:
                 tree_html += (
                     '<div class="tbp-section"><h3>Unlinked (missing Parent link)</h3>'
@@ -1083,7 +1103,7 @@ def render_tbp() -> str:
             issue_status = f'{len(roots)} Hoshin root(s), {len(unlinked)} unlinked tbp: issue(s) from {esc(issue_feed["repo"])}'
         else:
             nodes = _tbp_tree_from_rest(issue_feed)
-            tree_html = "".join(_tbp_render_node(n, buckets) for n in nodes) or '<p class="empty">No Goal issues found.</p>'
+            tree_html = "".join(_tbp_render_root(n, buckets) for n in nodes) or '<p class="empty">No Goal issues found.</p>'
             issue_status = f'{len(nodes)} goal issue(s) from {esc(issue_feed["repo"])} \u00b7 Parent goal/feature links (no tbp:hoshin issue found)'
 
     def _section(title: str, key: str) -> str:
