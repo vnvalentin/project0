@@ -12,6 +12,7 @@ services:
     environment:
       GITHUB_REPO: ${GITHUB_REPO:-vnvalentin/project0}
       GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-300}
+      APP_FILE: /app/app.py
     read_only: true
     security_opt:
       - no-new-privileges:true

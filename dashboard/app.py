@@ -275,7 +275,7 @@ def render_vision(view: str = "committed") -> str:
 <style>{EXEC_CSS}{VISION_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Vision &amp; Roadmap</h1><div class="sub">Build a world worth changing \u00b7 {issue_status}</div></div>
-  <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
+    <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
   <section class="vhero">
@@ -414,6 +414,23 @@ OVERVIEW_CSS = """
 .charter-text{font-size:17px;line-height:1.6;color:var(--text);max-width:900px;margin:0}
 .charter-link{display:inline-block;margin-top:14px;color:var(--cyan);text-decoration:none;font-size:13px}
 .charter-link:hover{text-decoration:underline}
+.roadmap-track{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:0;align-items:stretch}
+.roadmap-node{position:relative;background:var(--card);border:1px solid var(--line);border-top:4px solid var(--grey);padding:14px 14px 16px;min-height:190px}
+.roadmap-node:not(:last-child){border-right:0}
+.roadmap-node:not(:last-child)::after{content:'\25B6';position:absolute;z-index:1;right:-10px;top:18px;color:var(--cyan);font-size:13px;background:var(--panel);padding:2px 3px}
+.roadmap-node.active{border-top-color:var(--amber)}
+.roadmap-node.follow{border-top-color:var(--cyan)}
+.roadmap-node.deck{border-top-color:var(--green)}
+.roadmap-node.fog{border-top-color:var(--grey)}
+.roadmap-horizon{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.roadmap-title{font-size:14px;font-weight:800;line-height:1.3;margin:8px 0 10px}
+.roadmap-outcome{color:var(--muted);font-size:12px;line-height:1.45;margin:0 0 12px}
+.roadmap-issues{display:flex;flex-wrap:wrap;gap:5px}
+.roadmap-issue{color:var(--text);text-decoration:none;background:#18232d;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px}
+.roadmap-issue:hover{color:var(--cyan);border-color:var(--cyan)}
+.roadmap-state{display:block;margin-top:10px;color:var(--muted);font-size:10px}
+.roadmap-evidence{margin-top:18px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cyan);color:var(--muted);font-size:12px;line-height:1.45}
+.roadmap-evidence strong{color:var(--text)}
 .goalrows{display:flex;flex-direction:column;gap:2px}
 .goalrow{display:grid;grid-template-columns:1fr 140px 46px 110px 60px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
 .goalrow:first-child{border-top:1px solid var(--line)}
@@ -443,6 +460,8 @@ OVERVIEW_CSS = """
 .gapblock ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
 .gapblock li{margin:4px 0}
 @media(max-width:760px){.goalrow{grid-template-columns:1fr;gap:6px}.gr-bar{order:3}.gr-pct,.gr-status,.gr-gaps{text-align:left}}
+@media(max-width:1100px){.roadmap-track{grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px}.roadmap-node:not(:last-child){border-right:1px solid var(--line)}.roadmap-node:not(:last-child)::after{display:none}}
+@media(max-width:650px){.roadmap-track{grid-template-columns:1fr}.roadmap-node{min-height:0}.roadmap-node:not(:last-child){border-right:1px solid var(--line)}}
 """
 
 
@@ -565,6 +584,70 @@ VISION_STATEMENT = (
     "they can explore, alter, inhabit, build upon, and eventually help govern."
 )
 
+ROADMAP_PLAN = (
+    {"horizon": "Active / Now", "class_name": "active", "title": "M0 · Refine the public seam", "issue_numbers": (571,), "outcome": "Align the supporting fixture to the player-triggered boundary flow."},
+    {"horizon": "Fast Follower", "class_name": "follow", "title": "M1 · JIT generation + canon re-entry", "issue_numbers": (551,), "outcome": "A player crosses an unexplored boundary and later restores the same canonical sector."},
+    {"horizon": "On-Deck", "class_name": "deck", "title": "M2 · Shared Lore convergence", "issue_numbers": (552,), "outcome": "Two clients and a late joiner converge on one authoritative Lore revision."},
+    {"horizon": "On-Deck", "class_name": "deck", "title": "M3 · Procedural house geometry", "issue_numbers": (710,), "outcome": "Accepted house fields produce distinct deterministic runtime geometry."},
+    {"horizon": "Future / Fog", "class_name": "fog", "title": "M4+ · Semantic world expansion", "issue_numbers": (964, 965, 966), "outcome": "Context bounds, POI Canon persistence, and proposal fallback become refined slices."},
+)
+
+
+def roadmap_html(issue_feed: dict) -> str:
+    """Render the rolling horizon from live GitHub issue records."""
+    issues_by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
+    nodes = []
+    for stage in ROADMAP_PLAN:
+        links = []
+        states = []
+        for number in stage["issue_numbers"]:
+            issue = issues_by_number.get(number)
+            if issue is None:
+                links.append(f'<span class="roadmap-issue">#{number} unavailable</span>')
+                states.append("missing from feed")
+                continue
+            state = issue.get("state", "open").lower()
+            refinement = "needs refinement" if "tbp:needs-refinement" in issue.get("labels", []) else "tracked"
+            links.append(f'<a class="roadmap-issue" href="{esc(issue["url"])}">#{number} {esc(_exec_short(issue.get("title", ""), 24))}</a>')
+            states.append(f"{state} · {refinement}")
+        nodes.append(
+            f'<article class="roadmap-node {stage["class_name"]}">'
+            f'<div class="roadmap-horizon">{esc(stage["horizon"])}</div>'
+            f'<div class="roadmap-title">{esc(stage["title"])}</div>'
+            f'<p class="roadmap-outcome">{esc(stage["outcome"])}</p>'
+            f'<div class="roadmap-issues">{"".join(links)}</div>'
+            f'<span class="roadmap-state">{esc("; ".join(states))}</span>'
+            f'</article>'
+        )
+    source_note = "Live issue state and links are resolved from GitHub."
+    if not issue_feed.get("available"):
+        source_note = f'GitHub issue feed unavailable: {issue_feed.get("error", "unknown error")}'
+    return (
+        f'<div class="roadmap-track">{"".join(nodes)}</div>'
+        f'<div class="roadmap-evidence"><strong>Milestone 1 proof:</strong> '
+        f'player boundary crossing → async generation → blueprint validation → '
+        f'Canon commit → visible sector → stable re-entry. {esc(source_note)}</div>'
+    )
+
+
+def render_roadmap() -> str:
+        """Render the rolling milestone map as its own live GitHub view."""
+        issue_feed = github_issues()
+        return f'''<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Roadmap</title>
+<style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
+<header>
+    <div><h1>Project0 — Roadmap</h1><div class="sub">Rolling delivery horizons from live GitHub Issues</div></div>
+    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a></div>
+</header>
+<main>
+    <section class="sec">
+        <h2>Plan at a glance</h2>
+        <div class="roadmap-intro">Read left to right: the active refinement gate, the first playable proof, the next convergence step, and bounded future work.</div>
+        {roadmap_html(issue_feed)}
+    </section>
+</main></body></html>'''
+
 
 def render_overview(view: str = "committed") -> str:
     """The one page that answers: what's the goal, what's done, what's being
@@ -626,7 +709,7 @@ def render_overview(view: str = "committed") -> str:
 <style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
   <div><h1>Project0</h1><div class="sub">{esc(issue_status)}</div></div>
-  <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a></div>
+    <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
   <section class="sec northstar">
@@ -634,6 +717,12 @@ def render_overview(view: str = "committed") -> str:
     <p class="charter-text">{esc(VISION_STATEMENT)}</p>
     <a class="charter-link" href="{VISION_URL}">Read the full Vision (#495) →</a>
   </section>
+
+    <section class="sec">
+        <h2>Rolling milestone map</h2>
+        <div class="roadmap-intro">Active work moves left to right; only the next cycle is fully committed, while later work stays progressively refined.</div>
+        {roadmap_html(issue_feed)}
+    </section>
 
   <section class="sec">
     <h2>Where things stand</h2>
@@ -813,7 +902,7 @@ def render_tests() -> str:
 <style>{EXEC_CSS}{TESTS_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Tests</h1><div class="sub">Every automated test and its last recorded result \u00b7 build/validation/gut.xml \u00b7 auto-refreshes</div></div>
-  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a></div>
+    <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a class="on" href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
   <section class="sec">{body_html}</section>
@@ -958,7 +1047,7 @@ def render_telemetry(filters: dict) -> str:
 <style>{EXEC_CSS}{TELEMETRY_CSS}</style></head><body>
 <header>
   <div><h1>Project0 — Telemetry</h1><div class="sub">Client interactions, connections, and combat outcomes · telemetry.db · query on demand</div></div>
-  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a class="on" href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a></div>
+    <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a class="on" href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
   <section class="sec">{body_html}</section>
@@ -1204,7 +1293,7 @@ def render_tbp() -> str:
 <style>{EXEC_CSS}{TBP_CSS}</style></head><body>
 <header>
   <div><h1>Project0 — TBP View</h1><div class="sub">Grilling gate: what still needs definition, what's ready to pull, what's in flight · {issue_status}</div></div>
-  <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a class="on" href="/tbp">TBP View</a></div>
+    <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a class="on" href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
   <section class="sec">
@@ -1251,6 +1340,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/tbp":
             body = render_tbp().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/roadmap":
+            body = render_roadmap().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:
