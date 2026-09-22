@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import _tbp_render_node, classify_tbp_state
+from app import _tbp_render_node, classify_tbp_state, render_roadmap
 
 def issue(state="open", body="## Outcomes\n- [x] validated"):
     return {"state": state, "body": body, "labels": []}
@@ -47,3 +47,12 @@ def test_rendered_epic_uses_its_recognized_child_state():
     assert any(item["number"] == 939 for item in buckets["READY_TO_PULL"])
     assert all(item["number"] != 939 for item in buckets["NEEDS_GRILLING"])
     assert 'class="tbp-badge READY_TO_PULL"' in rendered
+
+
+def test_roadmap_view_is_separate_and_keeps_tbp_navigation(monkeypatch):
+    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [], "error": ""})
+    page = render_roadmap()
+    assert "Project0 — Roadmap" in page
+    assert "Rolling delivery horizons" in page
+    assert 'href="/roadmap"' in page
+    assert 'href="/tbp">TBP View</a>' in page
