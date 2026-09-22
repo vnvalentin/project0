@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import classify_tbp_state
+from app import _tbp_render_node, classify_tbp_state
 
 def issue(state="open", body="## Outcomes\n- [x] validated"):
     return {"state": state, "body": body, "labels": []}
@@ -35,3 +35,15 @@ def test_feature_and_epic_with_children_keep_child_derived_state():
     child = {**issue(), "tbp_state": "READY_TO_PULL"}
     assert classify_tbp_state(feature, [child]) == "READY_TO_PULL"
     assert classify_tbp_state(epic, [{**child, "tbp_state": "IN_PROGRESS"}]) == "IN_PROGRESS"
+
+
+def test_rendered_epic_uses_its_recognized_child_state():
+    epic = {**issue(), "number": 939, "title": "Epic", "url": "https://example.test/939", "labels": ["tbp:epic"]}
+    experiment = {**issue(), "number": 942, "title": "Experiment", "url": "https://example.test/942", "tbp_state": "READY_TO_PULL"}
+    buckets = {"NEEDS_GRILLING": [], "READY_TO_PULL": [], "IN_PROGRESS": []}
+
+    rendered = _tbp_render_node({**epic, "children": [experiment]}, buckets)
+
+    assert any(item["number"] == 939 for item in buckets["READY_TO_PULL"])
+    assert all(item["number"] != 939 for item in buckets["NEEDS_GRILLING"])
+    assert 'class="tbp-badge READY_TO_PULL"' in rendered
