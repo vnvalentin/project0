@@ -1054,8 +1054,8 @@ def classify_tbp_state(issue: dict, children: list[dict] | None = None) -> str:
         return "NEEDS_GRILLING"
     return "READY_TO_PULL"
 
-def _tbp_row(issue: dict) -> str:
-    state = classify_tbp_state(issue)
+def _tbp_row(issue: dict, children: list[dict] | None = None) -> str:
+    state = classify_tbp_state(issue, children)
     return (
         f'<div class="tbp-row"><span class="tbp-badge {state}">{TBP_STATE_ICON[state]} {state.replace("_", " ")}</span>'
         f'<a href="{esc(issue["url"])}">#{issue["number"]} {esc(issue["title"])}</a></div>'
@@ -1067,13 +1067,14 @@ def _tbp_render_node(node: dict, buckets: dict[str, list[dict]]) -> str:
     tree, bucketing every node it visits for the pipeline panel. Nodes with
     children (Themes, Features, and any Epic with linked Experiments) render as
     a collapsible <details> so a Theme's/Feature's subtree can be folded away."""
-    state = classify_tbp_state(node)
+    children = node.get("children", [])
+    state = classify_tbp_state(node, children)
     if state in buckets:
         buckets[state].append(node)
-    children_html = "".join(_tbp_render_node(child, buckets) for child in node.get("children", []))
+    children_html = "".join(_tbp_render_node(child, buckets) for child in children)
     if children_html:
-        return f'<details class="tbp-goal"><summary>{_tbp_row(node)}</summary><div class="tbp-children">{children_html}</div></details>'
-    return f'<div class="tbp-goal">{_tbp_row(node)}</div>'
+        return f'<details class="tbp-goal"><summary>{_tbp_row(node, children)}</summary><div class="tbp-children">{children_html}</div></details>'
+    return f'<div class="tbp-goal">{_tbp_row(node, children)}</div>'
 
 
 def _tbp_render_root(root: dict, buckets: dict[str, list[dict]]) -> str:
