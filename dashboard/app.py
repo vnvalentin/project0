@@ -1267,7 +1267,9 @@ def classify_tbp_state(issue: dict, children: list[dict] | None = None) -> str:
         return "NEEDS_GRILLING"
     if not children and labels & {"tbp:feature", "tbp:epic"} and not _tbp_declares_child_breakdown(issue):
         return "NEEDS_GRILLING"
-    if any(x == "NEEDS_GRILLING" for x in child_states):
+    if any(x == "NEEDS_GRILLING" for x in child_states) and not labels.intersection(
+        {"tbp:theme", "tbp:feature", "tbp:epic", "tbp:experiment"}
+    ):
         return "NEEDS_GRILLING"
     if any(x == "IN_PROGRESS" for x in child_states):
         return "IN_PROGRESS"

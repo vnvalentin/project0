@@ -52,6 +52,15 @@ def test_fleshed_out_feature_with_declared_epic_is_not_needs_grilling():
     assert classify_tbp_state(feature) == "READY_TO_PULL"
 
 
+def test_fleshed_out_feature_does_not_inherit_child_grilling_state():
+    feature = {
+        **issue(),
+        "labels": ["tbp:feature"],
+        "body": "## Measurable Component\nmetric\n\n## Epics (Gaps)\n- [ ] [Epic](https://github.com/example/project/issues/1)",
+    }
+    assert classify_tbp_state(feature, [{"tbp_state": "NEEDS_GRILLING"}]) == "READY_TO_PULL"
+
+
 def test_feature_without_linked_epic_for_its_measurable_measure_needs_grilling():
     feature = {
         **issue(),
