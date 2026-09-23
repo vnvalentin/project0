@@ -43,15 +43,21 @@ func test_peers_have_independent_transition_state() -> void:
 func test_canonical_sector_suppresses_generation() -> void:
 	var detector: SectorBoundaryDetector = DetectorScript.new()
 	var requests: Array = []
+	var reloads: Array = []
 	detector.set_canon_lookup(func(sector_id: String) -> Dictionary:
 		return {"outcome": "ok"} if sector_id == "sector-0-0" else {"outcome": "not_found"}
 	)
 	detector.set_request_callback(func(peer_id: int, sector_id: String, position: Vector3) -> void:
 		requests.append(sector_id)
 	)
+	detector.set_reload_callback(func(peer_id: int, sector_id: String, position: Vector3) -> void:
+		reloads.append([peer_id, sector_id, position])
+	)
 	var result: Dictionary = detector.observe_position(1, Vector3.ZERO)
 	assert_false(result["requested"])
 	assert_eq(requests.size(), 0)
+	assert_true(result["reloaded"])
+	assert_eq(reloads, [[1, "sector-0-0", Vector3.ZERO]])
 
 
 func test_forget_peer_allows_reassessment_after_disconnect() -> void:

@@ -10,6 +10,7 @@ signal sector_generation_requested(peer_id: int, sector_id: String, position: Ve
 var _last_sector_by_peer: Dictionary = {}
 var _canon_lookup: Callable = Callable()
 var _request_callback: Callable = Callable()
+var _reload_callback: Callable = Callable()
 
 
 ## Injects a server-owned lookup. It must accept sector_id and return either a
@@ -24,21 +25,29 @@ func set_request_callback(callback: Callable) -> void:
 	_request_callback = callback
 
 
-## Observes one authoritative position. Returns the sector id and whether a
-## generation request was emitted: {"sector_id": String, "requested": bool}.
+## Injects the synchronous Canon re-entry callback. It receives
+## (peer_id, sector_id, position) only when the sector already exists.
+func set_reload_callback(callback: Callable) -> void:
+	_reload_callback = callback
+
+
+## Observes one authoritative position. Reports whether generation was
+## requested or existing Canon was reloaded for the entering peer.
 func observe_position(peer_id: int, position: Vector3) -> Dictionary:
 	var sector_id: String = sector_id_for_position(position)
 	if _last_sector_by_peer.get(peer_id, "") == sector_id:
-		return {"sector_id": sector_id, "requested": false}
+		return {"sector_id": sector_id, "requested": false, "reloaded": false}
 	_last_sector_by_peer[peer_id] = sector_id
 
 	if _has_canon(sector_id):
-		return {"sector_id": sector_id, "requested": false}
+		if _reload_callback.is_valid():
+			_reload_callback.call(peer_id, sector_id, position)
+		return {"sector_id": sector_id, "requested": false, "reloaded": true}
 
 	sector_generation_requested.emit(peer_id, sector_id, position)
 	if _request_callback.is_valid():
 		_request_callback.call(peer_id, sector_id, position)
-	return {"sector_id": sector_id, "requested": true}
+	return {"sector_id": sector_id, "requested": true, "reloaded": false}
 
 
 ## Clears a disconnected peer's transition state so a future connection with

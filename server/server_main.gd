@@ -408,6 +408,7 @@ func _start_server() -> void:
 	_sector_boundary_detector = SectorBoundaryDetectorScript.new()
 	_sector_boundary_detector.set_canon_lookup(Callable(_canon_repository, "get_canonical_sector"))
 	_sector_boundary_detector.set_request_callback(Callable(self, "_request_sector_from_boundary"))
+	_sector_boundary_detector.set_reload_callback(Callable(self, "_reload_sector_from_boundary"))
 	# Slice 085: the game server builds an assertion-only login graph (no
 	# AuthService, no register/login/PBKDF2 in this process). Accounts live only
 	# on the standalone login process; a client enters the world by presenting a
@@ -753,6 +754,20 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	var prompt: String = "Generate the validated sector blueprint for %s near world position (%0.2f, %0.2f)." % [sector_id, position.x, position.z]
 	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
+
+
+func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
+	if _canon_repository == null:
+		return
+	var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
+	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK:
+		return
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
+	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), position)
+	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
 
 
 func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void:
