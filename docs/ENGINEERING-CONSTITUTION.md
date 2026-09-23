@@ -178,3 +178,5 @@ Before acting, ask:
 4. Only then, can it be made more efficient?
 
 If any answer before efficiency is unknown, stop and gather evidence.
+## Recursive parent/child outcome gate
+No parent may be marked complete or ready while a required child needs grilling; an in-progress child propagates in progress. Completion requires checked explicit outcomes and recursively completed descendants. The dashboard applies the documented pre-2025 legacy exception for closed records missing the Outcomes section.
