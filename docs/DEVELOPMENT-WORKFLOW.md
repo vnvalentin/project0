@@ -58,6 +58,13 @@ Four record types form one causal chain, top to bottom:
   closes only when its Slices' combined evidence satisfies the Feature's
   resolution proof.
 
+Every milestone outcome record, including a Feature that serves as a milestone,
+must include a `## Player Example` section. State one concrete scenario in
+plain language: the player's starting situation, the action they take, what
+they see or experience, and what lasting result they can rely on afterward.
+This example explains why the milestone matters to the user; it complements,
+but never replaces, the measurable outcome and technical acceptance evidence.
+
 ### Feature-to-Epic decomposition
 
 Epics are not created by filling out the same 4W form repeatedly. The parent
@@ -137,9 +144,10 @@ before trusting the percentage.
 ## Delivery lifecycle
 
 Every capability moves through one lifecycle with a single authoritative status
-at each stage. As of 2026-09-20, a Feature's authoritative status lives on its
-GitHub issue (label `Feature`), not in a file; `PROJECT-TRACKER.md` and the
-flow dashboard mirror that status rather than duplicating it.
+at each stage. Active status lives on the governing GitHub issue and its item in
+GitHub Project #2 (`Project0 Delivery`). The Markdown records and dashboard
+archive route are historical context only; they never mirror or override live
+delivery state.
 
 ### Stages
 
@@ -351,36 +359,24 @@ Each implementation ticket links:
 - Related ADR, or an explicit no-ADR rationale.
 - Validation results and review outcome.
 - Focused validation command, expected pass signal, and telemetry artifact path.
-- Feature IDs advanced or created, duplicate-check result, and synchronized
-	`FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates.
+- Feature IDs advanced or created, duplicate-check result, and the governing
+   GitHub issue plus Project #2 item fields.
 - GitHub Issue number or URL, plus the closing or reference keyword expected in
    the pull request (`Fixes #N`, `Closes #N`, `Resolves #N`, or `Refs #N`).
 - Telemetry events, failure states, and stop signals, or an explicit rationale
 	for why the slice has no observable runtime telemetry.
 
-## Atomic Delivery Record Synchronization Gate
+## GitHub delivery synchronization gate
 
-Whenever a slice is started, in progress, or completed, all 4 sections of
-`PROJECT-TRACKER.md` must be updated atomically with `FEATURE-LIST.md` and
-`TECHNICAL-DEBT-TRACKER.md`:
+Whenever a slice is started, in progress, or completed, update the governing
+GitHub issue and its Project #2 item before implementation or status changes
+are reported. The issue carries the problem, outcome, parent link, acceptance
+evidence, and resolution. Project #2 carries the visible Outcome, Phase,
+Milestone, Status, Evidence, Blocked, owner, and Parent fields. Milestones are
+delivery commitments only; they do not replace Phase or Status.
 
-1. **`## Phases` table**:
-   - Set status to `in-progress` when the first slice for that phase starts
-     implementation.
-   - Transition status to `done` ONLY when the formal phase exit gate criteria
-     are fully satisfied and verified.
-2. **`### Phase work index`**:
-   - Update feature and debt status badges (`done`, `in-progress`, `queued`,
-     `blocked`).
-   - Recalculate and update the progress percentage (`done items / all items in phase`).
-   - Set the `- **Current slice:**` pointer to the active/latest slice.
-3. **`### Implementation slice index`**:
-   - Record the slice with its status (e.g., `100% complete; focused and full-suite validation passed`).
-   - Link the slice record `docs/slices/0NN-*.md`, feature IDs, tech debt IDs,
-   GitHub Issue, planning tickets, and ADRs.
-4. **`## Work queue`**:
-   - Mark `[x]` for items that have been scoped and delivered by slices.
-   - Update status labels (`Ready`, `Queued`, `In progress`) for active design mapping.
+The Markdown tracker, feature list, debt tracker, and slice archive are frozen
+historical context. Do not update them as a second active status system.
 
 ## Agent-assisted delivery orchestration
 
@@ -407,11 +403,10 @@ The loop:
    synchronization, opening a `TECHNICAL-DEBT-TRACKER.md` liability for any gap
    rather than accepting it.
 
-A handoff is **traceable** only when the slice record and delivery records
-together carry the GitHub Issue, the brief, the change set at the declared seam,
-the validation evidence (focused command, expected pass signal, and the
-machine-readable artifact with its exit code), the review outcome, and the
-synchronized `FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates. An edit outside the
+A handoff is **traceable** only when the governing GitHub issue and Project item
+together carry the brief, the change set at the declared seam, the validation
+evidence (focused command, expected pass signal, and the machine-readable
+artifact with its exit code), and the review outcome. An edit outside the
 declared scope is an unscoped edit; a session limit, timeout, or validation
 failure leaves the slice `blocked`/`awaiting evidence`. Completion is never
 inferred from files appearing in the tree.
