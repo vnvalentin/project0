@@ -33,6 +33,16 @@ def test_childless_epic_needs_grilling_even_when_closed():
     assert classify_tbp_state({**issue("closed"), "labels": ["tbp:epic"]}) == "NEEDS_GRILLING"
 
 
+def test_closed_epic_with_metric_and_done_experiment_is_done():
+    epic = {
+        "state": "closed",
+        "labels": ["tbp:epic"],
+        "body": "## Measurable Metric\nA completed metric.\n\n## Experiments\n- [Experiment](https://github.com/vnvalentin/project0/issues/571)",
+    }
+    experiment = {"tbp_state": "DONE"}
+    assert classify_tbp_state(epic, [experiment]) == "DONE"
+
+
 def test_fleshed_out_feature_with_declared_epic_is_not_needs_grilling():
     feature = {
         **issue(),
