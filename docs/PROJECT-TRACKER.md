@@ -1,34 +1,28 @@
 # Project0 Tracker
 
-> **Frozen archive:** This Markdown file preserves the human-readable tracker
-> record for history and parity checks. The structured authority is
-> [`dashboard/tracker_schema.json`](../dashboard/tracker_schema.json), projected
-> read-only at `/tracker`.
+> **Frozen archive:** This Markdown file preserves historical phase gates and
+> delivery context for history and parity checks. Active planning authority is
+> GitHub Issues plus the Project board; new work must not be added here.
 
 ## Tracking system
 
-This tracker owns phases, phase exit gates, and the cross-index of delivery
-work. It does not duplicate the authoritative detail held by the other records:
+This archive records the former phase and delivery cross-index. It does not own
+active work and does not duplicate the active GitHub issue records:
 
 - `FEATURE-LIST.md` owns planned, in-progress, and validated product
   capabilities, including their change history and validation evidence.
 - `TECHNICAL-DEBT-TRACKER.md` owns all liabilities from discovery through
   remediation, reclassification, or permanent acceptance.
-- `PROJECT-TRACKER.md` maps every feature and debt item to its phase and status,
-  and maps every implementation slice to one primary phase and its linked work.
+- GitHub Issues map every active work item to its native parent, Outcome, Phase,
+  Milestone, status, evidence, and exit criteria.
 
-Synchronize the three records. When a feature or debt item's scope or status
-changes, update its entry and the phase work index here at the same time. When
-a slice is added or its completion changes, update the implementation slice
-index here. The detailed item records remain authoritative; this file is a
-navigable cross-reference.
+Use this file only to understand historical decisions and old phase gates.
+During migration, the dashboard may project GitHub issue state here for parity,
+but a mismatch is resolved in GitHub, not by inventing a second file record.
 
-Mandatory implementation sync: if the public seam or implementation evidence
-shows a capability is live, the tracker status, feature list status, and debt
-status must be updated in the same delivery change. A stale status is treated as
-a project-process defect, not as an accepted implementation state. If a mismatch
-is found, fix the root cause immediately and record the reason in the relevant
-feature or debt change history.
+Mandatory implementation sync now means the governing GitHub issue contains the
+public seam, validation evidence, status, and closure result before the work is
+reported complete. Historical file parity is secondary to the issue record.
 
 ## Goal
 

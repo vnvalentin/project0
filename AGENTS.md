@@ -102,14 +102,13 @@ Do not create implementation slices or product code while this gate is open.
   public-seam tests, real validation evidence, and record sync still apply in
   full. Note the fallback trigger in the slice record so the ownership
   deviation stays auditable.
-- Delivery gate: Claude must create or update the slice record, planning
-  ticket, and synchronized tracker entries before implementation begins. Code
-  and tests passing is insufficient to mark a slice complete unless the
-  SDD/BDD/TDD, validation evidence, review status, and record links are
-  present and verified. Session limits, timeouts, and validation failures leave
-  the slice blocked or awaiting evidence. Slices must synchronize all 4
-  sections of `PROJECT-TRACKER.md` (Phase Table, Phase Work Index, Slice Index,
-  and Work Queue) per `docs/DEVELOPMENT-WORKFLOW.md`.
+- Delivery gate: Claude must create or update the governing GitHub issue,
+  parent link, Outcome, Phase, Milestone decision, evidence, and exit criteria
+  before implementation begins. Code and tests passing is insufficient to mark
+  a slice complete unless the SDD/BDD/TDD, validation evidence, review status,
+  and issue links are present and verified. Session limits, timeouts, and
+  validation failures leave the slice blocked or awaiting evidence. The
+  Markdown trackers are historical archives and are not a second active gate.
 - Before editing, state the user outcome, scope, non-goals, affected boundary,
   unacceptable outcomes, hypothesis, and cheapest discriminating check.
 - Before starting work, identify the governing GitHub Issue; create one when no
@@ -130,11 +129,12 @@ Do not create implementation slices or product code while this gate is open.
 - Do not add dependencies, migrations, permissions, or external side effects
   without documenting their safety and rollback implications.
 - Before starting or changing delivery work, read the repository's Copilot
-  instructions and use the Project Tracker, Feature List, and Technical Debt
-  Tracker according to their stated ownership.
-- Before the first edit, confirm the foundation gate is closed and record the
-  primary phase, feature or liability, and implementation slice in the three
-  delivery records.
+  instructions and the Record Ownership rules. Create or update the governing
+  GitHub issue and set its parent, Outcome, Phase, Milestone decision, evidence,
+  and exit criteria before implementation.
+- Before the first edit, confirm the foundation gate is closed and identify the
+  governing issue, primary Phase, Outcome, and implementation slice. The
+  Markdown trackers are historical context, not active planning authorities.
 - Allocate slice and feature numbers only via
   [docs/slices/SLICE-REGISTRY.md](docs/slices/SLICE-REGISTRY.md): reserve the
   next free number there before creating a slice. A single integrator owns
@@ -152,8 +152,8 @@ new **Slice** is a GitHub issue labeled `Slice`, with `Parent feature: #N` in
 its body when it advances a Feature issue. This removes the file-based
 number-allocation race for these two record types; GitHub issue numbers are
 assigned by GitHub itself. `docs/PROJECT-TRACKER.md` and
-`docs/TECHNICAL-DEBT-TRACKER.md` are unaffected and remain committed-file
-records owned by a single integrator, per
+`docs/TECHNICAL-DEBT-TRACKER.md` are historical or explanatory archives; active
+debt and delivery metadata live in GitHub, per
 [docs/RECORD-OWNERSHIP.md](docs/RECORD-OWNERSHIP.md).
 
 A Feature issue states the gap between the current condition and its parent

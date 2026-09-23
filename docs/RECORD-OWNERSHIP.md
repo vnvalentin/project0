@@ -1,7 +1,8 @@
-# Record Ownership Rule (draft)
+# Record Ownership Rule
 
-Status: **draft** for review. Fold into [AGENTS.md](AGENTS.md) and
-[DEVELOPMENT-WORKFLOW.md](DEVELOPMENT-WORKFLOW.md) once accepted.
+Status: **accepted**. GitHub Issues and the Project board are the active
+delivery authority. The committed Markdown records below are historical or
+explanatory archives.
 
 ## 2026-09-20: Features and Slices moved to GitHub issues
 
@@ -13,11 +14,14 @@ date. Do not add new entries to them. Going forward:
   line in its body when it advances a Goal issue.
 - A **Slice** is a GitHub issue labeled `Slice`, with a `Parent feature: #N`
   line in its body when it advances a Feature issue.
-- `docs/PROJECT-TRACKER.md` and `docs/TECHNICAL-DEBT-TRACKER.md` remain
-   committed records (see the rules below). The structured Project Tracker
-   contract in `dashboard/tracker_schema.json` is the dashboard authority;
-   `docs/PROJECT-TRACKER.md` is its frozen, human-readable archive and must
-   remain importable for parity checks.
+- Active Features, Slices, Themes, Epics, Experiments, and Debt are GitHub
+   issues. Their native parent, labels, issue state, Outcome field, Phase
+   field, Milestone, evidence, and exit criteria are the active record.
+- `docs/PROJECT-TRACKER.md`, `docs/TECHNICAL-DEBT-TRACKER.md`,
+   `docs/FEATURE-LIST.md`, and `docs/slices/` are committed historical or
+   explanatory archives. Do not create new active planning records in them.
+- `dashboard/tracker_schema.json` and the dashboard are projections during
+   migration; they must not become a second authority for active work.
 
 See [Vision, Goal, Feature, and Slice semantics](DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
 for what a Feature and a Slice issue must each state (the gap they close and
@@ -25,51 +29,32 @@ the root cause they resolve) before creating one.
 
 ## Why this exists
 
-The delivery records — historically `FEATURE-LIST.md`,
-[PROJECT-TRACKER.md](PROJECT-TRACKER.md),
-[TECHNICAL-DEBT-TRACKER.md](TECHNICAL-DEBT-TRACKER.md), and
-`slices/SLICE-REGISTRY.md` — drift out of calibration whenever more than one
-worker edits them at once from divergent bases, or when a record change is left
-uncommitted while the code it describes lands separately. The Flow Dashboard
-reads these records, so every partial state is visible. The process is already
-defined; the failures are adherence failures. These rules make adherence
-mechanical. Feature/Slice status now lives on GitHub issues instead, which
-removes the number-allocation race for those two record types, but the same
-adherence discipline applies to the two records that remain files.
+The old delivery records drifted because active planning state was split across
+files, issue metadata, and dashboard projections. GitHub now holds one active
+record per work item, while the Project board makes missing fields and
+unscheduled work visible. The Markdown records remain useful for historical
+context and parity checks, but they are not edited to plan new work.
 
 ## Rules
 
-1. **Records land with their code.** The `PROJECT-TRACKER.md`/
-   `TECHNICAL-DEBT-TRACKER.md` edits for a slice and the code they describe go
-   in the **same commit**. Never leave a record file dirty in the working tree
-   across sessions — a half-updated record is the drift.
-2. **One integrator owns record commits.** Exactly one role writes and commits
-   `PROJECT-TRACKER.md` and `TECHNICAL-DEBT-TRACKER.md`. Others hand the
-   integrator a status delta; they do not edit these files directly. Feature and
-   Slice issues may be created/edited by whoever is doing the work, since
-   GitHub issue numbers do not collide the way file-based numbering did.
-3. **Parallel autonomous workers stay in their lane.** A long-running
-   `claude -p` loop never edits `PROJECT-TRACKER.md` or
-   `TECHNICAL-DEBT-TRACKER.md` directly; it hands the integrator a status delta.
-4. **Link parent before you create.** When opening a new Slice issue, add
-   `Parent feature: #N` in its body; when opening a new Feature issue, add
-   `Parent goal: #N` in its body. Never renumber or relabel a shipped issue's
-   identity — status lives in the issue's state/labels, not a renamed title.
-5. **Gate before you commit.** Run `scripts/check_record_sync.sh`; it must exit 0
-   before any `PROJECT-TRACKER.md`/`TECHNICAL-DEBT-TRACKER.md` commit (and
-   belongs in a pre-commit hook).
-6. **The board shows committed truth.** The dashboard renders the structured
-   Project Tracker contract, imports its frozen Markdown archive for parity,
-   renders `TECHNICAL-DEBT-TRACKER.md` from committed `HEAD`, and renders
-   Feature/Slice status live from the GitHub issues API. Do not "fix" a
-   perceived desync by editing records to match the dashboard — commit the
-   in-flight work (or discard it) so `HEAD` is the truth.
+1. **Create the issue first.** Every active work item has a GitHub issue before
+   implementation. Set its native parent, issue type/label, Outcome, Phase,
+   Milestone (when scheduled), evidence, and exit criteria.
+2. **Make scheduling explicit.** An issue without a Milestone is unscheduled;
+   do not infer commitment from its parent, label, or Phase.
+3. **Keep the fields distinct.** Outcome is the product result, Phase is the
+   dependency/order, and Milestone is the delivery commitment.
+4. **Link evidence at the public seam.** Pull requests, validation commands,
+   artifacts, and review outcomes belong on the issue before closure.
+5. **Keep archives stable.** Do not add active planning entries to the frozen
+   Markdown records. Update them only when a migration or parity check
+   explicitly requires it.
+6. **The Project board exposes truth.** Views must make parent, Outcome,
+   Phase, Milestone, status, blocked state, and missing evidence visible.
 
 ## One-line summary
 
-Feature and Slice status live on labeled GitHub issues with `Parent goal`/
-`Parent feature` back-links. `PROJECT-TRACKER.md` and `TECHNICAL-DEBT-TRACKER.md`
-remain committed-file records, with the Project Tracker Markdown retained as a
-frozen archive of the structured authority: do the work, then commit **code +
-tracker authority/archive + those records + a green `check_record_sync.sh`** as
-one atomic change, and only the integrator touches those files.
+All active delivery truth lives in GitHub Issues and the Project board. The
+Markdown records remain frozen context, and code changes are complete only when
+their issue contains the parent, Outcome, Phase, Milestone decision, public
+evidence, and exit result.
