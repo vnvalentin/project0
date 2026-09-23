@@ -141,6 +141,8 @@ def test_roadmap_view_labels_expected_issue_for_each_milestone(monkeypatch):
     page = render_roadmap()
     assert "Expected issue" in page
     assert "#551 Feature: Player-triggered JIT world generation and canon re-entry" in page
+    assert "READY</span>" in page
+    assert "READY TO PULL" not in page
 
 
 def test_roadmap_view_renders_feature_epic_experiment_breakdown(monkeypatch):
