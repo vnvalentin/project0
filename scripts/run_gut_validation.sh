@@ -2,6 +2,7 @@
 set -u
 
 GODOT_BIN="${GODOT_BIN:-godot}"
+GUT_TIMEOUT_SECONDS="${GUT_TIMEOUT_SECONDS:-900}"
 RESULT_DIR="${RESULT_DIR:-build/validation}"
 JUNIT_FILE="${RESULT_DIR}/gut.xml"
 LOG_FILE="${RESULT_DIR}/gut.log"
@@ -13,19 +14,30 @@ fi
 
 mkdir -p "$RESULT_DIR"
 
+if ! command -v timeout >/dev/null 2>&1; then
+  echo "VALIDATION GATE ERROR: GNU timeout is required to bound the GUT process." | tee -a "$LOG_FILE"
+  exit 1
+fi
+
 # Reimport/compile from a clean cache before running so a stale GDScript class
 # cache cannot silently drop a test script from the run and still report green
 # (DT-007). A skipped script must never be mistaken for a passing suite.
-"$GODOT_BIN" --headless --import >/dev/null 2>&1 || true
+timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless --import >/dev/null 2>&1 || true
 
 set +e
-"$GODOT_BIN" --headless \
+timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless \
   -s addons/gut/gut_cmdln.gd \
   -gjunit_xml_file="$JUNIT_FILE" \
   -gdisable_colors \
   -gexit 2>&1 | tee "$LOG_FILE"
 exit_code=${PIPESTATUS[0]}
 set -e
+
+timed_out=false
+if [[ "$exit_code" -eq 124 || "$exit_code" -eq 137 ]]; then
+  timed_out=true
+  echo "VALIDATION GATE ERROR: GUT exceeded ${GUT_TIMEOUT_SECONDS}s and was terminated." | tee -a "$LOG_FILE"
+fi
 
 # Gate hardening (DT-007): a suite is only trustworthy if EVERY test script
 # actually ran. GUT exits 0 even when a script fails to parse (it silently skips
@@ -62,6 +74,8 @@ cat > "$SUMMARY_FILE" <<EOF
   "runner": "GUT",
   "status": "$status",
   "exit_code": $exit_code,
+  "timed_out": $timed_out,
+  "timeout_seconds": $GUT_TIMEOUT_SECONDS,
   "scripts_expected": $scripts_expected,
   "scripts_ran": $scripts_ran,
   "timestamp_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
