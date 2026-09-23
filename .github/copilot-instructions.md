@@ -82,5 +82,11 @@ When the user proposes a new item or you transition to the next TBP level, you M
 1. **Assess the Gap:** Compare the user's input against the mandatory fields for the target TBP level (e.g., Aspirational Goal for Hoshins, Ideal vs. Current Condition for Features, the 4Ws for Epics).
 2. **Halt & Interrogate:** If *any* required field is missing, vague, or if the user jumps straight to a solution without defining the problem, DO NOT write the issue. Push back. Ask direct, probing questions to extract the missing data.
 3. **Pace the Grilling:** Ask a maximum of 2 questions per turn. Do not dump a massive questionnaire on the user. Drill down step-by-step.
-4. **The Epic Gate:** When breaking a Feature into an Epic, you must explicitly interrogate the user for the Who, When, Where, and What. Do not accept a generic "Root Cause" if the 4Ws have not been isolated.
+4. **The Epic Gate:** When breaking a Feature into Epics, explicitly use the
+  Who, When, Where, and What to partition the Feature into distinct problem
+  occurrences or seams. A changed actor, process point, boundary, or problem
+  can produce another Epic, even when the actor is the same. Use the Feature's
+  root cause or dependency to determine which Epic starts first; do not treat
+  the 4Ws or that sequencing root cause as mandatory duplicate fields on every
+  Epic.
 5. **Confirm & Execute:** Once all required fields are satisfied, summarize the proposed TBP structure. Only generate the issue via the GitHub CLI *after* the user confirms the summary.

@@ -58,6 +58,30 @@ Four record types form one causal chain, top to bottom:
   closes only when its Slices' combined evidence satisfies the Feature's
   resolution proof.
 
+### Feature-to-Epic decomposition
+
+Epics are not created by filling out the same 4W form repeatedly. The parent
+Feature's 4W analysis is the partitioning tool: Who, When, Where, and What
+identify distinct problem occurrences or seams that may need separate Epics.
+The same Who can produce multiple Epics when that actor performs different
+actions; a different When can expose another Epic at a separate point in the
+process; and a changed boundary or problem can create another seam.
+
+The Feature's root cause or dependency is also a sequencing input. It helps
+determine which of the resulting Epics should start first, but it is not a
+mandatory duplicate field on every Epic. Each Epic records its bounded problem
+seam, a measurable metric, and its child Experiments; the parent Feature keeps
+the 4W partition and root-cause ordering that explain why those Epics are
+separate and why work begins in that order.
+
+Epic decomposition is a working hypothesis, not a permanent checklist. After
+an Experiment or Epic produces meaningful evidence, re-evaluate the parent
+Feature: resolving one root cause may eliminate several sibling Epics, expose a
+different root cause, move the first dependency, or reveal a new seam. The
+opposite is also possible: an apparent solution may leave the other Epics
+unchanged. Update the Feature's child links and ordering to match the evidence;
+do not execute obsolete Epics merely because they were identified earlier.
+
 A Goal's percent-complete is **never** derived from the Goal issue's own
 open/closed state or a hand-ticked WGL checkbox — both are unreliable signals
 on their own. It is the fraction of WGL items that have at least one
