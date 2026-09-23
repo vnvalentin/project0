@@ -15,6 +15,8 @@ class_name CanonEntityGuid
 
 const ENTITY_CLASS_STRUCTURE: String = "structure"
 const ENTITY_CLASS_SPAWN_POINT: String = "spawn_point"
+const NAMESPACE_DNS_UUID: String = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+const NAMESPACE_URL_UUID: String = "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
 
 ## Length of the hex digest kept after the class prefix. 32 hex chars = 128 bits
 ## of the SHA-256, collision-resistant for world-entity counts and far under the
@@ -31,6 +33,51 @@ const _SEPARATOR: String = "\u0001"
 static func derive(sector_id: String, entity_class: String, entity_id: String) -> String:
 	var canonical: String = "%s%s%s%s%s" % [sector_id, _SEPARATOR, entity_class, _SEPARATOR, entity_id]
 	return "%s-%s" % [entity_class, canonical.sha256_text().substr(0, _DIGEST_LENGTH)]
+
+
+static func derive_rfc4122_v5(sector_id: String, entity_class: String, entity_id: String) -> String:
+	var canonical: String = "project0%s%s%s%s%s" % [
+		_SEPARATOR,
+		sector_id,
+		_SEPARATOR,
+		entity_class,
+		_SEPARATOR + entity_id,
+	]
+	return uuid_v5(NAMESPACE_URL_UUID, canonical)
+
+
+static func uuid_v5(namespace_uuid: String, name: String) -> String:
+	var namespace_bytes: PackedByteArray = _uuid_to_bytes(namespace_uuid)
+	if namespace_bytes.size() != 16:
+		return ""
+
+	var hashing_context: HashingContext = HashingContext.new()
+	if hashing_context.start(HashingContext.HASH_SHA1) != OK:
+		return ""
+	hashing_context.update(namespace_bytes)
+	hashing_context.update(name.to_utf8_buffer())
+	var digest: PackedByteArray = hashing_context.finish().slice(0, 16)
+	digest[6] = (digest[6] & 0x0f) | 0x50
+	digest[8] = (digest[8] & 0x3f) | 0x80
+
+	var hex: String = digest.hex_encode()
+	return "%s-%s-%s-%s-%s" % [
+		hex.substr(0, 8),
+		hex.substr(8, 4),
+		hex.substr(12, 4),
+		hex.substr(16, 4),
+		hex.substr(20, 12),
+	]
+
+
+static func _uuid_to_bytes(uuid: String) -> PackedByteArray:
+	var compact: String = uuid.replace("-", "")
+	if compact.length() != 32 or not compact.is_valid_hex_number():
+		return PackedByteArray()
+	var bytes: PackedByteArray = PackedByteArray()
+	for index: int in range(0, compact.length(), 2):
+		bytes.append(compact.substr(index, 2).hex_to_int())
+	return bytes
 
 
 ## Every addressable entity in a validated blueprint, each as

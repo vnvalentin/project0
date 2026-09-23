@@ -115,7 +115,7 @@ func _run_request(sector_id: String, prompt: String) -> void:
 	blueprint_service.request_timeout_sec = request_timeout_sec
 	add_child(blueprint_service)
 
-	var result: Dictionary = await blueprint_service.request_sector_blueprint(prompt)
+	var result: Dictionary = await blueprint_service.request_sector_blueprint(prompt, sector_id)
 
 	blueprint_service.queue_free()
 

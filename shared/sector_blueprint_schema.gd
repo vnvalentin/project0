@@ -26,6 +26,8 @@ class_name SectorBlueprintSchema
 ## going forward — newer versions are not hard replacements, since ordinary
 ## non-town sectors keep generating tiles-only v1 payloads.
 const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3, 4]
+const SPATIAL_SCHEMA_PATH: String = "res://shared/spatial_schema_v1.json"
+const SPATIAL_SCHEMA_ID: String = "project0://schemas/spatial_schema_v1.json"
 
 ## Bounds the tile array so a single sector response cannot request unbounded
 ## work; this is a contract-validation bound only, not a gameplay/world-size
@@ -100,6 +102,8 @@ const OUTCOME_OUT_OF_BOUNDS: String = "out_of_bounds"
 ## otherwise null. Fails closed: any ambiguity or missing data is rejected,
 ## never guessed or partially accepted.
 static func validate(parsed_data: Variant) -> Dictionary:
+	if not contract_is_available():
+		return _result(OUTCOME_INCOMPLETE, "spatial_schema_v1.json is missing or invalid.")
 	if parsed_data == null or not (parsed_data is Dictionary):
 		return _result(OUTCOME_MALFORMED_JSON, "Top-level JSON value is not an object.")
 
@@ -148,6 +152,11 @@ static func validate(parsed_data: Variant) -> Dictionary:
 			return spawn_points_check
 
 	return _result(OUTCOME_VALID, "", data)
+
+
+static func contract_is_available() -> bool:
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SPATIAL_SCHEMA_PATH))
+	return parsed is Dictionary and parsed.get("$id") == SPATIAL_SCHEMA_ID
 
 
 ## "structures" is optional for both schema versions (absent or empty is
