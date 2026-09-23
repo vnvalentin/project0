@@ -426,6 +426,7 @@ OVERVIEW_CSS = """
 .roadmap-title{font-size:14px;font-weight:800;line-height:1.3;margin:8px 0 10px}
 .roadmap-outcome{color:var(--muted);font-size:12px;line-height:1.45;margin:0 0 12px}
 .roadmap-issues{display:flex;flex-wrap:wrap;gap:5px}
+.roadmap-expected{display:block;color:var(--text);font-size:11px;font-weight:800;margin:2px 0 7px}
 .roadmap-issue{color:var(--text);text-decoration:none;background:#18232d;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px}
 .roadmap-issue:hover{color:var(--cyan);border-color:var(--cyan)}
 .roadmap-state{display:block;margin-top:10px;color:var(--muted);font-size:10px}
@@ -600,6 +601,7 @@ def roadmap_html(issue_feed: dict) -> str:
     for stage in ROADMAP_PLAN:
         links = []
         states = []
+        expected_label = "Expected issue" if len(stage["issue_numbers"]) == 1 else "Expected issues"
         for number in stage["issue_numbers"]:
             issue = issues_by_number.get(number)
             if issue is None:
@@ -608,13 +610,14 @@ def roadmap_html(issue_feed: dict) -> str:
                 continue
             state = issue.get("state", "open").lower()
             refinement = "needs refinement" if "tbp:needs-refinement" in issue.get("labels", []) else "tracked"
-            links.append(f'<a class="roadmap-issue" href="{esc(issue["url"])}">#{number} {esc(_exec_short(issue.get("title", ""), 24))}</a>')
+            links.append(f'<a class="roadmap-issue" href="{esc(issue["url"])}">#{number} {esc(issue.get("title", ""))}</a>')
             states.append(f"{state} · {refinement}")
         nodes.append(
             f'<article class="roadmap-node {stage["class_name"]}">'
             f'<div class="roadmap-horizon">{esc(stage["horizon"])}</div>'
             f'<div class="roadmap-title">{esc(stage["title"])}</div>'
             f'<p class="roadmap-outcome">{esc(stage["outcome"])}</p>'
+            f'<div class="roadmap-expected">{expected_label}</div>'
             f'<div class="roadmap-issues">{"".join(links)}</div>'
             f'<span class="roadmap-state">{esc("; ".join(states))}</span>'
             f'</article>'
