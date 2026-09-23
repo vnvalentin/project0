@@ -95,6 +95,7 @@ services:
       # host.docker.internal: Godot's HTTP client does its own name resolution,
       # so a /etc/hosts alias is not guaranteed to work.
       PROJECT0_OLLAMA_HOST: "${PROJECT0_OLLAMA_HOST:-http://192.168.1.254:11434}"
+      PROJECT0_OLLAMA_MODEL: "${PROJECT0_OLLAMA_MODEL:-qwen3.5:9b}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
