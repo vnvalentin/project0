@@ -76,6 +76,16 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
   baseline clean and a synthetic current invalid record warning; `bash
   scripts/check_record_sync.sh` passed with 0 errors and 0 warnings; `bash -n
   scripts/check_record_sync.sh scripts/test_check_record_sync.sh` passed.
+- Root-cause learning (2026-09-23): After PR #1024 merged, integrating current
+  `main` exposed that the focused regression fixture omitted the concurrently
+  added `dashboard/tracker.py` parity dependency. The production checker stayed
+  clean, but the focused test exited before exercising its warning assertions.
+  PR #1024 CI missed this because it ran the production checker but did not run
+  `scripts/test_check_record_sync.sh`, and the structured-tracker change merged
+  after the branch was cut. The permanent countermeasure is a faithful fixture
+  that copies `dashboard/tracker.py` and `tracker_schema.json`; the regression
+  script itself is rerun after every checker dependency merge before downstream
+  delivery resumes.
 - Phase: Cross-cutting delivery governance
 - Links: [GitHub issue #1022](https://github.com/vnvalentin/project0/issues/1022),
   [Slice #1020](https://github.com/vnvalentin/project0/issues/1020),
