@@ -30,13 +30,15 @@ func _init(sink: Object, rate_limiter: Object) -> void:
 ## Validates the batch against the rate limiter, then builds and emits one
 ## envelope per well-formed raw event. A malformed raw event (wrong types,
 ## missing fields) is skipped rather than aborting the rest of the batch.
-func ingest_batch(peer_id: int, raw_events: Array, character_id: String, now_unix: int, server_tick: int) -> void:
+## Returns only raw events whose validated envelopes were accepted by the sink.
+func ingest_batch(peer_id: int, raw_events: Array, character_id: String, now_unix: int, server_tick: int) -> Array[Dictionary]:
+	var accepted_events: Array[Dictionary] = []
 	if _sink == null or _rate_limiter == null:
-		return
+		return accepted_events
 	if raw_events.is_empty():
-		return
+		return accepted_events
 	if not _rate_limiter.try_consume(peer_id, raw_events.size(), float(now_unix)):
-		return
+		return accepted_events
 
 	for raw_event: Variant in raw_events:
 		if not (raw_event is Dictionary):
@@ -49,4 +51,7 @@ func ingest_batch(peer_id: int, raw_events: Array, character_id: String, now_uni
 		var envelope: Dictionary = TelemetryEventScript.build(
 			event_type, schema_version, now_unix, server_tick, peer_id, payload, "", character_id, ""
 		)
-		_sink.emit(envelope)
+		var emitted: Dictionary = _sink.emit(envelope)
+		if emitted.get("outcome", "") == "ok":
+			accepted_events.append((raw_event as Dictionary).duplicate(true))
+	return accepted_events

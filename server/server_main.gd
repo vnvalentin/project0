@@ -67,6 +67,8 @@ const TelemetrySinkScript: Script = preload("res://server/telemetry_sink.gd")
 const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
 const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ingest_service.gd")
 const TelemetryEventScript: Script = preload("res://shared/telemetry_event.gd")
+const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
+const JitPresentationAckTrackerScript: Script = preload("res://server/jit_presentation_ack_tracker.gd")
 
 ## Slice 067: the app schema version reported in the runtime health snapshot.
 const APP_SCHEMA_VERSION: int = 1
@@ -195,6 +197,10 @@ var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
 var _sector_ingress_positions: Dictionary = {}
+var _jit_peer_by_sector: Dictionary = {}
+var _jit_root_trace_by_sector: Dictionary = {}
+var _jit_commit_trace_by_sector: Dictionary = {}
+var _jit_presentation_ack_tracker: Object = JitPresentationAckTrackerScript.new()
 
 ## Slice 162 (telemetry map #282): the dedicated telemetry database and its
 ## per-peer rate limiter. Best-effort, non-fatal: unlike accounts/Canon,
@@ -403,7 +409,6 @@ func _start_server() -> void:
 	root.add_child(_provisional_sector_generator)
 	_canon_generation_coordinator = CanonGenerationCoordinatorScript.new()
 	_canon_generation_coordinator.set_canonicalize_callback(Callable(_canon_repository, "canonicalize_blueprint"))
-	_canon_generation_coordinator.canonical_sector_ready.connect(_on_canonical_sector_ready)
 	_provisional_sector_generator.provisional_sector_ready.connect(_on_provisional_sector_ready)
 	_sector_boundary_detector = SectorBoundaryDetectorScript.new()
 	_sector_boundary_detector.set_canon_lookup(Callable(_canon_repository, "get_canonical_sector"))
@@ -684,6 +689,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.queue_free()
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
+	_jit_presentation_ack_tracker.forget_peer(peer_id)
 	if _telemetry_rate_limiter != null:
 		_telemetry_rate_limiter.forget_peer(peer_id)
 
@@ -745,49 +751,79 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 	_broadcast_presence_snapshot()
 
 
-func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
+func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
 	if _provisional_sector_generator == null:
 		return
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
 	sector_ingresses[peer_id] = position
 	_sector_ingress_positions[sector_id] = sector_ingresses
+	var starts_generation: bool = (
+		_provisional_sector_generator.get_status(sector_id)
+		== ProvisionalSectorGeneratorScript.STATUS_UNKNOWN
+	)
+	if starts_generation:
+		_jit_peer_by_sector[sector_id] = peer_id
+		_jit_root_trace_by_sector[sector_id] = trace.duplicate(true)
+		_emit_jit_trace(trace, peer_id)
+	var initiating_trace: Dictionary = _jit_root_trace_by_sector.get(sector_id, trace)
 	var prompt: String = "Generate the validated sector blueprint for %s near world position (%0.2f, %0.2f)." % [sector_id, position.x, position.z]
-	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt)
+	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, initiating_trace)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
 
 
-func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
+func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
 	if _canon_repository == null:
 		return
 	var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
 	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK:
 		return
+	_emit_jit_trace(trace, peer_id)
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
 	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), position)
+	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), position, trace)
 	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
 
 
 func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void:
 	if _canon_generation_coordinator == null:
 		return
+	var peer_id: int = int(_jit_peer_by_sector.get(sector_id, 0))
+	for span: Dictionary in result.get("trace_spans", []):
+		_emit_jit_trace(span, peer_id)
+	var trace: Dictionary = result.get("trace_context", {})
+	var commit_trace: Dictionary = JitTraceContextScript.child(trace, "canon_db_commit") if not trace.is_empty() else {}
 	var finalization: Dictionary = _canon_generation_coordinator.accept_generation_result(sector_id, result)
+	if not commit_trace.is_empty():
+		commit_trace["status"] = "OK" if finalization["outcome"] in [CanonGenerationCoordinatorScript.OUTCOME_CANONICALIZED, CanonGenerationCoordinatorScript.OUTCOME_IDEMPOTENT] else "ERROR"
+		_emit_jit_trace(commit_trace, peer_id)
 	if finalization["outcome"] == CanonGenerationCoordinatorScript.OUTCOME_IGNORED:
 		print("Ignored provisional sector %s: %s" % [sector_id, finalization["detail"]])
 	elif finalization["outcome"] == CanonGenerationCoordinatorScript.OUTCOME_CONFLICT:
 		push_warning("Rejected conflicting provisional sector %s: %s" % [sector_id, finalization["detail"]])
+	else:
+		_jit_commit_trace_by_sector[sector_id] = commit_trace
+		_on_canonical_sector_ready(sector_id, finalization["blueprint"])
+	_jit_commit_trace_by_sector.erase(sector_id)
+	_jit_root_trace_by_sector.erase(sector_id)
+	_jit_peer_by_sector.erase(sector_id)
 
 
 func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> void:
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
+	var commit_trace: Dictionary = _jit_commit_trace_by_sector.get(sector_id, {})
+	var initiating_peer_id: int = int(_jit_peer_by_sector.get(sector_id, 0))
+	var presentation_trace: Dictionary = _jit_presentation_ack_tracker.issue(initiating_peer_id, commit_trace)
+	if _sector_boundary_detector != null and not presentation_trace.is_empty():
+		_sector_boundary_detector.remember_canon_trace(sector_id, presentation_trace)
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
 	for peer_id: int in _player_states.keys():
 		var ingress: Vector3 = sector_ingresses.get(peer_id, Vector3.ZERO)
-		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), ingress)
+		var peer_trace: Dictionary = presentation_trace if peer_id == initiating_peer_id else {}
+		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), ingress, peer_trace)
 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
 
 
@@ -845,6 +881,21 @@ func _emit_server_telemetry(event_type: String, peer_id: int, payload: Dictionar
 	_telemetry_sink.emit(envelope)
 
 
+func _emit_jit_trace(trace: Dictionary, peer_id: int) -> void:
+	if trace.is_empty():
+		return
+	_emit_server_telemetry(String(trace.get("event_type", "")), peer_id, {
+		"trace_id": String(trace.get("trace_id", "")),
+		"span_id": String(trace.get("span_id", "")),
+		"parent_span_id": trace.get("parent_span_id"),
+		"sector_id": String(trace.get("sector_id", "")),
+		"spatial_guid": String(trace.get("spatial_guid", "")),
+		"timestamp_ms": int(trace.get("timestamp_ms", 0)),
+		"duration_ms": float(trace.get("duration_ms", 0.0)),
+		"status": String(trace.get("status", "")),
+	})
+
+
 ## Slice 162 (telemetry map #282): the sole entry point for client-originated
 ## telemetry. Resolves this peer's server-known `character_id` (never trusted
 ## from the client) and the current wall-clock/tick, then forwards to
@@ -858,9 +909,21 @@ func _on_client_telemetry_batch_received(peer_id: int, events: Array, _client_se
 	var player_state: Node = _player_states.get(peer_id)
 	if player_state != null:
 		character_id = player_state.character_id
-	_telemetry_ingest.ingest_batch(peer_id, events, character_id, int(Time.get_unix_time_from_system()), _current_server_tick())
-
-
+	var verified_events: Array[Dictionary] = _jit_presentation_ack_tracker.verified_events(peer_id, events)
+	var accepted_events: Array[Dictionary] = _telemetry_ingest.ingest_batch(
+		peer_id,
+		verified_events,
+		character_id,
+		int(Time.get_unix_time_from_system()),
+		_current_server_tick(),
+	)
+	var presentation_traces: Array[Dictionary] = _jit_presentation_ack_tracker.confirm_accepted(peer_id, accepted_events)
+	for presentation_trace: Dictionary in presentation_traces:
+		if _sector_boundary_detector != null and not presentation_trace.is_empty():
+			_sector_boundary_detector.remember_canon_trace(
+				String(presentation_trace.get("sector_id", "")),
+				presentation_trace,
+			)
 ## Deterministic, visibly distinct starting positions for connected peers so
 ## Player representations never spawn on top of each other.
 func _start_position_for_slot(slot_index: int) -> Vector3:

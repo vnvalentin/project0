@@ -27,6 +27,7 @@ class_name ProvisionalSectorGenerator
 ## different sector ids fail with "HTTPRequest is processing a request."
 
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
+const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
 
 ## In-memory request lifecycle. There is no "failed" status distinct from
 ## "ready": a bounded failure is itself a ready outcome (see
@@ -62,7 +63,7 @@ var _sector_state: Dictionary = {}
 ## not need to await this function to receive acceptance. Re-requesting a
 ## sector id that is already pending or ready returns its existing state
 ## instead of starting a second concurrent request for the same sector id.
-func request_provisional_sector(sector_id: String, prompt: String) -> String:
+func request_provisional_sector(sector_id: String, prompt: String, trace: Dictionary = {}) -> String:
 	if _sector_state.has(sector_id):
 		return _sector_state[sector_id]["correlation_id"]
 
@@ -71,6 +72,7 @@ func request_provisional_sector(sector_id: String, prompt: String) -> String:
 		"status": STATUS_PENDING,
 		"correlation_id": correlation_id,
 		"result": null,
+		"trace": trace.duplicate(true),
 	}
 
 	_run_request.call_deferred(sector_id, prompt)
@@ -109,6 +111,7 @@ func get_provisional_result(sector_id: String) -> Dictionary:
 
 
 func _run_request(sector_id: String, prompt: String) -> void:
+	var started_usec: int = Time.get_ticks_usec()
 	var blueprint_service: Node = SectorBlueprintServiceScript.new()
 	blueprint_service.ollama_host = ollama_host
 	blueprint_service.model_name = model_name
@@ -116,6 +119,15 @@ func _run_request(sector_id: String, prompt: String) -> void:
 	add_child(blueprint_service)
 
 	var result: Dictionary = await blueprint_service.request_sector_blueprint(prompt, sector_id)
+	var trace: Dictionary = _sector_state[sector_id].get("trace", {})
+	if not trace.is_empty():
+		var generation_span: Dictionary = JitTraceContextScript.child(trace, "llm_generation_latency")
+		generation_span["duration_ms"] = float(Time.get_ticks_usec() - started_usec) / 1000.0
+		generation_span["status"] = "OK" if result.get("request_outcome", "") == "validated" else "ERROR"
+		var validation_span: Dictionary = JitTraceContextScript.child(generation_span, "schema_validation_result")
+		validation_span["status"] = "OK" if result.get("validation_outcome", "") == "valid" else "ERROR"
+		result["trace_spans"] = [generation_span, validation_span]
+		result["trace_context"] = validation_span
 
 	blueprint_service.queue_free()
 
@@ -126,5 +138,6 @@ func _run_request(sector_id: String, prompt: String) -> void:
 		"status": STATUS_READY,
 		"correlation_id": correlation_id,
 		"result": result,
+		"trace": trace,
 	}
 	provisional_sector_ready.emit(sector_id, result)

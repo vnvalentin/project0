@@ -88,3 +88,9 @@ quick-reference and seed, not a replacement for them.
   **before** creating `docs/slices/NNN-*.md`.
 - The registry's own "Next free slice" line is the single source of truth; this
   file does not duplicate it (a stale copy here caused a near-collision).
+
+## Milestone outcomes
+
+- Every milestone outcome record includes a plain-language `## Player Example`:
+  starting situation, player action, visible experience, and lasting result.
+  The canonical rule is in `docs/DEVELOPMENT-WORKFLOW.md`.
