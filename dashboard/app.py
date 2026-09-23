@@ -1207,8 +1207,18 @@ def _tbp_outcomes_satisfied(issue: dict) -> bool:
     has, complete = _tbp_outcomes(issue)
     if has:
         return complete
+    labels = {str(x.get("name", x) if isinstance(x, dict) else x) for x in issue.get("labels", [])}
+    body = issue.get("body") or ""
+    if "tbp:theme" in labels:
+        match = re.search(r"(?ims)^##\s+Measurable Outcome\s*$\n(.*?)(?=^##\s|\Z)", body)
+        return bool(match and match.group(1).strip() and _tbp_declares_child_breakdown(issue))
+    if "tbp:feature" in labels:
+        match = re.search(r"(?ims)^##\s+Measurable (?:Component|Outcome)\s*$\n(.*?)(?=^##\s|\Z)", body)
+        return bool(match and match.group(1).strip() and _tbp_declares_child_breakdown(issue))
+    if "tbp:epic" in labels:
+        match = re.search(r"(?ims)^##\s+Measurable Metric\s*$\n(.*?)(?=^##\s|\Z)", body)
+        return bool(match and match.group(1).strip() and _tbp_declares_child_breakdown(issue))
     # Compatibility is deliberately limited to pre-contract closed records.
-    # Current/new records without ## Outcomes are never complete.
     return (issue.get("state") or "").lower() == "closed" and (issue.get("createdAt") or "9999") < "2025-01-01"
 
 
@@ -1225,7 +1235,7 @@ def _tbp_declares_child_breakdown(issue: dict) -> bool:
         return False
     body = issue.get("body") or ""
     match = re.search(rf"(?ims)^##\s+{section_pattern}\s*$\n(.*?)(?=^##\s|\Z)", body)
-    return bool(match and re.search(r"(?im)^\s*-\s+\[[ xX]\]\s+.*(?:#\d+|/issues/\d+)", match.group(1)))
+    return bool(match and re.search(r"(?im)^\s*-\s+(?:\[[ xX]\]\s+)?(?:.*#\d+|.*/issues/\d+)", match.group(1)))
 
 
 def _tbp_theme_gap_is_covered(issue: dict) -> bool:
