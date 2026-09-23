@@ -74,6 +74,15 @@ func test_contains_guid_true_for_real_entity() -> void:
 	assert_true(CanonEntityGuidScript.contains_guid(_blueprint(), guid))
 
 
+func test_stamped_entity_guid_is_canonical_when_present() -> void:
+	var blueprint: Dictionary = _blueprint()
+	var stamped_guid: String = CanonEntityGuidScript.derive_rfc4122_v5("sector-0-0", "structure", "village_hall")
+	blueprint["structures"][0]["entity_guid"] = stamped_guid
+
+	assert_true(CanonEntityGuidScript.contains_guid(blueprint, stamped_guid))
+	assert_false(CanonEntityGuidScript.contains_guid(blueprint, CanonEntityGuidScript.derive("sector-0-0", "structure", "village_hall")))
+
+
 func test_contains_guid_false_for_unknown() -> void:
 	assert_false(CanonEntityGuidScript.contains_guid(_blueprint(), "structure-does-not-exist"))
 	assert_false(CanonEntityGuidScript.contains_guid(_blueprint(), ""))

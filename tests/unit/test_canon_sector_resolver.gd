@@ -45,6 +45,16 @@ func test_destroy_structure_removes_the_matching_structure() -> void:
 	assert_eq(_structure_ids(effective), ["village_hall"], "the destroyed structure is gone; the rest remain")
 
 
+func test_destroy_structure_uses_stamped_guid_when_present() -> void:
+	var blueprint: Dictionary = _blueprint()
+	var stamped_guid: String = CanonEntityGuidScript.derive_rfc4122_v5("sector-0-0", "structure", "smithy_1")
+	blueprint["structures"][1]["entity_guid"] = stamped_guid
+	var mutation: Dictionary = {"mutation_kind": "destroy_structure", "target_guid": stamped_guid}
+
+	var effective: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, [mutation])
+	assert_eq(_structure_ids(effective), ["village_hall"], "replay addresses a service-stamped RFC-v5 entity GUID")
+
+
 func test_resolver_does_not_mutate_the_input_blueprint() -> void:
 	var original: Dictionary = _blueprint()
 	CanonSectorResolverScript.resolve_effective_blueprint(original, [_destroy("smithy_1")])

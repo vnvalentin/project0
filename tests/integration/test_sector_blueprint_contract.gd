@@ -42,6 +42,11 @@ func test_validator_outcomes() -> void:
 	var wrong_version_result: Dictionary = SectorBlueprintSchemaScript.validate(wrong_version_parsed)
 	_assert(wrong_version_result["outcome"] == SectorBlueprintSchemaScript.OUTCOME_WRONG_SCHEMA_VERSION, "fixture with schema_version 99 validates as OUTCOME_WRONG_SCHEMA_VERSION")
 
+	var fractional_version: Dictionary = JSON.parse_string(FixturesScript.VALID)
+	fractional_version["schema_version"] = 1.5
+	var fractional_version_result: Dictionary = SectorBlueprintSchemaScript.validate(fractional_version)
+	_assert(fractional_version_result["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID, "literal schema rejects a fractional schema_version")
+
 	var out_of_bounds_origin_result: Dictionary = SectorBlueprintSchemaScript.validate(JSON.parse_string(FixturesScript.OUT_OF_BOUNDS_ORIGIN))
 	_assert(out_of_bounds_origin_result["outcome"] == SectorBlueprintSchemaScript.OUTCOME_OUT_OF_BOUNDS, "out-of-bounds origin validates as OUT_OF_BOUNDS")
 
@@ -86,10 +91,26 @@ func test_experiment_994_schema_gate_and_fallback_trace() -> void:
 		_trace_case("contract_invalid", rejected, _dispatch_count(dispatched_results, rejected["correlation_id"])),
 		_trace_case("timeout", timed_out, _dispatch_count(dispatched_results, timed_out["correlation_id"])),
 	]
+	var experiment_checks: Dictionary = {
+		"accepted_source": accepted["source"] == SectorBlueprintServiceScript.SOURCE_LLM,
+		"accepted_without_fallback": accepted["fallback_selected"] == false,
+		"accepted_guid": not accepted["blueprint"]["structures"][0]["entity_guid"].is_empty(),
+		"invalid_schema_decision": rejected["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_UNSUPPORTED_KIND,
+		"invalid_fallback": rejected["source"] == SectorBlueprintServiceScript.SOURCE_FALLBACK and rejected["blueprint"] == EXPECTED_FALLBACK,
+		"invalid_value_scrubbed": not rejected["detail"].contains("lava_pit"),
+		"timeout_outcome": timed_out["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_TIMEOUT,
+		"deterministic_fallback": timed_out["blueprint"] == EXPECTED_FALLBACK and rejected["blueprint"] == timed_out["blueprint"],
+	}
+	for case: Dictionary in cases:
+		experiment_checks["%s_single_dispatch" % case["case"]] = case["downstream_dispatch_count"] == 1
+	var runtime_failures: Array[String] = []
+	for check_name: String in experiment_checks:
+		if not experiment_checks[check_name]:
+			runtime_failures.append(check_name)
 	var trace: Dictionary = {
 		"experiment": 994,
-		"completion_status": "passed",
-		"runtime_failures": [],
+		"completion_status": "passed" if runtime_failures.is_empty() else "failed",
+		"runtime_failures": runtime_failures,
 		"cases": cases,
 	}
 	var trace_file: FileAccess = FileAccess.open(EXPERIMENT_TRACE_PATH, FileAccess.WRITE)
@@ -104,6 +125,7 @@ func test_experiment_994_schema_gate_and_fallback_trace() -> void:
 	_assert(rejected["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_UNSUPPORTED_KIND, "contract-invalid case records the schema decision")
 	_assert(rejected["source"] == SectorBlueprintServiceScript.SOURCE_FALLBACK, "contract-invalid case selects fallback")
 	_assert(rejected["blueprint"] == EXPECTED_FALLBACK, "contract-invalid raw data is not forwarded")
+	_assert(not rejected["detail"].contains("lava_pit"), "contract-invalid model values are not echoed through the downstream seam")
 	_assert(timed_out["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_TIMEOUT, "timeout case records the bounded timeout")
 	_assert(timed_out["blueprint"] == EXPECTED_FALLBACK, "timeout case selects the deterministic fallback")
 	_assert(rejected["blueprint"] == timed_out["blueprint"], "invalid and timed-out requests produce identical fallback blueprints")
@@ -200,6 +222,24 @@ func test_service_http_error_seam() -> void:
 	var result: Dictionary = await service.request_sector_blueprint("generate a sector")
 
 	_assert(result["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_TRANSPORT_ERROR, "HTTP 500 reaches REQUEST_OUTCOME_TRANSPORT_ERROR")
+
+	service.queue_free()
+	fake_server.stop()
+	fake_server.queue_free()
+	await wait_process_frames(1)
+
+
+func test_service_fallback_normalizes_empty_sector_id() -> void:
+	var fake_server: Node = FakeOllamaHttpServerScript.new()
+	var port: int = fake_server.start()
+	add_child_autofree(fake_server)
+	fake_server.next_response_status = 500
+	fake_server.next_response_body = "internal error"
+
+	var service: Node = _make_service(port)
+	var result: Dictionary = await service.request_sector_blueprint("generate a sector", "")
+
+	_assert(SectorBlueprintSchemaScript.validate(result["blueprint"])["outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "fallback remains schema-valid for an empty requested sector id")
 
 	service.queue_free()
 	fake_server.stop()

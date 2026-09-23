@@ -102,7 +102,8 @@ const OUTCOME_OUT_OF_BOUNDS: String = "out_of_bounds"
 ## otherwise null. Fails closed: any ambiguity or missing data is rejected,
 ## never guessed or partially accepted.
 static func validate(parsed_data: Variant) -> Dictionary:
-	if not contract_is_available():
+	var contract: Dictionary = _load_contract()
+	if contract.is_empty():
 		return _result(OUTCOME_INCOMPLETE, "spatial_schema_v1.json is missing or invalid.")
 	if parsed_data == null or not (parsed_data is Dictionary):
 		return _result(OUTCOME_MALFORMED_JSON, "Top-level JSON value is not an object.")
@@ -113,6 +114,8 @@ static func validate(parsed_data: Variant) -> Dictionary:
 		return _result(OUTCOME_INCOMPLETE, "Missing required field: schema_version.")
 	if not (data["schema_version"] is int) and not (data["schema_version"] is float):
 		return _result(OUTCOME_INCOMPLETE, "schema_version must be a number.")
+	if data["schema_version"] is float and not is_equal_approx(data["schema_version"], roundf(data["schema_version"])):
+		return _result(OUTCOME_WRONG_SCHEMA_VERSION, "schema_version must be an integer.")
 	var schema_version: int = int(data["schema_version"])
 	if not SUPPORTED_SCHEMA_VERSIONS.has(schema_version):
 		return _result(OUTCOME_WRONG_SCHEMA_VERSION, "Expected schema_version in %s, got %d." % [SUPPORTED_SCHEMA_VERSIONS, schema_version])
@@ -154,9 +157,106 @@ static func validate(parsed_data: Variant) -> Dictionary:
 	return _result(OUTCOME_VALID, "", data)
 
 
+## Generated model payloads cross both the Project0 semantic contract and the
+## checked-in literal JSON Schema before downstream assembly. Canonical
+## blueprints use validate() because their large tile arrays have already
+## crossed this admission gate.
+static func validate_generated(parsed_data: Variant) -> Dictionary:
+	var semantic_result: Dictionary = validate(parsed_data)
+	if semantic_result["outcome"] != OUTCOME_VALID:
+		return semantic_result
+	var contract: Dictionary = _load_contract()
+	var literal_schema_error: String = _literal_schema_error(parsed_data, contract, contract, "$")
+	if not literal_schema_error.is_empty():
+		return _result(OUTCOME_INCOMPLETE, "Literal schema rejected payload at %s" % literal_schema_error)
+	return semantic_result
+
+
 static func contract_is_available() -> bool:
+	return not _load_contract().is_empty()
+
+
+static func _load_contract() -> Dictionary:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(SPATIAL_SCHEMA_PATH))
-	return parsed is Dictionary and parsed.get("$id") == SPATIAL_SCHEMA_ID
+	if parsed is Dictionary and parsed.get("$id") == SPATIAL_SCHEMA_ID:
+		return parsed
+	return {}
+
+
+static func _literal_schema_error(value: Variant, schema: Dictionary, root: Dictionary, path: String) -> String:
+	if schema.has("$ref"):
+		var definition_name: String = str(schema["$ref"]).get_file()
+		var definitions: Dictionary = root.get("$defs", {})
+		if not definitions.has(definition_name):
+			return "%s unknown schema reference %s." % [path, schema["$ref"]]
+		return _literal_schema_error(value, definitions[definition_name], root, path)
+
+	var expected_type: String = schema.get("type", "")
+	if not expected_type.is_empty() and not _matches_literal_type(value, expected_type):
+		return "%s expected %s." % [path, expected_type]
+	if schema.has("enum") and not _literal_enum_has(schema["enum"], value):
+		return "%s is outside the allowed values." % path
+
+	if value is String and schema.has("minLength") and (value as String).length() < int(schema["minLength"]):
+		return "%s is shorter than minLength." % path
+	if (value is int or value is float):
+		var number: float = float(value)
+		if schema.has("minimum") and number < float(schema["minimum"]):
+			return "%s is below minimum." % path
+		if schema.has("maximum") and number > float(schema["maximum"]):
+			return "%s exceeds maximum." % path
+		if schema.has("exclusiveMaximum") and number >= float(schema["exclusiveMaximum"]):
+			return "%s reaches exclusiveMaximum." % path
+
+	if value is Dictionary:
+		var object: Dictionary = value
+		for required_field: Variant in schema.get("required", []):
+			if not object.has(required_field):
+				return "%s%s is required." % [path, required_field]
+		var properties: Dictionary = schema.get("properties", {})
+		for property_name: Variant in properties:
+			if object.has(property_name):
+				var property_error: String = _literal_schema_error(object[property_name], properties[property_name], root, "%s%s." % [path, property_name])
+				if not property_error.is_empty():
+					return property_error
+
+	if value is Array:
+		var array: Array = value
+		if schema.has("minItems") and array.size() < int(schema["minItems"]):
+			return "%s has fewer than minItems." % path
+		if schema.has("maxItems") and array.size() > int(schema["maxItems"]):
+			return "%s exceeds maxItems." % path
+		if schema.has("items"):
+			for index: int in array.size():
+				var item_error: String = _literal_schema_error(array[index], schema["items"], root, "%s%d." % [path, index])
+				if not item_error.is_empty():
+					return item_error
+
+	return ""
+
+
+static func _literal_enum_has(allowed_values: Array, value: Variant) -> bool:
+	for allowed: Variant in allowed_values:
+		if allowed == value:
+			return true
+		if (allowed is int or allowed is float) and (value is int or value is float) and is_equal_approx(float(allowed), float(value)):
+			return true
+	return false
+
+
+static func _matches_literal_type(value: Variant, expected_type: String) -> bool:
+	match expected_type:
+		"object":
+			return value is Dictionary
+		"array":
+			return value is Array
+		"string":
+			return value is String
+		"integer":
+			return value is int or (value is float and is_equal_approx(value, roundf(value)))
+		"number":
+			return value is int or value is float
+	return false
 
 
 ## "structures" is optional for both schema versions (absent or empty is

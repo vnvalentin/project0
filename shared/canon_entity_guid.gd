@@ -113,6 +113,13 @@ static func contains_guid(blueprint: Variant, guid: Variant) -> bool:
 	return false
 
 
+static func guid_for_entity(record: Dictionary, sector_id: String, entity_class: String, entity_id: String) -> String:
+	var stamped_guid: Variant = record.get("entity_guid")
+	if stamped_guid is String and not (stamped_guid as String).is_empty():
+		return stamped_guid
+	return derive(sector_id, entity_class, entity_id)
+
+
 static func _append_entity(entities: Array, entry: Variant, id_field: String, entity_class: String, sector_id: String) -> void:
 	if not (entry is Dictionary):
 		return
@@ -122,7 +129,7 @@ static func _append_entity(entities: Array, entry: Variant, id_field: String, en
 	var entity_id: String = record[id_field]
 	var kind: Variant = record.get("kind")
 	entities.append({
-		"guid": derive(sector_id, entity_class, entity_id),
+		"guid": guid_for_entity(record, sector_id, entity_class, entity_id),
 		"entity_class": entity_class,
 		"entity_id": entity_id,
 		"kind": kind if kind is String else "",

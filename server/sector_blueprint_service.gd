@@ -91,7 +91,7 @@ func request_sector_blueprint(prompt: String, sector_id: String = "generic-secto
 		var request_outcome: String = REQUEST_OUTCOME_TIMEOUT if _is_timeout(llm_result["error"]) else REQUEST_OUTCOME_TRANSPORT_ERROR
 		result = _fallback_result(correlation_id, request_outcome, "", llm_result["error"], sector_id, provenance)
 	else:
-		var validation: Dictionary = SectorBlueprintSchemaScript.validate(llm_result["data"])
+		var validation: Dictionary = SectorBlueprintSchemaScript.validate_generated(llm_result["data"])
 		if validation["outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID:
 			var blueprint: Dictionary = _stamp_entity_guids(validation["blueprint"])
 			result = {
@@ -105,7 +105,7 @@ func request_sector_blueprint(prompt: String, sector_id: String = "generic-secto
 				"provenance": provenance,
 			}
 		else:
-			result = _fallback_result(correlation_id, REQUEST_OUTCOME_VALIDATED, validation["outcome"], validation["detail"], sector_id, provenance)
+			result = _fallback_result(correlation_id, REQUEST_OUTCOME_VALIDATED, validation["outcome"], "Generated blueprint rejected by schema gate.", sector_id, provenance)
 
 	blueprint_request_completed.emit(correlation_id, result)
 	return result
@@ -147,7 +147,7 @@ func _fallback_result(correlation_id: String, request_outcome: String, validatio
 func _generic_fallback(sector_id: String) -> Dictionary:
 	return {
 		"schema_version": 1,
-		"sector_id": sector_id,
+		"sector_id": sector_id if not sector_id.is_empty() else "generic-sector",
 		"origin": {"x": 0, "y": 0},
 		"tiles": [{"x": 0, "y": 0, "kind": "floor"}],
 	}
