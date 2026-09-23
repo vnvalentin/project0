@@ -11,7 +11,7 @@ const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_
 const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_resolver.gd")
 const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 const FixturesScript: Script = preload("res://scripts/sector_blueprint_fixtures.gd")
-const TRACE_PATH: String = "res://build/validation/issue-1012-canon-replay-trace.json"
+const TRACE_DIRECTORY: String = "res://logs/experiments"
 
 var _relative_path: String = ""
 var _store: SqliteStore = null
@@ -197,25 +197,29 @@ func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_wri
 	])
 	assert_true(restored_match, "the complete restart/re-entry result matches")
 
+	var timestamp_ms: int = int(Time.get_unix_time_from_system() * 1000.0)
 	var trace: Dictionary = {
-		"experiment": 1012,
+		"experiment_id": 1012,
+		"timestamp_ms": timestamp_ms,
 		"sector_id": "sector_01_02",
+		"spatial_guid": target_guid,
+		"raw_blueprint_sha1": {"before": raw_sha1_before, "after": raw_sha1_after},
+		"reentry_pass": restored_match,
+		"sql_query_write_counts": {"insert": 0, "update": 0},
+		"generation_call_count": generation_calls,
+		"restart_boundaries": {"cache_flushed": true, "sqlite_connection_reset": true},
+		"event_payloads": lifecycle_events,
+		"mutation_rows": replayed_mutations["mutations"],
+		"runtime_errors": sqlite_errors,
+		"effective_blueprint_sha1": {"before": effective_sha1_before, "after": effective_sha1_after},
+		"row_counts": {"before_reentry": row_counts_before, "after_reentry": row_counts_after},
 		"anchor": [16, 20],
-		"mutation_id": "mut_01_02_anchor",
-		"structure_id": "str_claim_stone_01",
-		"raw_sha1_before": raw_sha1_before,
-		"raw_sha1_after": raw_sha1_after,
-		"effective_sha1_before": effective_sha1_before,
-		"effective_sha1_after": effective_sha1_after,
-		"row_counts_before_reentry": row_counts_before,
-		"row_counts_after_reentry": row_counts_after,
-		"generation_calls_on_reentry": generation_calls,
-		"lifecycle_events": lifecycle_events,
-		"sqlite_errors": sqlite_errors,
+		"structure_guid": "str_claim_stone_01",
 		"status": "RESTORED_MATCH" if restored_match else "RESTORE_MISMATCH",
 	}
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TRACE_PATH.get_base_dir()))
-	var trace_file: FileAccess = FileAccess.open(TRACE_PATH, FileAccess.WRITE)
+	var trace_path: String = "%s/exp_990_immutable_canon_replay_%d.json" % [TRACE_DIRECTORY, timestamp_ms]
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(TRACE_DIRECTORY))
+	var trace_file: FileAccess = FileAccess.open(trace_path, FileAccess.WRITE)
 	assert_not_null(trace_file, "the Canon replay trace can be opened")
 	trace_file.store_string(JSON.stringify(trace, "\t"))
 	trace_file.close()
