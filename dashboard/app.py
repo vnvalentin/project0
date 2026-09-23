@@ -661,9 +661,10 @@ def _roadmap_flatten(node: dict) -> list[dict]:
 
 def _roadmap_issue_link(node: dict) -> str:
     state = node.get("tbp_state", "READY_TO_PULL")
+    display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
     return (f'<li><a href="{esc(node.get("url", ""))}">#{node["number"]} '
             f'{esc(node.get("title", ""))}</a><small>GitHub {esc(node.get("state", "open"))} · '
-            f'<span class="roadmap-state-badge {state}">{state.replace("_", " ")}</span></small></li>')
+            f'<span class="roadmap-state-badge {state}">{display_state}</span></small></li>')
 
 
 def _roadmap_breakdown(nodes: list[dict]) -> str:
@@ -699,7 +700,8 @@ def roadmap_html(issue_feed: dict) -> str:
             breakdown_nodes.extend(hierarchy_nodes)
             state = node["tbp_state"]
             links.append(f'<a class="roadmap-issue" href="{esc(issue["url"])}">#{number} {esc(issue.get("title", ""))}</a>')
-            states.append(f"GitHub {issue.get('state', 'open').lower()} · TBP {state.replace('_', ' ')}")
+            display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
+            states.append(f"GitHub {issue.get('state', 'open').lower()} · TBP {display_state}")
         rendered_nodes.append(
             f'<article class="roadmap-node {stage["class_name"]}">'
             f'<div class="roadmap-horizon">{esc(stage["horizon"])}</div>'
