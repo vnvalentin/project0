@@ -26,6 +26,12 @@ warns=0
 err()  { printf 'FAIL  %s\n' "$1" >&2; errors=$((errors + 1)); }
 warn() { printf 'WARN  %s\n' "$1" >&2; warns=$((warns + 1)); }
 
+# Structured tracker authority/parity gate. The Markdown file remains a frozen
+# readable archive, but it must continue to import into the dashboard schema.
+if ! python dashboard/tracker.py --validate .; then
+	err "structured tracker schema is out of parity with docs/PROJECT-TRACKER.md"
+fi
+
 for f in "$FEATURE" "$TRACKER" "$REGISTRY"; do
 	[ -f "$f" ] || err "missing record file: $f"
 done

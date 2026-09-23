@@ -1,5 +1,10 @@
 # Project0 Tracker
 
+> **Frozen archive:** This Markdown file preserves the human-readable tracker
+> record for history and parity checks. The structured authority is
+> [`dashboard/tracker_schema.json`](../dashboard/tracker_schema.json), projected
+> read-only at `/tracker`.
+
 ## Tracking system
 
 This tracker owns phases, phase exit gates, and the cross-index of delivery

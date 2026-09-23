@@ -12,6 +12,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
+from tracker import inline_markdown, load_tracker
+
 REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "vnvalentin/project0")
@@ -275,7 +277,7 @@ def render_vision(view: str = "committed") -> str:
 <style>{EXEC_CSS}{VISION_CSS}</style></head><body>
 <header>
   <div><h1>Project0 \u2014 Vision &amp; Roadmap</h1><div class="sub">Build a world worth changing \u00b7 {issue_status}</div></div>
-    <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
+    <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
   <section class="vhero">
@@ -478,6 +480,77 @@ OVERVIEW_CSS = """
 @media(max-width:1100px){.roadmap-track{grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px}.roadmap-node:not(:last-child){border-right:1px solid var(--line)}.roadmap-node:not(:last-child)::after{display:none}}
 @media(max-width:650px){.roadmap-track{grid-template-columns:1fr}.roadmap-node{min-height:0}.roadmap-node:not(:last-child){border-right:1px solid var(--line)}}
 """
+
+
+TRACKER_CSS = """
+.tracker-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.tracker-meta span{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--muted);font-size:12px}
+.tracker-meta strong{color:var(--text)}
+.tracker-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:26px}
+.tracker-stat{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--cyan);border-radius:10px;padding:14px 16px}
+.tracker-stat .num{font-size:30px;font-weight:800;color:var(--cyan)}
+.tracker-stat .label{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.phase-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);font-size:12px}
+.phase-table th,.phase-table td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.phase-table th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.phase-table tr:last-child td{border-bottom:0}
+.phase-status{white-space:nowrap;color:var(--cyan);font-weight:700}
+.tracker-sections{display:flex;flex-direction:column;gap:10px}
+.tracker-section{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tracker-section>summary{cursor:pointer;padding:13px 16px;font-weight:700;color:var(--text)}
+.tracker-source{margin:0;padding:14px 16px;border-top:1px solid var(--line);color:var(--muted);font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow:auto}
+.tracker-source a{color:var(--cyan)}
+.tracker-warning{border-left:4px solid var(--amber);background:#2a2415;color:var(--amber);padding:10px 12px;margin-bottom:18px;font-size:12px}
+.tracker-list{margin:12px 0 0;padding-left:20px;color:var(--muted);font-size:12px}
+.tracker-list li{margin:6px 0}
+.tracker-queue{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.tracker-queue-item{padding:9px 12px;background:var(--card);border-left:4px solid var(--line);color:var(--muted);font-size:12px}
+.tracker-queue-item.done{border-left-color:var(--green);color:var(--text)}
+@media(max-width:760px){.phase-table{display:block;overflow-x:auto;white-space:normal}}
+"""
+
+
+def render_tracker() -> str:
+    model = load_tracker(REPO)
+    if not model["available"]:
+        content = f'<div class="sourcewarn">Tracker unavailable: {esc(model["error"])}</div>'
+    else:
+        warnings_html = "".join(f'<div class="tracker-warning">Source warning: {esc(warning)}</div>' for warning in model["warnings"])
+        phase_rows = "".join(
+            f'<tr><td>Phase {phase["number"]}. {esc(phase["name"])}</td>'
+            f'<td class="phase-status">{esc(phase["status"])}</td><td>{inline_markdown(phase["gate"])}</td></tr>'
+            for phase in model["phases"]
+        ) or '<tr><td colspan="3">No phase table found.</td></tr>'
+        queue_html = "".join(
+            f'<div class="tracker-queue-item {"done" if item["done"] else ""}">'
+            f'{"✓" if item["done"] else "○"} {inline_markdown(item["text"])}</div>'
+            for item in model["queue"]
+        ) or '<p class="empty">No work-queue items found.</p>'
+        acceptance_html = "".join(
+            f'<li>{"[x]" if item["done"] else "[ ]"} {inline_markdown(item["text"])}</li>'
+            for item in model["acceptance"]
+        )
+        delivery_html = "".join(f'<li>{inline_markdown(item)}</li>' for item in model["delivery"]["dependencies"])
+        sections_html = "".join(
+            f'<details class="tracker-section"><summary>{esc(section["title"])}</summary>'
+            f'<pre class="tracker-source">{esc(section["title"])}\n\n{inline_markdown(section["text"])}</pre></details>'
+            for section in model["sections"]
+            if section["title"] not in ("Phases", "Work queue")
+        )
+        content = f'''{warnings_html}<div class="tracker-meta"><span>Schema: <strong>v{model["schema"]["schema_version"]}</strong></span><span>Archive: <strong>{esc(model["source"])}</strong></span><span>Structured read-only projection</span></div>
+<div class="tracker-grid"><div class="tracker-stat"><div class="num">{len(model["phases"])}</div><span class="label">Phases</span></div><div class="tracker-stat"><div class="num">{model["queue_done"]}</div><span class="label">Completed queue items</span></div><div class="tracker-stat"><div class="num">{model["queue_open"]}</div><span class="label">Open queue items</span></div></div>
+<section class="sec"><h2>Phase gates</h2><table class="phase-table"><thead><tr><th>Phase</th><th>Status</th><th>Exit gate</th></tr></thead><tbody>{phase_rows}</tbody></table></section>
+    <section class="sec"><h2>Implementation acceptance</h2><ul class="tracker-list">{acceptance_html}</ul></section>
+    <section class="sec"><h2>Delivery dependencies</h2><ul class="tracker-list">{delivery_html}</ul></section>
+<section class="sec"><h2>Work queue</h2><div class="tracker-queue">{queue_html}</div></section>
+<section class="sec"><h2>Full tracker record</h2><div class="tracker-sections">{sections_html}</div></section>'''
+
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Tracker</title>
+<style>{EXEC_CSS}{TRACKER_CSS}</style></head><body>
+<header><div><h1>Project0 — Tracker</h1><div class="sub">Phase gates, delivery cross-reference, acceptance evidence, and work queue</div></div>
+<div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a class="on" href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div></header>
+<main>{content}<div class="footer">Read-only projection of the committed tracker record · refreshes every 60 seconds</div></main></body></html>'''
 
 
 TESTS_CSS = """
@@ -732,7 +805,7 @@ def render_roadmap() -> str:
 <style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
     <div><h1>Project0 — Roadmap</h1><div class="sub">Rolling delivery horizons from live GitHub Issues</div></div>
-    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a></div>
+    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a></div>
 </header>
 <main>
     <section class="sec">
@@ -803,7 +876,7 @@ def render_overview(view: str = "committed") -> str:
 <style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
   <div><h1>Project0</h1><div class="sub">{esc(issue_status)}</div></div>
-    <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
+    <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
   <section class="sec northstar">
@@ -1464,6 +1537,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/detail":
             view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
             body = render_vision(view).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/tracker":
+            body = render_tracker().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/tests":
