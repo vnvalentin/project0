@@ -41,10 +41,16 @@ The page reads GitHub issues from `GITHUB_REPO` (default
 `vnvalentin/project0`) and caches the result for `GITHUB_ISSUE_CACHE_SECONDS`
 (default `300`). The markdown vision remains the local source of truth. If
 GitHub is temporarily unreachable, the page shows a visible source warning
-rather than silently inventing a status. The `/tracker` page projects the
-versioned `dashboard/tracker_schema.json` contract and imports the frozen
-`docs/PROJECT-TRACKER.md` archive, exposing parity warnings instead of hiding
-missing tracker sections.
+rather than silently inventing a status. The `/tracker` page is retained only
+as a read-only viewer of the frozen `docs/PROJECT-TRACKER.md` archive; it does
+not project active status or enforce tracker parity.
+
+The `/delivery` page is the local operational view for active GitHub Issues. It
+shows the active delivery table and groups work by Outcome and Phase, with
+milestones, blocked state, evidence, parent issue, and assignee visibility.
+These fields are projected from issue labels, milestones, assignees, and
+structured body lines, so the view does not depend on GitHub Project #2 custom
+field access.
 
 ## Host deployment under `/apps/project0/dashboard`
 
