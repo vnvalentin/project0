@@ -70,3 +70,66 @@ def test_roadmap_view_labels_expected_issue_for_each_milestone(monkeypatch):
     page = render_roadmap()
     assert "Expected issue" in page
     assert "#551 Feature: Player-triggered JIT world generation and canon re-entry" in page
+
+
+def test_roadmap_view_renders_feature_epic_experiment_breakdown(monkeypatch):
+    feature = {
+        **issue(), "number": 551, "title": "Feature: JIT generation", "url": "https://example.test/551",
+        "labels": ["tbp:feature"],
+    }
+    epic = {
+        **issue(), "number": 985, "title": "Epic: Schema gate", "url": "https://example.test/985",
+        "labels": ["tbp:epic"], "body": "Parent feature: #551\n## Experiments\n- [ ] #994",
+    }
+    experiment = {
+        **issue(), "number": 994, "title": "Experiment: Blueprint fallback", "url": "https://example.test/994",
+        "labels": ["tbp:experiment", "tbp:needs-grilling"], "body": "Parent epic: #985\n## Outcomes\n- [ ] Pass",
+    }
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": [feature, epic, experiment], "error": "",
+    })
+
+    page = render_roadmap()
+
+    assert "Feature: JIT generation" in page
+    assert "Epic: Schema gate" in page
+    assert "Experiment: Blueprint fallback" in page
+    assert "TBP NEEDS GRILLING" in page
+    assert "GitHub open" in page
+
+
+def test_roadmap_view_applies_experiment_pass_gate_without_internal_type(monkeypatch):
+    epic = {
+        **issue(), "number": 561, "title": "Epic: Lore path", "url": "https://example.test/561",
+        "labels": ["tbp:epic"],
+    }
+    experiment = {
+        "number": 571, "title": "Experiment: Lore flow", "url": "https://example.test/571",
+        "state": "closed", "labels": ["tbp:experiment"],
+        "body": "Parent epic: #561\n## Outcomes\n- [x] other",
+    }
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": [epic, experiment], "error": "",
+    })
+
+    page = render_roadmap()
+
+    assert "#571 Experiment: Lore flow" in page
+    assert "GitHub closed" in page
+    assert "NEEDS GRILLING" in page
+
+
+def test_roadmap_view_marks_undefined_epic_breakdown(monkeypatch):
+    feature = {
+        **issue(), "number": 964, "title": "Feature: Context bounds", "url": "https://example.test/964",
+        "labels": ["tbp:feature"],
+    }
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": [feature], "error": "",
+    })
+
+    page = render_roadmap()
+
+    assert "#964 Feature: Context bounds" in page
+    assert "No linked Epics defined yet" in page
+    assert "No linked Experiments defined yet" in page

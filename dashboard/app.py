@@ -430,6 +430,20 @@ OVERVIEW_CSS = """
 .roadmap-issue{color:var(--text);text-decoration:none;background:#18232d;border:1px solid var(--line);border-radius:5px;padding:3px 6px;font-size:11px}
 .roadmap-issue:hover{color:var(--cyan);border-color:var(--cyan)}
 .roadmap-state{display:block;margin-top:10px;color:var(--muted);font-size:10px}
+.roadmap-state-badge{display:inline-block;margin-top:8px;padding:3px 7px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.03em;background:#232d38;color:var(--muted)}
+.roadmap-state-badge.DONE{background:#123524;color:var(--green)}
+.roadmap-state-badge.IN_PROGRESS{background:#123044;color:var(--cyan)}
+.roadmap-state-badge.READY_TO_PULL{background:#3a2e13;color:var(--amber)}
+.roadmap-state-badge.NEEDS_GRILLING{background:#3a2413;color:#f5b86a}
+.roadmap-breakdown{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.roadmap-breakdown section{min-width:0;border-top:1px solid var(--line);padding-top:7px}
+.roadmap-breakdown h4{margin:0 0 5px;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.roadmap-breakdown ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:5px}
+.roadmap-breakdown li{font-size:10px;line-height:1.3}
+.roadmap-breakdown a{color:var(--text);text-decoration:none}
+.roadmap-breakdown a:hover{color:var(--cyan)}
+.roadmap-breakdown small{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+.roadmap-undefined{color:var(--muted);font-style:italic}
 .roadmap-evidence{margin-top:18px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cyan);color:var(--muted);font-size:12px;line-height:1.45}
 .roadmap-evidence strong{color:var(--text)}
 .goalrows{display:flex;flex-direction:column;gap:2px}
@@ -594,13 +608,84 @@ ROADMAP_PLAN = (
 )
 
 
+def _roadmap_kind(issue: dict) -> str:
+    labels = {str(label).lower() for label in issue.get("labels", [])}
+    for kind, label in (("feature", "tbp:feature"), ("epic", "tbp:epic"), ("experiment", "tbp:experiment")):
+        if label in labels:
+            return kind
+    title = issue.get("title", "").lower()
+    return next((kind for kind in ("feature", "epic", "experiment") if title.startswith(kind + ":")), "issue")
+
+
+def _roadmap_children(issue: dict, issues: list[dict]) -> list[dict]:
+    kind = _roadmap_kind(issue)
+    if kind == "feature":
+        parent_prefix = "Parent feature"
+        child_kind = "epic"
+    elif kind == "epic":
+        parent_prefix = "Parent epic"
+        child_kind = "experiment"
+    else:
+        return []
+    children = [candidate for candidate in issues
+                if _roadmap_kind(candidate) == child_kind
+                and _parent_link_any(candidate, [parent_prefix]) == issue.get("number")]
+    return sorted(children, key=lambda candidate: candidate.get("number", 0))
+
+
+def _roadmap_node(issue: dict, issues: list[dict]) -> dict:
+    children = [_roadmap_node(child, issues) for child in _roadmap_children(issue, issues)]
+    kind = _roadmap_kind(issue)
+    classified_issue = {**issue, "type": issue.get("type", kind)}
+    return {**classified_issue, "roadmap_kind": kind, "children": children,
+            "tbp_state": classify_tbp_state(classified_issue, children)}
+
+
+def _roadmap_ancestors(issue: dict, issues: list[dict]) -> list[dict]:
+    ancestors = []
+    current = issue
+    parent_prefixes = {"experiment": ["Parent epic"], "epic": ["Parent feature"]}
+    while _roadmap_kind(current) in parent_prefixes:
+        parent_number = _parent_link_any(current, parent_prefixes[_roadmap_kind(current)])
+        parent = next((candidate for candidate in issues if candidate.get("number") == parent_number), None)
+        if parent is None:
+            break
+        ancestors.insert(0, _roadmap_node(parent, issues))
+        current = parent
+    return ancestors
+
+
+def _roadmap_flatten(node: dict) -> list[dict]:
+    return [node] + [child for child_node in node.get("children", []) for child in _roadmap_flatten(child_node)]
+
+
+def _roadmap_issue_link(node: dict) -> str:
+    state = node.get("tbp_state", "READY_TO_PULL")
+    return (f'<li><a href="{esc(node.get("url", ""))}">#{node["number"]} '
+            f'{esc(node.get("title", ""))}</a><small>GitHub {esc(node.get("state", "open"))} · '
+            f'<span class="roadmap-state-badge {state}">{state.replace("_", " ")}</span></small></li>')
+
+
+def _roadmap_breakdown(nodes: list[dict]) -> str:
+    by_kind = {kind: [node for node in nodes if node.get("roadmap_kind") == kind]
+               for kind in ("feature", "epic", "experiment")}
+    sections = []
+    for kind, label in (("feature", "Feature"), ("epic", "Epic"), ("experiment", "Experiment")):
+        entries = "".join(_roadmap_issue_link(node) for node in by_kind[kind])
+        if not entries:
+            entries = f'<li class="roadmap-undefined">No linked {label}s defined yet</li>'
+        sections.append(f'<section><h4>{label}</h4><ul>{entries}</ul></section>')
+    return f'<div class="roadmap-breakdown">{"".join(sections)}</div>'
+
+
 def roadmap_html(issue_feed: dict) -> str:
     """Render the rolling horizon from live GitHub issue records."""
     issues_by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
-    nodes = []
+    rendered_nodes = []
     for stage in ROADMAP_PLAN:
         links = []
         states = []
+        breakdown_nodes = []
         expected_label = "Expected issue" if len(stage["issue_numbers"]) == 1 else "Expected issues"
         for number in stage["issue_numbers"]:
             issue = issues_by_number.get(number)
@@ -608,11 +693,14 @@ def roadmap_html(issue_feed: dict) -> str:
                 links.append(f'<span class="roadmap-issue">#{number} unavailable</span>')
                 states.append("missing from feed")
                 continue
-            state = issue.get("state", "open").lower()
-            refinement = "needs refinement" if "tbp:needs-refinement" in issue.get("labels", []) else "tracked"
+            node = _roadmap_node(issue, list(issues_by_number.values()))
+            ancestors = _roadmap_ancestors(issue, list(issues_by_number.values()))
+            hierarchy_nodes = ancestors + _roadmap_flatten(node)
+            breakdown_nodes.extend(hierarchy_nodes)
+            state = node["tbp_state"]
             links.append(f'<a class="roadmap-issue" href="{esc(issue["url"])}">#{number} {esc(issue.get("title", ""))}</a>')
-            states.append(f"{state} · {refinement}")
-        nodes.append(
+            states.append(f"GitHub {issue.get('state', 'open').lower()} · TBP {state.replace('_', ' ')}")
+        rendered_nodes.append(
             f'<article class="roadmap-node {stage["class_name"]}">'
             f'<div class="roadmap-horizon">{esc(stage["horizon"])}</div>'
             f'<div class="roadmap-title">{esc(stage["title"])}</div>'
@@ -620,13 +708,14 @@ def roadmap_html(issue_feed: dict) -> str:
             f'<div class="roadmap-expected">{expected_label}</div>'
             f'<div class="roadmap-issues">{"".join(links)}</div>'
             f'<span class="roadmap-state">{esc("; ".join(states))}</span>'
+            f'{_roadmap_breakdown(breakdown_nodes)}'
             f'</article>'
         )
     source_note = "Live issue state and links are resolved from GitHub."
     if not issue_feed.get("available"):
         source_note = f'GitHub issue feed unavailable: {issue_feed.get("error", "unknown error")}'
     return (
-        f'<div class="roadmap-track">{"".join(nodes)}</div>'
+        f'<div class="roadmap-track">{"".join(rendered_nodes)}</div>'
         f'<div class="roadmap-evidence"><strong>Milestone 1 proof:</strong> '
         f'player boundary crossing → async generation → blueprint validation → '
         f'Canon commit → visible sector → stable re-entry. {esc(source_note)}</div>'
