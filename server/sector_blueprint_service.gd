@@ -23,6 +23,7 @@ class_name SectorBlueprintService
 
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
+const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 
 ## Outcome codes for the request seam itself, distinct from
 ## SectorBlueprintSchema's validation outcome codes. A request can fail before
@@ -30,6 +31,8 @@ const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 const REQUEST_OUTCOME_VALIDATED: String = "validated"
 const REQUEST_OUTCOME_TRANSPORT_ERROR: String = "transport_error"
 const REQUEST_OUTCOME_TIMEOUT: String = "timeout"
+const SOURCE_LLM: String = "llm"
+const SOURCE_FALLBACK: String = "fallback"
 
 signal blueprint_request_completed(correlation_id: String, result: Dictionary)
 
@@ -71,7 +74,7 @@ func _ready() -> void:
 ## function is a coroutine (uses await) so callers must await it, but nothing
 ## it does blocks the SceneTree's own frame/physics processing while it is
 ## suspended.
-func request_sector_blueprint(prompt: String) -> Dictionary:
+func request_sector_blueprint(prompt: String, sector_id: String = "generic-sector") -> Dictionary:
 	var correlation_id: String = _generate_correlation_id()
 	var provenance: Dictionary = {
 		"correlation_id": correlation_id,
@@ -86,24 +89,23 @@ func request_sector_blueprint(prompt: String) -> Dictionary:
 	var result: Dictionary
 	if not llm_result["success"]:
 		var request_outcome: String = REQUEST_OUTCOME_TIMEOUT if _is_timeout(llm_result["error"]) else REQUEST_OUTCOME_TRANSPORT_ERROR
-		result = {
-			"correlation_id": correlation_id,
-			"request_outcome": request_outcome,
-			"validation_outcome": "",
-			"detail": llm_result["error"],
-			"blueprint": null,
-			"provenance": provenance,
-		}
+		result = _fallback_result(correlation_id, request_outcome, "", llm_result["error"], sector_id, provenance)
 	else:
-		var validation: Dictionary = SectorBlueprintSchemaScript.validate(llm_result["data"])
-		result = {
-			"correlation_id": correlation_id,
-			"request_outcome": REQUEST_OUTCOME_VALIDATED,
-			"validation_outcome": validation["outcome"],
-			"detail": validation["detail"],
-			"blueprint": validation["blueprint"],
-			"provenance": provenance,
-		}
+		var validation: Dictionary = SectorBlueprintSchemaScript.validate_generated(llm_result["data"])
+		if validation["outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID:
+			var blueprint: Dictionary = _stamp_entity_guids(validation["blueprint"])
+			result = {
+				"correlation_id": correlation_id,
+				"request_outcome": REQUEST_OUTCOME_VALIDATED,
+				"validation_outcome": validation["outcome"],
+				"detail": validation["detail"],
+				"source": SOURCE_LLM,
+				"fallback_selected": false,
+				"blueprint": blueprint,
+				"provenance": provenance,
+			}
+		else:
+			result = _fallback_result(correlation_id, REQUEST_OUTCOME_VALIDATED, validation["outcome"], "Generated blueprint rejected by schema gate.", sector_id, provenance)
 
 	blueprint_request_completed.emit(correlation_id, result)
 	return result
@@ -127,3 +129,40 @@ func _is_timeout(error_text: String) -> bool:
 func _generate_correlation_id() -> String:
 	_next_sequence += 1
 	return "sector-blueprint-%d-%d-%d" % [Time.get_ticks_usec(), OS.get_process_id(), _next_sequence]
+
+
+func _fallback_result(correlation_id: String, request_outcome: String, validation_outcome: String, detail: String, sector_id: String, provenance: Dictionary) -> Dictionary:
+	return {
+		"correlation_id": correlation_id,
+		"request_outcome": request_outcome,
+		"validation_outcome": validation_outcome,
+		"detail": detail,
+		"source": SOURCE_FALLBACK,
+		"fallback_selected": true,
+		"blueprint": _generic_fallback(sector_id),
+		"provenance": provenance,
+	}
+
+
+func _generic_fallback(sector_id: String) -> Dictionary:
+	return {
+		"schema_version": 1,
+		"sector_id": sector_id if not sector_id.is_empty() else "generic-sector",
+		"origin": {"x": 0, "y": 0},
+		"tiles": [{"x": 0, "y": 0, "kind": "floor"}],
+	}
+
+
+func _stamp_entity_guids(blueprint: Dictionary) -> Dictionary:
+	var stamped: Dictionary = blueprint.duplicate(true)
+	var sector_id: String = stamped["sector_id"]
+	_stamp_entries(stamped, "structures", "structure_id", CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, sector_id)
+	_stamp_entries(stamped, "spawn_points", "spawn_id", CanonEntityGuidScript.ENTITY_CLASS_SPAWN_POINT, sector_id)
+	return stamped
+
+
+func _stamp_entries(blueprint: Dictionary, array_field: String, id_field: String, entity_class: String, sector_id: String) -> void:
+	if not (blueprint.get(array_field) is Array):
+		return
+	for entry: Dictionary in blueprint[array_field]:
+		entry["entity_guid"] = CanonEntityGuidScript.derive_rfc4122_v5(sector_id, entity_class, entry[id_field])

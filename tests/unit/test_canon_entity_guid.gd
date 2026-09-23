@@ -45,6 +45,19 @@ func test_derive_is_bounded_and_prefixed() -> void:
 	assert_lt(guid.length(), 128, "the GUID stays well under the mutation log's MAX_ID_LENGTH")
 
 
+func test_uuid_v5_matches_rfc_4122_dns_vector() -> void:
+	var guid: String = CanonEntityGuidScript.uuid_v5(CanonEntityGuidScript.NAMESPACE_DNS_UUID, "www.widgets.com")
+	assert_eq(guid, "21f7f8de-8051-5b89-8680-0195ef798b6a")
+
+
+func test_rfc4122_entity_guid_is_deterministic_and_version_five() -> void:
+	var first: String = CanonEntityGuidScript.derive_rfc4122_v5("sector-0-0", "structure", "village_hall")
+	var second: String = CanonEntityGuidScript.derive_rfc4122_v5("sector-0-0", "structure", "village_hall")
+	assert_eq(first, second)
+	assert_eq(first.substr(14, 1), "5", "UUID carries the RFC 4122 version-5 nibble")
+	assert_true(["8", "9", "a", "b"].has(first.substr(19, 1)), "UUID carries the RFC 4122 variant bits")
+
+
 func test_list_entities_enumerates_structures_and_spawns() -> void:
 	var entities: Array = CanonEntityGuidScript.list_entities(_blueprint())
 	assert_eq(entities.size(), 3, "two structures and one spawn point are addressable")
@@ -59,6 +72,15 @@ func test_list_entities_enumerates_structures_and_spawns() -> void:
 func test_contains_guid_true_for_real_entity() -> void:
 	var guid: String = CanonEntityGuidScript.derive("sector-0-0", "structure", "village_hall")
 	assert_true(CanonEntityGuidScript.contains_guid(_blueprint(), guid))
+
+
+func test_stamped_entity_guid_is_canonical_when_present() -> void:
+	var blueprint: Dictionary = _blueprint()
+	var stamped_guid: String = CanonEntityGuidScript.derive_rfc4122_v5("sector-0-0", "structure", "village_hall")
+	blueprint["structures"][0]["entity_guid"] = stamped_guid
+
+	assert_true(CanonEntityGuidScript.contains_guid(blueprint, stamped_guid))
+	assert_false(CanonEntityGuidScript.contains_guid(blueprint, CanonEntityGuidScript.derive("sector-0-0", "structure", "village_hall")))
 
 
 func test_contains_guid_false_for_unknown() -> void:

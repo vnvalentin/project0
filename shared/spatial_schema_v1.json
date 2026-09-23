@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "project0://schemas/spatial_schema_v1.json",
+  "title": "Project0 spatial sector blueprint",
+  "type": "object",
+  "required": ["schema_version", "sector_id", "origin", "tiles"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1, 2, 3, 4]},
+    "sector_id": {"type": "string", "minLength": 1},
+    "origin": {"$ref": "#/$defs/coordinate"},
+    "tiles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {"$ref": "#/$defs/tile"}
+    },
+    "structures": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/structure"}
+    },
+    "spawn_points": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {"$ref": "#/$defs/spawn_point"}
+    }
+  },
+  "$defs": {
+    "bounded_number": {"type": "number", "minimum": -48, "maximum": 48},
+    "coordinate": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": {
+        "x": {"$ref": "#/$defs/bounded_number"},
+        "y": {"$ref": "#/$defs/bounded_number"}
+      }
+    },
+    "tile": {
+      "type": "object",
+      "required": ["x", "y", "kind"],
+      "properties": {
+        "x": {"$ref": "#/$defs/bounded_number"},
+        "y": {"$ref": "#/$defs/bounded_number"},
+        "kind": {"type": "string", "enum": ["floor", "wall", "corridor", "path", "plaza", "gate", "water", "grass"]}
+      }
+    },
+    "structure": {
+      "type": "object",
+      "required": ["structure_id", "kind", "x", "y", "facing_degrees"],
+      "properties": {
+        "structure_id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "enum": ["house", "smithy", "armor_shop", "inn", "church", "item_shop", "tavern", "well", "npc_house", "village_hall"]},
+        "x": {"$ref": "#/$defs/bounded_number"},
+        "y": {"$ref": "#/$defs/bounded_number"},
+        "facing_degrees": {"type": "number", "minimum": 0, "exclusiveMaximum": 360},
+        "footprint_width": {"type": "number", "minimum": 3, "maximum": 12},
+        "footprint_depth": {"type": "number", "minimum": 3, "maximum": 12},
+        "roof_style": {"type": "string", "enum": ["gable_roof", "hip_roof", "flat_roof"]}
+      }
+    },
+    "spawn_point": {
+      "type": "object",
+      "required": ["spawn_id", "x", "y"],
+      "properties": {
+        "spawn_id": {"type": "string", "minLength": 1},
+        "x": {"$ref": "#/$defs/bounded_number"},
+        "y": {"$ref": "#/$defs/bounded_number"}
+      }
+    }
+  }
+}

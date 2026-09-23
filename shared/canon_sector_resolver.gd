@@ -44,7 +44,8 @@ static func resolve_effective_blueprint(blueprint: Variant, mutations: Array) ->
 		if not (structure is Dictionary) or not ((structure as Dictionary).get("structure_id") is String):
 			live_structures.append(structure)
 			continue
-		var guid: String = CanonEntityGuidScript.derive(sector_id, CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, (structure as Dictionary)["structure_id"])
+		var record: Dictionary = structure
+		var guid: String = CanonEntityGuidScript.guid_for_entity(record, sector_id, CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, record["structure_id"])
 		if not destroyed_guids.has(guid):
 			live_structures.append(structure)
 	data["structures"] = live_structures

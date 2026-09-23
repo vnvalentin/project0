@@ -70,7 +70,7 @@ func test_success_outcome_carries_validated_blueprint() -> void:
 	await _teardown(generator, fake_server)
 
 
-func test_validation_failure_outcome_is_ready_with_no_blueprint() -> void:
+func test_validation_failure_outcome_is_ready_with_fallback_blueprint() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
 	add_child(fake_server)
@@ -84,7 +84,10 @@ func test_validation_failure_outcome_is_ready_with_no_blueprint() -> void:
 	_assert(generator.get_status("sector-bad-kind") == ProvisionalSectorGeneratorScript.STATUS_READY, "sector reaches ready status even on validation failure")
 	var result: Dictionary = generator.get_provisional_result("sector-bad-kind")
 	_assert(result["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_UNSUPPORTED_KIND, "ready result surfaces the unsupported-kind validation outcome")
-	_assert(result["blueprint"] == null, "ready result carries no blueprint on validation failure")
+	_assert(result["source"] == SectorBlueprintServiceScript.SOURCE_FALLBACK, "validation failure selects the fallback source")
+	_assert(result["fallback_selected"], "validation failure records fallback selection")
+	_assert(SectorBlueprintSchemaScript.validate(result["blueprint"])["outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "validation failure carries a schema-valid fallback blueprint")
+	_assert(result["blueprint"]["sector_id"] == "sector-bad-kind", "validation fallback preserves the requested sector id")
 
 	await _teardown(generator, fake_server)
 
@@ -102,7 +105,10 @@ func test_transport_failure_outcome_is_ready_with_structured_error() -> void:
 
 	var result: Dictionary = generator.get_provisional_result("sector-http-error")
 	_assert(result["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_TRANSPORT_ERROR, "HTTP 500 reaches REQUEST_OUTCOME_TRANSPORT_ERROR")
-	_assert(result["blueprint"] == null, "transport failure carries no blueprint")
+	_assert(result["source"] == SectorBlueprintServiceScript.SOURCE_FALLBACK, "transport failure selects the fallback source")
+	_assert(result["fallback_selected"], "transport failure records fallback selection")
+	_assert(SectorBlueprintSchemaScript.validate(result["blueprint"])["outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "transport failure carries a schema-valid fallback blueprint")
+	_assert(result["blueprint"]["sector_id"] == "sector-http-error", "transport fallback preserves the requested sector id")
 
 	await _teardown(generator, fake_server)
 
