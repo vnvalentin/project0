@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import render_tracker
+from app import delivery_projection, render_delivery, render_tracker
 from tracker import inline_markdown, load_tracker, validate_tracker
 import tracker as tracker_module
 
@@ -28,6 +28,34 @@ def test_tracker_model_extracts_phases_and_queue(tmp_path: Path) -> None:
     assert model["warnings"]
 
 
+def test_delivery_projection_normalizes_issue_native_fields() -> None:
+    model = delivery_projection({"available": True, "issues": [{
+        "number": 12, "title": "Ship view", "url": "https://example.test/12", "state": "open",
+        "labels": ["Slice", "Outcome: playable proof", "Phase: execution", "Blocked: waiting"],
+        "assignees": ["valentin"], "body": "Evidence: test output\nParent feature: #7",
+        "milestone_title": "M1",
+    }]})
+
+    assert model["total"] == 1
+    assert model["rows"][0]["outcome"] == "playable proof"
+    assert model["rows"][0]["phase"] == "execution"
+    assert model["rows"][0]["evidence"] == "test output"
+    assert model["rows"][0]["parent"] == 7
+    assert len(model["blocked"]) == 1
+
+
+def test_delivery_page_shows_source_failure(monkeypatch) -> None:
+    import app
+
+    monkeypatch.setattr(app, "github_issues", lambda: {"available": False, "issues": [], "error": "offline"})
+
+    page = render_delivery()
+
+    assert "Project0 — Delivery" in page
+    assert "GitHub issue feed unavailable: offline" in page
+    assert "Active delivery table" in page
+
+
 def test_tracker_model_reports_missing_source(tmp_path: Path) -> None:
     model = load_tracker(tmp_path)
 
@@ -47,11 +75,12 @@ def test_tracker_page_projects_the_committed_record(monkeypatch) -> None:
     monkeypatch.setattr(app, "REPO", Path.cwd())
     page = render_tracker()
 
-    assert 'Project0 — Tracker' in page
+    assert 'Project0 — Tracker Archive' in page
     assert 'Phase gates' in page
     assert 'Implementation slice acceptance' in page
     assert 'Work queue' in page
     assert 'docs/PROJECT-TRACKER.md' in page
+    assert 'Live delivery: GitHub Issues and Project #2' in page
 
 
 def test_tracker_page_renders_source_warnings(tmp_path: Path, monkeypatch) -> None:
