@@ -5,9 +5,10 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
 
-mkdir -p "$fixture/scripts" "$fixture/docs"
+mkdir -p "$fixture/scripts" "$fixture/docs" "$fixture/dashboard"
 cp -a "$repo_root/docs/." "$fixture/docs/"
 cp "$repo_root/scripts/check_record_sync.sh" "$fixture/scripts/"
+cp "$repo_root/dashboard/tracker.py" "$repo_root/dashboard/tracker_schema.json" "$fixture/dashboard/"
 
 baseline_output="$(cd "$fixture" && bash scripts/check_record_sync.sh 2>&1)"
 grep -q 'record-sync: 0 error(s), 0 warning(s)' <<<"$baseline_output"
