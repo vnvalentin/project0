@@ -142,6 +142,12 @@ Mandatory fields: problem statement, measurable outcome, and child Feature links
 
 <the metric that confirms the Feature is complete>
 
+## 4W Partition and Root-Cause Ordering
+
+<use Who, When, Where, and What to identify distinct problem occurrences or
+seams, then state which Feature-level root cause or dependency determines the
+first Epic to start>
+
 ## Epics (Gaps)
 
 - [ ] <preserved child issue link>
@@ -158,16 +164,15 @@ Mandatory fields: ideal/current condition, measurable component, and child Epic 
 ```markdown
 # <title>
 
-## The 4Ws
+## Problem Seam
 
-- **Who:** <actor or owner>
-- **When:** <time or triggering condition>
-- **Where:** <system or boundary>
-- **What:** <specific root cause or bounded work>
+<the bounded occurrence or problem this Epic owns, distinguished from sibling
+Epics by the Feature's 4W partition>
 
-## Root Cause
+## Feature 4W Cluster
 
-<the underlying reason for the gap>
+<reference to the relevant Feature-level Who/When/Where/What cluster, when
+needed to make the boundary unambiguous>
 
 ## Measurable Metric
 
@@ -182,7 +187,14 @@ Mandatory fields: ideal/current condition, measurable component, and child Epic 
 <mandatory fields that remain unknown, or `Complete`>
 ```
 
-Mandatory fields: all 4Ws, root cause, measurable metric, and child Experiment links.
+Mandatory fields: problem seam, measurable metric, and child Experiment links.
+The parent Feature owns the 4W partition and root-cause ordering; do not require
+every Epic to duplicate those fields.
+
+Epic decomposition is provisional. When migration evidence or a later
+Experiment changes the root cause, eliminates sibling seams, or reveals a new
+seam, update the parent Feature's child links and ordering rather than treating
+the original Epic list as fixed.
 
 #### `tbp:experiment` template
 

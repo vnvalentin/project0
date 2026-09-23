@@ -32,14 +32,31 @@ Features identify the gap. Create an issue labeled `tbp:feature` containing:
 - **Current Condition:** The reality, highlighting the gap.
 - **Measurable Component:** The metric that confirms the feature is complete.
 - **Epics (Gaps):** A markdown task list `- [ ]` linking to child Epic issues.
+- **4W Partition:** Use Who, When, Where, and What to separate the Feature into
+	distinct problem occurrences or seams. A changed actor, process point,
+	boundary, or problem can justify a separate Epic; the 4Ws are decomposition
+	criteria, not a form copied into every Epic.
+- **Root-Cause Ordering:** Identify the Feature-level root cause or dependency
+	that determines which resulting Epic should start first. This sequences child
+	Epics rather than becoming a duplicate field on each one.
 
-## Level 4: Epic (Root Cause & 4Ws)
-Epics capture the specific gaps and root causes. Create an issue labeled `tbp:epic` containing:
+## Level 4: Epic (Bounded Problem Seam)
+An Epic captures one problem seam produced by the Feature's 4W partition. Create
+an issue labeled `tbp:epic` containing:
 - `Parent feature: #<feature>`
-- **The 4Ws:** Who, When, Where, and What (identifying the exact points of occurrence).
-- **Root Cause:** The underlying reason for the gap.
+- **Problem Seam:** The bounded occurrence or problem this Epic owns, including
+	enough context to distinguish it from sibling Epics.
 - **Measurable Metric:** The data point to determine if the root cause is resolved.
 - **Experiments:** A markdown task list `- [ ]` linking to child Experiment issues.
+
+An Epic may reference the relevant Feature-level 4W cluster or local cause when
+useful, but it does not need to repeat all four Ws or restate the Feature's
+sequencing root cause.
+
+Epic decomposition is a working hypothesis. After an Experiment produces
+evidence, revisit the Feature: one solution may collapse several Epics, change
+the ordering or root cause, leave siblings unchanged, or reveal a new seam.
+Update the child Epic set to match the evidence.
 
 ## Level 5: Experiment (Execution & Learning)
 Experiments test the solution for the root cause. This level is optimized for the shortest time to learning. Create an issue labeled `tbp:experiment` containing:

@@ -107,21 +107,30 @@ A Feature names the gap between current and ideal conditions. Create it under a 
 
 Mandatory fields: ideal condition, current condition, measurable component, and child Epic links.
 
-### 4. Epic: Root Cause and 4Ws
+The Feature also owns the decomposition analysis:
 
-An Epic captures the specific root cause or bounded task group. Create it under a Feature with `tbp:epic`:
+- **4W Partition:** Use Who, When, Where, and What to separate the Feature into
+	distinct problem occurrences or seams. A changed actor, process point,
+	boundary, or problem can justify a separate Epic; the 4Ws are decomposition
+	criteria, not a form copied into every Epic.
+- **Root-Cause Ordering:** Identify the Feature-level root cause or dependency
+	that determines which resulting Epic should start first. This sequences child
+	Epics rather than becoming a duplicate field on each one.
+- **Re-evaluation:** Treat the partition as a working hypothesis. After an
+	Experiment produces evidence, revisit the Feature: one solution may collapse
+	several Epics, change the ordering or root cause, leave siblings unchanged,
+	or reveal a new seam. Update the child Epic set to match the evidence.
+
+### 4. Epic: Bounded Problem Seam
+
+An Epic captures one problem seam produced by the Feature's 4W partition. Create
+it under a Feature with `tbp:epic`:
 
 ```markdown
-## The 4Ws
+## Problem Seam
 
-- **Who:** <actor or owner>
-- **When:** <time or triggering condition>
-- **Where:** <system or boundary>
-- **What:** <specific root cause or bounded work>
-
-## Root Cause
-
-<underlying reason for the gap>
+<the bounded occurrence or problem this Epic owns, distinguished from sibling
+Epics by the Feature's 4W partition>
 
 ## Measurable Metric
 
@@ -133,7 +142,10 @@ An Epic captures the specific root cause or bounded task group. Create it under 
 
 ```
 
-Mandatory fields: all four Ws, root cause, measurable metric, and child Experiment links.
+Mandatory fields: problem seam, measurable metric, and child Experiment links.
+An Epic may reference the relevant Feature-level 4W cluster or local cause when
+useful, but it does not need to repeat all four Ws or restate the Feature's
+sequencing root cause.
 
 ### 5. Experiment: Execution and Learning
 
@@ -183,11 +195,21 @@ You operate in one of four distinct phases depending on the user's prompt.
 
 ### Phase 3: Feature Gap Analysis
 
-1. **Goal:** Break a Feature down into Epics (Root Causes).
-2. **Grilling:** Force the user to define the 4Ws (Who, When, Where, What) for the Feature gap. Use the 4Ws to isolate the specific Root Causes (Epics). Ensure each Epic has a measurable metric.
-3. **Execution:** After confirmation, create the Epic issues via `gh`, add `Parent feature: #<feature>` to each Epic, set each Epic's native parent with `gh issue edit <epic> --parent <feature>`, link them to the parent Feature body, re-read every changed issue, and verify labels, sections, textual parent markers, native parent links, child links, 4Ws, metrics, and gap markers.
+1. **Goal:** Break a Feature down into Epics (bounded problem seams).
+2. **Grilling:** Define the Feature's 4Ws (Who, When, Where, What), then use
+	changes in those dimensions to partition the Feature into distinct problem
+	occurrences or seams. A single Who may produce several Epics when they do
+	different things; a When may expose another Epic at a different process
+	point. Identify the Feature-level root cause or dependency that determines
+	the first Epic to start. Ensure each Epic has a distinct boundary and a
+	measurable metric.
+3. **Execution:** After confirmation, create the Epic issues via `gh`, add `Parent feature: #<feature>` to each Epic, set each Epic's native parent with `gh issue edit <epic> --parent <feature>`, link them to the parent Feature body, re-read every changed issue, and verify labels, sections, textual parent markers, native parent links, child links, problem seams, metrics, and gap markers. Keep the 4W partition and root-cause ordering on the parent Feature.
 4. **Transition:** Stop and explicitly ask: *"Should we grill another Feature, or drill down into one of these new Epics?"*
-5. **Completion criterion:** Every approved Epic has verified 4Ws, root cause, measurable metric, child links, textual parent marker, native parent link, and the correct parent Feature body link.
+5. **Completion criterion:** Every currently approved Epic has a verified problem seam,
+   measurable metric, child links, textual parent marker, native parent link,
+   and the correct parent Feature body link; the parent Feature has the 4W
+	partition and root-cause ordering recorded. After evidence, obsolete Epics are
+	retired or merged and newly revealed seams are added before the Feature closes.
 
 ### Phase 4: Epic Execution
 
