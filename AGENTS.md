@@ -79,7 +79,11 @@ Do not create implementation slices or product code while this gate is open.
   `fix/`, `docs/`, `chore/`) from the latest `origin/main` for every change, and
   land it on `main` only through a `--no-ff` merged pull request once the
   validation gate is green (full GUT suite + `check_record_sync.sh` exit 0). The
-  agent completing the change merges when green and deletes the branch. See
+  After every complete logical action, commit the resulting work, push the
+  branch, update or create the pull request, and merge it when the validation
+  gate is green; do not accumulate multiple completed actions in one uncommitted
+  worktree. The agent completing the change merges when green and deletes the
+  branch. See
   [docs/DEVELOPMENT-WORKFLOW.md](docs/DEVELOPMENT-WORKFLOW.md) "Branching and
   pull requests".
 - Shared agent context: at the start of a session, consult

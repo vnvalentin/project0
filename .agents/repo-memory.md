@@ -29,6 +29,10 @@ quick-reference and seed, not a replacement for them.
 - Every change gets its own branch cut from the latest `origin/main`, named
   `type/short-topic` (`slice/NNN-topic`, `fix/topic`, `docs/topic`,
   `chore/topic`). One logical change per branch.
+- After every complete logical action, commit the resulting work, push the
+  branch, update or create the pull request, and merge it when the delivery
+  gate is green. Do not accumulate multiple completed actions in one uncommitted
+  worktree.
 - Land on `main` **only** via a `--no-ff` merged pull request (merge commit; no
   squash, no rebase).
 - Merge gate (green before merge): full GUT suite

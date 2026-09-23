@@ -299,6 +299,10 @@ pull request.
   with small-lot delivery.
 - **No direct commits to `main`.** All history reaches `main` through a pull
   request; never push commits straight to `main`.
+- **Commit each completed action.** After every complete logical action, commit
+   the resulting work, push the branch, update or create the pull request, and
+   merge it when the delivery gate is green. Do not accumulate multiple completed
+   actions in one uncommitted worktree.
 - **Green before merge.** A branch may merge only after its delivery gate is
   green: the focused validation, the full `scripts/run_gut_validation.sh` suite
   (exit 0 with its `build/validation/` artifacts), and
