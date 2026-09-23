@@ -56,3 +56,17 @@ def test_roadmap_view_is_separate_and_keeps_tbp_navigation(monkeypatch):
     assert "Rolling delivery horizons" in page
     assert 'href="/roadmap"' in page
     assert 'href="/tbp">TBP View</a>' in page
+
+
+def test_roadmap_view_labels_expected_issue_for_each_milestone(monkeypatch):
+    issue = {
+        "number": 551,
+        "title": "Feature: Player-triggered JIT world generation and canon re-entry",
+        "url": "https://github.com/vnvalentin/project0/issues/551",
+        "state": "open",
+        "labels": [],
+    }
+    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [issue], "error": ""})
+    page = render_roadmap()
+    assert "Expected issue" in page
+    assert "#551 Feature: Player-triggered JIT world generation and canon re-entry" in page
