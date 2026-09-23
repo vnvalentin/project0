@@ -1210,14 +1210,50 @@ def _tbp_outcomes_satisfied(issue: dict) -> bool:
     return (issue.get("state") or "").lower() == "closed" and (issue.get("createdAt") or "9999") < "2025-01-01"
 
 
+def _tbp_declares_child_breakdown(issue: dict) -> bool:
+    import re
+    labels = {str(x.get("name", x) if isinstance(x, dict) else x) for x in issue.get("labels", [])}
+    section_pattern = (
+        r"Features?" if "tbp:theme" in labels
+        else r"Epics \(Gaps\)" if "tbp:feature" in labels
+        else r"Experiments" if "tbp:epic" in labels
+        else ""
+    )
+    if not section_pattern:
+        return False
+    body = issue.get("body") or ""
+    match = re.search(rf"(?ims)^##\s+{section_pattern}\s*$\n(.*?)(?=^##\s|\Z)", body)
+    return bool(match and re.search(r"(?im)^\s*-\s+\[[ xX]\]\s+.*(?:#\d+|/issues/\d+)", match.group(1)))
+
+
+def _tbp_theme_gap_is_covered(issue: dict) -> bool:
+    import re
+    body = issue.get("body") or ""
+    outcome = re.search(r"(?ims)^##\s+Measurable Outcome\s*$\n(.*?)(?=^##\s|\Z)", body)
+    return bool(outcome and outcome.group(1).strip() and _tbp_declares_child_breakdown(issue))
+
+
+def _tbp_feature_measure_is_covered(issue: dict) -> bool:
+    import re
+    body = issue.get("body") or ""
+    measure = re.search(r"(?ims)^##\s+Measurable (?:Component|Outcome)\s*$\n(.*?)(?=^##\s|\Z)", body)
+    return bool(measure and measure.group(1).strip() and _tbp_declares_child_breakdown(issue))
+
+
 def classify_tbp_state(issue: dict, children: list[dict] | None = None) -> str:
     """Classify one TBP node, applying the recursive child/outcome gate."""
     children = children or []
     child_states = [c.get("tbp_state") or classify_tbp_state(c) for c in children]
     labels = {str(x.get("name", x) if isinstance(x, dict) else x) for x in issue.get("labels", [])}
-    # Features require an Epic child and Epics require an Experiment child.
-    # This structural gate takes precedence over the node's own lifecycle data.
-    if not children and labels & {"tbp:feature", "tbp:epic"}:
+    # Themes require a Feature child, Features require an Epic child, and
+    # Epics require an Experiment child.
+    # A declared canonical child breakdown is sufficient when children are not
+    # available in the current issue feed.
+    if "tbp:theme" in labels and not _tbp_theme_gap_is_covered(issue):
+        return "NEEDS_GRILLING"
+    if "tbp:feature" in labels and not _tbp_feature_measure_is_covered(issue):
+        return "NEEDS_GRILLING"
+    if not children and labels & {"tbp:feature", "tbp:epic"} and not _tbp_declares_child_breakdown(issue):
         return "NEEDS_GRILLING"
     if any(x == "NEEDS_GRILLING" for x in child_states):
         return "NEEDS_GRILLING"
@@ -1330,7 +1366,7 @@ def _tbp_label_tree(issue_feed: dict) -> tuple[list[dict], list[dict]]:
 def render_tbp() -> str:
     """TBP gatekeeper view: the real Hoshin->Theme->Feature->Epic->Experiment
     tree (tbp:* labels + Parent Hoshin/Theme/Feature/Epic body links) plus a
-    pipeline summary of what needs grilling, is ready to pull, or is in
+    pipeline summary of what needs grilling, is ready, or is in
     progress. Falls back to the Goal/Feature/Slice tree only when no tbp:*
     backlog exists yet."""
     buckets: dict[str, list[dict]] = {"NEEDS_GRILLING": [], "READY_TO_PULL": [], "IN_PROGRESS": []}
@@ -1367,14 +1403,14 @@ def render_tbp() -> str:
 
     pipeline_html = (
         _section("Needs grilling", "NEEDS_GRILLING")
-        + _section("Ready to pull", "READY_TO_PULL")
+        + _section("Ready", "READY_TO_PULL")
         + _section("In progress", "IN_PROGRESS")
     )
 
     legend_html = (
         '<div class="tbp-legend">'
         f'<span>{TBP_STATE_ICON["NEEDS_GRILLING"]} Needs grilling</span>'
-        f'<span>{TBP_STATE_ICON["READY_TO_PULL"]} Ready to pull</span>'
+        f'<span>{TBP_STATE_ICON["READY_TO_PULL"]} Ready</span>'
         f'<span>{TBP_STATE_ICON["IN_PROGRESS"]} In progress</span>'
         f'<span>{TBP_STATE_ICON["DONE"]} Done</span>'
         '</div>'
@@ -1384,7 +1420,7 @@ def render_tbp() -> str:
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — TBP View</title>
 <style>{EXEC_CSS}{TBP_CSS}</style></head><body>
 <header>
-  <div><h1>Project0 — TBP View</h1><div class="sub">Grilling gate: what still needs definition, what's ready to pull, what's in flight · {issue_status}</div></div>
+    <div><h1>Project0 — TBP View</h1><div class="sub">Grilling gate: what still needs definition, what's ready, what's in flight · {issue_status}</div></div>
     <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a class="on" href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
