@@ -387,3 +387,5 @@ synchronized `FEATURE-LIST.md`/`PROJECT-TRACKER.md` updates. An edit outside the
 declared scope is an unscoped edit; a session limit, timeout, or validation
 failure leaves the slice `blocked`/`awaiting evidence`. Completion is never
 inferred from files appearing in the tree.
+## Canonical TBP lifecycle gate
+TBP status is recursive across Hoshin → Theme → Feature → Epic → Experiment. A refined item with no active implementation is `READY_TO_PULL`; `IN_PROGRESS` descendants make the parent `IN_PROGRESS`, and any `NEEDS_GRILLING` descendant blocks readiness. `DONE` requires satisfied explicit outcomes and every required descendant done. New/current records must contain a `## Outcomes` section with checklist items (`- [ ]`/`- [x]`) and validation evidence; all must be checked. For compatibility, only closed records created before 2025-01-01 may omit the section. Closed Experiments additionally require a checked `Pass` outcome.

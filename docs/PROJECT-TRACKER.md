@@ -1715,3 +1715,5 @@ once its SDD/BDD/TDD scope is set and a `docs/slices/0NN-*.md` record exists.
   spawn. Still queued, GUI-confirmed: the client login/register/character
   screens replacing `identity_gate.tscn` (spec slice 5, Slice 044), and the
   optional mandatory-auth hard-flip.
+### TBP status mapping
+`NEEDS_GRILLING` = missing/unchecked outcomes or blocked child; `IN_PROGRESS` = active work or child; `READY_TO_PULL` = refined with no active work and no blocking child; `DONE` = checked outcomes plus recursively done children. Experiments require checked `Pass`.
