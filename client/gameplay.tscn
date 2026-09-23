@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3 uid="uid://b0gameplay0001"]
+[gd_scene load_steps=22 format=3 uid="uid://b0gameplay0001"]
 
 [ext_resource type="Script" path="res://client/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://client/connection_status.gd" id="2_constatus"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://client/health_label.gd" id="8_health"]
 [ext_resource type="Script" path="res://client/character_vessel_label.gd" id="9_vessel"]
 [ext_resource type="Script" path="res://client/effective_mechanics_label.gd" id="10_mechanics"]
+[ext_resource type="Script" path="res://client/sector_boundary_overlay.gd" id="11_sector_overlay"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_plane"]
 size = Vector3(100, 0.2, 100)
@@ -106,7 +107,24 @@ surface_material_override/0 = SubResource("StandardMaterial3D_player")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
 shape = SubResource("CapsuleShape3D_player")
 
+[node name="SectorBoundaryOverlay" type="Node3D" parent="."]
+script = ExtResource("11_sector_overlay")
+
 [node name="UI" type="CanvasLayer" parent="."]
+
+[node name="SectorBoundaryLabel" type="Label" parent="UI"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 16.0
+offset_bottom = 70.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+text = "sector-0-0\nunexplored"
+horizontal_alignment = 1
 
 [node name="ConnectionStatus" type="Label" parent="UI"]
 offset_left = 12.0
