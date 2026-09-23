@@ -25,12 +25,83 @@ def test_childless_feature_needs_grilling():
     assert classify_tbp_state({**issue(), "labels": ["tbp:feature"]}) == "NEEDS_GRILLING"
 
 
+def test_childless_theme_needs_grilling():
+    assert classify_tbp_state({**issue(), "labels": ["tbp:theme"]}) == "NEEDS_GRILLING"
+
+
 def test_childless_epic_needs_grilling_even_when_closed():
     assert classify_tbp_state({**issue("closed"), "labels": ["tbp:epic"]}) == "NEEDS_GRILLING"
 
 
+def test_fleshed_out_feature_with_declared_epic_is_not_needs_grilling():
+    feature = {
+        **issue(),
+        "labels": ["tbp:feature"],
+        "body": "## Ideal Condition\nideal\n\n## Current Condition\ncurrent\n\n## Measurable Component\nmetric\n\n## Epics (Gaps)\n- [ ] [Epic: schema](https://github.com/example/project/issues/1)",
+    }
+    assert classify_tbp_state(feature) == "READY_TO_PULL"
+
+
+def test_feature_without_linked_epic_for_its_measurable_measure_needs_grilling():
+    feature = {
+        **issue(),
+        "labels": ["tbp:feature"],
+        "body": "## Ideal Condition\nideal\n\n## Current Condition\ncurrent\n\n## Measurable Component\nmetric\n\n## Epics (Gaps)\n- [ ] define an Epic later",
+    }
+    assert classify_tbp_state(feature) == "NEEDS_GRILLING"
+
+
+def test_feature_without_measurable_measure_needs_grilling_even_with_epic():
+    feature = {
+        **issue(),
+        "labels": ["tbp:feature"],
+        "body": "## Ideal Condition\nideal\n\n## Current Condition\ncurrent\n\n## Epics (Gaps)\n- [ ] [Epic: schema](https://github.com/example/project/issues/1)",
+    }
+    assert classify_tbp_state(feature) == "NEEDS_GRILLING"
+
+
+def test_fleshed_out_theme_with_declared_feature_is_not_needs_grilling():
+    theme = {
+        **issue(),
+        "labels": ["tbp:theme"],
+        "body": "## Problem Statement\nproblem\n\n## Measurable Outcome\noutcome\n\n## Feature\n- [ ] [Feature: flow](https://github.com/example/project/issues/1)",
+    }
+    assert classify_tbp_state(theme) == "READY_TO_PULL"
+
+
+def test_theme_without_linked_feature_for_its_measurable_gap_needs_grilling():
+    theme = {
+        **issue(),
+        "labels": ["tbp:theme"],
+        "body": "## Problem Statement\nproblem\n\n## Measurable Outcome\noutcome\n\n## Features\n- [ ] define a feature later",
+    }
+    assert classify_tbp_state(theme) == "NEEDS_GRILLING"
+
+
+def test_theme_without_measurable_outcome_needs_grilling_even_with_feature():
+    theme = {
+        **issue(),
+        "labels": ["tbp:theme"],
+        "body": "## Problem Statement\nproblem\n\n## Features\n- [ ] [Feature: flow](https://github.com/example/project/issues/1)",
+    }
+    assert classify_tbp_state(theme) == "NEEDS_GRILLING"
+
+
+def test_fleshed_out_epic_with_declared_experiment_is_not_needs_grilling():
+    epic = {
+        **issue(),
+        "labels": ["tbp:epic"],
+        "body": "## The 4Ws\n\n## Root Cause\nroot\n\n## Measurable Metric\nmetric\n\n## Experiments\n- [ ] [Experiment: schema](https://github.com/example/project/issues/1)",
+    }
+    assert classify_tbp_state(epic) == "READY_TO_PULL"
+
+
 def test_feature_and_epic_with_children_keep_child_derived_state():
-    feature = {**issue(), "labels": ["tbp:feature"]}
+    feature = {
+        **issue(),
+        "labels": ["tbp:feature"],
+        "body": "## Measurable Component\nmetric\n\n## Epics (Gaps)\n- [ ] [Epic: schema](https://github.com/example/project/issues/1)",
+    }
     epic = {**issue(), "labels": ["tbp:epic"]}
     child = {**issue(), "tbp_state": "READY_TO_PULL"}
     assert classify_tbp_state(feature, [child]) == "READY_TO_PULL"
