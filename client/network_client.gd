@@ -171,6 +171,10 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
+const SectorNavigationReadinessScript: Script = preload("res://client/sector_navigation_readiness.gd")
+const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
+const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
+signal geometry_assembly_completed(sector_id: String, result: Dictionary)
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 const TelemetryBatchQueueScript: Script = preload("res://client/telemetry_batch_queue.gd")
@@ -216,6 +220,8 @@ var _next_input_sequence: int = 0
 var _own_player_spawn_pending: bool = false
 var _pending_sector_blueprint: Dictionary = {}
 var _latest_sector_blueprint: Dictionary = {}
+var _latest_sector_ingress: Vector3 = Vector3.ZERO
+var _completed_geometry_sectors: Dictionary = {}
 var _pending_monster_spawns: Dictionary = {}
 var _pending_monster_positions: Dictionary = {}
 var _latest_monster_spawns: Dictionary = {}
@@ -981,8 +987,9 @@ func receive_assigned_house(house_id: String) -> void:
 ## the existing FlatPlane/Player/UI stay untouched. An invalid payload renders
 ## nothing (logged), never partial geometry.
 @rpc("authority", "call_remote", "reliable")
-func receive_sector_blueprint(blueprint: Dictionary) -> void:
+func receive_sector_blueprint(blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO) -> void:
 	_latest_sector_blueprint = blueprint.duplicate(true)
+	_latest_sector_ingress = ingress
 	var gameplay_root: Node = get_tree().current_scene
 	if not gameplay_root is Node3D:
 		_pending_sector_blueprint = blueprint.duplicate(true)
@@ -991,7 +998,7 @@ func receive_sector_blueprint(blueprint: Dictionary) -> void:
 	if gameplay_root == null:
 		push_error("NetworkClient: cannot render sector blueprint, no current_scene")
 		return
-	_render_sector_blueprint_into_scene(gameplay_root, blueprint)
+	_render_sector_blueprint_into_scene(gameplay_root, blueprint, ingress)
 
 
 func render_pending_sector_blueprint() -> void:
@@ -1005,15 +1012,25 @@ func render_pending_sector_blueprint() -> void:
 		return
 	_pending_sector_blueprint = {}
 	print("Replaying queued sector blueprint into gameplay scene.")
-	_render_sector_blueprint_into_scene(gameplay_root, blueprint)
+	_render_sector_blueprint_into_scene(gameplay_root, blueprint, _latest_sector_ingress)
 
-
-func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Dictionary) -> void:
+func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO) -> void:
 	var container: Node3D = _get_or_create_sector_geometry_container(gameplay_root)
-	var result: Dictionary = render_sector_blueprint(blueprint, container)
+	var target: Vector3 = _navigation_target(blueprint, ingress)
+	var result: Dictionary = render_sector_blueprint(blueprint, container, ingress, target)
+	var readiness: Node = result.get("readiness_node") as Node
+	if readiness != null:
+		readiness.completed.connect(_on_geometry_assembly_completed.bind(String(blueprint.get("sector_id", ""))))
 	var sector_id: String = String(blueprint.get("sector_id", ""))
 	print("Received sector blueprint (sector_id=%s, outcome=%s, %d tiles, %d structures)." % [sector_id, result["outcome"], result["tile_count"], result["structure_count"]])
 	sector_blueprint_received.emit(sector_id, result["outcome"], result["tile_count"], result["structure_count"])
+
+
+func _on_geometry_assembly_completed(result: Dictionary, sector_id: String) -> void:
+	if _completed_geometry_sectors.has(sector_id):
+		return
+	_completed_geometry_sectors[sector_id] = true
+	geometry_assembly_completed.emit(sector_id, result)
 
 
 ## Public seam (static, testable): re-validates `blueprint` through the shared
@@ -1023,19 +1040,159 @@ func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Diction
 ## parent-injected so it is unit-testable without a live multiplayer peer,
 ## current_scene, or NetworkClient instance. On any non-valid outcome it logs
 ## and renders nothing (fail closed at the client boundary).
-static func render_sector_blueprint(blueprint: Dictionary, parent: Node3D) -> Dictionary:
+static func render_sector_blueprint(blueprint: Dictionary, parent: Node3D, ingress: Vector3 = Vector3.ZERO, target: Vector3 = Vector3.ZERO) -> Dictionary:
 	var validation: Dictionary = SectorBlueprintSchemaScript.validate(blueprint)
 	var outcome: String = validation["outcome"]
 	if outcome != SectorBlueprintSchemaScript.OUTCOME_VALID:
 		push_error("NetworkClient: rejecting sector blueprint (%s: %s); rendering nothing." % [outcome, validation["detail"]])
-		return {"outcome": outcome, "tile_count": 0, "structure_count": 0}
+		return _assembly_result(outcome, 0, 0)
 	var validated: Dictionary = validation["blueprint"]
-	SectorGeometryTranslatorScript.translate(validated, parent)
+	var walkable: Dictionary = _walkable_tiles(validated)
+	var ingress_tile: Vector2 = Vector2(roundf(ingress.x), roundf(ingress.z))
+	var target_tile: Vector2 = Vector2(roundf(target.x), roundf(target.z))
+	if not walkable.has(ingress_tile) or not walkable.has(target_tile):
+		push_warning("NetworkClient: rejecting spatially unsafe sector ingress; selecting deterministic fallback.")
+		var fallback_validation: Dictionary = SectorBlueprintSchemaScript.validate(StartingTownHubFixtureScript.blueprint())
+		if fallback_validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+			push_error("NetworkClient: deterministic fallback failed schema validation; rendering nothing.")
+			return _assembly_result("fallback_unavailable", 0, 0)
+		var fallback_blueprint: Dictionary = fallback_validation["blueprint"]
+		var fallback: Dictionary = _render_validated_blueprint(
+			fallback_blueprint, parent, Vector3.ZERO, Vector3(2.0, 0.0, 0.0)
+		)
+		fallback["outcome"] = "fallback_selected"
+		fallback["fallback_sector_id"] = String(fallback_blueprint.get("sector_id", "starting_town_hub"))
+		return fallback
+	return _render_validated_blueprint(validated, parent, ingress, target)
+
+
+static func _render_validated_blueprint(blueprint: Dictionary, parent: Node3D, ingress: Vector3, target: Vector3) -> Dictionary:
+	var initial_child_count: int = parent.get_child_count()
+	SectorGeometryTranslatorScript.translate(blueprint, parent)
+	var walkable: Dictionary = _walkable_tiles(blueprint)
+	var navigation_region: NavigationRegion3D = _navigation_region(walkable, parent)
+	parent.add_child(navigation_region)
+	var result: Dictionary = _assembly_result(
+		SectorBlueprintSchemaScript.OUTCOME_VALID,
+		(blueprint.get("tiles", []) as Array).size(),
+		(blueprint.get("structures", []) as Array).size()
+	)
+	result["readiness_node"] = _readiness_node(result, navigation_region, ingress, target, parent, initial_child_count)
+	return result
+
+
+static func _navigation_target(blueprint: Dictionary, ingress: Vector3) -> Vector3:
+	var walkable: Dictionary = _walkable_tiles(blueprint)
+	var ingress_tile: Vector2 = Vector2(roundf(ingress.x), roundf(ingress.z))
+	if walkable.has(ingress_tile):
+		var candidates: Array[Vector2] = []
+		for tile: Vector2 in walkable:
+			if tile != ingress_tile:
+				candidates.append(tile)
+		if not candidates.is_empty():
+			candidates.sort_custom(func(left: Vector2, right: Vector2) -> bool:
+				return left.x < right.x or (is_equal_approx(left.x, right.x) and left.y < right.y)
+			)
+			return Vector3(candidates[0].x, ingress.y, candidates[0].y)
+		return ingress
+	return ingress + Vector3(2.0, 0.0, 0.0)
+
+
+static func _assembly_result(outcome: String, tile_count: int, structure_count: int) -> Dictionary:
 	return {
 		"outcome": outcome,
-		"tile_count": (validated.get("tiles", []) as Array).size(),
-		"structure_count": (validated.get("structures", []) as Array).size(),
+		"tile_count": tile_count,
+		"structure_count": structure_count,
+		"navigation_ready": false,
+		"geometry_assembly_completed": false,
+		"completion_count": 0,
+		"path": PackedVector3Array(),
 	}
+
+
+static func _walkable_tiles(blueprint: Dictionary) -> Dictionary:
+	var walkable: Dictionary = {}
+	for tile: Dictionary in blueprint.get("tiles", []):
+		var kind: String = String(tile.get("kind", ""))
+		if not SectorGeometryLookupScript.tile_is_solid(kind):
+			walkable[Vector2(float(tile.get("x", 0)), float(tile.get("y", 0)))] = true
+	return walkable
+
+
+static func _navigation_region(walkable: Dictionary, parent: Node3D) -> NavigationRegion3D:
+	var navigation_mesh: NavigationMesh = NavigationMesh.new()
+	navigation_mesh.cell_size = 0.001
+	var vertices: PackedVector3Array = PackedVector3Array()
+	var polygons: Array[PackedInt32Array] = []
+	for rectangle: Rect2i in _walkable_rectangles(walkable):
+		var offset: int = vertices.size()
+		vertices.append(Vector3(rectangle.position.x - 0.5, 0.05, rectangle.position.y - 0.5))
+		vertices.append(Vector3(rectangle.position.x - 0.5, 0.05, rectangle.end.y + 0.5))
+		vertices.append(Vector3(rectangle.end.x + 0.5, 0.05, rectangle.end.y + 0.5))
+		vertices.append(Vector3(rectangle.end.x + 0.5, 0.05, rectangle.position.y - 0.5))
+		polygons.append(PackedInt32Array([offset, offset + 3, offset + 2, offset + 1]))
+	navigation_mesh.vertices = vertices
+	for polygon: PackedInt32Array in polygons:
+		navigation_mesh.add_polygon(polygon)
+	var region: NavigationRegion3D = NavigationRegion3D.new()
+	region.name = "NavigationRegion"
+	region.navigation_mesh = navigation_mesh
+	return region
+
+
+static func _walkable_rectangles(walkable: Dictionary) -> Array[Rect2i]:
+	var rows: Dictionary = {}
+	for tile: Vector2 in walkable:
+		var y: int = int(tile.y)
+		if not rows.has(y):
+			rows[y] = []
+		(rows[y] as Array).append(int(tile.x))
+
+	var row_keys: Array = rows.keys()
+	row_keys.sort()
+	var active: Dictionary = {}
+	var rectangles: Array[Rect2i] = []
+	var previous_y: int = -1
+	for y_value: int in row_keys:
+		var xs: Array = rows[y_value]
+		xs.sort()
+		var runs: Array[Rect2i] = []
+		var run_start: int = xs[0]
+		var previous_x: int = xs[0]
+		for x_value: int in xs.slice(1):
+			if x_value == previous_x + 1:
+				previous_x = x_value
+				continue
+			runs.append(Rect2i(run_start, y_value, previous_x - run_start + 1, 1))
+			run_start = x_value
+			previous_x = x_value
+		runs.append(Rect2i(run_start, y_value, previous_x - run_start + 1, 1))
+
+		var current_keys: Dictionary = {}
+		for run: Rect2i in runs:
+			var key: String = "%d:%d" % [run.position.x, run.end.x]
+			current_keys[key] = true
+			if active.has(key) and y_value == previous_y + 1:
+				var rectangle: Rect2i = active[key]
+				rectangle.size.y += 1
+				active[key] = rectangle
+			else:
+				active[key] = run
+		for key: String in active.keys():
+			if not current_keys.has(key):
+				rectangles.append(active[key])
+				active.erase(key)
+		previous_y = y_value
+	for rectangle: Rect2i in active.values():
+		rectangles.append(rectangle)
+	return rectangles
+
+
+static func _readiness_node(result: Dictionary, region: NavigationRegion3D, ingress: Vector3, target: Vector3, parent: Node3D, initial_child_count: int) -> Node:
+	var readiness: Node = SectorNavigationReadinessScript.new()
+	readiness.configure(result, region, ingress, target, parent, initial_child_count)
+	parent.add_child(readiness)
+	return readiness
 
 
 func _get_or_create_sector_geometry_container(gameplay_root: Node) -> Node3D:

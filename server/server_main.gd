@@ -194,6 +194,7 @@ var _canon_store: SqliteStore = null
 var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
+var _sector_ingress_positions: Dictionary = {}
 
 ## Slice 162 (telemetry map #282): the dedicated telemetry database and its
 ## per-peer rate limiter. Best-effort, non-fatal: unlike accounts/Canon,
@@ -560,6 +561,7 @@ func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void
 ## gives it an authoritative Player. Previously the body of _on_peer_connected.
 func _admit_peer(peer_id: int) -> void:
 	var network_client: Node = root.get_node("NetworkClient")
+	var start_position: Vector3 = _start_position_for_slot(_player_states.size())
 
 	if _player_states.size() >= MAX_REPLICATED_PEERS:
 		push_error("Rejecting peer %d: already at MAX_REPLICATED_PEERS (%d)" % [peer_id, MAX_REPLICATED_PEERS])
@@ -569,12 +571,11 @@ func _admit_peer(peer_id: int) -> void:
 	# Slice 017: replicate the validated starting town hub to this peer before
 	# spawning any Player, so the world exists before its occupants. All these
 	# RPCs are reliable, so ordering is guaranteed.
-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(_starting_town_hub_blueprint.get("sector_id", ""), _starting_town_hub_blueprint))
+	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(_starting_town_hub_blueprint.get("sector_id", ""), _starting_town_hub_blueprint), start_position)
 	print("Sent starting town hub blueprint to peer %d (sector_id=%s)." % [peer_id, _starting_town_hub_blueprint.get("sector_id", "")])
 
 	network_client.rpc_id(peer_id, "spawn_own_player_representation")
 
-	var start_position: Vector3 = _start_position_for_slot(_player_states.size())
 	var player_state: Node = ServerPlayerStateScript.new()
 	player_state.name = "ServerPlayerState_%d" % peer_id
 	player_state.position_updated.connect(_on_player_state_position_updated)
@@ -746,6 +747,9 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3) -> void:
 	if _provisional_sector_generator == null:
 		return
+	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
+	sector_ingresses[peer_id] = position
+	_sector_ingress_positions[sector_id] = sector_ingresses
 	var prompt: String = "Generate the validated sector blueprint for %s near world position (%0.2f, %0.2f)." % [sector_id, position.x, position.z]
 	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
@@ -765,8 +769,10 @@ func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> voi
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
+	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
 	for peer_id: int in _player_states.keys():
-		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint))
+		var ingress: Vector3 = sector_ingresses.get(peer_id, Vector3.ZERO)
+		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), ingress)
 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
 
 
