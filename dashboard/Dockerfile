@@ -2,6 +2,7 @@ FROM python:3.12-alpine
 WORKDIR /app
 RUN apk add --no-cache git
 COPY app.py /app/app.py
+COPY tracker.py tracker_schema.json /app/
 ENV PROJECT_ROOT=/repo PORT=8080 HOME=/tmp GIT_OPTIONAL_LOCKS=0 PYTHONDONTWRITEBYTECODE=1 APP_FILE=/repo/dashboard/app.py
 EXPOSE 8080
 USER nobody

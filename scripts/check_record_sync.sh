@@ -26,6 +26,12 @@ warns=0
 err()  { printf 'FAIL  %s\n' "$1" >&2; errors=$((errors + 1)); }
 warn() { printf 'WARN  %s\n' "$1" >&2; warns=$((warns + 1)); }
 
+# Structured tracker authority/parity gate. The Markdown file remains a frozen
+# readable archive, but it must continue to import into the dashboard schema.
+if ! python dashboard/tracker.py --validate .; then
+	err "structured tracker schema is out of parity with docs/PROJECT-TRACKER.md"
+fi
+
 for f in "$FEATURE" "$TRACKER" "$REGISTRY"; do
 	[ -f "$f" ] || err "missing record file: $f"
 done
@@ -100,7 +106,19 @@ if [ -n "$next_free" ] && [ "$((10#$next_free))" -le "$max_interactive" ]; then
 fi
 
 # 5) Each slice doc should name an existing feature (warn only).
+declare -A frozen_feature_link_exceptions=(
+	[docs/slices/002-client-connects-to-server.md]=1
+	[docs/slices/003-lan-client-connection.md]=1
+	[docs/slices/009-provisional-sector-generation.md]=1
+	[docs/slices/010-core-mechanics-architecture.md]=1
+	[docs/slices/038-shared-sqlite-persistence-foundation.md]=1
+	[docs/slices/041-dt-006-remaining-smoke-test-gut-migration.md]=1
+)
+for doc in "${!frozen_feature_link_exceptions[@]}"; do
+	[ -f "$doc" ] || err "frozen feature-link exception no longer exists: $doc"
+done
 for doc in "$SLICE_DIR"/[0-9][0-9][0-9]-*.md; do
+	[ -n "${frozen_feature_link_exceptions[$doc]:-}" ] && continue
 	ok=0
 	while IFS= read -r id; do
 		[ -n "$id" ] && has_feature "$id" && ok=1

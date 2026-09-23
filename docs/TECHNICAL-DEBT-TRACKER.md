@@ -1,7 +1,7 @@
 # Project0 Technical Debt Tracker
 
 Status: active
-Last reviewed: 2026-09-16
+Last reviewed: 2026-09-23
 Owner: valentin.vn@gmail.com
 
 ## Rule
@@ -52,6 +52,34 @@ Use one type per item: `Quality`, `Security`, `Infrastructure`, `Architecture`,
    remediation is no longer justified. Only permanent acceptance closes an item.
 
 ## Outstanding Items
+
+### DT-016: Record sync warns on six frozen historical Slice links
+
+- Classification: `Delinquent Debt`
+- Debt type: `Governance`
+- Owner: valentin.vn@gmail.com
+- Date created: 2026-09-23
+- Benefit or reason: No accepted tradeoff. Slice #1020 validation exposed six
+  repeatable warnings where frozen pre-GitHub Slice records name features that
+  are absent from the frozen Feature archive.
+- Impact: Otherwise-green delivery work cannot satisfy the repository's
+  zero-unowned-warning Jidoka gate, even though the affected records are
+  immutable history and `check_record_sync.sh` exits 0.
+- Remediation plan: Explicitly classify only the six known frozen Slice paths
+  at the checker boundary, keep warning on every other missing feature link,
+  and prove both behaviors with a focused regression check.
+- Status: `Resolved`
+- Closure outcome: The checker now classifies only the six immutable historical
+  Slice paths as archive exceptions, fails if an exception path disappears,
+  and continues warning on newly introduced missing feature links.
+- Validation evidence: `bash scripts/test_check_record_sync.sh` passed with
+  baseline clean and a synthetic current invalid record warning; `bash
+  scripts/check_record_sync.sh` passed with 0 errors and 0 warnings; `bash -n
+  scripts/check_record_sync.sh scripts/test_check_record_sync.sh` passed.
+- Phase: Cross-cutting delivery governance
+- Links: [GitHub issue #1022](https://github.com/vnvalentin/project0/issues/1022),
+  [Slice #1020](https://github.com/vnvalentin/project0/issues/1020),
+  [PR #1021](https://github.com/vnvalentin/project0/pull/1021)
 
 ### DT-015: The packaged Windows client logs GDExtension load errors at boot
 

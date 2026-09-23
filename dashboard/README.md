@@ -41,7 +41,10 @@ The page reads GitHub issues from `GITHUB_REPO` (default
 `vnvalentin/project0`) and caches the result for `GITHUB_ISSUE_CACHE_SECONDS`
 (default `300`). The markdown vision remains the local source of truth. If
 GitHub is temporarily unreachable, the page shows a visible source warning
-rather than silently inventing a status.
+rather than silently inventing a status. The `/tracker` page projects the
+versioned `dashboard/tracker_schema.json` contract and imports the frozen
+`docs/PROJECT-TRACKER.md` archive, exposing parity warnings instead of hiding
+missing tracker sections.
 
 ## Host deployment under `/apps/project0/dashboard`
 
