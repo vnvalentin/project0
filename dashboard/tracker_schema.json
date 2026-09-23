@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "authority": "dashboard/tracker_schema.json",
+  "archive": "docs/PROJECT-TRACKER.md",
+  "required_sections": [
+    "Tracking system",
+    "Goal",
+    "Delivery order and parallelization",
+    "Phases",
+    "Implementation slice acceptance",
+    "Work queue"
+  ],
+  "fields": {
+    "phases": ["number", "name", "status", "gate"],
+    "acceptance": ["done", "text"],
+    "delivery": ["order", "parallel_tracks", "dependencies"],
+    "source_health": ["available", "warnings"]
+  }
+}

@@ -13,8 +13,11 @@ date. Do not add new entries to them. Going forward:
   line in its body when it advances a Goal issue.
 - A **Slice** is a GitHub issue labeled `Slice`, with a `Parent feature: #N`
   line in its body when it advances a Feature issue.
-- `docs/PROJECT-TRACKER.md` and `docs/TECHNICAL-DEBT-TRACKER.md` are unaffected
-  by this change and remain live, committed-file records (see the rules below).
+- `docs/PROJECT-TRACKER.md` and `docs/TECHNICAL-DEBT-TRACKER.md` remain
+   committed records (see the rules below). The structured Project Tracker
+   contract in `dashboard/tracker_schema.json` is the dashboard authority;
+   `docs/PROJECT-TRACKER.md` is its frozen, human-readable archive and must
+   remain importable for parity checks.
 
 See [Vision, Goal, Feature, and Slice semantics](DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
 for what a Feature and a Slice issue must each state (the gap they close and
@@ -55,16 +58,18 @@ adherence discipline applies to the two records that remain files.
 5. **Gate before you commit.** Run `scripts/check_record_sync.sh`; it must exit 0
    before any `PROJECT-TRACKER.md`/`TECHNICAL-DEBT-TRACKER.md` commit (and
    belongs in a pre-commit hook).
-6. **The board shows committed truth.** The dashboard renders `PROJECT-TRACKER.md`/
-   `TECHNICAL-DEBT-TRACKER.md` from committed `HEAD` (marking uncommitted record
-   files as in-flight) and renders Feature/Slice status live from the GitHub
-   issues API. Do not "fix" a perceived desync by editing records to match the
-   dashboard — commit the in-flight work (or discard it) so `HEAD` is the truth.
+6. **The board shows committed truth.** The dashboard renders the structured
+   Project Tracker contract, imports its frozen Markdown archive for parity,
+   renders `TECHNICAL-DEBT-TRACKER.md` from committed `HEAD`, and renders
+   Feature/Slice status live from the GitHub issues API. Do not "fix" a
+   perceived desync by editing records to match the dashboard — commit the
+   in-flight work (or discard it) so `HEAD` is the truth.
 
 ## One-line summary
 
 Feature and Slice status live on labeled GitHub issues with `Parent goal`/
 `Parent feature` back-links. `PROJECT-TRACKER.md` and `TECHNICAL-DEBT-TRACKER.md`
-remain committed-file records: do the work, then commit **code + those two
-records + a green `check_record_sync.sh`** as one atomic change, and only the
-integrator touches those two files.
+remain committed-file records, with the Project Tracker Markdown retained as a
+frozen archive of the structured authority: do the work, then commit **code +
+tracker authority/archive + those records + a green `check_record_sync.sh`** as
+one atomic change, and only the integrator touches those files.
