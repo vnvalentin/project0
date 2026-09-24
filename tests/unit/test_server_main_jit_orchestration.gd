@@ -3,6 +3,7 @@ extends GutTest
 const ServerMainScript: Script = preload("res://server/server_main.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
+const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 
 
 class FakeGenerator extends Node:
@@ -12,8 +13,8 @@ class FakeGenerator extends Node:
 	func get_status(_sector_id: String) -> String:
 		return status
 
-	func request_provisional_sector(sector_id: String, _prompt: String, trace: Dictionary) -> String:
-		requests.append({"sector_id": sector_id, "trace": trace.duplicate(true)})
+	func request_provisional_sector(sector_id: String, prompt: String, trace: Dictionary) -> String:
+		requests.append({"sector_id": sector_id, "prompt": prompt, "trace": trace.duplicate(true)})
 		status = "pending"
 		return "correlation-%d" % requests.size()
 
@@ -92,4 +93,31 @@ func test_canon_reentry_is_emitted_by_server_before_client_presentation() -> voi
 	assert_eq(sink.envelopes.size(), 1)
 	assert_eq(sink.envelopes[0]["event_type"], "canon_reentry")
 	assert_eq(sink.envelopes[0]["payload"]["span_id"], reentry_trace["span_id"])
+
+
+func test_boundary_prompt_carries_schema_contract_for_the_requested_sector() -> void:
+	var server: SceneTree = ServerMainScript.new()
+	var generator: FakeGenerator = FakeGenerator.new()
+	server._provisional_sector_generator = generator
+
+	server._request_sector_from_boundary(7, "sector-3-2", Vector3(1320.0, 0.0, 880.0), JitTraceContextScript.root(7, "sector-3-2"))
+
+	assert_eq(generator.requests.size(), 1)
+	var prompt: String = generator.requests[0]["prompt"]
+	assert_true(prompt.contains("\"sector_id\": \"sector-3-2\""), "prompt states the authoritative, request-specific sector_id")
+	assert_true(prompt.contains("\"schema_version\""), "prompt states the required schema_version field")
+	assert_true(prompt.contains("\"origin\": {\"x\": 0, \"y\": 0}"), "prompt states the fixed sector-local origin so a candidate cannot claim a mismatched origin")
+	assert_true(prompt.contains("\"tiles\""), "prompt states the required tiles field")
+	assert_true(prompt.contains("1.."), "prompt requires a non-empty tiles array")
+	for kind: String in SectorBlueprintSchemaScript.SUPPORTED_TILE_KINDS:
+		assert_true(prompt.contains(kind), "prompt allows tile kind '%s'" % kind)
+	var bound: String = str(SectorBlueprintSchemaScript.MAX_COORDINATE_ABS)
+	assert_true(prompt.contains("-%s..%s" % [bound, bound]), "prompt states the coordinate bound of %s" % bound)
+	assert_true(prompt.to_lower().contains("json"), "prompt constrains the model to JSON-only output")
+
+	server._request_sector_from_boundary(9, "sector-5-1", Vector3(2200.0, 0.0, 440.0), JitTraceContextScript.root(9, "sector-5-1"))
+	assert_true(generator.requests[1]["prompt"].contains("\"sector_id\": \"sector-5-1\""), "a different boundary crossing embeds its own authoritative sector_id, not the earlier request's")
+	assert_false(generator.requests[1]["prompt"].contains("sector-3-2"), "a different boundary crossing does not leak the earlier request's sector_id")
+
+	generator.free()
 	server.free()
