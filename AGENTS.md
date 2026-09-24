@@ -36,6 +36,28 @@ another — treats it as authoritative.
 - Runtime or integration validation: `godot --headless --path . <scene.tscn>`
   for a bounded number of frames (e.g. with `--quit-after`), or manual editor
   run for anything requiring visual/input confirmation. Server-container and
+
+## Windows-required work
+
+Any issue or pull request that changes the Windows client, Windows launcher,
+Windows-native code, Windows packaging, or Windows-only tests must carry the
+`platform:windows-required` GitHub label. Treat that label as a hard execution
+boundary:
+
+- The implementation checkout must be created, pulled, and modified on the
+  Windows development machine assigned to the work.
+- Linux machines may inspect the issue, review a remote diff, and coordinate the
+  handoff, but must not pull the Windows-required branch, run its client or
+  Windows tests, build its Windows artifacts, or claim Windows validation.
+- The Windows machine must run the focused Windows tests and the applicable
+  repository validation, recording the command, host, result, and artifact in
+  the governing issue and pull request before merge.
+- A Windows-required change is not merge-ready when its issue lacks the label,
+  its branch was implemented on Linux, or its Windows evidence is missing.
+
+Apply the label when any changed path is under `native/windows_launcher/`, has a
+Windows-only build constraint, changes Windows packaging or installer behavior,
+or changes a client path whose acceptance depends on Windows runtime behavior.
   Ollama/SQLite validation are out of scope until those systems are built.
 
 ## Project boundaries

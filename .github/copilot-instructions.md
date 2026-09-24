@@ -12,6 +12,11 @@ The tool-neutral systems/implementation contract is
 
 Use [TPSA](../docs/tpsa.md) as the core behavior profile for all activities.
 
+For Windows-required work, read and enforce the `Windows-required work` section
+of `AGENTS.md` before touching the branch. A `platform:windows-required` issue
+must be implemented and validated on Windows; Linux may coordinate or review
+remote metadata only and must not pull, run, build, or test that change.
+
 Use GitHub as the active delivery system. The repository records below are
 historical or explanatory context only:
 
