@@ -59,10 +59,9 @@ func _test_prediction_and_reconciliation() -> void:
 	])
 	_assert(_server_process_id != -1, "server process starts")
 
-	var startup_wait_ticks: int = 0
-	while startup_wait_ticks < 60:
+	var startup_deadline_msec: int = Time.get_ticks_msec() + 5000
+	while OS.is_process_running(_server_process_id) and Time.get_ticks_msec() < startup_deadline_msec:
 		await process_frame
-		startup_wait_ticks += 1
 
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
 
@@ -76,7 +75,7 @@ func _test_prediction_and_reconciliation() -> void:
 	current_scene = _gameplay_instance
 	await process_frame
 
-	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.SERVER_PORT)
+	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.resolve_server_port())
 
 	var connect_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while network_client.status != "connected: player spawned" and Time.get_ticks_msec() < connect_deadline_msec:
@@ -126,8 +125,9 @@ func _test_prediction_and_reconciliation() -> void:
 		await physics_frame
 		settle_ticks += 1
 
-	_assert(player._next_sequence > 0, "red Player assigned monotonically increasing sequence numbers to sent input")
-	_assert(player._pending_inputs.size() < player._next_sequence, "the server has acknowledged at least one sent input sequence (fewer pending than sent)")
+	var next_sequence: int = network_client.next_input_sequence()
+	_assert(next_sequence > 0, "red Player assigned monotonically increasing sequence numbers to sent input")
+	_assert(player._pending_inputs.size() < next_sequence, "the server has acknowledged at least one sent input sequence (fewer pending than sent)")
 
 	var predicted_before_correction: Vector3 = player.position
 	_assert(predicted_before_correction.z > 0.5, "red Player's predicted position advanced from held input before any correction")
@@ -142,7 +142,7 @@ func _test_prediction_and_reconciliation() -> void:
 	# snapshot disagreed with the client's prediction" without depending on
 	# real network jitter to produce that condition on demand.
 	var forced_correction: Vector3 = predicted_before_correction + Vector3(20.0, 0.0, 0.0)
-	var correction_sequence: int = player._next_sequence - 1
+	var correction_sequence: int = next_sequence - 1
 	# Assert immediately, with no awaited frame in between: the real server
 	# connection is still live and sends its own genuine (much smaller)
 	# authoritative correction every physics tick, which would otherwise

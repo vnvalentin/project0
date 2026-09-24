@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -43,6 +44,49 @@ def test_delivery_projection_normalizes_issue_native_fields() -> None:
     assert model["rows"][0]["parent"] == 7
     assert model["milestones"] == [{"number": 1, "title": "M1", "state": "open"}]
     assert len(model["blocked"]) == 1
+
+
+def test_github_issue_feed_keeps_issues_beyond_five_pages(monkeypatch) -> None:
+    import app
+
+    class FakeResponse:
+        def __init__(self, payload: list[dict]) -> None:
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(self.payload).encode("utf-8")
+
+    def fake_urlopen(request, timeout: int):
+        assert timeout == 5
+        if "/milestones?" in request.full_url:
+            return FakeResponse([])
+        page = int(request.full_url.rsplit("page=", 1)[1])
+        if page <= 5:
+            return FakeResponse([{"number": page * 100 + offset, "state": "open"} for offset in range(100)])
+        return FakeResponse([{
+            "number": 551,
+            "title": "JIT generation + canon re-entry",
+            "html_url": "https://example.test/551",
+            "state": "open",
+            "labels": [],
+            "assignees": [],
+            "body": "",
+            "updated_at": "",
+        }])
+
+    monkeypatch.setattr(app, "urlopen", fake_urlopen)
+    app._ISSUE_CACHE.update({"at": 0.0, "data": {"available": False}})
+
+    feed = app.github_issues()
+
+    assert feed["available"] is True
+    assert any(issue["number"] == 551 for issue in feed["issues"])
 
 
 def test_delivery_page_shows_source_failure(monkeypatch) -> None:

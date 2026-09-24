@@ -1,10 +1,10 @@
 {
   "terminal.integrated.shellIntegration.enabled": true,
-  "terminal.integrated.defaultProfile.windows": "Git Bash",
+  "terminal.integrated.defaultProfile.windows": "WSL",
   "terminal.integrated.profiles.windows": {
-    "Git Bash": {
-      "path": "C:\\Program Files\\Git\\bin\\bash.exe",
-      "args": ["-l"]
+    "WSL": {
+      "path": "C:\\Windows\\System32\\wsl.exe",
+      "args": ["-d", "Ubuntu-24.04"]
     }
   }
 }

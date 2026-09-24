@@ -12,10 +12,14 @@ The tool-neutral systems/implementation contract is
 
 Use [TPSA](../docs/tpsa.md) as the core behavior profile for all activities.
 
-Use the delivery records together:
+Use GitHub as the active delivery system. The repository records below are
+historical or explanatory context only:
 
-- [Project Tracker](../docs/PROJECT-TRACKER.md) owns phase exit gates and the
-  cross-index for features, liabilities, and slices.
+- GitHub Issues own active Goals, Features, Epics, Experiments, Slices, and
+  Technical Debt, including status, parent links, acceptance evidence, and
+  resolution.
+- GitHub Project `Project0 Delivery` (#2) owns the visible operational fields:
+  Outcome, Phase, Milestone, Status, Evidence, Blocked, owner, and parent.
 - [Feature List](../docs/FEATURE-LIST.md) is a **frozen historical archive**
   (as of 2026-09-20) of capabilities delivered before Features moved to GitHub
   issues. A Feature is now a GitHub issue labeled `Feature`, with
@@ -23,8 +27,7 @@ Use the delivery records together:
   `docs/slices/*.md` and `SLICE-REGISTRY.md` are frozen; a Slice is now a
   GitHub issue labeled `Slice`, with `Parent feature: #N` in its body when it
   advances a Feature issue. See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
-- [Technical Debt Tracker](../docs/TECHNICAL-DEBT-TRACKER.md) owns every
-  liability through resolution, reclassification, or permanent acceptance.
+- [Project Tracker](../docs/PROJECT-TRACKER.md) and [Technical Debt Tracker](../docs/TECHNICAL-DEBT-TRACKER.md) are frozen archives and must not be updated for new active work. Do not use them as status, phase, track, or queue authorities.
 
 ## Implementation ownership
 
@@ -48,25 +51,23 @@ ownership deviation stays auditable.
 
 ## Claude delivery gates
 
-Claude must create or update the slice record, planning ticket, and required
-tracker links before implementation begins, not as deferred cleanup. The
-handoff must explicitly confirm this record-first checkpoint and then verify
-the records still exist after implementation. A slice cannot be reported
-complete when its code or tests pass but its SDD/BDD/TDD, validation evidence,
-review status, and synchronized feature/tracker records are missing.
+Claude must create or update the governing GitHub issue, planning ticket, and
+required parent/project links before implementation begins, not as deferred
+cleanup. The handoff must explicitly confirm this issue-first checkpoint and
+then verify the issue, Project fields, evidence, and linked PR still exist after
+implementation. A slice cannot be reported complete when its code or tests
+pass but its SDD/BDD/TDD, validation evidence, review status, and synchronized
+GitHub records are missing.
 
 If Claude reaches a session limit, timeout, or validation failure, the slice is
 `blocked` or `awaiting evidence`; do not infer completion from files appearing
 in the workspace. A follow-up handoff may repair only the missing checkpoint,
 but must re-read current user-edited tracker files before changing them.
 
-Before implementation, identify the primary phase and slice. Update the
-authoritative feature or debt record and the Project Tracker together whenever
-scope or status changes. Atomically update all 4 sections of `PROJECT-TRACKER.md`
-(set the Phase table entry to `in-progress` when its first slice starts, update
-the Phase work index, record the slice in the Slice index, and check off `[x]`
-work queue items). Do not mark a phase `done` in the phase exit gate table
-until its formal exit gate criteria are complete.
+Before implementation, identify the primary outcome, phase, parent issue, and
+slice. Update the governing GitHub issue and Project fields whenever scope or
+status changes. Assign a milestone only when the work is a committed delivery
+outcome; do not use milestones as a substitute for phase or status fields.
 
 Foundation gate: before implementation, read `../docs/PROJECT-SETUP-CHECKLIST.md`.
 If `../.foundation-incomplete` exists or any active record still contains a

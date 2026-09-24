@@ -1,27 +1,25 @@
-# Project0 Tracker
+# Project0 Tracker Archive
 
-> **Frozen archive:** This Markdown file preserves the human-readable tracker
-> record for history and parity checks. The structured authority is
-> [`dashboard/tracker_schema.json`](../dashboard/tracker_schema.json), projected
-> read-only at `/tracker`.
+> **Frozen archive:** GitHub Issues and the `Project0 Delivery` GitHub Project
+> (#2) are the single active source of truth for delivery work. This file is
+> retained for historical context only. Do not update it for new work, status,
+> phases, tracks, queue items, or milestones. The dashboard `/tracker` route is
+> an archive viewer, not an operational planning surface.
 
 ## Tracking system
 
-This tracker owns phases, phase exit gates, and the cross-index of delivery
-work. It does not duplicate the authoritative detail held by the other records:
+This archive formerly owned phases, phase exit gates, and the cross-index of
+delivery work. It no longer owns active state. The live model is:
 
-- `FEATURE-LIST.md` owns planned, in-progress, and validated product
-  capabilities, including their change history and validation evidence.
-- `TECHNICAL-DEBT-TRACKER.md` owns all liabilities from discovery through
-  remediation, reclassification, or permanent acceptance.
-- `PROJECT-TRACKER.md` maps every feature and debt item to its phase and status,
-  and maps every implementation slice to one primary phase and its linked work.
+- GitHub Issues own active Goals, Features, Epics, Experiments, Slices, and
+  Technical Debt, including their evidence and acceptance criteria.
+- Project #2 owns the visible Outcome, Phase, Milestone, Status, Evidence,
+  Blocked, owner, and parent fields.
+- Native issue state, labels, parent links, milestones, and linked pull
+  requests provide the active hierarchy and proof.
 
-Synchronize the three records. When a feature or debt item's scope or status
-changes, update its entry and the phase work index here at the same time. When
-a slice is added or its completion changes, update the implementation slice
-index here. The detailed item records remain authoritative; this file is a
-navigable cross-reference.
+Do not synchronize active work into this archive. When scope or status changes,
+update the governing GitHub issue and Project item.
 
 Mandatory implementation sync: if the public seam or implementation evidence
 shows a capability is live, the tracker status, feature list status, and debt

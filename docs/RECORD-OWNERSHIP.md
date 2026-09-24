@@ -1,10 +1,7 @@
-# Record Ownership Rule (draft)
+# Record Ownership Rule
+Status: **accepted**. GitHub is the single active source of truth.
 
-Status: **draft** for review. Fold into [AGENTS.md](AGENTS.md) and
-[DEVELOPMENT-WORKFLOW.md](DEVELOPMENT-WORKFLOW.md) once accepted.
-
-## 2026-09-20: Features and Slices moved to GitHub issues
-
+## 2026-09-23: All active delivery moved to GitHub
 `FEATURE-LIST.md` and `docs/slices/*.md` (including `SLICE-REGISTRY.md`) are now a
 **frozen historical archive** — the record of everything delivered before this
 date. Do not add new entries to them. Going forward:
@@ -13,11 +10,10 @@ date. Do not add new entries to them. Going forward:
   line in its body when it advances a Goal issue.
 - A **Slice** is a GitHub issue labeled `Slice`, with a `Parent feature: #N`
   line in its body when it advances a Feature issue.
-- `docs/PROJECT-TRACKER.md` and `docs/TECHNICAL-DEBT-TRACKER.md` remain
-   committed records (see the rules below). The structured Project Tracker
-   contract in `dashboard/tracker_schema.json` is the dashboard authority;
-   `docs/PROJECT-TRACKER.md` is its frozen, human-readable archive and must
-   remain importable for parity checks.
+- `docs/PROJECT-TRACKER.md`, `docs/TECHNICAL-DEBT-TRACKER.md`, and the other
+   Markdown records are frozen historical or explanatory archives.
+- GitHub Project `Project0 Delivery` (#2) owns the visible operational fields:
+   Outcome, Phase, Milestone, Status, Evidence, Blocked, owner, and parent.
 
 See [Vision, Goal, Feature, and Slice semantics](DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
 for what a Feature and a Slice issue must each state (the gap they close and
@@ -25,51 +21,32 @@ the root cause they resolve) before creating one.
 
 ## Why this exists
 
-The delivery records — historically `FEATURE-LIST.md`,
-[PROJECT-TRACKER.md](PROJECT-TRACKER.md),
-[TECHNICAL-DEBT-TRACKER.md](TECHNICAL-DEBT-TRACKER.md), and
-`slices/SLICE-REGISTRY.md` — drift out of calibration whenever more than one
-worker edits them at once from divergent bases, or when a record change is left
-uncommitted while the code it describes lands separately. The Flow Dashboard
-reads these records, so every partial state is visible. The process is already
-defined; the failures are adherence failures. These rules make adherence
-mechanical. Feature/Slice status now lives on GitHub issues instead, which
-removes the number-allocation race for those two record types, but the same
-adherence discipline applies to the two records that remain files.
+The former file records drifted whenever work and status were changed in
+different places. Keeping a live tracker beside GitHub made the source of truth
+ambiguous. Issue bodies, native issue state, labels, parent links, Project
+fields, milestones, and linked evidence are canonical; repository Markdown is
+context only.
 
 ## Rules
 
-1. **Records land with their code.** The `PROJECT-TRACKER.md`/
-   `TECHNICAL-DEBT-TRACKER.md` edits for a slice and the code they describe go
-   in the **same commit**. Never leave a record file dirty in the working tree
-   across sessions — a half-updated record is the drift.
-2. **One integrator owns record commits.** Exactly one role writes and commits
-   `PROJECT-TRACKER.md` and `TECHNICAL-DEBT-TRACKER.md`. Others hand the
-   integrator a status delta; they do not edit these files directly. Feature and
-   Slice issues may be created/edited by whoever is doing the work, since
-   GitHub issue numbers do not collide the way file-based numbering did.
-3. **Parallel autonomous workers stay in their lane.** A long-running
-   `claude -p` loop never edits `PROJECT-TRACKER.md` or
-   `TECHNICAL-DEBT-TRACKER.md` directly; it hands the integrator a status delta.
-4. **Link parent before you create.** When opening a new Slice issue, add
+1. **Issue first.** Create or identify the governing GitHub issue before code.
+   Put the current condition, target outcome, exit criteria, non-goals,
+   evidence, and parent link in the issue body.
+2. **Project visible.** Add active issues to Project #2 and populate Outcome,
+   Phase, Status, Evidence, Blocked, owner, and Parent. Assign a Milestone only
+   for committed delivery work.
+3. **Link parent before you create.** When opening a new Slice issue, add
    `Parent feature: #N` in its body; when opening a new Feature issue, add
    `Parent goal: #N` in its body. Never renumber or relabel a shipped issue's
    identity — status lives in the issue's state/labels, not a renamed title.
-5. **Gate before you commit.** Run `scripts/check_record_sync.sh`; it must exit 0
-   before any `PROJECT-TRACKER.md`/`TECHNICAL-DEBT-TRACKER.md` commit (and
-   belongs in a pre-commit hook).
-6. **The board shows committed truth.** The dashboard renders the structured
-   Project Tracker contract, imports its frozen Markdown archive for parity,
-   renders `TECHNICAL-DEBT-TRACKER.md` from committed `HEAD`, and renders
-   Feature/Slice status live from the GitHub issues API. Do not "fix" a
-   perceived desync by editing records to match the dashboard — commit the
-   in-flight work (or discard it) so `HEAD` is the truth.
+5. **Validate the active system.** Run focused tests and the full validation
+   suite. `scripts/check_record_sync.sh` checks historical links and issue
+   traceability; it does not require tracker status parity.
 
 ## One-line summary
 
-Feature and Slice status live on labeled GitHub issues with `Parent goal`/
-`Parent feature` back-links. `PROJECT-TRACKER.md` and `TECHNICAL-DEBT-TRACKER.md`
-remain committed-file records, with the Project Tracker Markdown retained as a
-frozen archive of the structured authority: do the work, then commit **code +
-tracker authority/archive + those records + a green `check_record_sync.sh`** as
-one atomic change, and only the integrator touches those files.
+GitHub Issues and Project #2 are the single active delivery system. Milestones
+state when a committed outcome is due; Outcome and Phase state why and in what
+dependency order; parent links state hierarchy; Evidence and linked PRs prove
+completion. Repository records remain frozen context and are never a second
+status system.
