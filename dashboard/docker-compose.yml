@@ -11,6 +11,7 @@ services:
       - ${DASHBOARD_REPO_SOURCE:-./repo}:/repo:ro
     environment:
       GITHUB_REPO: ${GITHUB_REPO:-vnvalentin/project0}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-300}
       APP_FILE: /repo/dashboard/app.py
     read_only: true
