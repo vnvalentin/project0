@@ -6,5 +6,14 @@
       "path": "C:\\Windows\\System32\\wsl.exe",
       "args": ["-d", "Ubuntu-24.04"]
     }
+  },
+  "[linux]": {
+    "go.goroot": "/opt/go1.23/go",
+    "go.alternateTools": {
+      "go": "/opt/go1.23/go/bin/go"
+    },
+    "terminal.integrated.env.linux": {
+      "PATH": "/opt/go1.23/go/bin:${env:PATH}"
+    }
   }
 }
