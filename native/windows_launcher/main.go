@@ -46,17 +46,35 @@ func main() {
 	if err := seedPayloadFromPackage(payloadDirectory); err != nil {
 		fail(err)
 	}
+	configPath, err := launcherConfigPath()
+	if err != nil {
+		fail(err)
+	}
+	config, err := loadLauncherConfig(configPath)
+	if err != nil {
+		fail(err)
+	}
+	updatedConfig, changed, err := applyLauncherModeArgs(config, os.Args[1:])
+	if err != nil {
+		fail(err)
+	}
+	if changed {
+		config = updatedConfig
+		if err := saveLauncherConfig(configPath, config); err != nil {
+			fail(err)
+		}
+	}
+	request, err := buildLaunchRequest(config, forwardedArgs(os.Args[1:]), os.Environ())
+	if err != nil {
+		fail(err)
+	}
 
 	rejectionPath := filepath.Join(payloadDirectory, "update-rejection.json")
 	_ = os.Remove(rejectionPath)
-	command := exec.Command(filepath.Join(payloadDirectory, "Project0.exe"), forwardedArgs(os.Args[1:])...)
+	command := exec.Command(filepath.Join(payloadDirectory, "Project0.exe"), request.Args...)
 	command.Dir = payloadDirectory
-	clientEnv := filteredEnvironment()
-	clientEnv = append(clientEnv,
-		"PROJECT0_CLIENT_HTTPS_LOGIN=1",
-		"PROJECT0_ENROLLMENT_URL="+publicEnrollmentURL,
-		"PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath,
-	)
+	clientEnv := environmentList(request.Env)
+	clientEnv = append(clientEnv, "PROJECT0_ENROLLMENT_URL="+publicEnrollmentURL, "PROJECT0_UPDATE_REJECTION_PATH="+rejectionPath)
 	command.Env = clientEnv
 	command.Stdout = nil
 	command.Stderr = nil
@@ -260,7 +278,7 @@ func parseUpdaterArgs(args []string) map[string]string {
 func forwardedArgs(args []string) []string {
 	forwarded := make([]string, 0, len(args))
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "--invite-code=") {
+		if strings.HasPrefix(arg, "--invite-code=") || arg == lanModeArg || arg == wanModeArg || strings.HasPrefix(arg, lanHostArgPrefix) {
 			continue
 		}
 		forwarded = append(forwarded, arg)
