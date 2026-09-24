@@ -12,6 +12,14 @@ if [[ -z "$DASHBOARD_RESULTS_DIR" && -d "/apps/project0/dashboard/repo" ]]; then
   DASHBOARD_RESULTS_DIR="/apps/project0/dashboard/repo/build/validation"
 fi
 
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    echo "VALIDATION GATE ERROR: GUT validates the Linux-only Godot server and must not run on Windows." >&2
+    echo "Use: scripts/run_windows_launcher_validation.ps1" >&2
+    exit 2
+    ;;
+esac
+
 mkdir -p "$RESULT_DIR"
 
 if ! command -v timeout >/dev/null 2>&1; then

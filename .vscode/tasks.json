@@ -41,7 +41,7 @@
 		},
 		{
 			"label": "Validation: GUT (Git Bash)",
-			"type": "shell",
+			"type": "process",
 			"command": "C:\\Program Files\\Git\\bin\\bash.exe",
 			"args": [
 				"-lc",
@@ -54,8 +54,27 @@
 			}
 		},
 		{
+			"label": "Validation: Windows Launcher",
+			"type": "process",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\run_windows_launcher_validation.ps1"
+			],
+			"problemMatcher": [
+				"$go"
+			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
 			"label": "Validation: Record Sync (Git Bash)",
-			"type": "shell",
+			"type": "process",
 			"command": "C:\\Program Files\\Git\\bin\\bash.exe",
 			"args": [
 				"-lc",
