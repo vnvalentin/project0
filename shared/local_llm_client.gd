@@ -113,6 +113,7 @@ func generate_json(prompt: String) -> Dictionary:
 		"model": model_name,
 		"prompt": prompt,
 		"format": "json",
+		"think": false,
 		"stream": false,
 	}
 	var body: String = JSON.stringify(body_dict)
