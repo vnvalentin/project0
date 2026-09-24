@@ -174,6 +174,7 @@ const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geom
 const SectorNavigationReadinessScript: Script = preload("res://client/sector_navigation_readiness.gd")
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
+const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
 signal geometry_assembly_completed(sector_id: String, result: Dictionary)
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
@@ -1018,8 +1019,7 @@ func render_pending_sector_blueprint() -> void:
 
 func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO, trace: Dictionary = {}) -> void:
 	var container: Node3D = _get_or_create_sector_geometry_container(gameplay_root)
-	var target: Vector3 = _navigation_target(blueprint, ingress)
-	var result: Dictionary = render_sector_blueprint(blueprint, container, ingress, target)
+	var result: Dictionary = present_sector_blueprint(blueprint, container, ingress)
 	var readiness: Node = result.get("readiness_node") as Node
 	if readiness != null:
 		readiness.completed.connect(_on_geometry_assembly_completed.bind(String(blueprint.get("sector_id", "")), trace))
@@ -1076,6 +1076,61 @@ static func render_sector_blueprint(blueprint: Dictionary, parent: Node3D, ingre
 		fallback["fallback_sector_id"] = String(fallback_blueprint.get("sector_id", "starting_town_hub"))
 		return fallback
 	return _render_validated_blueprint(validated, parent, ingress, target)
+
+
+static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, ingress: Vector3 = Vector3.ZERO) -> Dictionary:
+	var validation: Dictionary = SectorBlueprintSchemaScript.validate(blueprint)
+	if validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		return _assembly_result(String(validation["outcome"]), 0, 0)
+	var sector_id: String = String(blueprint["sector_id"])
+	var coordinate_result: Dictionary = _sector_coordinate(sector_id)
+	if coordinate_result["outcome"] != "valid":
+		push_error("NetworkClient: rejecting malformed sector identity %s; rendering nothing." % sector_id)
+		return _assembly_result("invalid_sector_id", 0, 0)
+	var coordinate: Vector2i = coordinate_result["coordinate"]
+	var offset: Vector3 = Vector3(
+		coordinate.x * WorldScaleScript.SECTOR_EDGE_UNITS,
+		0.0,
+		coordinate.y * WorldScaleScript.SECTOR_EDGE_UNITS
+	)
+	var local_ingress: Vector3 = ingress - offset
+	var root: Node3D = Node3D.new()
+	root.name = "%s_pending" % sector_id
+	root.position = offset
+	registry.add_child(root)
+	var result: Dictionary = render_sector_blueprint(
+		blueprint,
+		root,
+		local_ingress,
+		_navigation_target(blueprint, local_ingress)
+	)
+	if result["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		registry.remove_child(root)
+		root.free()
+		return result
+	var existing: Node = registry.get_node_or_null(sector_id)
+	if existing != null:
+		registry.remove_child(existing)
+		existing.free()
+	root.name = sector_id
+	result["sector_coordinate"] = coordinate
+	result["world_offset"] = offset
+	return result
+
+
+static func _sector_coordinate(sector_id: String) -> Dictionary:
+	if sector_id == "starting_town_hub":
+		return {"outcome": "valid", "coordinate": Vector2i.ZERO}
+	var expression: RegEx = RegEx.new()
+	if expression.compile("^sector-(-?[0-9]+)-(-?[0-9]+)$") != OK:
+		return {"outcome": "invalid"}
+	var match_result: RegExMatch = expression.search(sector_id)
+	if match_result == null:
+		return {"outcome": "invalid"}
+	return {
+		"outcome": "valid",
+		"coordinate": Vector2i(int(match_result.get_string(1)), int(match_result.get_string(2))),
+	}
 
 
 static func _render_validated_blueprint(blueprint: Dictionary, parent: Node3D, ingress: Vector3, target: Vector3) -> Dictionary:

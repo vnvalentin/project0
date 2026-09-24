@@ -13,6 +13,77 @@ const StartingTownHubFixtureScript: Script = preload("res://server/starting_town
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const TRACE_PATH: String = "res://build/validation/issue-1001-geometry-assembly-trace.json"
 const MATRIX_TRACE_PATH: String = "res://build/validation/issue-1001-blueprint-matrix.json"
+const PLACEMENT_TRACE_PATH: String = "res://build/validation/issue-1077-sector-placement.json"
+
+
+func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
+	var registry: Node3D = add_child_autofree(Node3D.new())
+	var cases: Array[Dictionary] = [
+		{"sector_id": "sector-1-0", "coordinate": Vector2i(1, 0)},
+		{"sector_id": "sector--1-0", "coordinate": Vector2i(-1, 0)},
+		{"sector_id": "sector-1--1", "coordinate": Vector2i(1, -1)},
+	]
+	var evidence: Array[Dictionary] = []
+	for placement_case: Dictionary in cases:
+		var sector_id: String = placement_case["sector_id"]
+		var coordinate: Vector2i = placement_case["coordinate"]
+		var result: Dictionary = NetworkClientScript.present_sector_blueprint(
+			_placement_blueprint(sector_id), registry, Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
+		)
+		var root: Node3D = registry.get_node_or_null(sector_id) as Node3D
+		var expected_offset: Vector3 = Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
+		assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "%s is accepted" % sector_id)
+		assert_not_null(root, "%s owns a keyed root" % sector_id)
+		assert_eq(root.position, expected_offset, "%s uses its signed global offset" % sector_id)
+		assert_ne(root.position, Vector3(7.0, 0.0, -4.0), "blueprint origin remains sector-local")
+		evidence.append({
+			"sector_id": sector_id,
+			"parsed_coordinate": {"x": coordinate.x, "z": coordinate.y},
+			"expected_offset": _vector_evidence(expected_offset),
+			"actual_offset": _vector_evidence(root.position),
+		})
+
+	assert_eq(registry.get_child_count(), 3, "all three sectors coexist with one root each")
+	var untouched_root: Node3D = registry.get_node("sector--1-0") as Node3D
+	var untouched_transform: Transform3D = untouched_root.transform
+	var replaced_root: Node3D = registry.get_node("sector-1-0") as Node3D
+	var replay_blueprint: Dictionary = _placement_blueprint("sector-1-0")
+	(replay_blueprint["tiles"] as Array).append({"x": 2, "y": 0, "kind": "floor"})
+	var replay: Dictionary = NetworkClientScript.present_sector_blueprint(
+		replay_blueprint, registry, Vector3(440.0, 0.0, 0.0)
+	)
+	var replayed_root: Node3D = registry.get_node("sector-1-0") as Node3D
+	assert_eq(replay["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "replay is accepted")
+	assert_eq(registry.get_child_count(), 3, "replay does not duplicate a sector root")
+	assert_ne(replayed_root, replaced_root, "replay replaces the matching sector root")
+	assert_eq(untouched_root.transform, untouched_transform, "replay does not move another sector")
+
+	var invalid: Dictionary = NetworkClientScript.present_sector_blueprint(
+		_placement_blueprint("sector-east-0"), registry, Vector3.ZERO
+	)
+	assert_eq(invalid["outcome"], "invalid_sector_id", "malformed sector identity fails closed")
+	assert_eq(registry.get_child_count(), 3, "malformed identity creates no root")
+
+	var trace_file: FileAccess = FileAccess.open(PLACEMENT_TRACE_PATH, FileAccess.WRITE)
+	if trace_file != null:
+		trace_file.store_string(JSON.stringify({
+			"experiment": "1077",
+			"sectors": evidence,
+			"root_count": registry.get_child_count(),
+			"replay_replacement_count": 1,
+		}, "\t"))
+		trace_file.close()
+
+
+func test_starting_town_hub_keeps_its_world_origin_root() -> void:
+	var registry: Node3D = add_child_autofree(Node3D.new())
+	var result: Dictionary = NetworkClientScript.present_sector_blueprint(
+		StartingTownHubFixtureScript.blueprint(), registry, Vector3.ZERO
+	)
+	var root: Node3D = registry.get_node_or_null("starting_town_hub") as Node3D
+	assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID)
+	assert_not_null(root, "the shipped starting town retains a keyed presentation root")
+	assert_eq(root.position, Vector3.ZERO, "the starting town remains at world origin")
 
 
 func test_valid_hub_blueprint_renders_merged_geometry_and_all_structures() -> void:
@@ -219,3 +290,20 @@ func _island_tiles(start: int) -> Array:
 		{"x": start, "y": start, "kind": "floor"},
 		{"x": start + 1, "y": start, "kind": "floor"},
 	]
+
+
+func _placement_blueprint(sector_id: String) -> Dictionary:
+	return {
+		"schema_version": 2,
+		"sector_id": sector_id,
+		"origin": {"x": 7, "y": -4},
+		"tiles": [
+			{"x": 0, "y": 0, "kind": "floor"},
+			{"x": 1, "y": 0, "kind": "floor"},
+		],
+		"structures": [],
+	}
+
+
+func _vector_evidence(value: Vector3) -> Dictionary:
+	return {"x": value.x, "y": value.y, "z": value.z}
