@@ -170,6 +170,7 @@ const NakamaScript: Script = preload("res://addons/com.heroiclabs.nakama/Nakama.
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
+const SectorIdentityScript: Script = preload("res://shared/sector_identity.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 const SectorNavigationReadinessScript: Script = preload("res://client/sector_navigation_readiness.gd")
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
@@ -1083,7 +1084,7 @@ static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, in
 	if validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
 		return _assembly_result(String(validation["outcome"]), 0, 0)
 	var sector_id: String = String(blueprint["sector_id"])
-	var coordinate_result: Dictionary = _sector_coordinate(sector_id)
+	var coordinate_result: Dictionary = SectorIdentityScript.parse(sector_id)
 	if coordinate_result["outcome"] != "valid":
 		push_error("NetworkClient: rejecting malformed sector identity %s; rendering nothing." % sector_id)
 		return _assembly_result("invalid_sector_id", 0, 0)
@@ -1116,22 +1117,6 @@ static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, in
 	result["sector_coordinate"] = coordinate
 	result["world_offset"] = offset
 	return result
-
-
-static func _sector_coordinate(sector_id: String) -> Dictionary:
-	if sector_id == "starting_town_hub":
-		return {"outcome": "valid", "coordinate": Vector2i.ZERO}
-	var expression: RegEx = RegEx.new()
-	if expression.compile("^sector-(-?[0-9]+)-(-?[0-9]+)$") != OK:
-		return {"outcome": "invalid"}
-	var match_result: RegExMatch = expression.search(sector_id)
-	if match_result == null:
-		return {"outcome": "invalid"}
-	return {
-		"outcome": "valid",
-		"coordinate": Vector2i(int(match_result.get_string(1)), int(match_result.get_string(2))),
-	}
-
 
 static func _render_validated_blueprint(blueprint: Dictionary, parent: Node3D, ingress: Vector3, target: Vector3) -> Dictionary:
 	var initial_child_count: int = parent.get_child_count()

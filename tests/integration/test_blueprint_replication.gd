@@ -11,6 +11,7 @@ extends GutTest
 const NetworkClientScript: Script = preload("res://client/network_client.gd")
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
+const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
 const TRACE_PATH: String = "res://build/validation/issue-1001-geometry-assembly-trace.json"
 const MATRIX_TRACE_PATH: String = "res://build/validation/issue-1001-blueprint-matrix.json"
 const PLACEMENT_TRACE_PATH: String = "res://build/validation/issue-1077-sector-placement.json"
@@ -30,10 +31,20 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 		var coordinate: Vector2i = placement_case["coordinate"]
 		var blueprint: Dictionary = _placement_blueprint(sector_id)
 		var result: Dictionary = NetworkClientScript.present_sector_blueprint(
-			blueprint, registry, Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
+			blueprint,
+			registry,
+			Vector3(
+				coordinate.x * WorldScaleScript.SECTOR_EDGE_UNITS,
+				0.0,
+				coordinate.y * WorldScaleScript.SECTOR_EDGE_UNITS
+			)
 		)
 		var root: Node3D = registry.get_node_or_null(sector_id) as Node3D
-		var expected_offset: Vector3 = Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
+		var expected_offset: Vector3 = Vector3(
+			coordinate.x * WorldScaleScript.SECTOR_EDGE_UNITS,
+			0.0,
+			coordinate.y * WorldScaleScript.SECTOR_EDGE_UNITS
+		)
 		assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "%s is accepted" % sector_id)
 		assert_true(result.has("sector_coordinate"), "%s returns its parsed coordinate" % sector_id)
 		assert_not_null(root, "%s owns a keyed root" % sector_id)
@@ -64,7 +75,7 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 	var replay_blueprint: Dictionary = _placement_blueprint("sector-1-0")
 	(replay_blueprint["tiles"] as Array).append({"x": 2, "y": 0, "kind": "floor"})
 	var replay: Dictionary = NetworkClientScript.present_sector_blueprint(
-		replay_blueprint, registry, Vector3(440.0, 0.0, 0.0)
+		replay_blueprint, registry, Vector3(WorldScaleScript.SECTOR_EDGE_UNITS, 0.0, 0.0)
 	)
 	var replayed_root: Node3D = registry.get_node("sector-1-0") as Node3D
 	var identities_after_replay: Dictionary = _root_identities(registry)
@@ -78,7 +89,11 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 	assert_eq(identities_after_replay.keys().size(), identities_before_replay.keys().size(), "replay keeps the same keyed roots")
 	assert_ne(replayed_root, replaced_root, "replay replaces the matching sector root")
 	assert_eq(replay_replacement_count, 1, "replay replaces exactly one observed root identity")
-	var replay_floor_vertices: int = _assert_tile_geometry_under_root(replayed_root, Vector3(440.0, 0.0, 0.0), "sector-1-0 replay")
+	var replay_floor_vertices: int = _assert_tile_geometry_under_root(
+		replayed_root,
+		Vector3(WorldScaleScript.SECTOR_EDGE_UNITS, 0.0, 0.0),
+		"sector-1-0 replay"
+	)
 	assert_eq(
 		replay_floor_vertices,
 		floor_vertices_per_tile * int(replay["tile_count"]),
