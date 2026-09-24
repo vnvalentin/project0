@@ -57,6 +57,15 @@ func test_validator_outcomes() -> void:
 	_assert(non_object_result["outcome"] == SectorBlueprintSchemaScript.OUTCOME_MALFORMED_JSON, "a bare string validates as OUTCOME_MALFORMED_JSON")
 
 
+func test_validator_accepts_representative_boundary_prompt_candidate() -> void:
+	var candidate: Dictionary = JSON.parse_string(FixturesScript.VALID)
+	candidate["schema_version"] = 3
+	candidate["sector_id"] = "sector-3-2"
+	var result: Dictionary = SectorBlueprintSchemaScript.validate_generated(candidate)
+	_assert(result["outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "a candidate shaped like the boundary prompt's contract passes the unchanged validator")
+	_assert(result["blueprint"]["sector_id"] == "sector-3-2", "the accepted blueprint retains the requested sector's own id")
+
+
 func _make_service(fake_port: int) -> Node:
 	var service: Node = SectorBlueprintServiceScript.new()
 	service.ollama_host = "http://127.0.0.1:%d" % fake_port

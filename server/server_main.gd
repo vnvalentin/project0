@@ -83,6 +83,7 @@ const HEALTH_REFRESH_FRAMES: int = 30
 # by the game server and the standalone login process.
 const TownLayoutProviderScript: Script = preload("res://server/town_layout_provider.gd")
 const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
+const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 
 ## Slice 040: the accounts/characters database file, opened at server boot
 ## under user:// (never a shipped res:// asset — see SqliteStore's own rule).
@@ -766,9 +767,27 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 		_jit_root_trace_by_sector[sector_id] = trace.duplicate(true)
 		_emit_jit_trace(trace, peer_id)
 	var initiating_trace: Dictionary = _jit_root_trace_by_sector.get(sector_id, trace)
-	var prompt: String = "Generate the validated sector blueprint for %s near world position (%0.2f, %0.2f)." % [sector_id, position.x, position.z]
+	var prompt: String = _sector_generation_prompt(sector_id)
 	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, initiating_trace)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
+
+
+## Gives the model the bounded candidate shape; the schema gate remains the
+## authority for accepting generated content.
+static func _sector_generation_prompt(sector_id: String) -> String:
+	var bound: int = SectorBlueprintSchemaScript.MAX_COORDINATE_ABS
+	return "\n".join([
+		"Return ONLY one JSON object (no prose, no thinking) describing a sector blueprint.",
+		"Required shape:",
+		"- \"schema_version\": 3",
+		"- \"sector_id\": \"%s\"" % sector_id,
+		"- \"origin\": {\"x\": 0, \"y\": 0}",
+		"- \"tiles\": 1..%d entries of {\"x\": int, \"y\": int, \"kind\": string}; x and y within -%d..%d;" % [
+			SectorBlueprintSchemaScript.MAX_TILE_COUNT, bound, bound,
+		],
+		"  kind is one of %s." % ", ".join(SectorBlueprintSchemaScript.SUPPORTED_TILE_KINDS),
+		"Output valid JSON only.",
+	])
 
 
 func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
