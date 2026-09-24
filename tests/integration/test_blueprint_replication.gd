@@ -24,38 +24,66 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 		{"sector_id": "sector-1--1", "coordinate": Vector2i(1, -1)},
 	]
 	var evidence: Array[Dictionary] = []
+	var floor_vertices_per_tile: int = 0
 	for placement_case: Dictionary in cases:
 		var sector_id: String = placement_case["sector_id"]
 		var coordinate: Vector2i = placement_case["coordinate"]
+		var blueprint: Dictionary = _placement_blueprint(sector_id)
 		var result: Dictionary = NetworkClientScript.present_sector_blueprint(
-			_placement_blueprint(sector_id), registry, Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
+			blueprint, registry, Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
 		)
 		var root: Node3D = registry.get_node_or_null(sector_id) as Node3D
 		var expected_offset: Vector3 = Vector3(coordinate.x * 440.0, 0.0, coordinate.y * 440.0)
 		assert_eq(result["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "%s is accepted" % sector_id)
+		assert_true(result.has("sector_coordinate"), "%s returns its parsed coordinate" % sector_id)
 		assert_not_null(root, "%s owns a keyed root" % sector_id)
+		if root == null or not result.has("sector_coordinate"):
+			return
+		var parsed_coordinate: Vector2i = result["sector_coordinate"]
+		assert_eq(parsed_coordinate, coordinate, "%s reports its parsed coordinate" % sector_id)
+		assert_eq(result["tile_count"], (blueprint["tiles"] as Array).size(), "%s reports its realized tile count" % sector_id)
 		assert_eq(root.position, expected_offset, "%s uses its signed global offset" % sector_id)
 		assert_ne(root.position, Vector3(7.0, 0.0, -4.0), "blueprint origin remains sector-local")
+		var floor_vertices: int = _assert_tile_geometry_under_root(root, expected_offset, sector_id)
+		assert_gt(floor_vertices, 0, "%s realizes floor vertices" % sector_id)
+		assert_eq(floor_vertices % int(result["tile_count"]), 0, "%s floor mesh holds one box per tile" % sector_id)
+		floor_vertices_per_tile = floor_vertices / int(result["tile_count"])
 		evidence.append({
 			"sector_id": sector_id,
-			"parsed_coordinate": {"x": coordinate.x, "z": coordinate.y},
+			"parsed_coordinate": {"x": parsed_coordinate.x, "z": parsed_coordinate.y},
 			"expected_offset": _vector_evidence(expected_offset),
 			"actual_offset": _vector_evidence(root.position),
+			"tile_count": result["tile_count"],
 		})
 
 	assert_eq(registry.get_child_count(), 3, "all three sectors coexist with one root each")
 	var untouched_root: Node3D = registry.get_node("sector--1-0") as Node3D
 	var untouched_transform: Transform3D = untouched_root.transform
 	var replaced_root: Node3D = registry.get_node("sector-1-0") as Node3D
+	var identities_before_replay: Dictionary = _root_identities(registry)
 	var replay_blueprint: Dictionary = _placement_blueprint("sector-1-0")
 	(replay_blueprint["tiles"] as Array).append({"x": 2, "y": 0, "kind": "floor"})
 	var replay: Dictionary = NetworkClientScript.present_sector_blueprint(
 		replay_blueprint, registry, Vector3(440.0, 0.0, 0.0)
 	)
 	var replayed_root: Node3D = registry.get_node("sector-1-0") as Node3D
+	var identities_after_replay: Dictionary = _root_identities(registry)
+	var replay_replacement_count: int = 0
+	for root_name: String in identities_before_replay:
+		if identities_after_replay.get(root_name, 0) != identities_before_replay[root_name]:
+			replay_replacement_count += 1
 	assert_eq(replay["outcome"], SectorBlueprintSchemaScript.OUTCOME_VALID, "replay is accepted")
+	assert_eq(replay["tile_count"], (replay_blueprint["tiles"] as Array).size(), "replay realizes the changed sector-local detail")
 	assert_eq(registry.get_child_count(), 3, "replay does not duplicate a sector root")
+	assert_eq(identities_after_replay.keys().size(), identities_before_replay.keys().size(), "replay keeps the same keyed roots")
 	assert_ne(replayed_root, replaced_root, "replay replaces the matching sector root")
+	assert_eq(replay_replacement_count, 1, "replay replaces exactly one observed root identity")
+	var replay_floor_vertices: int = _assert_tile_geometry_under_root(replayed_root, Vector3(440.0, 0.0, 0.0), "sector-1-0 replay")
+	assert_eq(
+		replay_floor_vertices,
+		floor_vertices_per_tile * int(replay["tile_count"]),
+		"replayed floor geometry reflects the returned tile count"
+	)
 	assert_eq(untouched_root.transform, untouched_transform, "replay does not move another sector")
 
 	var invalid: Dictionary = NetworkClientScript.present_sector_blueprint(
@@ -66,15 +94,19 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 	await get_tree().process_frame
 	assert_false(is_instance_valid(replaced_root), "the replayed sector root is retired after the active signal frame")
 
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PLACEMENT_TRACE_PATH.get_base_dir()))
 	var trace_file: FileAccess = FileAccess.open(PLACEMENT_TRACE_PATH, FileAccess.WRITE)
-	if trace_file != null:
-		trace_file.store_string(JSON.stringify({
-			"experiment": "1077",
-			"sectors": evidence,
-			"root_count": registry.get_child_count(),
-			"replay_replacement_count": 1,
-		}, "\t"))
-		trace_file.close()
+	assert_not_null(trace_file, "placement evidence artifact is writable (open error %d)" % FileAccess.get_open_error())
+	if trace_file == null:
+		return
+	trace_file.store_string(JSON.stringify({
+		"experiment": "1077",
+		"sectors": evidence,
+		"root_count": registry.get_child_count(),
+		"replay_replacement_count": replay_replacement_count,
+		"replay_tile_count": replay["tile_count"],
+	}, "\t"))
+	trace_file.close()
 
 
 func test_starting_town_hub_keeps_its_world_origin_root() -> void:
@@ -305,6 +337,29 @@ func _placement_blueprint(sector_id: String) -> Dictionary:
 		],
 		"structures": [],
 	}
+
+
+## Asserts the realized floor mesh is owned below `root`, inherits the root's
+## transformed offset, and spans sector-local tile space. Returns the floor
+## mesh vertex count so callers can compare it against reported tile counts.
+func _assert_tile_geometry_under_root(root: Node3D, expected_offset: Vector3, label: String) -> int:
+	var ground: MeshInstance3D = root.get_node_or_null("Ground_floor") as MeshInstance3D
+	assert_not_null(ground, "%s realizes floor geometry below its root" % label)
+	if ground == null or ground.mesh == null:
+		return 0
+	assert_eq(ground.get_parent(), root, "%s floor geometry is owned by its sector root" % label)
+	assert_eq(ground.global_position, expected_offset, "%s floor geometry inherits the sector offset" % label)
+	var local_bounds: AABB = ground.mesh.get_aabb()
+	assert_true(local_bounds.has_point(Vector3(0.0, local_bounds.get_center().y, 0.0)), "%s floor mesh stays in sector-local tile space" % label)
+	var vertices: PackedVector3Array = ground.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	return vertices.size()
+
+
+func _root_identities(registry: Node3D) -> Dictionary:
+	var identities: Dictionary = {}
+	for child: Node in registry.get_children():
+		identities[String(child.name)] = child.get_instance_id()
+	return identities
 
 
 func _vector_evidence(value: Vector3) -> Dictionary:
