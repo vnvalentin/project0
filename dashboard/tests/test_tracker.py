@@ -34,13 +34,14 @@ def test_delivery_projection_normalizes_issue_native_fields() -> None:
         "labels": ["Slice", "Outcome: playable proof", "Phase: execution", "Blocked: waiting"],
         "assignees": ["valentin"], "body": "Evidence: test output\nParent feature: #7",
         "milestone_title": "M1",
-    }]})
+    }], "milestones": [{"number": 1, "title": "M1", "state": "open"}]})
 
     assert model["total"] == 1
     assert model["rows"][0]["outcome"] == "playable proof"
     assert model["rows"][0]["phase"] == "execution"
     assert model["rows"][0]["evidence"] == "test output"
     assert model["rows"][0]["parent"] == 7
+    assert model["milestones"] == [{"number": 1, "title": "M1", "state": "open"}]
     assert len(model["blocked"]) == 1
 
 
@@ -54,6 +55,24 @@ def test_delivery_page_shows_source_failure(monkeypatch) -> None:
     assert "Project0 — Delivery" in page
     assert "GitHub issue feed unavailable: offline" in page
     assert "Active delivery table" in page
+
+
+def test_delivery_page_shows_unassigned_open_milestones(monkeypatch) -> None:
+    import app
+
+    monkeypatch.setattr(app, "github_issues", lambda: {
+        "available": True,
+        "issues": [{
+            "number": 12, "title": "Ship view", "url": "https://example.test/12", "state": "open",
+            "labels": [], "assignees": [], "body": "", "milestone_title": "",
+        }],
+        "milestones": [{"number": 2, "title": "Phase 16: Client delivery experience", "state": "open"}],
+        "error": "",
+    })
+
+    page = render_delivery()
+
+    assert "Phase 16: Client delivery experience" in page
 
 
 def test_tracker_model_reports_missing_source(tmp_path: Path) -> None:
