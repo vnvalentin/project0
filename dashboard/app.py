@@ -759,12 +759,10 @@ def _roadmap_milestones(issue_feed: dict) -> list[dict]:
     roadmap = []
     for milestone in issue_feed.get("milestones", []):
         match = ROADMAP_MILESTONE_RE.match(str(milestone.get("title", "")))
-        if match is None:
-            continue
         metadata = _roadmap_metadata(milestone)
         roadmap.append({
             **milestone,
-            "order": int(match.group(1)),
+            "order": int(match.group(1)) if match else int(milestone.get("number", 0)),
             "horizon": metadata.get("horizon", "On-Deck"),
             "class_name": metadata.get("class", "deck"),
             "outcome": metadata.get("outcome", ""),
