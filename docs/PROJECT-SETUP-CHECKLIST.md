@@ -18,40 +18,38 @@ all checks below pass.
 
 ## Delivery records
 
-- [x] `docs/PROJECT-TRACKER.md` has a concrete goal, phase names, phase status,
-      and measurable exit gates.
-- [x] `docs/FEATURE-LIST.md` contains only real planned, in-progress, or
-      implemented features; template entries are removed.
-- [x] `docs/TECHNICAL-DEBT-TRACKER.md` contains every known liability, with
-      classification, type, owner, impact, remediation, status, and links.
-- [x] The Project Tracker, Feature List, and Technical Debt Tracker agree on
-      feature, debt, phase, and status names.
-- [x] The first implementation slice links its SDD, BDD, public seam, safety
-      invariant, ADR or no-ADR rationale, validation, and review outcome.
-- [x] Every known limitation is either tracked as technical debt or explicitly
-      recorded as an intentional scope boundary.
+- [x] Every active delivery item has a governing GitHub issue with its current
+      condition, target outcome, acceptance criteria, non-goals, and evidence.
+- [x] Feature and Slice issues carry their required parent relationship in the
+      issue body and as a native GitHub parent link.
+- [x] Active issues are in GitHub Project `Project0 Delivery` (#2) with Outcome,
+      Phase, Status, Evidence, Blocked, owner, and Parent populated. Milestones
+      are assigned only to committed delivery outcomes.
+- [x] The first implementation Slice issue links its SDD, BDD, public seam,
+      safety invariant, ADR or no-ADR rationale, validation, and review outcome.
+- [x] Every known limitation is either a GitHub Technical Debt issue or an
+      explicit intentional scope boundary.
+
+`docs/PROJECT-TRACKER.md`, `docs/FEATURE-LIST.md`,
+`docs/TECHNICAL-DEBT-TRACKER.md`, and `docs/slices/` are frozen historical
+context. They are not authorities for current delivery state.
 
 ## Validation
 
 Run from the project root:
 
 ```text
-rg "\\{\\{[^}]+\\}\\}" AGENTS.md CONTEXT.md docs/PROJECT-TRACKER.md docs/FEATURE-LIST.md docs/TECHNICAL-DEBT-TRACKER.md docs/slices --glob '!docs/slices/0000-template.md'
+if git grep -nE "\\{\\{[A-Za-z][A-Za-z0-9_-]*\\}\\}" -- AGENTS.md CONTEXT.md CLAUDE.md docs/SYSTEMS-SPECIFICATION.md .github/copilot-instructions.md; then exit 1; fi
+git grep -nE "PROJECT-TRACKER|FEATURE-LIST|TECHNICAL-DEBT-TRACKER|docs/slices" -- docs/PROJECT-SETUP-CHECKLIST.md
+bash scripts/check_record_sync.sh
 ```
 
-The command must return no matches against active delivery records.
-`docs/slices/0000-template.md` is the slice template, not an active delivery
-record — it is expected to contain literal `{{...}}` placeholder tokens
-forever, and is excluded above for that reason rather than being emptied or
-deleted. Likewise, `AGENTS.md`'s own line describing the `` `{{...}}` ``
-placeholder convention (in "Foundation gate") is documentation prose about the
-marker syntax, not an unresolved placeholder; if the scan above ever flags it,
-confirm by inspection that the match is inside a code span describing the
-convention itself, not an unfilled `{{field_name}}` token in real content, and
-do not treat it as a foundation-gate failure. Then inspect the three delivery
-records side by side and confirm the cross-links resolve. Run the repository's
-focused validation command and record its result and telemetry artifact in the
-slice.
+The placeholder scan must return no matches in active repository foundation
+and configuration files. The delivery-record search must find the frozen-files
+paragraph above and no claim that those files own current status. The
+record-sync gate must exit 0; it validates historical links and GitHub issue
+traceability without requiring status parity with frozen archives. Record all
+three results as evidence on the governing GitHub issue.
 
 ## Gate closure
 

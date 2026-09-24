@@ -8,13 +8,15 @@
 # this one machine.
 #
 # Usage:
-#   scripts/deploy_containers.sh --tag <image-tag> [--profiles a,b]
+#   scripts/deploy_containers.sh --tag <image-tag> --service <name>
+#                                [--service <name>] [--profiles a,b]
 #                                [--nakama-tag <nakama-image-tag>] [--dry-run]
 #                                [--no-rollback]
 #
 # Safety model:
-#   - Deploys an immutable image tag; rollback re-deploys the previous tag,
-#     which is recorded before anything changes.
+#   - Publishes the Compose definition atomically under /apps/project0/deploy.
+#   - Deploys explicitly selected services with an immutable image tag;
+#     rollback restores the previous Compose artifact and image tag.
 #   - Persistent data lives in host volumes under /var/lib/project0 and is
 #     never touched by a deploy.
 #   - Secrets stay in /etc/project0/*.env, outside the repo and the images.
@@ -24,13 +26,17 @@ set -euo pipefail
 
 TAG=""
 PROFILES=""
+SERVICES=()
 NAKAMA_TAG="${NAKAMA_IMAGE_TAG:-3.37.0}"
 DRY_RUN=false
 ROLLBACK=true
+DEPLOY_ROOT="${PROJECT0_DEPLOY_ROOT:-/apps/project0}"
+STATE_DIR="${PROJECT0_STATE_DIR:-/var/lib/project0}"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--tag) TAG="$2"; shift 2 ;;
+		--service) SERVICES+=("$2"); shift 2 ;;
 		--profiles) PROFILES="$2"; shift 2 ;;
 		--nakama-tag) NAKAMA_TAG="$2"; shift 2 ;;
 		--dry-run) DRY_RUN=true; shift ;;
@@ -39,9 +45,13 @@ while [[ $# -gt 0 ]]; do
 	esac
 done
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-compose_file="$(pwd)/deploy/compose.yml"
-[[ -f "${compose_file}" ]] || { echo "ERROR: missing ${compose_file}" >&2; exit 1; }
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source_compose="${repo_root}/deploy/compose.yml"
+artifact_dir="${DEPLOY_ROOT}/deploy"
+compose_file="${artifact_dir}/compose.yml"
+previous_compose="${artifact_dir}/compose.previous.yml"
+[[ -f "${source_compose}" ]] || { echo "ERROR: missing ${source_compose}" >&2; exit 1; }
+(( ${#SERVICES[@]} > 0 )) || { echo "ERROR: at least one --service is required" >&2; exit 2; }
 
 [[ -n "${TAG}" ]] || TAG="main"
 # Release tags use the same semver identity as the packaged client. Keep the
@@ -51,17 +61,30 @@ if [[ "${TAG}" == v* ]]; then
 fi
 export PROJECT0_REQUIRED_CLIENT_VERSION
 export PROJECT0_UPDATE_MANIFEST_BASE_URL="${PROJECT0_UPDATE_MANIFEST_BASE_URL:-https://project0.valentin.vip/patches}"
-state_file="/var/lib/project0/deployed-tag"
-components_file="/var/lib/project0/deployed-components"
+state_file="${STATE_DIR}/deployed-tag"
+components_file="${STATE_DIR}/deployed-components"
 
 log() { printf '\n== %s\n' "$*"; }
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
-compose_args=(-f "${compose_file}")
+profile_args=()
 if [[ -n "${PROFILES}" ]]; then
 	IFS=',' read -ra _profiles <<<"${PROFILES}"
-	for p in "${_profiles[@]}"; do compose_args+=(--profile "${p}"); done
+	for p in "${_profiles[@]}"; do profile_args+=(--profile "${p}"); done
 fi
+source_compose_args=(-p project0 -f "${source_compose}" "${profile_args[@]}")
+
+available_services="$(PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${source_compose_args[@]}" config --services)"
+for selected_service in "${SERVICES[@]}"; do
+	service_found=false
+	while IFS= read -r available_service; do
+		if [[ "${selected_service}" == "${available_service}" ]]; then
+			service_found=true
+			break
+		fi
+	done <<<"${available_services}"
+	[[ "${service_found}" == true ]] || fail "unknown or inactive service '${selected_service}'"
+done
 
 previous_tag="$(sed -n 's/^project0_tag=//p' "${components_file}" 2>/dev/null || true)"
 previous_nakama_tag="$(sed -n 's/^nakama_tag=//p' "${components_file}" 2>/dev/null || true)"
@@ -70,23 +93,55 @@ if [[ -n "${previous_tag}" && -z "${previous_nakama_tag}" && "${ROLLBACK}" == tr
 fi
 
 log "Deploy plan"
-echo "  compose file  : ${compose_file}"
+echo "  source Compose: ${source_compose}"
+echo "  deployed file : ${compose_file}"
 echo "  image tag     : ${TAG}"
 echo "  previous tag  : ${previous_tag:-<none recorded>}"
 echo "  profiles      : ${PROFILES:-<default>}"
 echo "  Nakama tag    : ${NAKAMA_TAG} (required)"
 echo "  dry run       : ${DRY_RUN}"
 
-services="$(PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" config --services | tr '\n' ' ')"
-echo "  services      : ${services}"
+echo "  services      : ${SERVICES[*]}"
 
 if [[ "${DRY_RUN}" == true ]]; then
-	log "Dry run: resolving images and current state only; nothing is changed"
-	PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" config --images
-	docker compose "${compose_args[@]}" ps 2>/dev/null || true
+	log "Dry run: validating the candidate and reporting deployed state; nothing is changed"
+	PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${source_compose_args[@]}" config >/dev/null
+	PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${source_compose_args[@]}" config --images
+	if [[ -f "${compose_file}" ]]; then
+		docker compose -p project0 -f "${compose_file}" "${profile_args[@]}" ps "${SERVICES[@]}" 2>/dev/null || true
+	else
+		echo "  deployed artifact: <not published>"
+	fi
 	log "Dry run complete"
 	exit 0
 fi
+
+log "Publishing deployment artifact"
+sudo -n mkdir -p "${artifact_dir}"
+candidate_compose="${artifact_dir}/.compose.yml.candidate.$$"
+trap '[[ -z "${candidate_compose:-}" ]] || sudo -n rm -f "${candidate_compose}"' EXIT
+sudo -n install -m 0644 "${source_compose}" "${candidate_compose}"
+candidate_args=(-p project0 -f "${candidate_compose}" "${profile_args[@]}")
+PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${candidate_args[@]}" config >/dev/null
+
+previous_candidate="${artifact_dir}/.compose.previous.yml.candidate.$$"
+if [[ -f "${compose_file}" ]]; then
+	sudo -n cp -p "${compose_file}" "${previous_candidate}"
+else
+	sudo -n cp -p "${candidate_compose}" "${previous_candidate}"
+fi
+sudo -n mv "${previous_candidate}" "${previous_compose}"
+sudo -n mv "${candidate_compose}" "${compose_file}"
+candidate_compose=""
+compose_args=(-p project0 -f "${compose_file}" "${profile_args[@]}")
+echo "  published ${compose_file}"
+
+restore_previous_compose() {
+	local restore_candidate="${artifact_dir}/.compose.yml.rollback.$$"
+	[[ -f "${previous_compose}" ]] || return 1
+	sudo -n cp -p "${previous_compose}" "${restore_candidate}"
+	sudo -n mv "${restore_candidate}" "${compose_file}"
+}
 
 # Pulling before stopping anything keeps the current stack serving while the new
 # images download, and fails the deploy before any downtime if a tag is missing.
@@ -96,7 +151,7 @@ log "Pulling images for tag ${TAG}"
 pull_attempts="${PULL_ATTEMPTS:-20}"
 pulled=false
 for ((attempt = 1; attempt <= pull_attempts; attempt++)); do
-	if PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" pull >/dev/null 2>&1; then
+	if PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" pull "${SERVICES[@]}" >/dev/null 2>&1; then
 		echo "  pulled tag ${TAG} (attempt ${attempt})"
 		pulled=true
 		break
@@ -106,21 +161,20 @@ for ((attempt = 1; attempt <= pull_attempts; attempt++)); do
 done
 if [[ "${pulled}" != true ]]; then
 	# Surface the real error now that retries are exhausted.
-	PROJECT0_IMAGE_TAG="${TAG}" docker compose "${compose_args[@]}" pull || true
-	fail "image pull failed for tag '${TAG}'; nothing was changed"
+	PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" pull "${SERVICES[@]}" || true
+	restore_previous_compose || fail "image pull failed for tag '${TAG}'; previous Compose artifact is unavailable"
+	fail "image pull failed for tag '${TAG}'; restored previous Compose artifact"
 fi
 
-log "Starting stack"
-PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" up -d --remove-orphans \
-	|| fail "compose up failed for tag '${TAG}'"
+log "Starting selected services"
 
 # Health is what proves a deploy. Containers without a declared healthcheck are
 # proven by staying up, since a crash-looping container is not "running".
 await_health() {
-	local attempts=24 i name state health unhealthy
+	local attempts="${HEALTH_ATTEMPTS:-24}" i name state health unhealthy
 	for ((i = 1; i <= attempts; i++)); do
 		unhealthy=""
-		for name in ${services}; do
+		for name in "${SERVICES[@]}"; do
 			local cid
 			cid="$(docker compose "${compose_args[@]}" ps -q "${name}" 2>/dev/null || true)"
 			[[ -n "${cid}" ]] || { unhealthy="${unhealthy} ${name}(absent)"; continue; }
@@ -136,40 +190,38 @@ await_health() {
 			echo "  all services healthy (attempt ${i})"
 			return 0
 		fi
-		sleep 5
+		sleep "${HEALTH_SLEEP_SECONDS:-5}"
 	done
 	echo "  still not healthy:${unhealthy}" >&2
 	return 1
 }
 
-log "Waiting for health"
-if ! await_health; then
-	docker compose "${compose_args[@]}" ps
-	if [[ "${ROLLBACK}" == true && -n "${previous_tag}" ]]; then
-		log "ROLLBACK: redeploying previous tag ${previous_tag}"
-		PROJECT0_IMAGE_TAG="${previous_tag}" NAKAMA_IMAGE_TAG="${previous_nakama_tag:-${NAKAMA_TAG}}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
-		fail "deploy of '${TAG}' failed health; rolled back to '${previous_tag}'"
-	fi
-	fail "deploy of '${TAG}' failed health and no previous tag was recorded to roll back to"
-fi
-
-# Health only proves each process answers for itself. Every defect in the
-# container cutover lived in a call that crossed a process boundary, and each
-# one kept /healthz green while it was broken. Smoke checks exercise those
-# paths, so a broken delegation fails the deploy instead of reaching a player.
 rollback_and_fail() {
 	local reason="$1"
 	docker compose "${compose_args[@]}" ps
 	if [[ "${ROLLBACK}" == true && -n "${previous_tag}" ]]; then
-		log "ROLLBACK: redeploying previous tag ${previous_tag}"
-		PROJECT0_IMAGE_TAG="${previous_tag}" NAKAMA_IMAGE_TAG="${previous_nakama_tag:-${NAKAMA_TAG}}" docker compose "${compose_args[@]}" up -d --remove-orphans || true
+		log "ROLLBACK: restoring the previous artifact and tag ${previous_tag}"
+		restore_previous_compose || fail "${reason}; previous Compose artifact is unavailable"
+		PROJECT0_IMAGE_TAG="${previous_tag}" NAKAMA_IMAGE_TAG="${previous_nakama_tag:-${NAKAMA_TAG}}" docker compose "${compose_args[@]}" up -d "${SERVICES[@]}" \
+			|| fail "${reason}; rollback to '${previous_tag}' failed"
+		await_health || fail "${reason}; rollback to '${previous_tag}' is unhealthy"
 		fail "${reason}; rolled back to '${previous_tag}'"
 	fi
 	fail "${reason} and no previous tag was recorded to roll back to"
 }
 
-smoke_file="$(pwd)/deploy/smoke-checks.json"
-if [[ -f "${smoke_file}" ]]; then
+PROJECT0_IMAGE_TAG="${TAG}" NAKAMA_IMAGE_TAG="${NAKAMA_TAG}" docker compose "${compose_args[@]}" up -d "${SERVICES[@]}" \
+	|| rollback_and_fail "compose up failed for tag '${TAG}'"
+
+log "Waiting for health"
+await_health || rollback_and_fail "deploy of '${TAG}' failed health"
+
+# Health only proves each process answers for itself. Every defect in the
+# container cutover lived in a call that crossed a process boundary, and each
+# one kept /healthz green while it was broken. Smoke checks exercise those
+# paths, so a broken delegation fails the deploy instead of reaching a player.
+smoke_file="${repo_root}/deploy/smoke-checks.json"
+if [[ -f "${smoke_file}" && " ${SERVICES[*]} " == *" enrollment "* ]]; then
 	log "Smoke checks"
 	smoke_count="$(python3 -c "
 import json,sys
@@ -208,7 +260,7 @@ fi
 # Recorded only after health passes, so the rollback target is always a tag that
 # was observed healthy on this host. /var/lib/project0 is root-owned, so write
 # via sudo directly rather than relying on a failed redirect as control flow.
-sudo -n mkdir -p "$(dirname "${state_file}")"
+sudo -n mkdir -p "${STATE_DIR}"
 printf '%s\n' "${TAG}" | sudo -n tee "${state_file}" >/dev/null
 {
 	printf 'project0_tag=%s\n' "${TAG}"

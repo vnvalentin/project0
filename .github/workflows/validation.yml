@@ -46,6 +46,9 @@ jobs:
       - name: Check delivery record sync
         run: bash scripts/check_record_sync.sh
 
+      - name: Check container deployment contract
+        run: bash scripts/test_deploy_containers.sh
+
   python:
     name: Python service tests
     runs-on: ubuntu-latest

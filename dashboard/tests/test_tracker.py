@@ -1,8 +1,10 @@
+import json
 import sys
 from pathlib import Path
+from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import render_tracker
+from app import _roadmap_milestones, delivery_projection, render_delivery, render_tracker
 from tracker import inline_markdown, load_tracker, validate_tracker
 import tracker as tracker_module
 
@@ -28,6 +30,98 @@ def test_tracker_model_extracts_phases_and_queue(tmp_path: Path) -> None:
     assert model["warnings"]
 
 
+def test_delivery_projection_normalizes_issue_native_fields() -> None:
+    model = delivery_projection({"available": True, "issues": [{
+        "number": 12, "title": "Ship view", "url": "https://example.test/12", "state": "open",
+        "labels": ["Slice", "Outcome: playable proof", "Phase: execution", "Blocked: waiting"],
+        "assignees": ["valentin"], "body": "Evidence: test output\nParent feature: #7",
+        "milestone_title": "M1",
+    }], "milestones": [{"number": 1, "title": "M1", "state": "open"}]})
+
+    assert model["total"] == 1
+    assert model["rows"][0]["outcome"] == "playable proof"
+    assert model["rows"][0]["phase"] == "execution"
+    assert model["rows"][0]["evidence"] == "test output"
+    assert model["rows"][0]["parent"] == 7
+    assert model["milestones"] == [{"number": 1, "title": "M1", "state": "open"}]
+    assert len(model["blocked"]) == 1
+
+
+def test_github_issue_feed_keeps_issues_beyond_five_pages(monkeypatch) -> None:
+    import app
+
+    class FakeResponse:
+        def __init__(self, payload: list[dict]) -> None:
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(self.payload).encode("utf-8")
+
+    def fake_urlopen(request, timeout: int):
+        assert timeout == 5
+        if "/milestones?" in request.full_url:
+            return FakeResponse([])
+        page = int(request.full_url.rsplit("page=", 1)[1])
+        if page <= 6:
+            payload = [{"number": page * 100 + offset, "state": "open"} for offset in range(100)]
+            if page == 6:
+                payload[0]["number"] = 551
+            return FakeResponse(payload)
+        raise HTTPError(request.full_url, 422, "pagination limit", {}, None)
+
+    monkeypatch.setattr(app, "urlopen", fake_urlopen)
+    app._ISSUE_CACHE.update({"at": 0.0, "data": {"available": False}})
+
+    feed = app.github_issues()
+
+    assert feed["available"] is True
+    assert any(issue["number"] == 551 for issue in feed["issues"])
+
+
+def test_delivery_page_shows_source_failure(monkeypatch) -> None:
+    import app
+
+    monkeypatch.setattr(app, "github_issues", lambda: {"available": False, "issues": [], "error": "offline"})
+
+    page = render_delivery()
+
+    assert "Project0 — Delivery" in page
+    assert "GitHub issue feed unavailable: offline" in page
+    assert "Active delivery table" in page
+
+
+def test_delivery_page_shows_unassigned_open_milestones(monkeypatch) -> None:
+    import app
+
+    monkeypatch.setattr(app, "github_issues", lambda: {
+        "available": True,
+        "issues": [{
+            "number": 12, "title": "Ship view", "url": "https://example.test/12", "state": "open",
+            "labels": [], "assignees": [], "body": "", "milestone_title": "",
+        }],
+        "milestones": [{"number": 2, "title": "Phase 16: Client delivery experience", "state": "open"}],
+        "error": "",
+    })
+
+    page = render_delivery()
+
+    assert "Phase 16: Client delivery experience" in page
+
+
+def test_roadmap_keeps_milestones_without_compact_prefix() -> None:
+    stages = _roadmap_milestones({
+        "milestones": [{"number": 2, "title": "Phase 16: Client delivery experience"}],
+    })
+
+    assert [stage["title"] for stage in stages] == ["Phase 16: Client delivery experience"]
+
+
 def test_tracker_model_reports_missing_source(tmp_path: Path) -> None:
     model = load_tracker(tmp_path)
 
@@ -47,11 +141,12 @@ def test_tracker_page_projects_the_committed_record(monkeypatch) -> None:
     monkeypatch.setattr(app, "REPO", Path.cwd())
     page = render_tracker()
 
-    assert 'Project0 — Tracker' in page
+    assert 'Project0 — Tracker Archive' in page
     assert 'Phase gates' in page
     assert 'Implementation slice acceptance' in page
     assert 'Work queue' in page
     assert 'docs/PROJECT-TRACKER.md' in page
+    assert 'Live delivery: GitHub Issues and Project #2' in page
 
 
 def test_tracker_page_renders_source_warnings(tmp_path: Path, monkeypatch) -> None:

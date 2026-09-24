@@ -4,36 +4,9 @@ This workflow operationalizes the [Engineering Constitution](ENGINEERING-CONSTIT
 It is mandatory for implementation slices and creates the evidence trail from
 customer need to validated product behavior.
 
-## GitHub delivery model
-
-GitHub Issues and the GitHub Project are the active delivery system. Every
-active work item has one issue with a native parent and visible fields for:
-
-- **Outcome:** the product result the work advances.
-- **Phase:** implementation dependency and order.
-- **Milestone:** the committed delivery window; no milestone means unscheduled.
-- **Status:** issue state plus the repository's status labels.
-- **Evidence:** public seam, validation command, artifacts, review, and PR.
-- **Exit criteria:** the measurable checklist that permits closure.
-
-The TBP hierarchy remains Vision/Goal -> Theme -> Feature -> Epic ->
-Experiment -> Slice. Debt uses the same issue system. Outcome, Phase, and
-Milestone are orthogonal metadata: they answer why, in what dependency order,
-and when, respectively. Native parentage answers ownership.
-
-The Project board must expose views by milestone, outcome, phase, parent,
-blocked state, and missing evidence. A work item is not scheduled merely
-because it has a parent or phase.
-
-`docs/PROJECT-TRACKER.md`, `docs/ROADMAP-REASSESSMENT.md`,
-`docs/FEATURE-LIST.md`, and `docs/slices/` are historical or explanatory
-archives. They are not active planning authorities.
-
 ## Phases and slices
 
-A **phase** is a visible issue field describing implementation dependency and
-order; its desired outcome and exit gate are represented by the governing phase
-issue and Project view. An
+A **phase** defines the product-level desired outcome and exit gate. An
 **implementation slice** is the smallest observable, reversible increment that
 tests a stated hypothesis and delivers a bounded capability toward that phase.
 It is not a general task bundle or an experiment without a delivery seam.
@@ -84,6 +57,13 @@ Four record types form one causal chain, top to bottom:
   reduce the Feature's stated gap is scope creep, not delivery. A Feature
   closes only when its Slices' combined evidence satisfies the Feature's
   resolution proof.
+
+Every milestone outcome record, including a Feature that serves as a milestone,
+must include a `## Player Example` section. State one concrete scenario in
+plain language: the player's starting situation, the action they take, what
+they see or experience, and what lasting result they can rely on afterward.
+This example explains why the milestone matters to the user; it complements,
+but never replaces, the measurable outcome and technical acceptance evidence.
 
 ### Feature-to-Epic decomposition
 
@@ -164,9 +144,10 @@ before trusting the percentage.
 ## Delivery lifecycle
 
 Every capability moves through one lifecycle with a single authoritative status
-at each stage. As of 2026-09-20, a Feature's authoritative status lives on its
-GitHub issue (label `Feature`), not in a file; `PROJECT-TRACKER.md` and the
-flow dashboard mirror that status rather than duplicating it.
+at each stage. Active status lives on the governing GitHub issue and its item in
+GitHub Project #2 (`Project0 Delivery`). The Markdown records and dashboard
+archive route are historical context only; they never mirror or override live
+delivery state.
 
 ### Stages
 
@@ -217,11 +198,7 @@ the lifecycle. The legacy `P-`/`IP-`/`F-` prefixes are frozen, opaque history an
 no longer signal status — never rename an item when its status changes. New
 features take the next unused number as `F-<n>` with an authoritative `Status:`.
 
-### Historical cross-layer status mapping
-
-This table describes the legacy file/dashboard projection. New work uses the
-GitHub issue state and Project fields; do not update this table as an active
-workflow record.
+### Cross-layer status mapping
 
 | Lifecycle stage | `.scratch` issue | `FEATURE-LIST.md` status | Tracker badge | Dashboard |
 | --- | --- | --- | --- | --- |
@@ -359,11 +336,11 @@ pull request.
    merge it when the delivery gate is green. Do not accumulate multiple completed
    actions in one uncommitted worktree.
 - **Green before merge.** A branch may merge only after its delivery gate is
-   green: the focused validation, the full `scripts/run_gut_validation.sh` suite
-   (exit 0 with its `build/validation/` artifacts), and
-   `scripts/check_record_sync.sh` (exit 0) all pass; the governing issue and
-   Project evidence are current; and review is complete. CI runs the same suite
-   on the pull request. A red gate is an Andon stop — fix it, do not merge.
+  green: the focused validation, the full `scripts/run_gut_validation.sh` suite
+  (exit 0 with its `build/validation/` artifacts), and
+  `scripts/check_record_sync.sh` (exit 0) all pass; the required slice/delivery
+  records are synchronized; and review is complete. CI runs the same suite on
+  the pull request. A red gate is an Andon stop — fix it, do not merge.
 - **Merge and clean up.** When the change is done and the gate is green, merge
   the pull request into `main` with a merge commit (`--no-ff`; no squash, no
   rebase) so each change lands as one reviewable merge, then delete the branch.
@@ -382,23 +359,24 @@ Each implementation ticket links:
 - Related ADR, or an explicit no-ADR rationale.
 - Validation results and review outcome.
 - Focused validation command, expected pass signal, and telemetry artifact path.
-- Feature IDs advanced or created, and duplicate-check result.
+- Feature IDs advanced or created, duplicate-check result, and the governing
+   GitHub issue plus Project #2 item fields.
 - GitHub Issue number or URL, plus the closing or reference keyword expected in
    the pull request (`Fixes #N`, `Closes #N`, `Resolves #N`, or `Refs #N`).
 - Telemetry events, failure states, and stop signals, or an explicit rationale
 	for why the slice has no observable runtime telemetry.
 
-## GitHub Delivery Evidence Gate
+## GitHub delivery synchronization gate
 
-Whenever a slice is started, in progress, or completed, update its governing
-GitHub issue and Project item with the parent, Outcome, Phase, Milestone
-decision, status, Blocked state, Evidence state, public seam, validation
-command, artifacts, review result, and exit criteria. A work item is complete
-only when its issue contains the evidence needed to support closure.
+Whenever a slice is started, in progress, or completed, update the governing
+GitHub issue and its Project #2 item before implementation or status changes
+are reported. The issue carries the problem, outcome, parent link, acceptance
+evidence, and resolution. Project #2 carries the visible Outcome, Phase,
+Milestone, Status, Evidence, Blocked, owner, and Parent fields. Milestones are
+delivery commitments only; they do not replace Phase or Status.
 
-The Markdown tracker, roadmap, feature list, and slice archive may be updated
-only for explicit migration or parity work. They do not replace the issue or
-Project evidence gate.
+The Markdown tracker, feature list, debt tracker, and slice archive are frozen
+historical context. Do not update them as a second active status system.
 
 ## Agent-assisted delivery orchestration
 
@@ -426,9 +404,9 @@ The loop:
    rather than accepting it.
 
 A handoff is **traceable** only when the governing GitHub issue and Project item
-carry the brief, the change set at the declared seam, the validation evidence
-(focused command, expected pass signal, and the machine-readable artifact with
-its exit code), the review outcome, and the issue links. An edit outside the
+together carry the brief, the change set at the declared seam, the validation
+evidence (focused command, expected pass signal, and the machine-readable
+artifact with its exit code), and the review outcome. An edit outside the
 declared scope is an unscoped edit; a session limit, timeout, or validation
 failure leaves the slice `blocked`/`awaiting evidence`. Completion is never
 inferred from files appearing in the tree.

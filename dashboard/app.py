@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from tracker import inline_markdown, load_tracker
@@ -61,14 +62,21 @@ def github_issues() -> dict:
         return _ISSUE_CACHE["data"]
     try:
         issues = []
-        for page in range(1, 6):
+        milestones = []
+        page = 1
+        while True:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
             headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
             if GITHUB_TOKEN:
                 headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
             req = Request(url, headers=headers)
-            with urlopen(req, timeout=5) as response:
-                raw = response.read().decode("utf-8")
+            try:
+                with urlopen(req, timeout=5) as response:
+                    raw = response.read().decode("utf-8")
+            except HTTPError as exc:
+                if exc.code == 422 and issues:
+                    break
+                raise
             parsed = json.loads(raw)
             for item in parsed:
                 if "pull_request" in item:
@@ -88,8 +96,33 @@ def github_issues() -> dict:
                 })
             if len(parsed) < 100:
                 break
+            page += 1
+        try:
+            page = 1
+            while True:
+                url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&page={page}"
+                headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
+                if GITHUB_TOKEN:
+                    headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+                req = Request(url, headers=headers)
+                with urlopen(req, timeout=5) as response:
+                    parsed = json.loads(response.read().decode("utf-8"))
+                milestones.extend({
+                    "number": int(item.get("number", 0)),
+                    "title": str(item.get("title", "")),
+                    "state": str(item.get("state", "open")),
+                    "description": str(item.get("description", "")),
+                    "open_issues": int(item.get("open_issues", 0)),
+                    "closed_issues": int(item.get("closed_issues", 0)),
+                } for item in parsed)
+                if len(parsed) < 100:
+                    break
+                page += 1
+        except Exception:
+            milestones = []
         issues.sort(key=lambda issue: issue["number"])
-        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "error": ""}
+        milestones.sort(key=lambda milestone: milestone["number"])
+        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "milestones": milestones, "error": ""}
     except Exception as exc:
         data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
     _ISSUE_CACHE.update({"at": now, "data": data})
@@ -176,6 +209,44 @@ def _parent_link_any(issue: dict, prefixes: list[str]) -> int | None:
         if parent is not None:
             return parent
     return None
+
+
+def _issue_field(issue: dict, name: str, default: str = "") -> str:
+    prefix = f"{name.lower()}:"
+    for label in issue.get("labels", []):
+        if label.lower().startswith(prefix):
+            return label.split(":", 1)[1].strip()
+    for line in issue.get("body", "").splitlines():
+        if line.lower().startswith(prefix):
+            return line.split(":", 1)[1].strip()
+    return default
+
+
+def delivery_projection(issue_feed: dict) -> dict:
+    issues = issue_feed.get("issues", []) if issue_feed.get("available") else []
+    rows = []
+    for issue in issues:
+        rows.append({
+            **issue,
+            "outcome": _issue_field(issue, "Outcome", "Unassigned"),
+            "phase": _issue_field(issue, "Phase", "Unassigned"),
+            "status": _issue_field(issue, "Status", issue.get("state", "unknown")),
+            "evidence": _issue_field(issue, "Evidence", "Not recorded"),
+            "blocked": _issue_field(issue, "Blocked", "No"),
+            "parent": _parent_link_any(issue, ["Parent goal", "Parent feature"]),
+            "kind": next((label for label in issue.get("labels", []) if label in {"Goal", "Feature", "Slice"}), "Issue"),
+        })
+    active = [row for row in rows if row.get("state") == "open"]
+    return {
+        "available": bool(issue_feed.get("available")),
+        "error": issue_feed.get("error", ""),
+        "milestones": issue_feed.get("milestones", []),
+        "total": len(active),
+        "rows": active,
+        "outcomes": sorted({row["outcome"] for row in active}),
+        "phases": sorted({row["phase"] for row in active}),
+        "blocked": [row for row in active if row["blocked"].lower() not in {"", "no", "false", "none"}],
+    }
 
 
 def goal_feature_slices(issues: list[dict], goal_number: int) -> list[dict]:
@@ -537,7 +608,7 @@ def render_tracker() -> str:
             for section in model["sections"]
             if section["title"] not in ("Phases", "Work queue")
         )
-        content = f'''{warnings_html}<div class="tracker-meta"><span>Schema: <strong>v{model["schema"]["schema_version"]}</strong></span><span>Archive: <strong>{esc(model["source"])}</strong></span><span>Structured read-only projection</span></div>
+        content = f'''{warnings_html}<div class="tracker-meta"><span>Archive: <strong>{esc(model["source"])}</strong></span><span>Historical read-only view</span><span>Live delivery: GitHub Issues and Project #2</span></div>
 <div class="tracker-grid"><div class="tracker-stat"><div class="num">{len(model["phases"])}</div><span class="label">Phases</span></div><div class="tracker-stat"><div class="num">{model["queue_done"]}</div><span class="label">Completed queue items</span></div><div class="tracker-stat"><div class="num">{model["queue_open"]}</div><span class="label">Open queue items</span></div></div>
 <section class="sec"><h2>Phase gates</h2><table class="phase-table"><thead><tr><th>Phase</th><th>Status</th><th>Exit gate</th></tr></thead><tbody>{phase_rows}</tbody></table></section>
     <section class="sec"><h2>Implementation acceptance</h2><ul class="tracker-list">{acceptance_html}</ul></section>
@@ -548,9 +619,9 @@ def render_tracker() -> str:
     return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Tracker</title>
 <style>{EXEC_CSS}{TRACKER_CSS}</style></head><body>
-<header><div><h1>Project0 — Tracker</h1><div class="sub">Phase gates, delivery cross-reference, acceptance evidence, and work queue</div></div>
+<header><div><h1>Project0 — Tracker Archive</h1><div class="sub">Historical phase gates and delivery cross-reference · live status is in GitHub Issues and Project #2</div></div>
 <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a class="on" href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div></header>
-<main>{content}<div class="footer">Read-only projection of the committed tracker record · refreshes every 60 seconds</div></main></body></html>'''
+<main>{content}<div class="footer">Read-only historical archive · refreshes every 60 seconds</div></main></body></html>'''
 
 
 TESTS_CSS = """
@@ -672,13 +743,32 @@ VISION_STATEMENT = (
     "they can explore, alter, inhabit, build upon, and eventually help govern."
 )
 
-ROADMAP_PLAN = (
-    {"horizon": "Active / Now", "class_name": "active", "title": "M0 · Refine the public seam", "issue_numbers": (571,), "outcome": "Align the supporting fixture to the player-triggered boundary flow."},
-    {"horizon": "Fast Follower", "class_name": "follow", "title": "M1 · JIT generation + canon re-entry", "issue_numbers": (551,), "outcome": "A player crosses an unexplored boundary and later restores the same canonical sector."},
-    {"horizon": "On-Deck", "class_name": "deck", "title": "M2 · Shared Lore convergence", "issue_numbers": (552,), "outcome": "Two clients and a late joiner converge on one authoritative Lore revision."},
-    {"horizon": "On-Deck", "class_name": "deck", "title": "M3 · Procedural house geometry", "issue_numbers": (710,), "outcome": "Accepted house fields produce distinct deterministic runtime geometry."},
-    {"horizon": "Future / Fog", "class_name": "fog", "title": "M4+ · Semantic world expansion", "issue_numbers": (964, 965, 966), "outcome": "Context bounds, POI Canon persistence, and proposal fallback become refined slices."},
-)
+ROADMAP_MILESTONE_RE = re.compile(r"^M(\d+)(?:\+)?\s+·\s+")
+
+
+def _roadmap_metadata(milestone: dict) -> dict:
+    metadata = {}
+    for line in str(milestone.get("description", "")).splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip().lower() in {"horizon", "class", "outcome", "evidence"}:
+            metadata[key.strip().lower()] = value.strip()
+    return metadata
+
+
+def _roadmap_milestones(issue_feed: dict) -> list[dict]:
+    roadmap = []
+    for milestone in issue_feed.get("milestones", []):
+        match = ROADMAP_MILESTONE_RE.match(str(milestone.get("title", "")))
+        metadata = _roadmap_metadata(milestone)
+        roadmap.append({
+            **milestone,
+            "order": int(match.group(1)) if match else int(milestone.get("number", 0)),
+            "horizon": metadata.get("horizon", "On-Deck"),
+            "class_name": metadata.get("class", "deck"),
+            "outcome": metadata.get("outcome", ""),
+            "evidence": metadata.get("evidence", ""),
+        })
+    return sorted(roadmap, key=lambda milestone: milestone["order"])
 
 
 def _roadmap_kind(issue: dict) -> str:
@@ -756,17 +846,15 @@ def roadmap_html(issue_feed: dict) -> str:
     """Render the rolling horizon from live GitHub issue records."""
     issues_by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
     rendered_nodes = []
-    for stage in ROADMAP_PLAN:
+    issues = list(issues_by_number.values())
+    for stage in _roadmap_milestones(issue_feed):
         links = []
         states = []
         breakdown_nodes = []
-        expected_label = "Expected issue" if len(stage["issue_numbers"]) == 1 else "Expected issues"
-        for number in stage["issue_numbers"]:
-            issue = issues_by_number.get(number)
-            if issue is None:
-                links.append(f'<span class="roadmap-issue">#{number} unavailable</span>')
-                states.append("missing from feed")
-                continue
+        milestone_issues = [issue for issue in issues if issue.get("milestone_number") == stage["number"]]
+        expected_label = "Assigned issue" if len(milestone_issues) == 1 else "Assigned issues"
+        for issue in milestone_issues:
+            number = issue["number"]
             node = _roadmap_node(issue, list(issues_by_number.values()))
             ancestors = _roadmap_ancestors(issue, list(issues_by_number.values()))
             hierarchy_nodes = ancestors + _roadmap_flatten(node)
@@ -791,9 +879,9 @@ def roadmap_html(issue_feed: dict) -> str:
         source_note = f'GitHub issue feed unavailable: {issue_feed.get("error", "unknown error")}'
     return (
         f'<div class="roadmap-track">{"".join(rendered_nodes)}</div>'
-        f'<div class="roadmap-evidence"><strong>Milestone 1 proof:</strong> '
-        f'player boundary crossing → async generation → blueprint validation → '
-        f'Canon commit → visible sector → stable re-entry. {esc(source_note)}</div>'
+        f'<div class="roadmap-evidence"><strong>GitHub milestone evidence:</strong> '
+        f'{esc(" · ".join(stage["evidence"] for stage in _roadmap_milestones(issue_feed) if stage["evidence"]))} '
+        f'{esc(source_note)}</div>'
     )
 
 
@@ -813,6 +901,65 @@ def render_roadmap() -> str:
         <div class="roadmap-intro">Read left to right: the active refinement gate, the first playable proof, the next convergence step, and bounded future work.</div>
         {roadmap_html(issue_feed)}
     </section>
+</main></body></html>'''
+
+
+DELIVERY_CSS = """
+.delivery-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:0 0 22px}
+.delivery-stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px}.delivery-stat .num{font-size:28px;font-weight:800}.delivery-stat .label{display:block;color:var(--muted);font-size:11px;text-transform:uppercase}
+.delivery-table{width:100%;border-collapse:collapse;font-size:12px}.delivery-table th{text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.delivery-table th,.delivery-table td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}.delivery-table a{color:var(--cyan)}
+.delivery-table .blocked{color:var(--amber);font-weight:700}.delivery-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.delivery-group{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}.delivery-group h3{margin:0 0 10px;font-size:14px}.delivery-group ul{margin:0;padding-left:18px;color:var(--muted);font-size:12px}.delivery-group li{margin:6px 0}.delivery-meta{color:var(--muted);font-size:12px;margin-bottom:18px}.delivery-warning{border-left:4px solid var(--amber);background:#2a2415;color:var(--amber);padding:10px 12px;margin-bottom:18px;font-size:12px}
+@media(max-width:760px){.delivery-table{display:block;overflow-x:auto;white-space:nowrap}}
+"""
+
+
+def _delivery_group_html(rows: list[dict], field: str) -> str:
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        groups.setdefault(row[field], []).append(row)
+    return "".join(
+        f'<section class="delivery-group"><h3>{esc(value)} <span class="muted">({len(group)})</span></h3><ul>'
+        + "".join(f'<li><a href="{esc(row["url"])}">#{row["number"]} {esc(row["title"])}</a></li>' for row in group)
+        + "</ul></section>"
+        for value, group in sorted(groups.items())
+    ) or '<p class="empty">No active issues.</p>'
+
+
+def _delivery_milestone_html(rows: list[dict], milestones: list[dict]) -> str:
+    counts = {}
+    for row in rows:
+        if row.get("milestone_number") is not None:
+            counts[row["milestone_number"]] = counts.get(row["milestone_number"], 0) + 1
+    groups = [
+        f'<section class="delivery-group"><h3>{esc(milestone["title"])} <span class="muted">({counts.get(milestone["number"], 0)})</span></h3></section>'
+        for milestone in milestones
+        if milestone.get("state") == "open"
+    ]
+    return "".join(groups) or '<p class="empty">No open milestones found.</p>'
+
+
+def render_delivery() -> str:
+    model = delivery_projection(github_issues())
+    warning = "" if model["available"] else f'<div class="delivery-warning">GitHub issue feed unavailable: {esc(model["error"] or "unknown error")}</div>'
+    rows = "".join(
+        f'<tr><td><a href="{esc(row["url"])}">#{row["number"]} {esc(row["title"])}</a><br><span class="muted">{esc(row["kind"])}</span></td>'
+        f'<td>{esc(row["outcome"])}</td><td>{esc(row["phase"])}</td><td>{esc(row["milestone_title"] or "-")}</td>'
+        f'<td>{esc(row["status"])}</td><td class="{"blocked" if row["blocked"].lower() not in {"", "no", "false", "none"} else ""}">{esc(row["blocked"])}</td>'
+        f'<td>{esc(row["evidence"])}</td><td>{esc("#" + str(row["parent"]) if row["parent"] else "-")}</td><td>{esc(", ".join(row["assignees"]) or "-")}</td></tr>'
+        for row in model["rows"]
+    ) or '<tr><td colspan="9">No active delivery issues found.</td></tr>'
+    return f'''<!doctype html>
+<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Delivery</title>
+<style>{EXEC_CSS}{DELIVERY_CSS}</style></head><body>
+<header><div><h1>Project0 — Delivery</h1><div class="sub">Local operational views from live GitHub Issues</div></div>
+<div class="nav"><a href="/">Overview</a><a href="/detail">Detailed</a><a class="on" href="/delivery">Delivery</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div></header>
+<main>{warning}<div class="delivery-meta">Active issues: <strong>{model["total"]}</strong> · Source: GitHub Issues · Project #2 custom fields are intentionally not required</div>
+<div class="delivery-summary"><div class="delivery-stat"><div class="num">{model["total"]}</div><span class="label">Active delivery</span></div><div class="delivery-stat"><div class="num">{len(model["outcomes"])}</div><span class="label">Outcomes</span></div><div class="delivery-stat"><div class="num">{len(model["phases"])}</div><span class="label">Phases</span></div><div class="delivery-stat"><div class="num">{len(model["blocked"])}</div><span class="label">Blocked</span></div></div>
+<section class="sec"><h2>Active delivery table</h2><table class="delivery-table"><thead><tr><th>Work</th><th>Outcome</th><th>Phase</th><th>Milestone</th><th>Status</th><th>Blocked</th><th>Evidence</th><th>Parent</th><th>Assignees</th></tr></thead><tbody>{rows}</tbody></table></section>
+<section class="sec"><h2>By outcome</h2><div class="delivery-groups">{_delivery_group_html(model["rows"], "outcome")}</div></section>
+<section class="sec"><h2>By phase</h2><div class="delivery-groups">{_delivery_group_html(model["rows"], "phase")}</div></section>
+<section class="sec"><h2>By milestone</h2><div class="delivery-groups">{_delivery_milestone_html(model["rows"], model["milestones"])}</div></section>
+<section class="sec"><h2>Blocked and evidence</h2><div class="delivery-groups">{_delivery_group_html(model["blocked"], "blocked")}</div></section>
 </main></body></html>'''
 
 
@@ -876,7 +1023,7 @@ def render_overview(view: str = "committed") -> str:
 <style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
   <div><h1>Project0</h1><div class="sub">{esc(issue_status)}</div></div>
-    <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
+    <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/delivery">Delivery</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
   <section class="sec northstar">
@@ -1537,6 +1684,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/detail":
             view = "working" if parse_qs(parsed.query).get("view", [""])[0] == "working" else "committed"
             body = render_vision(view).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+        elif path == "/delivery":
+            body = render_delivery().encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/tracker":

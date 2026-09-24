@@ -16,7 +16,7 @@ export PROJECT0_IMAGE_TAG=sha-91103a2921eec9d849330e5f93738dc516418d4d
 export OPERATOR_CONSOLE_PORT=18090
 sudo -n env PROJECT0_IMAGE_TAG="$PROJECT0_IMAGE_TAG" \
 	OPERATOR_CONSOLE_PORT="$OPERATOR_CONSOLE_PORT" \
-	docker compose -f deploy/compose.yml --profile operator \
+	docker compose -p project0 -f /apps/project0/deploy/compose.yml --profile operator \
 	up -d operator operator-console
 ```
 

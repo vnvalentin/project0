@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
-  "authority": "dashboard/tracker_schema.json",
+  "authority": "GitHub Issues and Project0 Delivery Project #2",
   "archive": "docs/PROJECT-TRACKER.md",
+  "archive_only": true,
   "required_sections": [
     "Tracking system",
     "Goal",

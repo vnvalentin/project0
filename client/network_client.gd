@@ -170,10 +170,12 @@ const NakamaScript: Script = preload("res://addons/com.heroiclabs.nakama/Nakama.
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
+const SectorIdentityScript: Script = preload("res://shared/sector_identity.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 const SectorNavigationReadinessScript: Script = preload("res://client/sector_navigation_readiness.gd")
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
+const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
 signal geometry_assembly_completed(sector_id: String, result: Dictionary)
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
@@ -221,6 +223,7 @@ var _own_player_spawn_pending: bool = false
 var _pending_sector_blueprint: Dictionary = {}
 var _latest_sector_blueprint: Dictionary = {}
 var _latest_sector_ingress: Vector3 = Vector3.ZERO
+var _latest_sector_trace: Dictionary = {}
 var _completed_geometry_sectors: Dictionary = {}
 var _pending_monster_spawns: Dictionary = {}
 var _pending_monster_positions: Dictionary = {}
@@ -987,9 +990,10 @@ func receive_assigned_house(house_id: String) -> void:
 ## the existing FlatPlane/Player/UI stay untouched. An invalid payload renders
 ## nothing (logged), never partial geometry.
 @rpc("authority", "call_remote", "reliable")
-func receive_sector_blueprint(blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO) -> void:
+func receive_sector_blueprint(blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO, trace: Dictionary = {}) -> void:
 	_latest_sector_blueprint = blueprint.duplicate(true)
 	_latest_sector_ingress = ingress
+	_latest_sector_trace = trace.duplicate(true)
 	var gameplay_root: Node = get_tree().current_scene
 	if not gameplay_root is Node3D:
 		_pending_sector_blueprint = blueprint.duplicate(true)
@@ -998,7 +1002,7 @@ func receive_sector_blueprint(blueprint: Dictionary, ingress: Vector3 = Vector3.
 	if gameplay_root == null:
 		push_error("NetworkClient: cannot render sector blueprint, no current_scene")
 		return
-	_render_sector_blueprint_into_scene(gameplay_root, blueprint, ingress)
+	_render_sector_blueprint_into_scene(gameplay_root, blueprint, ingress, trace)
 
 
 func render_pending_sector_blueprint() -> void:
@@ -1012,25 +1016,34 @@ func render_pending_sector_blueprint() -> void:
 		return
 	_pending_sector_blueprint = {}
 	print("Replaying queued sector blueprint into gameplay scene.")
-	_render_sector_blueprint_into_scene(gameplay_root, blueprint, _latest_sector_ingress)
+	_render_sector_blueprint_into_scene(gameplay_root, blueprint, _latest_sector_ingress, _latest_sector_trace)
 
-func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO) -> void:
+func _render_sector_blueprint_into_scene(gameplay_root: Node, blueprint: Dictionary, ingress: Vector3 = Vector3.ZERO, trace: Dictionary = {}) -> void:
 	var container: Node3D = _get_or_create_sector_geometry_container(gameplay_root)
-	var target: Vector3 = _navigation_target(blueprint, ingress)
-	var result: Dictionary = render_sector_blueprint(blueprint, container, ingress, target)
+	var result: Dictionary = present_sector_blueprint(blueprint, container, ingress)
 	var readiness: Node = result.get("readiness_node") as Node
 	if readiness != null:
-		readiness.completed.connect(_on_geometry_assembly_completed.bind(String(blueprint.get("sector_id", ""))))
+		readiness.completed.connect(_on_geometry_assembly_completed.bind(String(blueprint.get("sector_id", "")), trace))
 	var sector_id: String = String(blueprint.get("sector_id", ""))
 	print("Received sector blueprint (sector_id=%s, outcome=%s, %d tiles, %d structures)." % [sector_id, result["outcome"], result["tile_count"], result["structure_count"]])
 	sector_blueprint_received.emit(sector_id, result["outcome"], result["tile_count"], result["structure_count"])
 
 
-func _on_geometry_assembly_completed(result: Dictionary, sector_id: String) -> void:
-	if _completed_geometry_sectors.has(sector_id):
-		return
-	_completed_geometry_sectors[sector_id] = true
-	geometry_assembly_completed.emit(sector_id, result)
+func _on_geometry_assembly_completed(result: Dictionary, sector_id: String, trace: Dictionary = {}) -> void:
+	if not trace.is_empty() and result.get("outcome", "") == SectorBlueprintSchemaScript.OUTCOME_VALID:
+		queue_telemetry_event(String(trace.get("event_type", "")), 1, {
+			"trace_id": String(trace.get("trace_id", "")),
+			"span_id": String(trace.get("span_id", "")),
+			"parent_span_id": trace.get("parent_span_id"),
+			"sector_id": sector_id,
+			"spatial_guid": String(trace.get("spatial_guid", "")),
+			"timestamp_ms": int(trace.get("timestamp_ms", 0)),
+			"duration_ms": float(trace.get("duration_ms", 0.0)),
+			"status": String(trace.get("status", "")),
+		})
+	if not _completed_geometry_sectors.has(sector_id):
+		_completed_geometry_sectors[sector_id] = true
+		geometry_assembly_completed.emit(sector_id, result)
 
 
 ## Public seam (static, testable): re-validates `blueprint` through the shared
@@ -1065,6 +1078,45 @@ static func render_sector_blueprint(blueprint: Dictionary, parent: Node3D, ingre
 		return fallback
 	return _render_validated_blueprint(validated, parent, ingress, target)
 
+
+static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, ingress: Vector3 = Vector3.ZERO) -> Dictionary:
+	var validation: Dictionary = SectorBlueprintSchemaScript.validate(blueprint)
+	if validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		return _assembly_result(String(validation["outcome"]), 0, 0)
+	var sector_id: String = String(blueprint["sector_id"])
+	var coordinate_result: Dictionary = SectorIdentityScript.parse(sector_id)
+	if coordinate_result["outcome"] != "valid":
+		push_error("NetworkClient: rejecting malformed sector identity %s; rendering nothing." % sector_id)
+		return _assembly_result("invalid_sector_id", 0, 0)
+	var coordinate: Vector2i = coordinate_result["coordinate"]
+	var offset: Vector3 = Vector3(
+		coordinate.x * WorldScaleScript.SECTOR_EDGE_UNITS,
+		0.0,
+		coordinate.y * WorldScaleScript.SECTOR_EDGE_UNITS
+	)
+	var local_ingress: Vector3 = ingress - offset
+	var root: Node3D = Node3D.new()
+	root.name = "%s_pending" % sector_id
+	root.position = offset
+	registry.add_child(root)
+	var result: Dictionary = render_sector_blueprint(
+		blueprint,
+		root,
+		local_ingress,
+		_navigation_target(blueprint, local_ingress)
+	)
+	if result["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		registry.remove_child(root)
+		root.free()
+		return result
+	var existing: Node = registry.get_node_or_null(sector_id)
+	if existing != null:
+		registry.remove_child(existing)
+		existing.queue_free()
+	root.name = sector_id
+	result["sector_coordinate"] = coordinate
+	result["world_offset"] = offset
+	return result
 
 static func _render_validated_blueprint(blueprint: Dictionary, parent: Node3D, ingress: Vector3, target: Vector3) -> Dictionary:
 	var initial_child_count: int = parent.get_child_count()

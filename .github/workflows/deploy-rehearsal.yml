@@ -1,10 +1,9 @@
 name: Deploy rehearsal
 
 # Runner and stack health check. Runs scripts/deploy_containers.sh in --dry-run
-# on the deployment host: it resolves the image for every service in
-# deploy/compose.yml and reports the current container state. It changes
-# nothing, so the first exercise of the self-hosted runner is not a real
-# deployment.
+# on the deployment host: it resolves the images for the five core services and
+# reports their current container state. It changes nothing, so the first
+# exercise of the self-hosted runner is not a real deployment.
 on:
   workflow_dispatch:
   schedule:
@@ -31,4 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Resolve images and report host state
-        run: scripts/deploy_containers.sh --tag "${PROJECT0_REHEARSAL_TAG:-main}" --dry-run
+        run: |
+          scripts/deploy_containers.sh --tag "${PROJECT0_REHEARSAL_TAG:-main}" --dry-run \
+            --service nakama-db --service nakama --service game-server \
+            --service login-server --service enrollment

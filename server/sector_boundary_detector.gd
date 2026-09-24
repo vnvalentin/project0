@@ -4,10 +4,13 @@ class_name SectorBoundaryDetector
 ## sectors. This seam owns no database handle and performs no async work.
 
 const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
+const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
+const MAX_RETAINED_CANON_TRACES: int = 256
 
 signal sector_generation_requested(peer_id: int, sector_id: String, position: Vector3)
 
 var _last_sector_by_peer: Dictionary = {}
+var _trace_by_sector: Dictionary = {}
 var _canon_lookup: Callable = Callable()
 var _request_callback: Callable = Callable()
 var _reload_callback: Callable = Callable()
@@ -19,14 +22,15 @@ func set_canon_lookup(lookup: Callable) -> void:
 	_canon_lookup = lookup
 
 
-## Injects the asynchronous generation acceptance callback. It receives
-## (peer_id, sector_id, position); the callback must return immediately.
+## Injects the asynchronous generation acceptance callback. Trace-aware
+## callbacks receive (peer_id, sector_id, position, trace); legacy callbacks
+## may retain the original three arguments. The callback must return immediately.
 func set_request_callback(callback: Callable) -> void:
 	_request_callback = callback
 
 
-## Injects the synchronous Canon re-entry callback. It receives
-## (peer_id, sector_id, position) only when the sector already exists.
+## Injects the synchronous Canon re-entry callback, with the same optional
+## fourth trace argument as the generation callback.
 func set_reload_callback(callback: Callable) -> void:
 	_reload_callback = callback
 
@@ -40,14 +44,32 @@ func observe_position(peer_id: int, position: Vector3) -> Dictionary:
 	_last_sector_by_peer[peer_id] = sector_id
 
 	if _has_canon(sector_id):
+		var retained_trace: Dictionary = _trace_by_sector.get(sector_id, {})
+		var reload_trace: Dictionary = (
+			JitTraceContextScript.child(retained_trace, "canon_reentry")
+			if not retained_trace.is_empty()
+			else JitTraceContextScript.root(peer_id, sector_id)
+		)
+		reload_trace["event_type"] = "canon_reentry"
 		if _reload_callback.is_valid():
-			_reload_callback.call(peer_id, sector_id, position)
-		return {"sector_id": sector_id, "requested": false, "reloaded": true}
+			_call_transition_callback(_reload_callback, peer_id, sector_id, position, reload_trace)
+		return {"sector_id": sector_id, "requested": false, "reloaded": true, "trace": reload_trace}
 
+	var root_trace: Dictionary = JitTraceContextScript.root(peer_id, sector_id)
 	sector_generation_requested.emit(peer_id, sector_id, position)
 	if _request_callback.is_valid():
-		_request_callback.call(peer_id, sector_id, position)
-	return {"sector_id": sector_id, "requested": true, "reloaded": false}
+		_call_transition_callback(_request_callback, peer_id, sector_id, position, root_trace)
+	return {"sector_id": sector_id, "requested": true, "reloaded": false, "trace": root_trace}
+
+
+## Retains only the terminal bounded context needed to link a later Canon
+## re-entry. Canon data and trace metadata remain separate.
+func remember_canon_trace(sector_id: String, trace: Dictionary) -> void:
+	if sector_id.is_empty() or String(trace.get("trace_id", "")).is_empty():
+		return
+	if not _trace_by_sector.has(sector_id) and _trace_by_sector.size() >= MAX_RETAINED_CANON_TRACES:
+		_trace_by_sector.erase(_trace_by_sector.keys()[0])
+	_trace_by_sector[sector_id] = trace.duplicate(true)
 
 
 ## Clears a disconnected peer's transition state so a future connection with
@@ -74,3 +96,16 @@ func _has_canon(sector_id: String) -> bool:
 	if result is Dictionary:
 		return result.get("outcome", "") == "ok"
 	return false
+
+
+func _call_transition_callback(
+	callback: Callable,
+	peer_id: int,
+	sector_id: String,
+	position: Vector3,
+	trace: Dictionary,
+) -> void:
+	if callback.get_argument_count() >= 4:
+		callback.call(peer_id, sector_id, position, trace)
+	else:
+		callback.call(peer_id, sector_id, position)

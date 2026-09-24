@@ -155,11 +155,24 @@ def test_roadmap_view_labels_expected_issue_for_each_milestone(monkeypatch):
         "url": "https://github.com/vnvalentin/project0/issues/551",
         "state": "open",
         "labels": [],
+        "milestone_number": 1,
     }
-    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [issue], "error": ""})
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True,
+        "issues": [issue],
+        "milestones": [{
+            "number": 1,
+            "title": "M1 · JIT generation + canon re-entry",
+            "state": "open",
+            "description": "Horizon: Fast Follower\nClass: follow\nOutcome: Restore the same sector.\nEvidence: Re-entry proof.",
+        }],
+        "error": "",
+    })
     page = render_roadmap()
-    assert "Expected issue" in page
+    assert "Assigned issue" in page
+    assert "M1 · JIT generation + canon re-entry" in page
     assert "#551 Feature: Player-triggered JIT world generation and canon re-entry" in page
+    assert "Re-entry proof." in page
     assert "READY</span>" in page
     assert "READY TO PULL" not in page
 

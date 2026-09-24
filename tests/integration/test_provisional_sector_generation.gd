@@ -4,8 +4,10 @@ extends GutTest
 ## stay deterministic without a live Ollama instance.
 
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
+const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
+const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
 const FixturesScript: Script = preload("res://scripts/sector_blueprint_fixtures.gd")
 const FakeOllamaHttpServerScript: Script = preload("res://scripts/fake_ollama_http_server.gd")
 
@@ -58,7 +60,11 @@ func test_success_outcome_carries_validated_blueprint() -> void:
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
 	var generator: Node = _make_generator(port)
-	generator.request_provisional_sector("sector-0-0", "generate a sector")
+	generator.request_provisional_sector(
+		"sector-0-0",
+		"generate a sector",
+		SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR
+	)
 	await generator.provisional_sector_ready
 
 	_assert(generator.get_status("sector-0-0") == ProvisionalSectorGeneratorScript.STATUS_READY, "sector reaches ready status on success")
@@ -66,6 +72,33 @@ func test_success_outcome_carries_validated_blueprint() -> void:
 	_assert(result["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_VALIDATED, "ready result reaches REQUEST_OUTCOME_VALIDATED")
 	_assert(result["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "ready result validates as OUTCOME_VALID")
 	_assert(result["blueprint"] != null, "ready result carries the validated blueprint")
+	_assert(result["selected_profile"] == SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR, "ready result preserves the server-selected profile")
+
+	await _teardown(generator, fake_server)
+
+
+func test_trace_context_links_generation_and_validation_to_the_trigger() -> void:
+	var fake_server: Node = FakeOllamaHttpServerScript.new()
+	var port: int = fake_server.start()
+	add_child(fake_server)
+	fake_server.next_response_status = 200
+	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
+
+	var generator: Node = _make_generator(port)
+	var trigger: Dictionary = JitTraceContextScript.root(41, "sector-0-0")
+	generator.request_provisional_sector("sector-0-0", "generate a sector", trigger)
+	await generator.provisional_sector_ready
+
+	var result: Dictionary = generator.get_provisional_result("sector-0-0")
+	var spans: Array = result.get("trace_spans", [])
+	assert_eq(spans.size(), 2)
+	assert_eq(spans[0]["event_type"], "llm_generation_latency")
+	assert_eq(spans[0]["trace_id"], trigger["trace_id"])
+	assert_eq(spans[0]["parent_span_id"], trigger["span_id"])
+	assert_eq(spans[1]["event_type"], "schema_validation_result")
+	assert_eq(spans[1]["trace_id"], trigger["trace_id"])
+	assert_eq(spans[1]["parent_span_id"], spans[0]["span_id"])
+	assert_eq(result["trace_context"], spans[1])
 
 	await _teardown(generator, fake_server)
 
@@ -187,12 +220,15 @@ func test_repeated_request_for_same_sector_id_does_not_restart() -> void:
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
 	var generator: Node = _make_generator(port)
-	var first_id: String = generator.request_provisional_sector("sector-dup", "first prompt")
-	var second_id: String = generator.request_provisional_sector("sector-dup", "second prompt")
+	var first_trace: Dictionary = JitTraceContextScript.root(7, "sector-dup")
+	var second_trace: Dictionary = JitTraceContextScript.root(8, "sector-dup")
+	var first_id: String = generator.request_provisional_sector("sector-dup", "first prompt", first_trace)
+	var second_id: String = generator.request_provisional_sector("sector-dup", "second prompt", second_trace)
 
 	_assert(first_id == second_id, "a second request for the same sector id returns the existing correlation id instead of starting a new request")
 
 	await generator.provisional_sector_ready
+	_assert(generator.get_provisional_result("sector-dup")["trace_spans"][0]["trace_id"] == first_trace["trace_id"], "a repeated request cannot replace the initiating trace")
 	await _teardown(generator, fake_server)
 
 
