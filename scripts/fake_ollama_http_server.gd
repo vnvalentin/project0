@@ -25,6 +25,7 @@ var port: int = -1
 var respond_at_all: bool = true
 var next_response_status: int = 200
 var next_response_body: String = "{}"
+var last_request_body: String = ""
 
 
 func start() -> int:
@@ -64,7 +65,11 @@ func _process(_delta: float) -> void:
 	# Drain the request. A minimal HTTP/1.1 request/header block ends with
 	# "\r\n\r\n"; this harness does not need to parse method/path/body since
 	# every fixture test targets the same single fake endpoint.
-	var _request_bytes: PackedByteArray = _pending_connection.get_data(_pending_connection.get_available_bytes())[1]
+	var request_bytes: PackedByteArray = _pending_connection.get_data(_pending_connection.get_available_bytes())[1]
+	var request_text: String = request_bytes.get_string_from_utf8()
+	var body_separator_index: int = request_text.find("\r\n\r\n")
+	if body_separator_index >= 0:
+		last_request_body = request_text.substr(body_separator_index + 4)
 
 	if not respond_at_all:
 		# Deliberately do not close or write; the connection stays open and

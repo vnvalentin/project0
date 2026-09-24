@@ -43,10 +43,13 @@ func test_configured_model_success_reports_success_outcome() -> void:
 	)
 
 	var result: Dictionary = await client.generate_json("generate a sector")
+	var request_body: Variant = JSON.parse_string(fake_server.last_request_body)
 
 	assert_true(result["success"], "valid envelope + valid inner JSON is a successful result")
 	assert_eq(result["outcome"], LocalLLMClientScript.OUTCOME_SUCCESS, "result outcome is success")
 	assert_true(result["duration_ms"] >= 0, "result duration_ms is non-negative")
+	assert_true(request_body is Dictionary, "Ollama request body is valid JSON")
+	assert_eq(request_body.get("think"), false, "structured generation explicitly disables model thinking")
 	assert_eq(reported.size(), 1, "exactly one telemetry event is reported")
 	_assert_bounded_telemetry(reported[0], LocalLLMClientScript.OUTCOME_SUCCESS)
 
