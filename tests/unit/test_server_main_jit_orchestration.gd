@@ -105,15 +105,16 @@ func test_boundary_prompt_carries_schema_contract_for_the_requested_sector() -> 
 	assert_eq(generator.requests.size(), 1)
 	var prompt: String = generator.requests[0]["prompt"]
 	assert_true(prompt.contains("\"sector_id\": \"sector-3-2\""), "prompt states the authoritative, request-specific sector_id")
-	assert_true(prompt.contains("\"schema_version\""), "prompt states the required schema_version field")
+	assert_true(prompt.contains("\"schema_version\": 3"), "prompt states the supported schema version")
 	assert_true(prompt.contains("\"origin\": {\"x\": 0, \"y\": 0}"), "prompt states the fixed sector-local origin so a candidate cannot claim a mismatched origin")
-	assert_true(prompt.contains("\"tiles\""), "prompt states the required tiles field")
-	assert_true(prompt.contains("1.."), "prompt requires a non-empty tiles array")
+	assert_true(prompt.contains("\"tiles\": 1..%d" % SectorBlueprintSchemaScript.MAX_TILE_COUNT), "prompt states the non-empty bounded tiles field")
+	assert_true(prompt.contains("{\"x\": int, \"y\": int, \"kind\": string}"), "prompt states each tile's required fields")
 	for kind: String in SectorBlueprintSchemaScript.SUPPORTED_TILE_KINDS:
 		assert_true(prompt.contains(kind), "prompt allows tile kind '%s'" % kind)
 	var bound: String = str(SectorBlueprintSchemaScript.MAX_COORDINATE_ABS)
 	assert_true(prompt.contains("-%s..%s" % [bound, bound]), "prompt states the coordinate bound of %s" % bound)
-	assert_true(prompt.to_lower().contains("json"), "prompt constrains the model to JSON-only output")
+	assert_true(prompt.contains("Return ONLY one JSON object"), "prompt excludes prose and thinking from the response")
+	assert_true(prompt.contains("Output valid JSON only."), "prompt constrains the model to valid JSON-only output")
 
 	server._request_sector_from_boundary(9, "sector-5-1", Vector3(2200.0, 0.0, 440.0), JitTraceContextScript.root(9, "sector-5-1"))
 	assert_true(generator.requests[1]["prompt"].contains("\"sector_id\": \"sector-5-1\""), "a different boundary crossing embeds its own authoritative sector_id, not the earlier request's")
