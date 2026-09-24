@@ -4,7 +4,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import delivery_projection, render_delivery, render_tracker
+from app import _roadmap_milestones, delivery_projection, render_delivery, render_tracker
 from tracker import inline_markdown, load_tracker, validate_tracker
 import tracker as tracker_module
 
@@ -112,6 +112,14 @@ def test_delivery_page_shows_unassigned_open_milestones(monkeypatch) -> None:
     page = render_delivery()
 
     assert "Phase 16: Client delivery experience" in page
+
+
+def test_roadmap_keeps_milestones_without_compact_prefix() -> None:
+    stages = _roadmap_milestones({
+        "milestones": [{"number": 2, "title": "Phase 16: Client delivery experience"}],
+    })
+
+    assert [stage["title"] for stage in stages] == ["Phase 16: Client delivery experience"]
 
 
 def test_tracker_model_reports_missing_source(tmp_path: Path) -> None:
