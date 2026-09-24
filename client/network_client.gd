@@ -1111,7 +1111,7 @@ static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, in
 	var existing: Node = registry.get_node_or_null(sector_id)
 	if existing != null:
 		registry.remove_child(existing)
-		existing.free()
+		existing.queue_free()
 	root.name = sector_id
 	result["sector_coordinate"] = coordinate
 	result["world_offset"] = offset

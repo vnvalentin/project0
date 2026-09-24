@@ -63,6 +63,8 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 	)
 	assert_eq(invalid["outcome"], "invalid_sector_id", "malformed sector identity fails closed")
 	assert_eq(registry.get_child_count(), 3, "malformed identity creates no root")
+	await get_tree().process_frame
+	assert_false(is_instance_valid(replaced_root), "the replayed sector root is retired after the active signal frame")
 
 	var trace_file: FileAccess = FileAccess.open(PLACEMENT_TRACE_PATH, FileAccess.WRITE)
 	if trace_file != null:
