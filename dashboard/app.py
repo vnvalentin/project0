@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from tracker import inline_markdown, load_tracker
@@ -69,8 +70,13 @@ def github_issues() -> dict:
             if GITHUB_TOKEN:
                 headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
             req = Request(url, headers=headers)
-            with urlopen(req, timeout=5) as response:
-                raw = response.read().decode("utf-8")
+            try:
+                with urlopen(req, timeout=5) as response:
+                    raw = response.read().decode("utf-8")
+            except HTTPError as exc:
+                if exc.code == 422 and issues:
+                    break
+                raise
             parsed = json.loads(raw)
             for item in parsed:
                 if "pull_request" in item:

@@ -1,6 +1,7 @@
 import json
 import sys
 from pathlib import Path
+from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from app import delivery_projection, render_delivery, render_tracker
@@ -67,18 +68,12 @@ def test_github_issue_feed_keeps_issues_beyond_five_pages(monkeypatch) -> None:
         if "/milestones?" in request.full_url:
             return FakeResponse([])
         page = int(request.full_url.rsplit("page=", 1)[1])
-        if page <= 5:
-            return FakeResponse([{"number": page * 100 + offset, "state": "open"} for offset in range(100)])
-        return FakeResponse([{
-            "number": 551,
-            "title": "JIT generation + canon re-entry",
-            "html_url": "https://example.test/551",
-            "state": "open",
-            "labels": [],
-            "assignees": [],
-            "body": "",
-            "updated_at": "",
-        }])
+        if page <= 6:
+            payload = [{"number": page * 100 + offset, "state": "open"} for offset in range(100)]
+            if page == 6:
+                payload[0]["number"] = 551
+            return FakeResponse(payload)
+        raise HTTPError(request.full_url, 422, "pagination limit", {}, None)
 
     monkeypatch.setattr(app, "urlopen", fake_urlopen)
     app._ISSUE_CACHE.update({"at": 0.0, "data": {"available": False}})
