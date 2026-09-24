@@ -10,6 +10,9 @@ build/
 dist/
 *.log
 
+# Generated experiment evidence; retain externally when a run is cited.
+logs/experiments/
+
 # Python bytecode (dashboard tooling)
 __pycache__/
 *.pyc
