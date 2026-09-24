@@ -28,6 +28,7 @@ class_name ProvisionalSectorGenerator
 
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
 const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
+const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 
 ## In-memory request lifecycle. There is no "failed" status distinct from
 ## "ready": a bounded failure is itself a ready outcome (see
@@ -63,7 +64,14 @@ var _sector_state: Dictionary = {}
 ## not need to await this function to receive acceptance. Re-requesting a
 ## sector id that is already pending or ready returns its existing state
 ## instead of starting a second concurrent request for the same sector id.
-func request_provisional_sector(sector_id: String, prompt: String, trace: Dictionary = {}) -> String:
+func request_provisional_sector(sector_id: String, prompt: String, selected_profile_or_trace: Variant = SectorArchetypeAdmissionScript.PROFILE_WILDERNESS, trace: Dictionary = {}) -> String:
+	var selected_profile: String = SectorArchetypeAdmissionScript.PROFILE_WILDERNESS
+	if selected_profile_or_trace is Dictionary:
+		trace = selected_profile_or_trace
+	else:
+		selected_profile = String(selected_profile_or_trace)
+	if not SectorArchetypeAdmissionScript._supported_profiles().has(selected_profile):
+		return ""
 	if _sector_state.has(sector_id):
 		return _sector_state[sector_id]["correlation_id"]
 
@@ -71,6 +79,7 @@ func request_provisional_sector(sector_id: String, prompt: String, trace: Dictio
 	_sector_state[sector_id] = {
 		"status": STATUS_PENDING,
 		"correlation_id": correlation_id,
+		"selected_profile": selected_profile,
 		"result": null,
 		"trace": trace.duplicate(true),
 	}
@@ -134,9 +143,11 @@ func _run_request(sector_id: String, prompt: String) -> void:
 	# Preserve the correlation id handed back at acceptance time rather than
 	# overwriting it with SectorBlueprintService's own internal id.
 	var correlation_id: String = _sector_state[sector_id]["correlation_id"]
+	result["selected_profile"] = _sector_state[sector_id]["selected_profile"]
 	_sector_state[sector_id] = {
 		"status": STATUS_READY,
 		"correlation_id": correlation_id,
+		"selected_profile": _sector_state[sector_id]["selected_profile"],
 		"result": result,
 		"trace": trace,
 	}

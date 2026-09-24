@@ -12,7 +12,7 @@ func _blueprint() -> Dictionary:
 	return {
 		"schema_version": 1,
 		"sector_id": "sector-2-3",
-		"origin": {"x": 880, "y": 1320},
+		"origin": {"x": 0, "y": 0},
 		"tiles": [{"x": 0, "y": 0, "kind": "floor"}],
 	}
 
@@ -26,10 +26,14 @@ func test_success_emits_only_the_canonical_blueprint() -> void:
 		emitted.append(blueprint)
 	)
 	coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
-		return {"outcome": "ok", "detail": "stored", "sector": {"blueprint": stored}}
+		var persisted: Dictionary = stored.duplicate(true)
+		persisted["archetype"] = blueprint.get("archetype", "")
+		return {"outcome": "ok", "detail": "stored", "sector": {"blueprint": persisted}}
 	)
-	var result: Dictionary = coordinator.accept_generation_result("sector-2-3", _generation_result(_blueprint()))
+	var result: Dictionary = coordinator.accept_generation_result("sector-2-3", SectorArchetypeAdmission.PROFILE_WILDERNESS, _generation_result(_blueprint()))
 	assert_eq(result["outcome"], CoordinatorScript.OUTCOME_CANONICALIZED)
+	assert_eq(result["profile"], SectorArchetypeAdmission.PROFILE_WILDERNESS)
+	assert_eq(result["blueprint"]["archetype"], SectorArchetypeAdmission.PROFILE_WILDERNESS)
 	assert_eq(emitted.size(), 1)
 	assert_eq(emitted[0]["tiles"][0]["x"], 4)
 
@@ -43,7 +47,7 @@ func test_idempotent_replay_emits_existing_canon() -> void:
 	coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
 		return {"outcome": "idempotent", "sector": {"blueprint": blueprint}}
 	)
-	assert_eq(coordinator.accept_generation_result("sector-2-3", _generation_result(_blueprint()))["outcome"], CoordinatorScript.OUTCOME_IDEMPOTENT)
+	assert_eq(coordinator.accept_generation_result("sector-2-3", SectorArchetypeAdmission.PROFILE_WILDERNESS, _generation_result(_blueprint()))["outcome"], CoordinatorScript.OUTCOME_IDEMPOTENT)
 	assert_eq(emitted.size(), 1)
 
 
@@ -53,8 +57,8 @@ func test_transport_and_schema_failures_emit_nothing() -> void:
 	coordinator.canonical_sector_ready.connect(func(sector_id: String, blueprint: Dictionary) -> void:
 		emitted.append(sector_id)
 	)
-	var transport: Dictionary = coordinator.accept_generation_result("sector-2-3", {"request_outcome": "transport_error"})
-	var schema: Dictionary = coordinator.accept_generation_result("sector-2-3", {"request_outcome": "validated", "validation_outcome": "wrong_schema_version", "blueprint": null})
+	var transport: Dictionary = coordinator.accept_generation_result("sector-2-3", SectorArchetypeAdmission.PROFILE_WILDERNESS, {"request_outcome": "transport_error"})
+	var schema: Dictionary = coordinator.accept_generation_result("sector-2-3", SectorArchetypeAdmission.PROFILE_WILDERNESS, {"request_outcome": "validated", "validation_outcome": "wrong_schema_version", "blueprint": null})
 	assert_eq(transport["outcome"], CoordinatorScript.OUTCOME_IGNORED)
 	assert_eq(schema["outcome"], CoordinatorScript.OUTCOME_IGNORED)
 	assert_eq(emitted.size(), 0)
@@ -69,6 +73,27 @@ func test_conflict_emits_nothing() -> void:
 	coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
 		return {"outcome": "conflict", "detail": "immutable"}
 	)
-	var result: Dictionary = coordinator.accept_generation_result("sector-2-3", _generation_result(_blueprint()))
+	var result: Dictionary = coordinator.accept_generation_result("sector-2-3", SectorArchetypeAdmission.PROFILE_WILDERNESS, _generation_result(_blueprint()))
 	assert_eq(result["outcome"], CoordinatorScript.OUTCOME_CONFLICT)
 	assert_eq(emitted.size(), 0)
+
+
+func test_rejected_candidate_never_reaches_canon() -> void:
+	var coordinator: CanonGenerationCoordinator = CoordinatorScript.new()
+	var canon_calls: int = 0
+	coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
+		canon_calls += 1
+		return {"outcome": "ok", "sector": {"blueprint": blueprint}}
+	)
+	var candidate: Dictionary = _blueprint()
+	candidate["archetype"] = SectorArchetypeAdmission.PROFILE_SETTLEMENT
+	var result: Dictionary = coordinator.accept_generation_result(
+		"sector-2-3",
+		SectorArchetypeAdmission.PROFILE_WILDERNESS,
+		_generation_result(candidate)
+	)
+	assert_eq(result["outcome"], CoordinatorScript.OUTCOME_IGNORED)
+	assert_eq(result["admission_reason"], SectorArchetypeAdmission.REASON_CANDIDATE_CLASSIFICATION)
+	assert_eq(result["canon_write_count"], 0)
+	assert_eq(result["replication_dispatch_count"], 0)
+	assert_eq(canon_calls, 0)

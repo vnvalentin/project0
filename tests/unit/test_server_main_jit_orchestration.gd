@@ -13,8 +13,13 @@ class FakeGenerator extends Node:
 	func get_status(_sector_id: String) -> String:
 		return status
 
-	func request_provisional_sector(sector_id: String, prompt: String, trace: Dictionary) -> String:
-		requests.append({"sector_id": sector_id, "prompt": prompt, "trace": trace.duplicate(true)})
+	func request_provisional_sector(sector_id: String, prompt: String, selected_profile: String, trace: Dictionary) -> String:
+		requests.append({
+			"sector_id": sector_id,
+			"prompt": prompt,
+			"selected_profile": selected_profile,
+			"trace": trace.duplicate(true),
+		})
 		status = "pending"
 		return "correlation-%d" % requests.size()
 

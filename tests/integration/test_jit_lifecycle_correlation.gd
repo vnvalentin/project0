@@ -6,6 +6,7 @@ const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
+const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
 const NetworkClientScript: Script = preload("res://client/network_client.gd")
@@ -92,11 +93,12 @@ func test_experiment_1011_correlates_the_five_span_jit_lifecycle() -> void:
 	if schema_result.get("outcome", "") != CanonRepositoryScript.OUTCOME_OK:
 		runtime_errors.append(String(schema_result.get("detail", "Canon schema failed")))
 	var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
+	var selected_profile: String = SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR
 	coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
 		return repository.canonicalize_blueprint(blueprint)
 	)
 	var commit_started: int = Time.get_ticks_usec()
-	var canon_result: Dictionary = coordinator.accept_generation_result("sector_01_02", generation)
+	var canon_result: Dictionary = coordinator.accept_generation_result("sector_01_02", selected_profile, generation)
 	var commit_duration: float = _elapsed_ms(commit_started)
 	if canon_result.get("outcome", "") != CanonGenerationCoordinatorScript.OUTCOME_CANONICALIZED:
 		runtime_errors.append(String(canon_result.get("detail", "Canon commit failed")))

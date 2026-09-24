@@ -54,12 +54,14 @@ static func admit(selected_profile: String, candidate: Variant) -> Dictionary:
 			if structures.is_empty():
 				return _rejection(selected_profile, REASON_MISSING_POI_ANCHOR, "POI_ANCHOR requires an anchor structure.")
 
+	var admitted_blueprint: Dictionary = blueprint.duplicate(true)
+	admitted_blueprint["archetype"] = selected_profile
 	return {
 		"outcome": OUTCOME_ACCEPTED,
 		"reason": "",
 		"detail": "",
 		"profile": selected_profile,
-		"blueprint": blueprint,
+		"blueprint": admitted_blueprint,
 	}
 
 

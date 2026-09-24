@@ -5,6 +5,7 @@ extends GutTest
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
+const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutation_repository.gd")
 const SqliteStoreScript: Script = preload("res://server/sqlite_store.gd")
@@ -89,7 +90,12 @@ func test_live_trace_reaches_presentation_and_continues_on_canon_reentry() -> vo
 	detector.set_request_callback(func(_peer_id: int, sector_id: String, _position: Vector3, trace: Dictionary) -> void:
 		if sector_id == target_sector:
 			target_generation_calls[0] += 1
-			generator.request_provisional_sector(sector_id, "generate %s" % sector_id, trace)
+			generator.request_provisional_sector(
+				sector_id,
+				"generate %s" % sector_id,
+				SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR,
+				trace
+			)
 	)
 
 	var trigger: Dictionary = detector.observe_position(PEER_ID, TARGET_POSITION)
@@ -106,11 +112,16 @@ func test_live_trace_reaches_presentation_and_continues_on_canon_reentry() -> vo
 		generation_result["trace_context"],
 		"canon_db_commit",
 	)
-	var finalization: Dictionary = coordinator.accept_generation_result(target_sector, generation_result)
+	var finalization: Dictionary = coordinator.accept_generation_result(
+		target_sector,
+		generation_result["selected_profile"],
+		generation_result
+	)
 	commit_trace["status"] = "OK" if finalization["outcome"] == CanonGenerationCoordinatorScript.OUTCOME_CANONICALIZED else "ERROR"
 	_emit_server_trace(sink, commit_trace)
 	assert_eq(finalization["outcome"], CanonGenerationCoordinatorScript.OUTCOME_CANONICALIZED)
 	var committed_record: Dictionary = repository.get_canonical_sector(target_sector)["sector"]
+	assert_eq(committed_record["blueprint"]["archetype"], SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR)
 	var mutations: CanonMutationRepository = CanonMutationRepositoryScript.new(_store, repository)
 	assert_eq(mutations.ensure_schema()["outcome"], CanonMutationRepositoryScript.OUTCOME_OK)
 	var committed_revision: int = mutations.get_sector_revision(target_sector)["revision"]

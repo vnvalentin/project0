@@ -4,6 +4,7 @@ extends GutTest
 ## stay deterministic without a live Ollama instance.
 
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
+const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
@@ -59,7 +60,11 @@ func test_success_outcome_carries_validated_blueprint() -> void:
 	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
 
 	var generator: Node = _make_generator(port)
-	generator.request_provisional_sector("sector-0-0", "generate a sector")
+	generator.request_provisional_sector(
+		"sector-0-0",
+		"generate a sector",
+		SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR
+	)
 	await generator.provisional_sector_ready
 
 	_assert(generator.get_status("sector-0-0") == ProvisionalSectorGeneratorScript.STATUS_READY, "sector reaches ready status on success")
@@ -67,6 +72,7 @@ func test_success_outcome_carries_validated_blueprint() -> void:
 	_assert(result["request_outcome"] == SectorBlueprintServiceScript.REQUEST_OUTCOME_VALIDATED, "ready result reaches REQUEST_OUTCOME_VALIDATED")
 	_assert(result["validation_outcome"] == SectorBlueprintSchemaScript.OUTCOME_VALID, "ready result validates as OUTCOME_VALID")
 	_assert(result["blueprint"] != null, "ready result carries the validated blueprint")
+	_assert(result["selected_profile"] == SectorArchetypeAdmissionScript.PROFILE_POI_ANCHOR, "ready result preserves the server-selected profile")
 
 	await _teardown(generator, fake_server)
 
