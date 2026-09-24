@@ -62,9 +62,8 @@ func _process(_delta: float) -> void:
 	if _pending_connection.get_available_bytes() <= 0:
 		return
 
-	# Drain the request. A minimal HTTP/1.1 request/header block ends with
-	# "\r\n\r\n"; this harness does not need to parse method/path/body since
-	# every fixture test targets the same single fake endpoint.
+	# Drain the request. Every fixture targets the same endpoint, so only the
+	# body is retained for payload assertions.
 	var request_bytes: PackedByteArray = _pending_connection.get_data(_pending_connection.get_available_bytes())[1]
 	var request_text: String = request_bytes.get_string_from_utf8()
 	var body_separator_index: int = request_text.find("\r\n\r\n")
