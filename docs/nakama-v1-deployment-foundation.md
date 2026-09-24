@@ -26,8 +26,17 @@ explicit:
 ```bash
 scripts/deploy_containers.sh \
   --tag <project0-image-tag> \
-  --nakama-tag <nakama-image-tag>
+  --nakama-tag <nakama-image-tag> \
+  --service nakama-db \
+  --service nakama
 ```
+
+Each invocation must name every service it may change. A release names the five
+core services explicitly; a repair may name only the affected service. The
+script publishes the validated Compose definition atomically to
+`/apps/project0/deploy/compose.yml` and performs mutable Compose operations from
+that stable artifact with project name `project0`. CI checkouts are candidate
+inputs, never production management roots.
 
 The host ledger at `/var/lib/project0/deployed-components` records both image
 tags. A rollback refuses to proceed when a previous Nakama tag is not recorded,
