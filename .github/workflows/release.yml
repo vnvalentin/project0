@@ -102,10 +102,16 @@ jobs:
         run: scripts/publish_client_downloads.sh "${GITHUB_REF_NAME#v}"
 
       - name: Show deploy plan
-        run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}" --dry-run
+        run: |
+          scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}" --dry-run \
+            --service nakama-db --service nakama --service game-server \
+            --service login-server --service enrollment
 
       - name: Deploy the container stack
-        run: scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}"
+        run: |
+          scripts/deploy_containers.sh --tag "${GITHUB_REF_NAME}" \
+            --service nakama-db --service nakama --service game-server \
+            --service login-server --service enrollment
 
       - name: Verify public client downloads
         run: |
