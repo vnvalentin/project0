@@ -58,7 +58,19 @@ boundary:
 Apply the label when any changed path is under `native/windows_launcher/`, has a
 Windows-only build constraint, changes Windows packaging or installer behavior,
 or changes a client path whose acceptance depends on Windows runtime behavior.
+
   Ollama/SQLite validation are out of scope until those systems are built.
+
+## Server and Linux execution boundary
+
+The Project0 game server runs in a container on the Linux machine at
+`192.168.1.254`. The Windows client may run on this machine or on another
+Windows machine, but that does not change the server boundary.
+
+Any server-side, container, or Linux-only command MUST execute on
+`192.168.1.254` through SSH. Do not substitute a local Windows or WSL command
+for server work. If SSH access to `192.168.1.254` is unavailable, stop and
+report the blocker rather than running the command locally.
 
 ## Project boundaries
 
