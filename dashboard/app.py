@@ -62,7 +62,8 @@ def github_issues() -> dict:
     try:
         issues = []
         milestones = []
-        for page in range(1, 6):
+        page = 1
+        while True:
             url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
             headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
             if GITHUB_TOKEN:
@@ -89,8 +90,10 @@ def github_issues() -> dict:
                 })
             if len(parsed) < 100:
                 break
+            page += 1
         try:
-            for page in range(1, 6):
+            page = 1
+            while True:
                 url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&page={page}"
                 headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
                 if GITHUB_TOKEN:
@@ -108,6 +111,7 @@ def github_issues() -> dict:
                 } for item in parsed)
                 if len(parsed) < 100:
                     break
+                page += 1
         except Exception:
             milestones = []
         issues.sort(key=lambda issue: issue["number"])
