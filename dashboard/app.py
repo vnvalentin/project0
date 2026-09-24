@@ -61,6 +61,7 @@ def github_issues() -> dict:
         return _ISSUE_CACHE["data"]
     try:
         issues = []
+        milestones = []
         for page in range(1, 6):
             url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
             headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
@@ -88,8 +89,27 @@ def github_issues() -> dict:
                 })
             if len(parsed) < 100:
                 break
+        try:
+            for page in range(1, 6):
+                url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&page={page}"
+                headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
+                if GITHUB_TOKEN:
+                    headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+                req = Request(url, headers=headers)
+                with urlopen(req, timeout=5) as response:
+                    parsed = json.loads(response.read().decode("utf-8"))
+                milestones.extend({
+                    "number": int(item.get("number", 0)),
+                    "title": str(item.get("title", "")),
+                    "state": str(item.get("state", "open")),
+                } for item in parsed)
+                if len(parsed) < 100:
+                    break
+        except Exception:
+            milestones = []
         issues.sort(key=lambda issue: issue["number"])
-        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "error": ""}
+        milestones.sort(key=lambda milestone: milestone["number"])
+        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "milestones": milestones, "error": ""}
     except Exception as exc:
         data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
     _ISSUE_CACHE.update({"at": now, "data": data})
@@ -207,6 +227,7 @@ def delivery_projection(issue_feed: dict) -> dict:
     return {
         "available": bool(issue_feed.get("available")),
         "error": issue_feed.get("error", ""),
+        "milestones": issue_feed.get("milestones", []),
         "total": len(active),
         "rows": active,
         "outcomes": sorted({row["outcome"] for row in active}),
@@ -874,6 +895,19 @@ def _delivery_group_html(rows: list[dict], field: str) -> str:
     ) or '<p class="empty">No active issues.</p>'
 
 
+def _delivery_milestone_html(rows: list[dict], milestones: list[dict]) -> str:
+    counts = {}
+    for row in rows:
+        if row.get("milestone_number") is not None:
+            counts[row["milestone_number"]] = counts.get(row["milestone_number"], 0) + 1
+    groups = [
+        f'<section class="delivery-group"><h3>{esc(milestone["title"])} <span class="muted">({counts.get(milestone["number"], 0)})</span></h3></section>'
+        for milestone in milestones
+        if milestone.get("state") == "open"
+    ]
+    return "".join(groups) or '<p class="empty">No open milestones found.</p>'
+
+
 def render_delivery() -> str:
     model = delivery_projection(github_issues())
     warning = "" if model["available"] else f'<div class="delivery-warning">GitHub issue feed unavailable: {esc(model["error"] or "unknown error")}</div>'
@@ -894,7 +928,7 @@ def render_delivery() -> str:
 <section class="sec"><h2>Active delivery table</h2><table class="delivery-table"><thead><tr><th>Work</th><th>Outcome</th><th>Phase</th><th>Milestone</th><th>Status</th><th>Blocked</th><th>Evidence</th><th>Parent</th><th>Assignees</th></tr></thead><tbody>{rows}</tbody></table></section>
 <section class="sec"><h2>By outcome</h2><div class="delivery-groups">{_delivery_group_html(model["rows"], "outcome")}</div></section>
 <section class="sec"><h2>By phase</h2><div class="delivery-groups">{_delivery_group_html(model["rows"], "phase")}</div></section>
-<section class="sec"><h2>By milestone</h2><div class="delivery-groups">{_delivery_group_html(model["rows"], "milestone_title")}</div></section>
+<section class="sec"><h2>By milestone</h2><div class="delivery-groups">{_delivery_milestone_html(model["rows"], model["milestones"])}</div></section>
 <section class="sec"><h2>Blocked and evidence</h2><div class="delivery-groups">{_delivery_group_html(model["blocked"], "blocked")}</div></section>
 </main></body></html>'''
 
