@@ -102,6 +102,9 @@ def github_issues() -> dict:
                     "number": int(item.get("number", 0)),
                     "title": str(item.get("title", "")),
                     "state": str(item.get("state", "open")),
+                    "description": str(item.get("description", "")),
+                    "open_issues": int(item.get("open_issues", 0)),
+                    "closed_issues": int(item.get("closed_issues", 0)),
                 } for item in parsed)
                 if len(parsed) < 100:
                     break
@@ -730,13 +733,34 @@ VISION_STATEMENT = (
     "they can explore, alter, inhabit, build upon, and eventually help govern."
 )
 
-ROADMAP_PLAN = (
-    {"horizon": "Active / Now", "class_name": "active", "title": "M0 · Refine the public seam", "issue_numbers": (571,), "outcome": "Align the supporting fixture to the player-triggered boundary flow."},
-    {"horizon": "Fast Follower", "class_name": "follow", "title": "M1 · JIT generation + canon re-entry", "issue_numbers": (551,), "outcome": "A player crosses an unexplored boundary and later restores the same canonical sector."},
-    {"horizon": "On-Deck", "class_name": "deck", "title": "M2 · Shared Lore convergence", "issue_numbers": (552,), "outcome": "Two clients and a late joiner converge on one authoritative Lore revision."},
-    {"horizon": "On-Deck", "class_name": "deck", "title": "M3 · Procedural house geometry", "issue_numbers": (710,), "outcome": "Accepted house fields produce distinct deterministic runtime geometry."},
-    {"horizon": "Future / Fog", "class_name": "fog", "title": "M4+ · Semantic world expansion", "issue_numbers": (964, 965, 966), "outcome": "Context bounds, POI Canon persistence, and proposal fallback become refined slices."},
-)
+ROADMAP_MILESTONE_RE = re.compile(r"^M(\d+)(?:\+)?\s+·\s+")
+
+
+def _roadmap_metadata(milestone: dict) -> dict:
+    metadata = {}
+    for line in str(milestone.get("description", "")).splitlines():
+        key, separator, value = line.partition(":")
+        if separator and key.strip().lower() in {"horizon", "class", "outcome", "evidence"}:
+            metadata[key.strip().lower()] = value.strip()
+    return metadata
+
+
+def _roadmap_milestones(issue_feed: dict) -> list[dict]:
+    roadmap = []
+    for milestone in issue_feed.get("milestones", []):
+        match = ROADMAP_MILESTONE_RE.match(str(milestone.get("title", "")))
+        if match is None:
+            continue
+        metadata = _roadmap_metadata(milestone)
+        roadmap.append({
+            **milestone,
+            "order": int(match.group(1)),
+            "horizon": metadata.get("horizon", "On-Deck"),
+            "class_name": metadata.get("class", "deck"),
+            "outcome": metadata.get("outcome", ""),
+            "evidence": metadata.get("evidence", ""),
+        })
+    return sorted(roadmap, key=lambda milestone: milestone["order"])
 
 
 def _roadmap_kind(issue: dict) -> str:
@@ -814,17 +838,15 @@ def roadmap_html(issue_feed: dict) -> str:
     """Render the rolling horizon from live GitHub issue records."""
     issues_by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
     rendered_nodes = []
-    for stage in ROADMAP_PLAN:
+    issues = list(issues_by_number.values())
+    for stage in _roadmap_milestones(issue_feed):
         links = []
         states = []
         breakdown_nodes = []
-        expected_label = "Expected issue" if len(stage["issue_numbers"]) == 1 else "Expected issues"
-        for number in stage["issue_numbers"]:
-            issue = issues_by_number.get(number)
-            if issue is None:
-                links.append(f'<span class="roadmap-issue">#{number} unavailable</span>')
-                states.append("missing from feed")
-                continue
+        milestone_issues = [issue for issue in issues if issue.get("milestone_number") == stage["number"]]
+        expected_label = "Assigned issue" if len(milestone_issues) == 1 else "Assigned issues"
+        for issue in milestone_issues:
+            number = issue["number"]
             node = _roadmap_node(issue, list(issues_by_number.values()))
             ancestors = _roadmap_ancestors(issue, list(issues_by_number.values()))
             hierarchy_nodes = ancestors + _roadmap_flatten(node)
@@ -849,9 +871,9 @@ def roadmap_html(issue_feed: dict) -> str:
         source_note = f'GitHub issue feed unavailable: {issue_feed.get("error", "unknown error")}'
     return (
         f'<div class="roadmap-track">{"".join(rendered_nodes)}</div>'
-        f'<div class="roadmap-evidence"><strong>Milestone 1 proof:</strong> '
-        f'player boundary crossing → async generation → blueprint validation → '
-        f'Canon commit → visible sector → stable re-entry. {esc(source_note)}</div>'
+        f'<div class="roadmap-evidence"><strong>GitHub milestone evidence:</strong> '
+        f'{esc(" · ".join(stage["evidence"] for stage in _roadmap_milestones(issue_feed) if stage["evidence"]))} '
+        f'{esc(source_note)}</div>'
     )
 
 

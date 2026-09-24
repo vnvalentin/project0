@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Record-sync JKK gate. Fails when the delivery records disagree, so calibration
-# drift is caught mechanically instead of relying on discipline. Run before every
-# record commit (and ideally from a pre-commit hook).
+# Record-sync gate for historical links and GitHub issue traceability.
 #
 # Checks (all against the working tree, i.e. what you are about to commit):
 #   1. Dangling feature anchors  - every FEATURE-LIST.md#<id> link resolves to a
@@ -26,11 +24,8 @@ warns=0
 err()  { printf 'FAIL  %s\n' "$1" >&2; errors=$((errors + 1)); }
 warn() { printf 'WARN  %s\n' "$1" >&2; warns=$((warns + 1)); }
 
-# Structured tracker authority/parity gate. The Markdown file remains a frozen
-# readable archive, but it must continue to import into the dashboard schema.
-if ! python dashboard/tracker.py --validate .; then
-	err "structured tracker schema is out of parity with docs/PROJECT-TRACKER.md"
-fi
+# The Markdown tracker is a frozen archive. Active status, phase, outcome,
+# milestone, evidence, and parent data live in GitHub Issues and Project #2.
 
 for f in "$FEATURE" "$TRACKER" "$REGISTRY"; do
 	[ -f "$f" ] || err "missing record file: $f"

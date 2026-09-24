@@ -73,10 +73,9 @@ func _test_authoritative_melee_strike() -> void:
 	])
 	_assert(_server_process_id != -1, "server process starts")
 
-	var startup_wait_ticks: int = 0
-	while startup_wait_ticks < 60:
+	var startup_deadline_msec: int = Time.get_ticks_msec() + 5000
+	while OS.is_process_running(_server_process_id) and Time.get_ticks_msec() < startup_deadline_msec:
 		await process_frame
-		startup_wait_ticks += 1
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
 
 	var network_client: Node = root.get_node("NetworkClient")
@@ -86,7 +85,7 @@ func _test_authoritative_melee_strike() -> void:
 	current_scene = _gameplay_instance
 	await process_frame
 
-	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.SERVER_PORT)
+	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.resolve_server_port())
 
 	var connect_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while network_client.status != "connected: player spawned" and Time.get_ticks_msec() < connect_deadline_msec:
