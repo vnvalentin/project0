@@ -125,6 +125,9 @@ Do not create implementation slices or product code while this gate is open.
   of the repo-scoped agent working notes (agent `/memories/repo/` is per-machine
   and does not sync via the remote). Seed your repository memory from it, and
   keep it in sync when a convention changes.
+- GitHub operations: use the authenticated `gh` CLI for every GitHub read and
+  mutation. Do not use the GitHub API directly or alternate GitHub integration
+  tools for issue, project, pull request, label, or notification operations.
 - Implementation ownership: Copilot performs orchestration, bounded handoffs,
   validation coordination, and review. Claude CLI owns application-code,
   test-code, and implementation-facing delivery-record edits unless the user
