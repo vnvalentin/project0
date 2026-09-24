@@ -50,6 +50,7 @@ const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_res
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
+const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const NakamaSessionValidatorScript: Script = preload("res://server/nakama_session_validator.gd")
 const WorldEntryTicketServiceScript: Script = preload("res://server/world_entry_ticket_service.gd")
@@ -768,8 +769,13 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 		_emit_jit_trace(trace, peer_id)
 	var initiating_trace: Dictionary = _jit_root_trace_by_sector.get(sector_id, trace)
 	var prompt: String = _sector_generation_prompt(sector_id)
-	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, initiating_trace)
+	var selected_profile: String = _select_sector_profile(sector_id)
+	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, selected_profile, initiating_trace)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
+
+
+static func _select_sector_profile(_sector_id: String) -> String:
+	return SectorArchetypeAdmissionScript.PROFILE_WILDERNESS
 
 
 ## Gives the model the bounded candidate shape; the schema gate remains the
@@ -813,7 +819,11 @@ func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void
 		_emit_jit_trace(span, peer_id)
 	var trace: Dictionary = result.get("trace_context", {})
 	var commit_trace: Dictionary = JitTraceContextScript.child(trace, "canon_db_commit") if not trace.is_empty() else {}
-	var finalization: Dictionary = _canon_generation_coordinator.accept_generation_result(sector_id, result)
+	var finalization: Dictionary = _canon_generation_coordinator.accept_generation_result(
+		sector_id,
+		result.get("selected_profile", ""),
+		result
+	)
 	if not commit_trace.is_empty():
 		commit_trace["status"] = "OK" if finalization["outcome"] in [CanonGenerationCoordinatorScript.OUTCOME_CANONICALIZED, CanonGenerationCoordinatorScript.OUTCOME_IDEMPOTENT] else "ERROR"
 		_emit_jit_trace(commit_trace, peer_id)
