@@ -1023,8 +1023,7 @@ def _tbp_story_map_node(node: dict, level: int = 0) -> str:
     body = f'{preview_html}<div class="story-map-node-children">{children_html}</div>' if children_html else preview_html
     if not children:
         return f'<div class="story-map-node level-{kind}"><div class="story-map-node-summary">{summary}</div></div>'
-    expanded = " open" if level == 0 else ""
-    return f'<details class="story-map-node level-{kind}"{expanded}><summary>{summary}</summary>{body}</details>'
+    return f'<details class="story-map-node level-{kind}"><summary>{summary}</summary>{body}</details>'
 
 
 def _tbp_story_map_root(root: dict) -> str:
