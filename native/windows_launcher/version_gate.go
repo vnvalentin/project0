@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const testManifestURL = "https://192.168.1.254:8443/api/v1/client/manifest"
@@ -56,73 +57,94 @@ func testCACertArg(args []string) (string, bool) {
 }
 
 func runVersionGate(manifestURL, certificatePath, currentVersion string) error {
+	_, _, _, err := verifiedGateInputs(manifestURL, certificatePath, currentVersion)
+	return err
+}
+
+func verifiedGateInputs(manifestURL, certificatePath, currentVersion string) (updateManifest, []byte, map[string][]byte, error) {
 	client, err := clientWithCA(certificatePath)
 	if err != nil {
-		return fmt.Errorf("TLS verification failed: %w", err)
+		return updateManifest{}, nil, nil, fmt.Errorf("TLS verification failed: %w", err)
+	}
+	if !strings.HasPrefix(manifestURL, "https://") {
+		return updateManifest{}, nil, nil, errors.New("manifest URL must be HTTPS")
+	}
+	client.Timeout = 30 * time.Second
+	client.CheckRedirect = func(request *http.Request, via []*http.Request) error {
+		if request.URL.Scheme != "https" || len(via) >= 5 {
+			return errors.New("unsafe or excessive manifest/payload redirect")
+		}
+		return nil
 	}
 	response, err := client.Get(manifestURL)
 	if err != nil {
-		return fmt.Errorf("TLS verification failed: %w", err)
+		return updateManifest{}, nil, nil, fmt.Errorf("TLS verification failed: %w", err)
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("manifest HTTP status %d", response.StatusCode)
+		return updateManifest{}, nil, nil, fmt.Errorf("manifest HTTP status %d", response.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 	if err != nil {
-		return fmt.Errorf("read manifest: %w", err)
+		return updateManifest{}, nil, nil, fmt.Errorf("read manifest: %w", err)
 	}
 	manifestRaw, signature, err := manifestResponse(body, response.Header)
 	if err != nil {
-		return err
+		return updateManifest{}, nil, nil, fmt.Errorf("MANIFEST_SIGNATURE_INVALID: %w", err)
 	}
 	publicKeyPEM, err := testSigningPublicKey()
 	if err != nil {
-		return fmt.Errorf("test signing key: %w", err)
+		return updateManifest{}, nil, nil, fmt.Errorf("test signing key: %w", err)
 	}
 	manifest, err := verifyManifest(manifestRaw, signature, publicKeyPEM)
 	if err != nil {
-		return fmt.Errorf("manifest signature invalid: %w", err)
+		return updateManifest{}, nil, nil, fmt.Errorf("MANIFEST_SIGNATURE_INVALID: %w", err)
 	}
-	if err := verifyManifestPayloads(client, manifest); err != nil {
-		return err
+	payloads, err := verifiedManifestPayloads(client, manifest)
+	if err != nil {
+		return updateManifest{}, nil, nil, err
 	}
 	comparison, err := compareSemVer(manifest.RequiredClientVersion, currentVersion)
 	if err != nil {
-		return err
+		return updateManifest{}, nil, nil, err
 	}
 	if comparison > 0 {
-		return fmt.Errorf("CLIENT_OUTDATED: required %s, local %s", manifest.RequiredClientVersion, currentVersion)
+		return updateManifest{}, nil, nil, fmt.Errorf("CLIENT_OUTDATED: required %s, local %s", manifest.RequiredClientVersion, currentVersion)
 	}
-	return nil
+	return manifest, manifestRaw, payloads, nil
 }
 
-func verifyManifestPayloads(client *http.Client, manifest updateManifest) error {
+func verifiedManifestPayloads(client *http.Client, manifest updateManifest) (map[string][]byte, error) {
+	payloads := make(map[string][]byte)
 	for _, payload := range manifest.Payloads {
-		if payload.Name == "" || payload.URL == "" || payload.SHA256 == "" {
-			return errors.New("manifest payload metadata is malformed")
+		if (payload.Name != "Project0.exe" && payload.Name != "Project0.pck") || payload.URL == "" || len(payload.SHA256) != 64 || payloads[payload.Name] != nil {
+			return nil, errors.New("manifest payload metadata is malformed")
 		}
 		if !strings.HasPrefix(payload.URL, "https://") {
-			return errors.New("manifest payload URL must be HTTPS")
+			return nil, errors.New("manifest payload URL must be HTTPS")
 		}
 		response, err := client.Get(payload.URL)
 		if err != nil {
-			return fmt.Errorf("download %s: %w", filepath.Base(payload.Name), err)
+			return nil, fmt.Errorf("download %s: %w", filepath.Base(payload.Name), err)
 		}
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<30))
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, (256<<20)+1))
 		response.Body.Close()
 		if readErr != nil {
-			return fmt.Errorf("read %s: %w", filepath.Base(payload.Name), readErr)
+			return nil, fmt.Errorf("read %s: %w", filepath.Base(payload.Name), readErr)
+		}
+		if len(body) == 0 || len(body) > 256<<20 {
+			return nil, errors.New("payload size outside supported fresh-install bounds")
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return fmt.Errorf("payload HTTP status %d for %s", response.StatusCode, filepath.Base(payload.Name))
+			return nil, fmt.Errorf("payload HTTP status %d for %s", response.StatusCode, filepath.Base(payload.Name))
 		}
 		digest := sha256.Sum256(body)
 		if hex.EncodeToString(digest[:]) != strings.ToLower(payload.SHA256) {
-			return &payloadHashMismatchError{Name: filepath.Base(payload.Name)}
+			return nil, &payloadHashMismatchError{Name: filepath.Base(payload.Name)}
 		}
+		payloads[payload.Name] = body
 	}
-	return nil
+	return payloads, nil
 }
 
 func testSigningPublicKey() (string, error) {

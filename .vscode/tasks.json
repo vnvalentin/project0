@@ -132,6 +132,17 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "Experiment: 1100 Verified Admission",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\scripts\\run_windows_experiment_1100.ps1"
+			],
+			"problemMatcher": []
 		}
 	],
 	"inputs": [
