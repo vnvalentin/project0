@@ -1016,9 +1016,12 @@ def _tbp_story_map_html(issue_feed: dict) -> str:
         return f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed.get("error", "unknown error"))}</div>'
     roots, unlinked = _tbp_label_tree(issue_feed)
     full = "".join(_tbp_story_map_root(root) for root in roots) or '<p class="next-empty">No linked Hoshin roots found.</p>'
+    next_work = f'<section class="sec"><h2>Proposed next work</h2>{_tbp_next_work_html(roots)}</section>'
     if unlinked:
-        full += '<div class="tbp-section"><h3>Unlinked TBP issues</h3>' + "".join(_tbp_row(issue) for issue in unlinked) + "</div>"
-    return f'<div class="story-map">{full}</div><section class="sec"><h2>Next work</h2>{_tbp_next_work_html(roots)}</section>'
+        full += f'{next_work}<div class="tbp-section"><h3>Unlinked TBP issues</h3>' + "".join(_tbp_row(issue) for issue in unlinked) + "</div>"
+    else:
+        full += next_work
+    return f'<div class="story-map">{full}</div>'
 
 
 def render_roadmap() -> str:
