@@ -57,9 +57,12 @@ field access.
 
 ## Milestone Slice Mapping
 
-The Bands view at `/roadmap?mockup=delivery-a` reads delivery Slice groups
+The default Roadmap at `/roadmap` opens Bands and reads delivery Slice groups
 from each GitHub milestone description. It does not infer membership from
-issue labels or parent links. The backlog, Timeline, and Gantt views are unchanged.
+issue labels or parent links. The backlog tree is available through the
+**Backlog** link at `/roadmap?mockup=backlog`. The explicit Bands URL
+`/roadmap?mockup=delivery-a` still works; Timeline (`delivery-b`) and Gantt
+(`delivery-c`) remain available through the view switcher.
 
 ```markdown
 Outcome: The measurable milestone delivery outcome.
