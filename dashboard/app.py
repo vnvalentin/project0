@@ -558,6 +558,13 @@ OVERVIEW_CSS = """
 .story-map-node-title{min-width:0;flex:1;color:var(--text);font-size:12px;font-weight:800;line-height:1.3}
 .story-map-node-title a{color:inherit;text-decoration:none}
 .story-map-node-title a:hover{color:var(--cyan)}
+.story-map-layer-label{flex:0 0 auto;padding:3px 7px;border-radius:9px;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.story-map-layer-label.level-hoshin{background:#123d4a;color:#72e3f2}
+.story-map-layer-label.level-theme{background:#174342;color:#8ce3c2}
+.story-map-layer-label.level-feature{background:#3d3b19;color:#e4dc79}
+.story-map-layer-label.level-epic{background:#4a2e18;color:#ffc079}
+.story-map-layer-label.level-experiment{background:#4a2528;color:#ff9c9c}
+.story-map-layer-label.level-issue{background:#29333d;color:var(--muted)}
 .story-map-node-children{margin:8px 0 0 18px;padding-left:14px;border-left:1px solid var(--line)}
 .story-map-node-children>.story-map-node{margin-bottom:8px}
 .next-work{border-left:4px solid var(--amber);background:var(--panel);padding:16px}
@@ -1002,12 +1009,16 @@ def _tbp_story_map_title(node: dict) -> str:
 
 def _tbp_story_map_node(node: dict, level: int = 0) -> str:
     labels = node.get("labels", [])
-    kind = next((key for key, _display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels), "issue")
+    kind, label = next(
+        ((key, display) for key, display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels),
+        ("issue", "Issue"),
+    )
     state = _tbp_roadmap_state(node)
     display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
     children = node.get("children", [])
     title = f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(_tbp_story_map_title(node))}</a>'
     summary = (
+        f'<span class="story-map-layer-label level-{kind}">{label}</span>'
         f'<span class="story-map-node-title">{title}</span>'
         f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
     )
