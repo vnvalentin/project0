@@ -20,3 +20,8 @@ Copilot implementation in an isolated worktree, preserving concurrent #1181.
 GitHub #1185 owns current status, root-cause learning and validation evidence.
 Rollback: revert the dashboard PR; restore any documented milestone edits
 independently. No game, Windows, dependency or credential changes.
+
+User-approved presentation refinement: issue-number/status-only rows, no
+New/Ready/Doing/Done badges or per-Slice readiness explanation, and a linked
+milestone-scoped Slice description with Outcome, Completion description,
+Dependency and a return link. Preserve acceptance rules and mapping warnings.

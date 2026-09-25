@@ -103,6 +103,18 @@ headings. Quoted, fenced, indented-code, checklist, nested historical headings
 and general prose do not establish activity. GitHub
 Project-only status and issue comments are not read by this projection.
 
+Expanded lists show only linked issue numbers and one Closed, Open, or Active
+badge. Closed takes precedence over stale activity; blocked information remains
+in aggregate counts and the badge's accessible label and tooltip. Issue titles
+are available through link tooltips and accessible names. Slice descriptions
+are reached through **View Slice description** at
+`/roadmap?milestone=<number>&slice=<identifier>`, scoped to that milestone.
+The details page shows Outcome, Completion description, Dependency, and any
+recorded outcome evidence, with a **Back to roadmap** link. Missing or ambiguous
+identifiers and unavailable source data remain explicit. New/Ready/Doing/Done
+badges and the per-Slice readiness explanation are not displayed in Bands;
+the underlying acceptance calculation is unchanged.
+
 The separate Slice delivery counter counts accepted groups, not individual
 issues. No group definitions displays `Outcome acceptance: not defined`, while
 issue activity remains visible. Open members need explicit
