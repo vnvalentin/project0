@@ -542,6 +542,27 @@ OVERVIEW_CSS = """
 .story-map-badge.READY_TO_PULL{background:#3a2e13;color:var(--amber)}
 .story-map-badge.NEEDS_GRILLING{background:#3a2413;color:#f5b86a}
 .story-map-badge.DONE{background:#123524;color:var(--green)}
+.story-map-progressive{padding:10px 14px 16px}
+.story-map-node{border-left:1px solid var(--line);margin:0 0 8px;padding-left:12px}
+.story-map-node:last-child{margin-bottom:0}
+.story-map-node>summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cyan)}
+.story-map-node>summary::-webkit-details-marker{display:none}
+.story-map-node>summary::before{content:'\25B6';flex:0 0 auto;color:var(--muted);font-size:9px;transition:transform .15s}
+.story-map-node[open]>summary::before{transform:rotate(90deg)}
+.story-map-node.level-hoshin{border-left:0;padding-left:0}
+.story-map-node.level-hoshin>summary{background:#1c2b38;border-left:4px solid var(--cyan);padding:14px 16px}
+.story-map-node.level-theme>summary{border-left-color:#8bd3dd}
+.story-map-node.level-feature>summary{border-left-color:#b2c7a9}
+.story-map-node.level-epic>summary{border-left-color:var(--amber)}
+.story-map-node.level-experiment>summary{border-left-color:var(--green)}
+.story-map-node-title{min-width:0;flex:1;color:var(--text);font-size:12px;font-weight:800;line-height:1.3}
+.story-map-node-title a{color:inherit;text-decoration:none}
+.story-map-node-title a:hover{color:var(--cyan)}
+.story-map-node-preview{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0 20px;color:var(--muted);font-size:10px}
+.story-map-preview-item{padding:4px 7px;border:1px dashed var(--line);background:#111a22}
+.story-map-preview-item strong{color:var(--text)}
+.story-map-node-children{margin:8px 0 0 18px;padding-left:14px;border-left:1px solid var(--line)}
+.story-map-node-children>.story-map-node{margin-bottom:8px}
 .next-work{border-left:4px solid var(--amber);background:var(--panel);padding:16px}
 .next-work h3{margin:0 0 6px;font-size:15px}
 .next-work p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
@@ -977,37 +998,37 @@ def _tbp_story_map_cell(node: dict) -> str:
     )
 
 
-def _tbp_story_map_root(root: dict) -> str:
-    paths = _tbp_roadmap_paths([root])
-    leaf_count = max(1, len(paths))
-    positions: dict[int, list[int]] = {}
-    by_level: dict[int, list[dict]] = {}
-    for path_index, path in enumerate(paths):
-        for level_index, node in enumerate(path):
-            positions.setdefault(node["number"], []).append(path_index)
-            by_level.setdefault(level_index, [])
-            if all(existing["number"] != node["number"] for existing in by_level[level_index]):
-                by_level[level_index].append(node)
-
-    layers = []
-    for level_index, nodes in sorted(by_level.items()):
-        labels = nodes[0].get("labels", [])
-        label = next((label for key, label in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels), "Issue")
-        cells = []
-        for node in nodes:
-            node_positions = positions[node["number"]]
-            start = min(node_positions) + 1
-            span = max(node_positions) - min(node_positions) + 1
-            cells.append(f'<div style="grid-column:{start} / span {span}">{_tbp_story_map_cell(node)}</div>')
-        grid_style = f'grid-template-columns:repeat({leaf_count},minmax(180px,1fr));min-width:{leaf_count * 180}px'
-        layers.append(
-            f'<div class="story-map-row"><div class="story-map-label">{label}</div>'
-            f'<div class="story-map-cells" style="{grid_style}">{"".join(cells)}</div></div>'
-        )
-    state = _tbp_roadmap_state(root)
+def _tbp_story_map_node(node: dict, level: int = 0) -> str:
+    labels = node.get("labels", [])
+    kind, label = next(
+        ((key, display) for key, display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels),
+        ("issue", "Issue"),
+    )
+    state = _tbp_roadmap_state(node)
     display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
-    summary = f'<strong>{esc(root.get("title", ""))}</strong> <span class="story-map-badge {state}">{esc(display_state)}</span>'
-    return f'<details class="story-map-root" open><summary>{summary}</summary><div class="story-map-layers">{"".join(layers)}</div></details>'
+    children = node.get("children", [])
+    title = f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(node.get("title", ""))}</a>'
+    summary = (
+        f'<span class="story-map-label">{label}</span>'
+        f'<span class="story-map-node-title">{title}</span>'
+        f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
+    )
+    preview = "".join(
+        f'<span class="story-map-preview-item"><strong>#{child.get("number", "")}</strong> '
+        f'{esc(child.get("title", ""))}</span>'
+        for child in children
+    )
+    preview_html = f'<div class="story-map-node-preview">{preview}</div>' if preview else ""
+    children_html = "".join(_tbp_story_map_node(child, level + 1) for child in children)
+    body = f'{preview_html}<div class="story-map-node-children">{children_html}</div>' if children_html else preview_html
+    if not children:
+        return f'<div class="story-map-node level-{kind}"><div class="story-map-node-summary">{summary}</div></div>'
+    expanded = " open" if level == 0 else ""
+    return f'<details class="story-map-node level-{kind}"{expanded}><summary>{summary}</summary>{body}</details>'
+
+
+def _tbp_story_map_root(root: dict) -> str:
+    return f'<div class="story-map-root"><div class="story-map-progressive">{_tbp_story_map_node(root)}</div></div>'
 
 
 def _tbp_next_work_html(roots: list[dict]) -> str:
