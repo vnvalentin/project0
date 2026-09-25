@@ -998,20 +998,25 @@ def _tbp_story_map_cell(node: dict) -> str:
     )
 
 
+def _tbp_story_map_title(node: dict) -> str:
+    title = str(node.get("title", ""))
+    return re.sub(r"^(?:Hoshin|Theme|Feature|Epic|Experiment)\s*:\s*", "", title, flags=re.IGNORECASE)
+
+
 def _tbp_story_map_node(node: dict, level: int = 0) -> str:
     labels = node.get("labels", [])
     kind = next((key for key, _display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels), "issue")
     state = _tbp_roadmap_state(node)
     display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
     children = node.get("children", [])
-    title = f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(node.get("title", ""))}</a>'
+    title = f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(_tbp_story_map_title(node))}</a>'
     summary = (
         f'<span class="story-map-node-title">{title}</span>'
         f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
     )
     preview = "".join(
         f'<span class="story-map-preview-item"><strong>#{child.get("number", "")}</strong> '
-        f'{esc(child.get("title", ""))}</span>'
+        f'{esc(_tbp_story_map_title(child))}</span>'
         for child in children
     )
     preview_html = f'<div class="story-map-node-preview">{preview}</div>' if preview else ""
@@ -1040,7 +1045,7 @@ def _tbp_next_work_html(roots: list[dict]) -> str:
     items = "".join(
         f'<div class="next-path-item"><a href="{esc(node.get("url", ""))}">'
         f'{esc(next(label for key, label in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in node.get("labels", [])))} · '
-        f'#{node.get("number", "")} {esc(node.get("title", ""))}</a></div>'
+        f'#{node.get("number", "")} {esc(_tbp_story_map_title(node))}</a></div>'
         for node in path
     )
     return f'<div class="next-work"><h3>{heading}</h3><p>{message}</p><div class="next-path">{items}</div></div>'
