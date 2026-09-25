@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import pytest
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from app import _delivery_slice_ready, _delivery_slice_state, _tbp_next_branch, _tbp_render_node, classify_tbp_state, render_roadmap
 
@@ -173,7 +174,7 @@ def test_roadmap_view_renders_collapsible_layered_story_map(monkeypatch):
     experiment = _roadmap_issue(5, "Experiment: Login", ["tbp:experiment", "tbp:needs-grilling"], "Parent Epic: #4")
     monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [hoshin, theme, feature, epic, experiment], "error": ""})
 
-    page = render_roadmap()
+    page = render_roadmap("backlog")
 
     assert "Full backlog" in page
     assert 'class="story-map-root"' in page
@@ -213,9 +214,154 @@ def test_next_branch_labels_ready_fallback_as_inactive():
 def test_roadmap_view_keeps_unlinked_and_unavailable_states_visible(monkeypatch):
     unlinked = _roadmap_issue(964, "Feature: Orphan", ["tbp:feature"])
     monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [unlinked], "error": ""})
-    page = render_roadmap()
+    page = render_roadmap("backlog")
     assert "Unlinked TBP issues" in page
     assert "Feature: Orphan" in page
 
     monkeypatch.setattr("app.github_issues", lambda: {"available": False, "issues": [], "error": "network down"})
+    assert "GitHub issues unavailable: network down" in render_roadmap("backlog")
+
+
+@pytest.mark.parametrize("selection", [None, "", "delivery-a", "unknown"])
+def test_default_roadmap_is_bands_with_explicit_backlog_link(monkeypatch, selection):
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": [],
+        "milestones": [{"number": 1, "title": "Track A", "description": "Outcome: Trusted entry."}],
+    })
+    page = render_roadmap() if selection is None else render_roadmap(selection)
+    assert page == render_roadmap("delivery-a")
+    assert 'class="milestone-band"' in page
+    assert 'href="/roadmap?mockup=backlog">Backlog</a>' in page
+    assert "Full backlog" not in page
+
+
+def test_default_bands_retains_source_warning(monkeypatch):
+    monkeypatch.setattr("app.github_issues", lambda: {"available": False, "error": "network down"})
     assert "GitHub issues unavailable: network down" in render_roadmap()
+
+
+def test_bands_reads_description_slice_groups_not_issue_labels(monkeypatch):
+    description = """Outcome: Trusted entry.
+## Slice Mapping
+### Slice A1: Trusted First Install
+Outcome: Verified installation.
+Included issues:
+- #7
+- #8
+Complete when: Windows acceptance passes.
+Dependency: Artifact trust first.
+### Slice A2: Safe Update
+Outcome: Verified update.
+Included issues:
+- #9
+Complete when: Update acceptance passes.
+## Shared Context
+- #10 Release continuity
+## Required Scope Awaiting Slice Definition
+- Controller parity remains required.
+"""
+    issues = [
+        {**_roadmap_issue(7, "Feature: Install", ["tbp:feature"]), "milestone_number": 1},
+        {**_roadmap_issue(8, "Experiment: Entry", ["tbp:experiment"], "Parent feature: #7"), "milestone_number": 1},
+        {**_roadmap_issue(9, "Epic: Update", ["tbp:epic"]), "milestone_number": 1},
+        {**_roadmap_issue(10, "Release continuity", ["tbp:theme"]), "milestone_number": 1},
+        {**_roadmap_issue(11, "Input parity", ["tbp:theme"]), "milestone_number": 1},
+        {**_roadmap_issue(12, "Legacy Slice", ["Slice"]), "milestone_number": 1},
+    ]
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": issues,
+        "milestones": [{"number": 1, "title": "Track A", "state": "open", "description": description}],
+    })
+
+    page = render_roadmap("delivery-a")
+
+    assert "Slice delivery: 0/2 complete" in page
+    assert page.count('class="milestone-slice"') == 2
+    assert 'data-slice-id="A1"' in page
+    assert 'data-slice-id="A2"' in page
+    assert "Trusted First Install" in page and "Windows acceptance passes." in page
+    assert "Shared context" in page and "Release continuity" in page
+    assert "Unmapped milestone work" in page and "Input parity" in page
+    assert "Required scope awaiting Slice definition" in page
+    assert "Controller parity remains required." in page
+    assert "### Slice" not in page
+
+
+def _mapped_bands_page(monkeypatch, description, issues):
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": issues,
+        "milestones": [{"number": 1, "title": "Track A", "state": "open", "description": description}],
+    })
+    return render_roadmap("delivery-a")
+
+
+def _mapped_slice_definition(identifier="A1", members="- #7", evidence=""):
+    return (
+        f"### Slice {identifier}: Trusted entry\nOutcome: Verified installation.\n"
+        f"Included issues:\n{members}\nComplete when: Windows acceptance passes.\n"
+        f"{evidence}\n"
+    )
+
+
+@pytest.mark.parametrize("labels,closed,evidence,expected,reason", [
+    ([], False, "", "new", "Member readiness not established"),
+    (["tbp:ready-to-pull"], False, "", "ready", "All remaining members ready"),
+    (["tbp:in-progress"], False, "", "doing", "Included work in progress"),
+    (["blocked", "tbp:ready-to-pull"], False, "", "new", "Blocked or needs definition"),
+    ([], True, "", "doing", "Awaiting outcome evidence"),
+    ([], True, "Outcome evidence: https://example.test/acceptance", "done", "outcome evidence linked"),
+    ([], True, "Outcome evidence: TBD", "doing", "Awaiting outcome evidence"),
+])
+def test_bands_group_status_requires_explicit_readiness_and_outcome_evidence(monkeypatch, labels, closed, evidence, expected, reason):
+    member = {**_roadmap_issue(7, "Entry", labels), "milestone_number": 1, "state": "closed" if closed else "open"}
+    page = _mapped_bands_page(monkeypatch, "## Slices\n" + _mapped_slice_definition(evidence=evidence), [member])
+    assert f'data-slice-id="A1" data-state="{expected}"' in page
+    assert reason in page
+    assert f'Slice delivery: {1 if expected == "done" else 0}/1 complete' in page
+
+
+def test_bands_reports_duplicate_missing_and_foreign_members(monkeypatch):
+    description = "## Slice Mapping\n" + _mapped_slice_definition(members="- #7\n- #7\n- #404\n- #9") + _mapped_slice_definition("A2")
+    issues = [
+        {**_roadmap_issue(7, "Entry", ["tbp:ready-to-pull"]), "milestone_number": 1},
+        {**_roadmap_issue(9, "Other track", ["tbp:ready-to-pull"]), "milestone_number": 2},
+    ]
+    page = _mapped_bands_page(monkeypatch, description, issues)
+    assert "Duplicate membership #7" in page
+    assert "Unresolved issue #404" in page
+    assert "Issue #9 is not assigned to this milestone." in page
+    assert 'data-slice-id="A1" data-state="new"' in page
+    assert 'data-slice-id="A2" data-state="new"' in page
+    assert "Slice delivery: 0/2 complete" in page
+
+
+def test_bands_fenced_examples_and_other_sections_are_not_membership(monkeypatch):
+    description = "Outcome: Safe entry.\n## Slice Mapping\n```markdown\n" + _mapped_slice_definition("DEMO") + "```\n"
+    description += _mapped_slice_definition() + "## Shared Context\n- #9\n## Notes\n### Slice NOT-A-SLICE: Example\nIncluded issues:\n- #10\n"
+    description = description.replace("\n", "\r\n")
+    members = [{**_roadmap_issue(number, f"Issue {number}", []), "milestone_number": 1} for number in (7, 9, 10)]
+    page = _mapped_bands_page(monkeypatch, description, members)
+    assert page.count('class="milestone-slice"') == 1
+    assert "Slice delivery: 0/1 complete" in page
+    assert "Unmapped milestone work (1)" in page
+
+
+def test_bands_no_definition_does_not_infer_slices_from_labels(monkeypatch):
+    member = {**_roadmap_issue(7, "Legacy Slice", ["Slice"]), "milestone_number": 1}
+    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", [member])
+    assert "No Slices defined in milestone description." in page
+    assert "Slice delivery: 0/0 complete" in page
+    assert "Unmapped milestone work (1)" in page
+    assert 'class="milestone-slice"' not in page
+
+
+def test_bands_rejects_incomplete_definition_and_escapes_external_text(monkeypatch):
+    definition = _mapped_slice_definition(members="- #7\n<script>alert(1)</script>").replace("Verified installation.", "TBD")
+    page = _mapped_bands_page(monkeypatch, "## Slice Mapping\n" + definition, [
+        {**_roadmap_issue(7, "<script>member</script>", []), "milestone_number": 1},
+    ])
+    assert "Missing or unfinished outcome." in page
+    assert "Invalid member entry:" in page
+    assert "<script>alert" not in page and "<script>member" not in page
+    assert "&lt;script&gt;" in page
+    assert 'data-slice-id="A1" data-state="new"' in page

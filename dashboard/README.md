@@ -55,6 +55,52 @@ These fields are projected from issue labels, milestones, assignees, and
 structured body lines, so the view does not depend on GitHub Project #2 custom
 field access.
 
+## Milestone Slice Mapping
+
+The default Roadmap at `/roadmap` opens Bands and reads delivery Slice groups
+from each GitHub milestone description. It does not infer membership from
+issue labels or parent links. The backlog tree is available through the
+**Backlog** link at `/roadmap?mockup=backlog`. The explicit Bands URL
+`/roadmap?mockup=delivery-a` still works; Timeline (`delivery-b`) and Gantt
+(`delivery-c`) remain available through the view switcher.
+
+```markdown
+Outcome: The measurable milestone delivery outcome.
+
+## Slice Mapping
+### Slice A1: Trusted First Install
+Outcome: The contribution this group delivers.
+Included issues:
+- #123
+- #456
+Complete when: The required acceptance proof.
+Dependency: Prerequisites for this work.
+Outcome evidence: https://example.test/accepted-validation
+
+## Shared Context
+- #789 Parent context, not a delivery member.
+
+## Required Scope Awaiting Slice Definition
+- Additional required work whose grouping is not yet agreed.
+```
+
+`## Slices` is also accepted. Each group requires a unique identifier, title,
+outcome, completion criterion, and explicit `- #number` members. Fenced examples
+and references outside `Included issues` do not establish membership. Missing
+issues, duplicate membership, and issues assigned elsewhere are displayed as
+mapping warnings and keep the affected group New. Issues assigned to the
+milestone but outside its groups and shared context appear as unmapped work.
+
+The card counts groups, not individual issues. Open members need explicit
+readiness or the existing TBP Theme/Feature/Epic definition checks; missing
+readiness and blockers keep a group New. Doing requires in-progress work with
+the remaining members ready or closed. All members closed without linked
+`Outcome evidence:` is Doing, awaiting evidence; with that link the group is
+Done. The link records human acceptance evidence, not automated proof that a
+remote artifact passed. No definitions means zero defined Slices, not inferred
+completion. Unresolved milestone scope remains visible even if all defined
+Slices are Done. This projection never changes GitHub records.
+
 ## Host deployment under `/apps/project0/dashboard`
 
 The production host layout is self-contained and does not depend on a user's

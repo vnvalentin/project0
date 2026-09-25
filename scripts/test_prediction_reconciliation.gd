@@ -52,18 +52,36 @@ func _assert(condition: bool, message: String) -> void:
 
 
 func _test_prediction_and_reconciliation() -> void:
+	var port_probe: PacketPeerUDP = PacketPeerUDP.new()
+	var bind_error: Error = port_probe.bind(0, "127.0.0.1")
+	_assert(bind_error == OK, "private test UDP port is available")
+	if bind_error != OK:
+		return
+	var server_port: int = port_probe.get_local_port()
+	port_probe.close()
+	var had_operator_port: bool = OS.has_environment("PROJECT0_OPERATOR_CONTROL_PORT")
+	var previous_operator_port: String = OS.get_environment("PROJECT0_OPERATOR_CONTROL_PORT")
+	OS.set_environment("PROJECT0_OPERATOR_CONTROL_PORT", "0")
 	var godot_executable: String = OS.get_executable_path()
 	_server_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", ProjectSettings.globalize_path("res://"),
-		"-s", "server/server_main.gd",
+		"-s", "server/server_main.gd", "--", "--server-port=%d" % server_port,
 	])
+	if had_operator_port:
+		OS.set_environment("PROJECT0_OPERATOR_CONTROL_PORT", previous_operator_port)
+	else:
+		OS.unset_environment("PROJECT0_OPERATOR_CONTROL_PORT")
 	_assert(_server_process_id != -1, "server process starts")
+	if _server_process_id == -1:
+		return
 
 	var startup_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while OS.is_process_running(_server_process_id) and Time.get_ticks_msec() < startup_deadline_msec:
 		await process_frame
 
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
+	if not OS.is_process_running(_server_process_id):
+		return
 
 	# root.get_node("NetworkClient") rather than the bare autoload identifier:
 	# -s script execution does not register autoloads as global identifiers
@@ -75,7 +93,7 @@ func _test_prediction_and_reconciliation() -> void:
 	current_scene = _gameplay_instance
 	await process_frame
 
-	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.resolve_server_port())
+	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, server_port)
 
 	var connect_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while network_client.status != "connected: player spawned" and Time.get_ticks_msec() < connect_deadline_msec:
@@ -130,7 +148,7 @@ func _test_prediction_and_reconciliation() -> void:
 	_assert(player._pending_inputs.size() < next_sequence, "the server has acknowledged at least one sent input sequence (fewer pending than sent)")
 
 	var predicted_before_correction: Vector3 = player.position
-	_assert(predicted_before_correction.z > 0.5, "red Player's predicted position advanced from held input before any correction")
+	_assert(predicted_before_correction.z - start_position.z > 0.5, "red Player's predicted position advanced from held input before any correction")
 
 	# --- Forced authoritative correction converges the red Player ----------
 	# Directly invoke the same public RPC-target method the server calls on
