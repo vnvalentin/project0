@@ -519,19 +519,21 @@ OVERVIEW_CSS = """
 .roadmap-undefined{color:var(--muted);font-style:italic}
 .roadmap-evidence{margin-top:18px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cyan);color:var(--muted);font-size:12px;line-height:1.45}
 .roadmap-evidence strong{color:var(--text)}
-.story-map{overflow-x:auto;padding-bottom:4px}
-.story-map-root{min-width:760px;border:1px solid var(--line);border-left:4px solid var(--cyan);background:var(--panel);margin-bottom:14px}
+.story-map{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:0 0 10px;border:1px solid var(--line);scrollbar-color:var(--cyan) #111820;overscroll-behavior-x:contain}
+.story-map-root{width:100%;min-width:760px;border-left:4px solid var(--cyan);background:var(--panel);margin-bottom:14px}
+.story-map-root:last-child{margin-bottom:0}
 .story-map-root>summary{cursor:pointer;list-style:none;padding:14px 16px}
 .story-map-root>summary::-webkit-details-marker{display:none}
 .story-map-root>summary::before{content:'\25B6';display:inline-block;color:var(--muted);font-size:9px;margin-right:9px;transition:transform .15s}
 .story-map-root[open]>summary::before{transform:rotate(90deg)}
-.story-map-layers{border-top:1px solid var(--line)}
-.story-map-row{display:grid;grid-template-columns:112px minmax(620px,1fr);min-height:66px;border-bottom:1px solid var(--line)}
+.story-map-layers{border-top:1px solid var(--line);min-width:max-content}
+.story-map-row{display:grid;grid-template-columns:112px auto;min-height:66px;border-bottom:1px solid var(--line)}
 .story-map-row:last-child{border-bottom:0}
 .story-map-label{padding:12px 10px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-right:1px solid var(--line)}
-.story-map-cells{display:flex;gap:8px;align-items:stretch;padding:8px;min-width:0}
-.story-map-cell{position:relative;min-width:168px;max-width:260px;flex:1;background:var(--card);border:1px solid var(--line);padding:9px 10px}
-.story-map-cell::before{content:'';position:absolute;top:-9px;left:50%;width:1px;height:9px;background:var(--line)}
+.story-map-cells{display:grid;gap:0 8px;align-items:stretch;padding:12px 8px 18px;min-width:0}
+.story-map-cell{position:relative;min-width:0;background:var(--card);border:1px solid var(--line);border-top:3px solid var(--cyan);padding:9px 10px}
+.story-map-cell::before{content:'';position:absolute;top:-14px;left:50%;width:1px;height:14px;background:var(--cyan)}
+.story-map-cell::after{content:'';position:absolute;bottom:-10px;left:50%;width:1px;height:10px;background:var(--line)}
 .story-map-cell a{color:var(--text);text-decoration:none;font-size:12px;font-weight:700;line-height:1.3}
 .story-map-cell a:hover{color:var(--cyan)}
 .story-map-parent{display:block;color:var(--muted);font-size:9px;margin-top:4px}
@@ -976,15 +978,32 @@ def _tbp_story_map_cell(node: dict) -> str:
 
 
 def _tbp_story_map_root(root: dict) -> str:
+    paths = _tbp_roadmap_paths([root])
+    leaf_count = max(1, len(paths))
+    positions: dict[int, list[int]] = {}
+    by_level: dict[int, list[dict]] = {}
+    for path_index, path in enumerate(paths):
+        for level_index, node in enumerate(path):
+            positions.setdefault(node["number"], []).append(path_index)
+            by_level.setdefault(level_index, [])
+            if all(existing["number"] != node["number"] for existing in by_level[level_index]):
+                by_level[level_index].append(node)
+
     layers = []
-    nodes = [root]
-    while nodes:
-        kind = nodes[0].get("labels", [])
-        level = next((key for key, _label in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in kind), "issue")
-        label = next((label for key, label in _TBP_ROADMAP_LEVELS if key == level), "Issue")
-        cells = "".join(_tbp_story_map_cell(node) for node in nodes)
-        layers.append(f'<div class="story-map-row"><div class="story-map-label">{label}</div><div class="story-map-cells">{cells}</div></div>')
-        nodes = [child for node in nodes for child in node.get("children", [])]
+    for level_index, nodes in sorted(by_level.items()):
+        labels = nodes[0].get("labels", [])
+        label = next((label for key, label in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels), "Issue")
+        cells = []
+        for node in nodes:
+            node_positions = positions[node["number"]]
+            start = min(node_positions) + 1
+            span = max(node_positions) - min(node_positions) + 1
+            cells.append(f'<div style="grid-column:{start} / span {span}">{_tbp_story_map_cell(node)}</div>')
+        grid_style = f'grid-template-columns:repeat({leaf_count},minmax(180px,1fr));min-width:{leaf_count * 180}px'
+        layers.append(
+            f'<div class="story-map-row"><div class="story-map-label">{label}</div>'
+            f'<div class="story-map-cells" style="{grid_style}">{"".join(cells)}</div></div>'
+        )
     state = _tbp_roadmap_state(root)
     display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
     summary = f'<strong>{esc(root.get("title", ""))}</strong> <span class="story-map-badge {state}">{esc(display_state)}</span>'
