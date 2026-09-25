@@ -519,6 +519,39 @@ OVERVIEW_CSS = """
 .roadmap-undefined{color:var(--muted);font-style:italic}
 .roadmap-evidence{margin-top:18px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--cyan);color:var(--muted);font-size:12px;line-height:1.45}
 .roadmap-evidence strong{color:var(--text)}
+.story-map{overflow-x:auto;padding-bottom:4px}
+.story-map-root{min-width:760px;border:1px solid var(--line);border-left:4px solid var(--cyan);background:var(--panel);margin-bottom:14px}
+.story-map-root>summary{cursor:pointer;list-style:none;padding:14px 16px}
+.story-map-root>summary::-webkit-details-marker{display:none}
+.story-map-root>summary::before{content:'\25B6';display:inline-block;color:var(--muted);font-size:9px;margin-right:9px;transition:transform .15s}
+.story-map-root[open]>summary::before{transform:rotate(90deg)}
+.story-map-layers{border-top:1px solid var(--line)}
+.story-map-row{display:grid;grid-template-columns:112px minmax(620px,1fr);min-height:66px;border-bottom:1px solid var(--line)}
+.story-map-row:last-child{border-bottom:0}
+.story-map-label{padding:12px 10px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;border-right:1px solid var(--line)}
+.story-map-cells{display:flex;gap:8px;align-items:stretch;padding:8px;min-width:0}
+.story-map-cell{position:relative;min-width:168px;max-width:260px;flex:1;background:var(--card);border:1px solid var(--line);padding:9px 10px}
+.story-map-cell::before{content:'';position:absolute;top:-9px;left:50%;width:1px;height:9px;background:var(--line)}
+.story-map-cell a{color:var(--text);text-decoration:none;font-size:12px;font-weight:700;line-height:1.3}
+.story-map-cell a:hover{color:var(--cyan)}
+.story-map-parent{display:block;color:var(--muted);font-size:9px;margin-top:4px}
+.story-map-badge{display:inline-block;margin-top:7px;padding:2px 6px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:.03em;background:#232d38;color:var(--muted)}
+.story-map-badge.IN_PROGRESS{background:#123044;color:var(--cyan)}
+.story-map-badge.READY_TO_PULL{background:#3a2e13;color:var(--amber)}
+.story-map-badge.NEEDS_GRILLING{background:#3a2413;color:#f5b86a}
+.story-map-badge.DONE{background:#123524;color:var(--green)}
+.next-work{border-left:4px solid var(--amber);background:var(--panel);padding:16px}
+.next-work h3{margin:0 0 6px;font-size:15px}
+.next-work p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.next-path{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px}
+.next-path-item{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);padding:10px 12px}
+.next-path-item:not(:last-child)::after{content:'\25B6';color:var(--cyan);margin-left:4px}
+.next-path-item a{color:var(--text);text-decoration:none;font-size:12px;font-weight:700}
+.next-path-item a:hover{color:var(--cyan)}
+.next-empty{color:var(--muted);font-style:italic;margin:0}
+.roadmap-tabs{display:flex;gap:8px;margin-bottom:16px}
+.roadmap-tab{color:var(--muted);text-decoration:none;border:1px solid var(--line);padding:7px 11px;font-size:11px;font-weight:800}
+.roadmap-tab.on{color:var(--text);border-color:var(--cyan);background:#123044}
 .goalrows{display:flex;flex-direction:column;gap:2px}
 .goalrow{display:grid;grid-template-columns:1fr 140px 46px 110px 60px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
 .goalrow:first-child{border-top:1px solid var(--line)}
@@ -885,21 +918,124 @@ def roadmap_html(issue_feed: dict) -> str:
     )
 
 
+_TBP_ROADMAP_LEVELS = (
+    ("hoshin", "Hoshin"),
+    ("theme", "Theme"),
+    ("feature", "Feature"),
+    ("epic", "Epic"),
+    ("experiment", "Experiment"),
+)
+
+
+def _tbp_roadmap_paths(roots: list[dict]) -> list[list[dict]]:
+    paths = []
+
+    def visit(node: dict, path: list[dict]) -> None:
+        current_path = path + [node]
+        children = node.get("children", [])
+        if not children:
+            paths.append(current_path)
+            return
+        for child in children:
+            visit(child, current_path)
+
+    for root in roots:
+        visit(root, [])
+    return paths
+
+
+def _tbp_roadmap_state(node: dict) -> str:
+    return classify_tbp_state(node, node.get("children", []))
+
+
+def _tbp_next_branch(roots: list[dict]) -> dict:
+    """Choose one deterministic active branch, or a ready fallback branch."""
+    paths = _tbp_roadmap_paths(roots)
+    active = [path for path in paths if _tbp_roadmap_state(path[-1]) == "IN_PROGRESS"]
+    if active:
+        selected = max(active, key=lambda path: (path[-1].get("updated_at", ""), path[-1].get("number", 0)))
+        return {"path": selected, "active": True}
+
+    ready = [path for path in paths if _tbp_roadmap_state(path[-1]) == "READY_TO_PULL"]
+    if ready:
+        selected = min(ready, key=lambda path: (path[-1].get("number", 0), path[-1].get("updated_at", "")))
+        return {"path": selected, "active": False}
+    return {"path": [], "active": False}
+
+
+def _tbp_story_map_cell(node: dict) -> str:
+    state = _tbp_roadmap_state(node)
+    display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
+    return (
+        f'<article class="story-map-cell">'
+        f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(node.get("title", ""))}</a>'
+        f'<span class="story-map-parent">GitHub {esc(node.get("state", "open"))}</span>'
+        f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
+        f'</article>'
+    )
+
+
+def _tbp_story_map_root(root: dict) -> str:
+    layers = []
+    nodes = [root]
+    while nodes:
+        kind = nodes[0].get("labels", [])
+        level = next((key for key, _label in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in kind), "issue")
+        label = next((label for key, label in _TBP_ROADMAP_LEVELS if key == level), "Issue")
+        cells = "".join(_tbp_story_map_cell(node) for node in nodes)
+        layers.append(f'<div class="story-map-row"><div class="story-map-label">{label}</div><div class="story-map-cells">{cells}</div></div>')
+        nodes = [child for node in nodes for child in node.get("children", [])]
+    state = _tbp_roadmap_state(root)
+    display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
+    summary = f'<strong>{esc(root.get("title", ""))}</strong> <span class="story-map-badge {state}">{esc(display_state)}</span>'
+    return f'<details class="story-map-root" open><summary>{summary}</summary><div class="story-map-layers">{"".join(layers)}</div></details>'
+
+
+def _tbp_next_work_html(roots: list[dict]) -> str:
+    branch = _tbp_next_branch(roots)
+    path = branch["path"]
+    if not path:
+        return '<div class="next-work"><h3>No next branch available</h3><p class="next-empty">No in-progress or ready-to-pull TBP branch is currently visible.</p></div>'
+    if branch["active"]:
+        heading = "Current work"
+        message = "Showing the most recently updated branch containing in-progress work."
+    else:
+        heading = "Proposed next work"
+        message = "No TBP issue is marked in progress. Showing the first deterministic ready-to-pull branch as a proposal, not active work."
+    items = "".join(
+        f'<div class="next-path-item"><a href="{esc(node.get("url", ""))}">'
+        f'{esc(next(label for key, label in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in node.get("labels", [])))} · '
+        f'#{node.get("number", "")} {esc(node.get("title", ""))}</a></div>'
+        for node in path
+    )
+    return f'<div class="next-work"><h3>{heading}</h3><p>{message}</p><div class="next-path">{items}</div></div>'
+
+
+def _tbp_story_map_html(issue_feed: dict) -> str:
+    if not issue_feed.get("available"):
+        return f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed.get("error", "unknown error"))}</div>'
+    roots, unlinked = _tbp_label_tree(issue_feed)
+    full = "".join(_tbp_story_map_root(root) for root in roots) or '<p class="next-empty">No linked Hoshin roots found.</p>'
+    if unlinked:
+        full += '<div class="tbp-section"><h3>Unlinked TBP issues</h3>' + "".join(_tbp_row(issue) for issue in unlinked) + "</div>"
+    return f'<div class="story-map">{full}</div><section class="sec"><h2>Next work</h2>{_tbp_next_work_html(roots)}</section>'
+
+
 def render_roadmap() -> str:
-        """Render the rolling milestone map as its own live GitHub view."""
+        """Render the live TBP backlog as a full map and focused next branch."""
         issue_feed = github_issues()
         return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Roadmap</title>
 <style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
 <header>
-    <div><h1>Project0 — Roadmap</h1><div class="sub">Rolling delivery horizons from live GitHub Issues</div></div>
+    <div><h1>Project0 — Roadmap</h1><div class="sub">Live TBP story map from GitHub Issues</div></div>
     <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a></div>
 </header>
 <main>
     <section class="sec">
-        <h2>Plan at a glance</h2>
-        <div class="roadmap-intro">Read left to right: the active refinement gate, the first playable proof, the next convergence step, and bounded future work.</div>
-        {roadmap_html(issue_feed)}
+        <h2>Full backlog</h2>
+        <div class="roadmap-intro">Expand a Hoshin to see the backlog arranged by Hoshin, Theme, Feature, Epic, and Experiment.</div>
+        {_tbp_story_map_html(issue_feed)}
     </section>
 </main></body></html>'''
 

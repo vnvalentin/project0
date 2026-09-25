@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import _tbp_render_node, classify_tbp_state, render_roadmap
+from app import _tbp_next_branch, _tbp_render_node, classify_tbp_state, render_roadmap
 
 def issue(state="open", body="## Outcomes\n- [x] validated"):
     return {"state": state, "body": body, "labels": []}
@@ -139,102 +139,54 @@ def test_rendered_epic_uses_its_recognized_child_state():
     assert 'class="tbp-badge READY_TO_PULL"' in rendered
 
 
-def test_roadmap_view_is_separate_and_keeps_tbp_navigation(monkeypatch):
-    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [], "error": ""})
-    page = render_roadmap()
-    assert "Project0 — Roadmap" in page
-    assert "Rolling delivery horizons" in page
-    assert 'href="/roadmap"' in page
-    assert 'href="/tbp">TBP View</a>' in page
+def _roadmap_issue(number, title, labels, body="", updated_at=""):
+    return {
+        "number": number, "title": title, "url": f"https://example.test/{number}",
+        "state": "open", "labels": labels, "body": body, "updated_at": updated_at,
+    }
 
 
-def test_roadmap_view_labels_expected_issue_for_each_milestone(monkeypatch):
-    issue = {
-        "number": 551,
-        "title": "Feature: Player-triggered JIT world generation and canon re-entry",
-        "url": "https://github.com/vnvalentin/project0/issues/551",
-        "state": "open",
-        "labels": [],
-        "milestone_number": 1,
-    }
-    monkeypatch.setattr("app.github_issues", lambda: {
-        "available": True,
-        "issues": [issue],
-        "milestones": [{
-            "number": 1,
-            "title": "M1 · JIT generation + canon re-entry",
-            "state": "open",
-            "description": "Horizon: Fast Follower\nClass: follow\nOutcome: Restore the same sector.\nEvidence: Re-entry proof.",
-        }],
-        "error": "",
-    })
-    page = render_roadmap()
-    assert "Assigned issue" in page
-    assert "M1 · JIT generation + canon re-entry" in page
-    assert "#551 Feature: Player-triggered JIT world generation and canon re-entry" in page
-    assert "Re-entry proof." in page
-    assert "READY</span>" in page
-    assert "READY TO PULL" not in page
-
-
-def test_roadmap_view_renders_feature_epic_experiment_breakdown(monkeypatch):
-    feature = {
-        **issue(), "number": 551, "title": "Feature: JIT generation", "url": "https://example.test/551",
-        "labels": ["tbp:feature"],
-    }
-    epic = {
-        **issue(), "number": 985, "title": "Epic: Schema gate", "url": "https://example.test/985",
-        "labels": ["tbp:epic"], "body": "Parent feature: #551\n## Experiments\n- [ ] #994",
-    }
-    experiment = {
-        **issue(), "number": 994, "title": "Experiment: Blueprint fallback", "url": "https://example.test/994",
-        "labels": ["tbp:experiment", "tbp:needs-grilling"], "body": "Parent epic: #985\n## Outcomes\n- [ ] Pass",
-    }
-    monkeypatch.setattr("app.github_issues", lambda: {
-        "available": True, "issues": [feature, epic, experiment], "error": "",
-    })
+def test_roadmap_view_renders_collapsible_layered_story_map(monkeypatch):
+    hoshin = _roadmap_issue(1, "Hoshin: World", ["tbp:hoshin"])
+    theme = _roadmap_issue(2, "Theme: Identity", ["tbp:theme"], "Parent Hoshin: #1\n## Problem Statement\nproblem\n## Measurable Outcome\noutcome\n## Feature\n- [ ] #3")
+    feature = _roadmap_issue(3, "Feature: Enrollment", ["tbp:feature"], "Parent Theme: #2\n## Measurable Component\nmetric\n## Epics (Gaps)\n- [ ] #4")
+    epic = _roadmap_issue(4, "Epic: Account", ["tbp:epic"], "Parent Feature: #3\n## Experiments\n- [ ] #5")
+    experiment = _roadmap_issue(5, "Experiment: Login", ["tbp:experiment", "tbp:needs-grilling"], "Parent Epic: #4")
+    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [hoshin, theme, feature, epic, experiment], "error": ""})
 
     page = render_roadmap()
 
-    assert "Feature: JIT generation" in page
-    assert "Epic: Schema gate" in page
-    assert "Experiment: Blueprint fallback" in page
-    assert "TBP NEEDS GRILLING" in page
-    assert "GitHub open" in page
-
-
-def test_roadmap_view_applies_experiment_pass_gate_without_internal_type(monkeypatch):
-    epic = {
-        **issue(), "number": 561, "title": "Epic: Lore path", "url": "https://example.test/561",
-        "labels": ["tbp:epic"],
-    }
-    experiment = {
-        "number": 571, "title": "Experiment: Lore flow", "url": "https://example.test/571",
-        "state": "closed", "labels": ["tbp:experiment"],
-        "body": "Parent epic: #561\n## Outcomes\n- [x] other",
-    }
-    monkeypatch.setattr("app.github_issues", lambda: {
-        "available": True, "issues": [epic, experiment], "error": "",
-    })
-
-    page = render_roadmap()
-
-    assert "#571 Experiment: Lore flow" in page
-    assert "GitHub closed" in page
+    assert "Full backlog" in page
+    assert 'class="story-map-root" open' in page
+    for label in ("Hoshin", "Theme", "Feature", "Epic", "Experiment"):
+        assert f'class="story-map-label">{label}</div>' in page
+    assert "Hoshin: World" in page and "Experiment: Login" in page
     assert "NEEDS GRILLING" in page
 
 
-def test_roadmap_view_marks_undefined_epic_breakdown(monkeypatch):
-    feature = {
-        **issue(), "number": 964, "title": "Feature: Context bounds", "url": "https://example.test/964",
-        "labels": ["tbp:feature"],
-    }
-    monkeypatch.setattr("app.github_issues", lambda: {
-        "available": True, "issues": [feature], "error": "",
-    })
+def test_next_branch_prefers_most_recent_in_progress_leaf():
+    older = {**_roadmap_issue(5, "Experiment: Older", ["tbp:experiment", "tbp:in-progress"], updated_at="2026-01-01"), "children": []}
+    newer = {**_roadmap_issue(6, "Experiment: Newer", ["tbp:experiment", "tbp:in-progress"], updated_at="2026-02-01"), "children": []}
+    result = _tbp_next_branch([
+        {**_roadmap_issue(1, "Hoshin", ["tbp:hoshin"]), "children": [{**_roadmap_issue(2, "Theme", ["tbp:theme"]), "children": [{**_roadmap_issue(3, "Feature", ["tbp:feature"]), "children": [{**_roadmap_issue(4, "Epic", ["tbp:epic"]), "children": [older, newer]}]}]}]}
+    ])
+    assert result["active"] is True
+    assert result["path"][-1]["number"] == 6
 
+
+def test_next_branch_labels_ready_fallback_as_inactive():
+    ready = {**_roadmap_issue(9, "Experiment: Ready", ["tbp:experiment"]), "children": []}
+    result = _tbp_next_branch([{**_roadmap_issue(1, "Hoshin", ["tbp:hoshin"]), "children": [ready]}])
+    assert result["active"] is False
+    assert result["path"][-1]["number"] == 9
+
+
+def test_roadmap_view_keeps_unlinked_and_unavailable_states_visible(monkeypatch):
+    unlinked = _roadmap_issue(964, "Feature: Orphan", ["tbp:feature"])
+    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [unlinked], "error": ""})
     page = render_roadmap()
+    assert "Unlinked TBP issues" in page
+    assert "Feature: Orphan" in page
 
-    assert "#964 Feature: Context bounds" in page
-    assert "No linked Epics defined yet" in page
-    assert "No linked Experiments defined yet" in page
+    monkeypatch.setattr("app.github_issues", lambda: {"available": False, "issues": [], "error": "network down"})
+    assert "GitHub issues unavailable: network down" in render_roadmap()
