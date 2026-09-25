@@ -71,6 +71,7 @@ const TelemetryEventScript: Script = preload("res://shared/telemetry_event.gd")
 const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
 const JitPresentationAckTrackerScript: Script = preload("res://server/jit_presentation_ack_tracker.gd")
 const JourneyRegistryScript: Script = preload("res://server/journey_registry.gd")
+const JourneyRepositoryScript: Script = preload("res://server/journey_repository.gd")
 
 ## Slice 067: the app schema version reported in the runtime health snapshot.
 const APP_SCHEMA_VERSION: int = 1
@@ -105,6 +106,8 @@ const CANON_DB_PATH_ENV_VAR: String = "PROJECT0_CANON_DB_PATH"
 ## Additional connection attempts beyond this limit are rejected (see
 ## _on_peer_connected below).
 const MAX_REPLICATED_PEERS: int = 10
+const JOURNEY_CHECKPOINT_INTERVAL_MSEC: int = 10_000
+const JOURNEY_CHECKPOINT_DISTANCE_UNITS: float = 1.0
 
 ## Slice 012: a single stationary server-owned target dummy proves the first
 ## authoritative melee hit deterministically, without relying on remote-peer
@@ -187,6 +190,9 @@ var _login_gateway: Object = null
 var _nakama_session_validator: Node = null
 var _world_entry_tickets: Object = null
 var _journey_registry: Object = null
+var _journey_repository: Object = null
+var _last_journey_checkpoint_msec_by_peer: Dictionary = {}
+var _last_journey_checkpoint_position_by_peer: Dictionary = {}
 var _nakama_gameplay_bridge: Object = null
 var _nakama_gameplay_relay: Node = null
 var _operator_control_endpoint: Node = null
@@ -346,6 +352,12 @@ func _start_server() -> void:
 		push_error("Refusing to start: accounts schema failed to initialize: %s — %s" % [schema_result["outcome"], schema_result["detail"]])
 		quit(1)
 		return
+	_journey_repository = JourneyRepositoryScript.new(_accounts_store)
+	var journey_schema_result: Dictionary = _journey_repository.ensure_schema()
+	if journey_schema_result["outcome"] != JourneyRepositoryScript.OUTCOME_OK:
+		push_error("Refusing to start: journey schema failed to initialize: %s — %s" % [journey_schema_result["outcome"], journey_schema_result["detail"]])
+		quit(1)
+		return
 	# Slice 045: Canon shares the one server-owned SQLite handle with accounts.
 	# The validated hub is canonicalized before the socket opens, so every peer
 	# sees a world record that survives a server restart.
@@ -427,6 +439,13 @@ func _start_server() -> void:
 	_character_service = login_services["characters"]
 	_login_gateway = login_services["gateway"]
 	_journey_registry = JourneyRegistryScript.new()
+	_journey_registry.set_repository(_journey_repository)
+	var journey_records: Dictionary = _journey_repository.load_all()
+	if journey_records["outcome"] != JourneyRepositoryScript.OUTCOME_OK:
+		push_error("Refusing to start: journey records failed to load: %s — %s" % [journey_records["outcome"], journey_records["detail"]])
+		quit(1)
+		return
+	_journey_registry.restore_records(journey_records["records"])
 	_journey_registry.evidence.connect(_on_journey_evidence)
 	_login_gateway.set_journey_registry(_journey_registry)
 	_nakama_session_validator = NakamaSessionValidatorScript.new()
@@ -696,6 +715,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
+	_last_journey_checkpoint_msec_by_peer.erase(peer_id)
+	_last_journey_checkpoint_position_by_peer.erase(peer_id)
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
 	_jit_presentation_ack_tracker.forget_peer(peer_id)
@@ -736,6 +757,9 @@ func _broadcast_presence_snapshot() -> void:
 func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.observe_position(peer_id, updated_position)
+	var last_position: Vector3 = _last_journey_checkpoint_position_by_peer.get(peer_id, updated_position)
+	if last_position.distance_squared_to(updated_position) >= JOURNEY_CHECKPOINT_DISTANCE_UNITS * JOURNEY_CHECKPOINT_DISTANCE_UNITS:
+		_checkpoint_journey(peer_id, updated_position)
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
@@ -753,6 +777,13 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
+	var player_state: Node = _player_states.get(peer_id)
+	if player_state != null and _canon_repository != null:
+		var sector_id: String = SectorBoundaryDetectorScript.sector_id_for_position(player_state.position)
+		var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
+		if canon_result.get("outcome", "") == "ok":
+			var sector: Dictionary = canon_result.get("sector", {})
+			network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, sector.get("blueprint", {})), player_state.position)
 	for other_peer_id: int in _player_states.keys():
 		if other_peer_id == peer_id:
 			continue
@@ -1005,6 +1036,14 @@ func get_assigned_house(peer_id: int) -> String:
 func _on_physics_frame() -> void:
 	if _journey_registry != null:
 		_journey_registry.cleanup(int(Time.get_unix_time_from_system()))
+	var now_msec: int = Time.get_ticks_msec()
+	for peer_id: int in _player_states.keys():
+		var player_state: Node = _player_states[peer_id]
+		if String(player_state.character_id).is_empty():
+			continue
+		var last_checkpoint_msec: int = int(_last_journey_checkpoint_msec_by_peer.get(peer_id, 0))
+		if last_checkpoint_msec == 0 or now_msec - last_checkpoint_msec >= JOURNEY_CHECKPOINT_INTERVAL_MSEC:
+			_checkpoint_journey(peer_id, player_state.position)
 	# Slice 067: refresh the runtime health file on a sub-second stride so a
 	# frozen tick loop turns the container unhealthy even while the socket stays
 	# bound. Runs regardless of monster state (health is independent of monsters).
@@ -1024,6 +1063,34 @@ func _on_physics_frame() -> void:
 		_town_npc_manager.advance(player_positions, 1, _town_npc_tick)
 		_town_npc_tick += 1
 		_broadcast_town_npc_positions()
+
+
+func _checkpoint_journey(peer_id: int, authoritative_position: Vector3) -> void:
+	if _journey_registry == null or not _player_states.has(peer_id):
+		return
+	var player_state: Node = _player_states[peer_id]
+	var character_id: String = String(player_state.character_id)
+	if character_id.is_empty():
+		return
+	var sector_id: String = SectorBoundaryDetectorScript.sector_id_for_position(authoritative_position)
+	var sector_revision: int = 0
+	var sector_geometry_hash: String = ""
+	if _canon_repository != null:
+		var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
+		if canon_result.get("outcome", "") == "ok":
+			var sector: Dictionary = canon_result.get("sector", {})
+			sector_revision = int(sector.get("schema_version", 0))
+			sector_geometry_hash = JSON.stringify(sector.get("blueprint", {})).md5_text()
+	_journey_registry.checkpoint(
+		character_id,
+		authoritative_position,
+		int(Time.get_unix_time_from_system()),
+		sector_id,
+		sector_revision,
+		sector_geometry_hash
+	)
+	_last_journey_checkpoint_msec_by_peer[peer_id] = Time.get_ticks_msec()
+	_last_journey_checkpoint_position_by_peer[peer_id] = authoritative_position
 
 
 func _on_journey_evidence(kind: String, payload: Dictionary) -> void:

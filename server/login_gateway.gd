@@ -147,6 +147,7 @@ func get_selected_character(peer_id: int) -> Dictionary:
 	if journey.get("outcome", "") != OUTCOME_OK:
 		return {"outcome": journey.get("outcome", "journey_rejected")}
 	result["journey_id"] = String(journey["journey_id"])
+	result["journey"] = journey.get("journey", {}).duplicate(true)
 	return result
 
 

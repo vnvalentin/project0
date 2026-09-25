@@ -10,6 +10,8 @@ const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutati
 const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_service.gd")
 const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_resolver.gd")
 const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
+const JourneyRepositoryScript: Script = preload("res://server/journey_repository.gd")
+const JourneyRegistryScript: Script = preload("res://server/journey_registry.gd")
 const FixturesScript: Script = preload("res://scripts/sector_blueprint_fixtures.gd")
 const TRACE_DIRECTORY: String = "res://logs/experiments"
 
@@ -18,6 +20,7 @@ var _store: SqliteStore = null
 var _canon: CanonRepository = null
 var _mutations: CanonMutationRepository = null
 var _service: CanonMutationService = null
+var _journey_repository: JourneyRepository = null
 
 
 func before_each() -> void:
@@ -28,6 +31,8 @@ func before_each() -> void:
 	_canon.ensure_schema()
 	_mutations = CanonMutationRepositoryScript.new(_store, _canon)
 	_mutations.ensure_schema()
+	_journey_repository = JourneyRepositoryScript.new(_store)
+	_journey_repository.ensure_schema()
 	_canon.canonicalize_blueprint(JSON.parse_string(FixturesScript.VALID_WITH_STRUCTURE))
 	_service = CanonMutationServiceScript.new(_mutations, func() -> int: return 7)
 
@@ -147,6 +152,12 @@ func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_wri
 	var raw_sha1_before: String = JSON.stringify(raw_before).sha1_text()
 	var effective_sha1_before: String = JSON.stringify(effective_before).sha1_text()
 	var row_counts_before: Dictionary = _row_counts()
+	var journey_registry: RefCounted = JourneyRegistryScript.new()
+	journey_registry.set_repository(_journey_repository)
+	var entered: Dictionary = journey_registry.enter("character-1012", 7, 100)
+	journey_registry.checkpoint("character-1012", Vector3(16.0, 0.0, 20.0), 101, "sector_01_02", 3, raw_sha1_before)
+	journey_registry.mark_disconnected("character-1012", 7, 102)
+	var journey_before: Dictionary = _journey_repository.load_all()
 
 	_store.close()
 	lifecycle_events.append("SERVER_RESTART_SIMULATED")
@@ -157,6 +168,8 @@ func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_wri
 	assert_eq(reopen_result["outcome"], SqliteStoreScript.OUTCOME_OK)
 	_canon = CanonRepositoryScript.new(_store)
 	_mutations = CanonMutationRepositoryScript.new(_store, _canon)
+	_journey_repository = JourneyRepositoryScript.new(_store)
+	_journey_repository.ensure_schema()
 
 	var reloaded: Dictionary = _canon.get_canonical_sector("sector_01_02")
 	var replayed_mutations: Dictionary = _mutations.list_mutations("sector_01_02")
@@ -171,6 +184,10 @@ func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_wri
 	var effective_after: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(
 		raw_after, replayed_mutations["mutations"]
 	)
+	var restored_journey_registry: RefCounted = JourneyRegistryScript.new()
+	restored_journey_registry.set_repository(_journey_repository)
+	assert_eq(restored_journey_registry.restore_records(_journey_repository.load_all()["records"])["outcome"], JourneyRegistryScript.OUTCOME_OK)
+	var reclaimed: Dictionary = restored_journey_registry.enter("character-1012", 8, 103)
 	var row_counts_after: Dictionary = _row_counts()
 	var raw_sha1_after: String = JSON.stringify(raw_after).sha1_text()
 	var effective_sha1_after: String = JSON.stringify(effective_after).sha1_text()
@@ -178,6 +195,13 @@ func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_wri
 		raw_sha1_after == raw_sha1_before
 		and effective_sha1_after == effective_sha1_before
 		and row_counts_after == row_counts_before
+		and reclaimed.get("outcome", "") == JourneyRegistryScript.OUTCOME_OK
+		and reclaimed.get("kind", "") == "reclaim"
+		and reclaimed["journey"].get("position_x", 0.0) == 16.0
+		and reclaimed["journey"].get("position_z", 0.0) == 20.0
+		and reclaimed["journey"].get("sector_id", "") == "sector_01_02"
+		and reclaimed["journey"].get("sector_revision", 0) == 3
+		and reclaimed["journey"].get("sector_geometry_hash", "") == raw_sha1_before
 		and generation_calls == 0
 		and sqlite_errors.is_empty()
 	)
@@ -189,6 +213,9 @@ func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_wri
 	assert_eq((replayed_mutations["mutations"] as Array).size(), 1, "the committed mutation is restored")
 	assert_eq(replayed_mutations["mutations"][0]["event_id"], "mut_01_02_anchor")
 	assert_eq(effective_after["structures"].size(), 0, "the restored mutation changes effective state")
+	assert_eq(reclaimed["journey"]["journey_id"], entered["journey_id"], "the journey identity survives restart")
+	assert_eq(reclaimed["journey"]["sector_geometry_hash"], raw_sha1_before, "journey sector geometry survives restart")
+	assert_eq(journey_before["records"].size(), 1, "the journey checkpoint is durable")
 	assert_eq(lifecycle_events, [
 		"SECTOR_BOUNDARY_TRIGGERED",
 		"CANON_MUTATION_COMMITTED",

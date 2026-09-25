@@ -174,7 +174,6 @@ const SectorIdentityScript: Script = preload("res://shared/sector_identity.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 const SectorNavigationReadinessScript: Script = preload("res://client/sector_navigation_readiness.gd")
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
-const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
 signal geometry_assembly_completed(sector_id: String, result: Dictionary)
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
@@ -1065,7 +1064,11 @@ static func render_sector_blueprint(blueprint: Dictionary, parent: Node3D, ingre
 	var target_tile: Vector2 = Vector2(roundf(target.x), roundf(target.z))
 	if not walkable.has(ingress_tile) or not walkable.has(target_tile):
 		push_warning("NetworkClient: rejecting spatially unsafe sector ingress; selecting deterministic fallback.")
-		var fallback_validation: Dictionary = SectorBlueprintSchemaScript.validate(StartingTownHubFixtureScript.blueprint())
+		var fallback_fixture: Script = load("res://server/starting_town_hub_fixture.gd") as Script
+		if fallback_fixture == null:
+			push_error("NetworkClient: deterministic fallback fixture is unavailable; rendering nothing.")
+			return _assembly_result("fallback_unavailable", 0, 0)
+		var fallback_validation: Dictionary = SectorBlueprintSchemaScript.validate(fallback_fixture.blueprint())
 		if fallback_validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
 			push_error("NetworkClient: deterministic fallback failed schema validation; rendering nothing.")
 			return _assembly_result("fallback_unavailable", 0, 0)
@@ -1671,6 +1674,13 @@ func receive_enter_world_request_on_server() -> void:
 	var result: Dictionary = login_gateway.get_selected_character(sender_id)
 	if result["outcome"] == "ok":
 		var record: Object = result["character"]
+		var journey: Dictionary = result.get("journey", {})
+		if journey.has("position_x"):
+			player_state.restore_authoritative_position(Vector3(
+				float(journey.get("position_x", player_state.position.x)),
+				float(journey.get("position_y", player_state.position.y)),
+				float(journey.get("position_z", player_state.position.z))
+			))
 		player_state.bind_character(record.character_id, record.display_name, record.cosmetic)
 		var ticket_service: Object = get_tree().root.get_meta("world_entry_tickets", null)
 		var relay: Node = get_tree().root.get_node_or_null("NakamaGameplayRelay")

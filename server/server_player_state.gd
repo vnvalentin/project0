@@ -229,6 +229,12 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	effective_mechanics_ready.emit(owning_peer_id, effective_mechanics_snapshot())
 
 
+func restore_authoritative_position(restored_position: Vector3) -> void:
+	position = restored_position
+	_spawn_position = restored_position
+	_floor_height = restored_position.y
+
+
 ## Public seam: called by server_main.gd to register the server-owned target
 ## dummies this peer's melee hit tests may check against.
 func set_target_dummies(target_dummies: Dictionary) -> void:
