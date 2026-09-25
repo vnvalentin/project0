@@ -70,6 +70,7 @@ const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ing
 const TelemetryEventScript: Script = preload("res://shared/telemetry_event.gd")
 const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
 const JitPresentationAckTrackerScript: Script = preload("res://server/jit_presentation_ack_tracker.gd")
+const JourneyRegistryScript: Script = preload("res://server/journey_registry.gd")
 
 ## Slice 067: the app schema version reported in the runtime health snapshot.
 const APP_SCHEMA_VERSION: int = 1
@@ -185,6 +186,7 @@ var _character_service: Object = null
 var _login_gateway: Object = null
 var _nakama_session_validator: Node = null
 var _world_entry_tickets: Object = null
+var _journey_registry: Object = null
 var _nakama_gameplay_bridge: Object = null
 var _nakama_gameplay_relay: Node = null
 var _operator_control_endpoint: Node = null
@@ -424,6 +426,9 @@ func _start_server() -> void:
 	var login_services: Dictionary = LoginRuntimeScript.build_assertion_only_services(_account_repository, root, LoginRuntimeScript.resolve_assertion_secret(), LoginRuntimeScript.ASSERTION_ISSUER_ID, LoginRuntimeScript.ASSERTION_AUDIENCE)
 	_character_service = login_services["characters"]
 	_login_gateway = login_services["gateway"]
+	_journey_registry = JourneyRegistryScript.new()
+	_journey_registry.evidence.connect(_on_journey_evidence)
+	_login_gateway.set_journey_registry(_journey_registry)
 	_nakama_session_validator = NakamaSessionValidatorScript.new()
 	_nakama_session_validator.name = "NakamaSessionValidator"
 	root.add_child(_nakama_session_validator)
@@ -659,6 +664,9 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	# A peer can drop while still awaiting the version gate; it owns nothing else.
 	_pending_version_gate.erase(peer_id)
 	var disconnected_identity: Dictionary = _login_gateway.get_presence_identity(peer_id) if _login_gateway != null else {}
+	var player_state: Node = _player_states.get(peer_id)
+	if _journey_registry != null and player_state != null and not String(player_state.character_id).is_empty():
+		_journey_registry.mark_disconnected(String(player_state.character_id), peer_id, int(Time.get_unix_time_from_system()))
 	if _nakama_gameplay_relay != null:
 		_nakama_gameplay_relay.unbind_world_entry(String(disconnected_identity.get("account_id", "")))
 	# Slice 040: clear this peer's in-memory session, if any. Sessions are
@@ -676,7 +684,6 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		"had_house": had_house,
 		"houses_free_after": _house_allocator.available_count() if _house_allocator != null else 0,
 	})
-	var player_state: Node = _player_states.get(peer_id)
 	if player_state != null:
 		player_state.position_updated.disconnect(_on_player_state_position_updated)
 		player_state.action_resolved.disconnect(_on_player_state_action_resolved)
@@ -996,6 +1003,8 @@ func get_assigned_house(peer_id: int) -> String:
 ## frame, feeding it every connected peer's current position so monsters chase
 ## the nearest one. Monsters idle when no one is connected.
 func _on_physics_frame() -> void:
+	if _journey_registry != null:
+		_journey_registry.cleanup(int(Time.get_unix_time_from_system()))
 	# Slice 067: refresh the runtime health file on a sub-second stride so a
 	# frozen tick loop turns the container unhealthy even while the socket stays
 	# bound. Runs regardless of monster state (health is independent of monsters).
@@ -1015,6 +1024,11 @@ func _on_physics_frame() -> void:
 		_town_npc_manager.advance(player_positions, 1, _town_npc_tick)
 		_town_npc_tick += 1
 		_broadcast_town_npc_positions()
+
+
+func _on_journey_evidence(kind: String, payload: Dictionary) -> void:
+	var peer_id: int = int(payload.get("peer_id", 0))
+	_emit_server_telemetry("journey.%s" % kind, peer_id, payload)
 
 
 ## Slice 067: builds an authoritative ServerHealth snapshot from current runtime

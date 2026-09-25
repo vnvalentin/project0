@@ -97,14 +97,14 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	_client_a_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
 		"-s", "scripts/multi_peer_client_harness.gd",
-		"--", "--state-file=%s" % _state_file_a, "--hold-input=move_back",
+		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_a, "--hold-input=move_back",
 	])
 	_assert(_client_a_process_id != -1, "client A process starts")
 
 	_client_b_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
 		"-s", "scripts/multi_peer_client_harness.gd",
-		"--", "--state-file=%s" % _state_file_b, "--hold-input=move_right",
+		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_b, "--hold-input=move_right",
 	])
 	_assert(_client_b_process_id != -1, "client B process starts")
 
