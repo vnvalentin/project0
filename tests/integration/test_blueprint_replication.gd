@@ -124,6 +124,16 @@ func test_experiment_1077_places_signed_sector_roots_idempotently() -> void:
 	trace_file.close()
 
 
+func test_rejected_sector_does_not_return_freed_readiness() -> void:
+	var registry: Node3D = add_child_autofree(Node3D.new())
+	var result: Dictionary = NetworkClientScript.present_sector_blueprint(
+		_placement_blueprint("sector-0-0"), registry, Vector3(100.0, 0.0, 100.0)
+	)
+	assert_eq(result["outcome"], "fallback_selected")
+	assert_eq(registry.get_child_count(), 0, "rejected pending geometry is removed")
+	assert_false(result.has("readiness_node"), "rejection must not expose a freed readiness node")
+
+
 func test_starting_town_hub_keeps_its_world_origin_root() -> void:
 	var registry: Node3D = add_child_autofree(Node3D.new())
 	var result: Dictionary = NetworkClientScript.present_sector_blueprint(
