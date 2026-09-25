@@ -98,6 +98,7 @@ func test_canon_reentry_is_emitted_by_server_before_client_presentation() -> voi
 	assert_eq(sink.envelopes.size(), 1)
 	assert_eq(sink.envelopes[0]["event_type"], "canon_reentry")
 	assert_eq(sink.envelopes[0]["payload"]["span_id"], reentry_trace["span_id"])
+	server.free()
 
 
 func test_boundary_prompt_carries_schema_contract_for_the_requested_sector() -> void:
