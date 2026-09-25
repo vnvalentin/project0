@@ -2,7 +2,10 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourcePackage,
 
-    [string]$OutputPath = "dist\Project0-Launcher.exe"
+    [string]$OutputPath = "dist\Project0-Launcher.exe",
+
+    [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
+    [string]$Version = "0.12.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,7 +38,8 @@ $output = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
 New-Item -ItemType Directory -Force -Path (Split-Path $output) | Out-Null
 Push-Location $launcher
 try {
-    go build -trimpath -ldflags "-H=windowsgui" -o $output .
+    go build -trimpath -ldflags "-H=windowsgui -X main.launcherClientVersion=$Version" -o $output .
+    if ($LASTEXITCODE -ne 0) { throw "Launcher compilation failed: $LASTEXITCODE" }
 }
 finally {
     Pop-Location

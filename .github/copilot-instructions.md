@@ -19,6 +19,14 @@ acceptance criteria, and rollback boundary. Resume only after the owning seam
 has a focused fix and its discriminating check passes; never report the parent
 experiment complete while the problem remains open.
 
+Blocker closure rule: identify the blocker, define and evidence its root cause,
+and create a GitHub Technical Debt issue recording the root cause, impact,
+remediation performed, validation evidence, and remaining limitation. Close
+the blocker only after its focused discriminating check passes. If it cannot be
+closed with the available authority or access, leave it explicitly blocked and
+request guidance with the unresolved hypotheses, required decision, and next
+owner; never silently work around it or report completion.
+
 Completion persistence rule: do not stop an implementation, experiment, or
 delivery path while its governing GitHub issue remains open. Continue until the
 issue is closed with acceptance evidence, or explicitly mark it blocked or

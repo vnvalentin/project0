@@ -18,10 +18,11 @@ import (
 
 const (
 	updateRequiredExitCode = 2
-	launcherClientVersion  = "0.12.0"
 	publicEnrollmentURL    = "https://project0.valentin.vip"
 	readinessTimeout       = 15 * time.Second
 )
+
+var launcherClientVersion = "0.12.0"
 
 func main() {
 	if hasArg(os.Args[1:], "--project0-update-helper") {

@@ -108,6 +108,13 @@ Do not create implementation slices or product code while this gate is open.
 ## Agent requirements
 
 - Preserve unrelated user changes.
+- Experiment lifecycle rule: every experiment harness owns setup, execution,
+  evidence capture, and teardown in one non-interactive path. It must create
+  isolated temporary state, enforce clean-target preconditions, emit
+  machine-readable evidence on success or failure, and remove temporary state
+  in a `finally`/cleanup path. Missing external targets or artifacts must fail
+  closed with a recorded blocker; never wait for user prompts during setup,
+  execution, or teardown.
 - Branch per change and merge via pull request: `main` is always releasable and
   is never committed to directly. Cut a `type/short-topic` branch (`slice/`,
   `fix/`, `docs/`, `chore/`) from the latest `origin/main` for every change, and
@@ -178,6 +185,14 @@ Do not create implementation slices or product code while this gate is open.
   rollback boundary. Resume only after the owning seam has a focused fix and
   the discriminating check passes; do not report the parent experiment as
   complete while the problem remains open.
+- Blocker closure rule: after stopping, identify the blocker, define and
+  evidence its root cause, and create a GitHub Technical Debt issue recording
+  the root cause, impact, remediation performed, validation evidence, and
+  remaining limitation. Close the blocker only after its focused
+  discriminating check passes. If the blocker cannot be closed with the
+  available authority or access, leave it explicitly blocked and request
+  guidance with the unresolved hypotheses, required decision, and next owner;
+  never silently work around it or report completion.
 - Never claim runtime behavior without runtime evidence.
 - Do not add dependencies, migrations, permissions, or external side effects
   without documenting their safety and rollback implications.
