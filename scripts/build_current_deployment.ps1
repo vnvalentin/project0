@@ -13,11 +13,13 @@ $current = Join-Path $dist "current"
 $payload = Join-Path $repo "native\windows_launcher\payload"
 $work = Join-Path $repo "build\deployment-work"
 $clientStage = Join-Path $work "client"
+$exportSource = Join-Path $work "export-source"
+$rceditPath = Join-Path $repo "build\tools\rcedit\node_modules\rcedit\bin\rcedit-x64.exe"
 $clientZip = Join-Path $current "Project0-client-windows-x64-$Version.zip"
 $launcherPath = Join-Path $current "Project0-Launcher-$Version.exe"
 $manifestPath = Join-Path $current "deployment-manifest.json"
 
-function Require-File([string]$Path, [string]$Description) {
+function Test-RequiredFile([string]$Path, [string]$Description) {
     if (-not (Test-Path $Path -PathType Leaf)) {
         throw "Missing $Description`: $Path"
     }
@@ -31,14 +33,44 @@ if (Test-Path $work) { Remove-Item $work -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $current, $clientStage | Out-Null
 
 Write-Output "Exporting current Godot Windows client..."
+$excludedDirectories = @(
+    (Join-Path $repo ".git"),
+    (Join-Path $repo ".godot"),
+    (Join-Path $repo ".scratch"),
+    (Join-Path $repo ".venv"),
+    (Join-Path $repo "build"),
+    (Join-Path $repo "dashboard"),
+    (Join-Path $repo "deploy"),
+    (Join-Path $repo "docs"),
+    (Join-Path $repo "infra"),
+    (Join-Path $repo "logs"),
+    (Join-Path $repo "native"),
+    (Join-Path $repo "operator_console"),
+    (Join-Path $repo "scripts"),
+    (Join-Path $repo "server"),
+    (Join-Path $repo "tests"),
+    (Join-Path $repo "addons\godot-sqlite"),
+    (Join-Path $repo "addons\gut")
+)
+$robocopyArgs = @($repo, $exportSource, "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/XD") + $excludedDirectories
+& robocopy @robocopyArgs | Out-Null
+if ($LASTEXITCODE -gt 7) {
+    throw "Failed to stage the Windows client export source with robocopy (exit code $LASTEXITCODE)."
+}
 $clientExe = Join-Path $clientStage "Project0.exe"
 $godotPath = (Get-Command godot -ErrorAction Stop).Source
 $godotProcess = Start-Process -FilePath $godotPath -ArgumentList @(
-    "--headless", "--path", $repo, "--export-release", '"Windows Desktop"', $clientExe
+    "--headless", "--path", $exportSource, "--export-release", '"Windows Desktop"', $clientExe
 ) -Wait -PassThru -NoNewWindow
 $exportExitCode = $godotProcess.ExitCode
-Require-File $clientExe "Godot client executable"
-Require-File (Join-Path $clientStage "Project0.pck") "Godot client PCK"
+Test-RequiredFile $clientExe "Godot client executable"
+Test-RequiredFile (Join-Path $clientStage "Project0.pck") "Godot client PCK"
+$rceditVersion = "$Version.0"
+Test-RequiredFile $rceditPath "rcedit executable"
+& $rceditPath $clientExe --set-file-version $rceditVersion --set-product-version $rceditVersion
+if ($LASTEXITCODE -ne 0) {
+    throw "rcedit failed with exit code $LASTEXITCODE."
+}
 $exportWarning = $null
 if ($exportExitCode -ne 0) {
     $exportWarning = "Godot returned exit code $exportExitCode after producing complete export artifacts; known GDExtension load warnings were observed during headless export."
@@ -50,7 +82,7 @@ Compress-Archive -Path (Join-Path $clientStage "*") -DestinationPath $clientZip 
 Write-Output "Building self-service WAN launcher..."
 & (Join-Path $PSScriptRoot "build_windows_oneclick.ps1") -SourcePackage $clientStage -OutputPath $launcherPath
 if ($LASTEXITCODE -ne 0) { throw "Windows launcher build failed with exit code $LASTEXITCODE" }
-Require-File $launcherPath "WAN launcher"
+Test-RequiredFile $launcherPath "WAN launcher"
 
 Push-Location (Join-Path $repo "native\windows_launcher")
 try {

@@ -16,7 +16,7 @@ $evidenceDirectory = if ($env:PROJECT0_EXPERIMENT_EVIDENCE_DIR) {
 
 New-Item -ItemType Directory -Force -Path $resultDirectory | Out-Null
 New-Item -ItemType Directory -Force -Path $evidenceDirectory | Out-Null
-$evidencePattern = Join-Path $evidenceDirectory "exp_1099_hash_mismatch_*.json"
+$evidencePattern = Join-Path $evidenceDirectory "exp_1100_version_tuple_persistence_*.json"
 Remove-Item -Force -ErrorAction SilentlyContinue $evidencePattern
 $env:PROJECT0_EXPERIMENT_EVIDENCE_DIR = $evidenceDirectory
 $startedAt = (Get-Date).ToUniversalTime()
@@ -27,7 +27,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Push-Location $moduleRoot
 try {
-    # Evidence generation is a test side effect; force both subcases to execute.
+    # Evidence generation is a test side effect; force all experiment cases to execute.
     & go test -count=1 ./...
     $exitCode = $LASTEXITCODE
 }

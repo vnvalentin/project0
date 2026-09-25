@@ -101,6 +101,39 @@
 				"panel": "dedicated"
 			}
 		},
+		{
+			"label": "Build: Windows Client Replacement Baseline",
+			"type": "shell",
+			"command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\build_current_deployment.ps1",
+				"-Version",
+				"0.13.0"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$go"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Prepare: Experiment 1100 Signed Fixture",
+			"type": "shell",
+			"command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\scripts\\prepare_windows_experiment_1100.ps1"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+		}
 	],
 	"inputs": [
 		{

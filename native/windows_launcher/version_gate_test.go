@@ -270,7 +270,7 @@ func writePayloadMismatchEvidence(t *testing.T, target string, validPayload, cor
 	computed := sha256.Sum256(corruptPayload)
 	timestamp := time.Now().UTC()
 	evidence := map[string]any{
-		"experiment_id":      "exp_1099_hash_mismatch",
+		"experiment_id":      "exp_1100_version_tuple_persistence",
 		"timestamp_ms":       timestamp.UnixMilli(),
 		"launcher_exit_code": 3,
 		"failure_reason":     "PAYLOAD_HASH_MISMATCH",
@@ -308,7 +308,7 @@ func writePayloadMismatchEvidence(t *testing.T, target string, validPayload, cor
 	if err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(evidenceDirectory, "exp_1099_hash_mismatch_"+timestamp.Format("20060102T150405.000Z")+"_"+strings.TrimSuffix(target, ".exe")+".json")
+	filename := filepath.Join(evidenceDirectory, "exp_1100_version_tuple_persistence_"+timestamp.Format("20060102T150405.000Z")+"_"+strings.TrimSuffix(target, ".exe")+".json")
 	if err := os.WriteFile(filename, append(content, '\n'), 0600); err != nil {
 		t.Fatal(err)
 	}
