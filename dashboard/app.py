@@ -1127,42 +1127,14 @@ def _delivery_mockup_counts(issues: list[dict]) -> dict[str, int]:
     return counts
 
 
-def _delivery_feature_nodes(issue_feed: dict) -> dict[int, dict]:
-    roots, _unlinked = _tbp_label_tree(issue_feed)
-    nodes: dict[int, dict] = {}
-
-    def visit(node: dict) -> None:
-        if "tbp:feature" in node.get("labels", []):
-            nodes[node["number"]] = node
-        for child in node.get("children", []):
-            visit(child)
-
-    for root in roots:
-        visit(root)
-    return nodes
+def _delivery_milestone_slices(issues: list[dict]) -> list[dict]:
+    return [issue for issue in issues if "Slice" in issue.get("labels", []) or "tbp:slice" in issue.get("labels", [])]
 
 
-def _delivery_milestone_features(issue_feed: dict, issues: list[dict]) -> list[dict]:
-    by_number = {issue.get("number"): issue for issue in issue_feed.get("issues", [])}
-    feature_nodes = _delivery_feature_nodes(issue_feed)
-    features: dict[int, dict] = {}
-    for issue in issues:
-        current = issue
-        seen: set[int] = set()
-        while current and current.get("number") not in seen:
-            number = current.get("number")
-            seen.add(number)
-            if "tbp:feature" in current.get("labels", []):
-                features[number] = feature_nodes.get(number, current)
-                break
-            current = by_number.get(_delivery_issue_parent(current))
-    return list(features.values())
-
-
-def _delivery_feature_counts(features: list[dict]) -> dict[str, int]:
+def _delivery_slice_counts(slices: list[dict]) -> dict[str, int]:
     counts = {"new": 0, "ready": 0, "doing": 0, "done": 0}
-    for feature in features:
-        state = _tbp_roadmap_state(feature)
+    for slice_issue in slices:
+        state = _delivery_mockup_state(slice_issue)
         bucket = {"READY_TO_PULL": "ready", "IN_PROGRESS": "doing", "DONE": "done"}.get(state, "new")
         counts[bucket] += 1
     return counts
@@ -1229,11 +1201,11 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
     else:
         bands = []
         for record in records:
-            features = _delivery_milestone_features(issue_feed, record["issues"])
-            counts = _delivery_feature_counts(features)
-            feature_total = len(features)
+            slices = _delivery_milestone_slices(record["issues"])
+            counts = _delivery_slice_counts(slices)
+            slice_total = len(slices)
             issue_tree = _delivery_issue_tree(record["issues"])
-            bands.append(f'<details class="milestone-band"><summary><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-feature-summary">Feature delivery: {counts["done"]}/{feature_total} complete</div><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div></summary><div class="milestone-issues">{issue_tree}</div></details>')
+            bands.append(f'<details class="milestone-band"><summary><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-feature-summary">Slice delivery: {counts["done"]}/{slice_total} complete</div><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div></summary><div class="milestone-issues">{issue_tree}</div></details>')
         body = f'<div class="milestone-bands">{"".join(bands)}</div>'
     links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Gantt")))
     return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
