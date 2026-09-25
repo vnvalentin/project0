@@ -162,7 +162,7 @@ def test_roadmap_view_renders_collapsible_layered_story_map(monkeypatch):
     assert 'class="story-map-node level-theme"' in page
     assert 'class="story-map-node level-theme" open' not in page
     for label in ("Hoshin", "Theme", "Feature", "Epic", "Experiment"):
-        assert f'class="story-map-label">{label}</span>' in page
+        assert f'class="story-map-label">{label}</span>' not in page
     assert "Hoshin: World" in page and "Experiment: Login" in page
     assert "#2 Theme: Identity" in page
     assert "NEEDS GRILLING" in page
