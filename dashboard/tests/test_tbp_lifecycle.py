@@ -1,12 +1,31 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from app import _tbp_next_branch, _tbp_render_node, classify_tbp_state, render_roadmap
+from app import _delivery_slice_ready, _delivery_slice_state, _tbp_next_branch, _tbp_render_node, classify_tbp_state, render_roadmap
 
 def issue(state="open", body="## Outcomes\n- [x] validated"):
     return {"state": state, "body": body, "labels": []}
 def test_refinement_ready():
     assert classify_tbp_state(issue()) == "READY_TO_PULL"
+
+
+def test_slice_is_new_without_parent_and_delivery_contract():
+    slice_issue = {"labels": ["Slice"], "state": "open", "body": "Acceptance: define this later"}
+    assert _delivery_slice_ready(slice_issue) is False
+    assert _delivery_slice_state(slice_issue) == "NEEDS_GRILLING"
+
+
+def test_slice_is_ready_with_parent_and_delivery_contract():
+    slice_issue = {"labels": ["Slice"], "state": "open", "body": "Parent feature: #42\n\nAcceptance:\n- validated"}
+    assert _delivery_slice_ready(slice_issue) is True
+    assert _delivery_slice_state(slice_issue) == "READY_TO_PULL"
+
+
+def test_slice_state_prioritizes_doing_and_done():
+    doing = {"labels": ["Slice", "tbp:in-progress"], "state": "open", "body": "Parent feature: #42"}
+    done = {"labels": ["Slice"], "state": "closed", "body": "Parent feature: #42"}
+    assert _delivery_slice_state(doing) == "IN_PROGRESS"
+    assert _delivery_slice_state(done) == "DONE"
 def test_child_needs_grilling_blocks_parent():
     assert classify_tbp_state(issue(), [dict(issue(), tbp_state="NEEDS_GRILLING")]) == "NEEDS_GRILLING"
 def test_child_in_progress_blocks_parent():

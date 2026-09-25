@@ -1131,10 +1131,31 @@ def _delivery_milestone_slices(issues: list[dict]) -> list[dict]:
     return [issue for issue in issues if "Slice" in issue.get("labels", []) or "tbp:slice" in issue.get("labels", [])]
 
 
+def _delivery_slice_ready(issue: dict) -> bool:
+    body = issue.get("body", "") or ""
+    has_parent = _parent_link(issue, "Parent feature") is not None
+    has_delivery_contract = bool(re.search(
+        r"(?im)^(?:Acceptance|Validation|Outcome|##\s+(?:Acceptance(?: scenarios)?|Validation|Outcome|Public seam|Root Cause))\b",
+        body,
+    ))
+    labels = {str(label).lower() for label in issue.get("labels", [])}
+    blocked = "blocked" in labels or bool(re.search(r"(?im)^Status:\s*blocked\b", body))
+    return has_parent and has_delivery_contract and not blocked
+
+
+def _delivery_slice_state(issue: dict) -> str:
+    labels = {str(label).lower() for label in issue.get("labels", [])}
+    if str(issue.get("state", "open")).lower() == "closed":
+        return "DONE"
+    if "tbp:in-progress" in labels or "in progress" in labels:
+        return "IN_PROGRESS"
+    return "READY_TO_PULL" if _delivery_slice_ready(issue) else "NEEDS_GRILLING"
+
+
 def _delivery_slice_counts(slices: list[dict]) -> dict[str, int]:
     counts = {"new": 0, "ready": 0, "doing": 0, "done": 0}
     for slice_issue in slices:
-        state = _delivery_mockup_state(slice_issue)
+        state = _delivery_slice_state(slice_issue)
         bucket = {"READY_TO_PULL": "ready", "IN_PROGRESS": "doing", "DONE": "done"}.get(state, "new")
         counts[bucket] += 1
     return counts
