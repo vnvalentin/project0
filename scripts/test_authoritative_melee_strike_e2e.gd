@@ -23,6 +23,7 @@ extends SceneTree
 ## Exits 0 and prints "ALL PASS" only if every assertion below holds.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 
 var _failures: int = 0
@@ -37,6 +38,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	if _prepare_isolated_state():
 		await _test_authoritative_melee_strike()
 
@@ -56,6 +58,7 @@ func _run() -> void:
 		else:
 			OS.set_environment(key, _saved_environment[key])
 
+	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
 	if _failures == 0:
 		print("ALL PASS")
 		quit(0)
@@ -106,6 +109,10 @@ func _test_authoritative_melee_strike() -> void:
 	OS.set_environment("PROJECT0_E2E_DISABLE_TOWN_COLLISION", "1")
 
 	var godot_executable: String = OS.get_executable_path()
+	var journey_seeded: bool = GameplayTestSessionScript.seed_melee_journey(_accounts_db_name)
+	_assert(journey_seeded, "test Character journey starts at the established melee fixture position")
+	if not journey_seeded:
+		return
 	_server_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", ProjectSettings.globalize_path("res://"),
 		"-s", "server/server_main.gd",
@@ -122,6 +129,10 @@ func _test_authoritative_melee_strike() -> void:
 		return
 
 	var network_client: Node = root.get_node("NetworkClient")
+	var authoritative_position: Array[Vector3] = [Vector3.INF]
+	network_client.authoritative_position_received.connect(
+		func(position: Vector3, _sequence: int) -> void: authoritative_position[0] = position
+	)
 
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
 	root.add_child(_gameplay_instance)
@@ -138,6 +149,10 @@ func _test_authoritative_melee_strike() -> void:
 		return
 
 	var player: Node3D = _gameplay_instance.get_node_or_null("Player")
+	var admitted: bool = await GameplayTestSessionScript.enter_world(network_client)
+	_assert(admitted, "client establishes a validated test session and enters world")
+	if not admitted:
+		return
 	_assert(player != null, "red predicted Player exists")
 	if player == null:
 		return
@@ -168,6 +183,7 @@ func _test_authoritative_melee_strike() -> void:
 		settle_ticks += 1
 
 	_assert(player.position.distance_to(target_dummy_position) < 2.0, "the red Player's predicted position is within melee reach of the target dummy before attacking (position: %s)" % player.position)
+	_assert(authoritative_position[0].distance_to(target_dummy_position) < 2.0, "authoritative player is in melee reach before attacking (position: %s)" % authoritative_position[0])
 
 	# --- Submit a melee ActionIntent over the real RPC seam -----------------
 	var resolution_received: Array = [false, "", ""]

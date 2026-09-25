@@ -28,6 +28,12 @@ assets/audio/
 *.glb
 *.gltf
 *.png
+!addons/gut/icon.png
+!addons/gut/gui/arrow.png
+!addons/gut/gui/play.png
+!addons/gut/images/green.png
+!addons/gut/images/red.png
+!addons/gut/images/yellow.png
 *.wav
 *.ogg
 

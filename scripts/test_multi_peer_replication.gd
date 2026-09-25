@@ -28,6 +28,8 @@ extends SceneTree
 ##   godot --headless --path . -s scripts/test_multi_peer_replication.gd
 ## Exits 0 and prints "ALL PASS" only if every assertion below holds.
 
+const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
+
 var _failures: int = 0
 var _server_process_id: int = -1
 var _client_a_process_id: int = -1
@@ -41,8 +43,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_two_peer_replication_and_disconnect_cleanup()
 	_cleanup_processes()
+	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
 
 	if _failures == 0:
 		print("ALL PASS")
@@ -101,6 +105,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	])
 	_assert(_client_a_process_id != -1, "client A process starts")
 
+	GameplayTestSessionScript.refresh_identity()
 	_client_b_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
 		"-s", "scripts/multi_peer_client_harness.gd",
