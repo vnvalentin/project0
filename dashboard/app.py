@@ -558,9 +558,6 @@ OVERVIEW_CSS = """
 .story-map-node-title{min-width:0;flex:1;color:var(--text);font-size:12px;font-weight:800;line-height:1.3}
 .story-map-node-title a{color:inherit;text-decoration:none}
 .story-map-node-title a:hover{color:var(--cyan)}
-.story-map-node-preview{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0 20px;color:var(--muted);font-size:10px}
-.story-map-preview-item{padding:4px 7px;border:1px dashed var(--line);background:#111a22}
-.story-map-preview-item strong{color:var(--text)}
 .story-map-node-children{margin:8px 0 0 18px;padding-left:14px;border-left:1px solid var(--line)}
 .story-map-node-children>.story-map-node{margin-bottom:8px}
 .next-work{border-left:4px solid var(--amber);background:var(--panel);padding:16px}
@@ -1014,14 +1011,8 @@ def _tbp_story_map_node(node: dict, level: int = 0) -> str:
         f'<span class="story-map-node-title">{title}</span>'
         f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
     )
-    preview = "".join(
-        f'<span class="story-map-preview-item"><strong>#{child.get("number", "")}</strong> '
-        f'{esc(_tbp_story_map_title(child))}</span>'
-        for child in children
-    )
-    preview_html = f'<div class="story-map-node-preview">{preview}</div>' if preview else ""
     children_html = "".join(_tbp_story_map_node(child, level + 1) for child in children)
-    body = f'{preview_html}<div class="story-map-node-children">{children_html}</div>' if children_html else preview_html
+    body = f'<div class="story-map-node-children">{children_html}</div>' if children_html else ""
     if not children:
         return f'<div class="story-map-node level-{kind}"><div class="story-map-node-summary">{summary}</div></div>'
     return f'<details class="story-map-node level-{kind}"><summary>{summary}</summary>{body}</details>'
