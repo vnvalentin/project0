@@ -25,6 +25,7 @@ extends SceneTree
 ##                             harness/observer).
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
 
 var _state_file_path: String = ""
 var _hold_input_action: String = ""
@@ -52,6 +53,10 @@ func _run() -> void:
 
 	_network_client.connect_to_server(NetworkConfigScript.resolve_client_target_host(), NetworkConfigScript.SERVER_PORT)
 
+	if not await GameplayTestSessionScript.enter_world(_network_client):
+		push_error("Test client session admission failed")
+		quit(1)
+		return
 	if not _hold_input_action.is_empty():
 		Input.action_press(_hold_input_action)
 

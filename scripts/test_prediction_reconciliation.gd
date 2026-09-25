@@ -19,6 +19,7 @@ extends SceneTree
 ## Exits 0 and prints "ALL PASS" only if every assertion below holds.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
 
 var _failures: int = 0
 var _server_process_id: int = -1
@@ -30,11 +31,13 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_prediction_and_reconciliation()
 
 	if _server_process_id != -1 and OS.is_process_running(_server_process_id):
 		OS.kill(_server_process_id)
 
+	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
 	if _failures == 0:
 		print("ALL PASS")
 		quit(0)
@@ -102,6 +105,10 @@ func _test_prediction_and_reconciliation() -> void:
 	_assert(network_client.status == "connected: player spawned", "client connects and its NetworkedPlayer is spawned")
 
 	var player: Node3D = _gameplay_instance.get_node_or_null("Player")
+	var admitted: bool = await GameplayTestSessionScript.enter_world(network_client)
+	_assert(admitted, "client establishes a validated test session and enters world")
+	if not admitted:
+		return
 	var networked_player: Node3D = _gameplay_instance.get_node_or_null("NetworkedPlayer")
 	_assert(player != null, "red predicted Player exists")
 	_assert(networked_player != null, "blue NetworkedPlayer exists")
