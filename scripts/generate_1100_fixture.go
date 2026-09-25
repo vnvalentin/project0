@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -16,14 +15,17 @@ import (
 
 func main() {
 	if len(os.Args) != 4 {
-		panic("usage: generate_1100_fixture <manifest> <signature> <private-key>")
+		panic("usage: generate_1100_fixture <manifest> <signature> <public-key>")
 	}
-	manifestPath, signaturePath, privateKeyPath := os.Args[1], os.Args[2], os.Args[3]
+	manifestPath, signaturePath, publicKeyPath := os.Args[1], os.Args[2], os.Args[3]
 	manifest, err := os.ReadFile(manifestPath)
 	if err != nil {
 		panic(err)
 	}
 	manifest = bytes.TrimPrefix(manifest, []byte{0xef, 0xbb, 0xbf})
+	if !json.Valid(manifest) {
+		panic("manifest is not valid JSON")
+	}
 	if err := os.WriteFile(manifestPath, manifest, 0600); err != nil {
 		panic(err)
 	}
@@ -36,25 +38,22 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	privateDER, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		panic(err)
-	}
 	publicDER, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
 	if err != nil {
 		panic(err)
 	}
-	publicPath := privateKeyPath[:len(privateKeyPath)-len("-private.pem")] + "-public.pem"
-	writePEM(privateKeyPath, "PRIVATE KEY", privateDER)
-	writePEM(publicPath, "PUBLIC KEY", publicDER)
+	writePEM(publicKeyPath, "PUBLIC KEY", publicDER)
 	if err := os.WriteFile(signaturePath, signature, 0600); err != nil {
 		panic(err)
 	}
-	compact, err := json.Marshal(json.RawMessage(manifest))
+	savedSignature, err := os.ReadFile(signaturePath)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(string(compact), base64.StdEncoding.EncodeToString(signature))
+	if err := rsa.VerifyPKCS1v15(&key.PublicKey, crypto.SHA256, digest[:], savedSignature); err != nil {
+		panic(err)
+	}
+	fmt.Println("Verified test manifest signature; private key was not persisted.")
 }
 
 func writePEM(path, kind string, data []byte) {

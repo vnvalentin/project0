@@ -142,7 +142,7 @@ func TestRunVersionGateRejectsEachMismatchedPayload(t *testing.T) {
 
 func TestPackagedLauncherRejectsOutdatedClientBeforeSideEffects(t *testing.T) {
 	key, public := testKey(t)
-	manifest, signature := signedManifestAtVersion(t, key, []byte("payload"), "https://example/Project0.pck", "0.13.0")
+	manifest, signature := signedManifestAtVersion(t, key, []byte("payload"), "https://example/Project0.pck", "0.14.0")
 	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("X-Project0-Manifest-Signature", base64.StdEncoding.EncodeToString(signature))
 		_, _ = response.Write(manifest)
@@ -159,32 +159,40 @@ func TestPackagedLauncherRejectsOutdatedClientBeforeSideEffects(t *testing.T) {
 	if err := os.WriteFile(certificateFile, certificatePEM, 0600); err != nil {
 		t.Fatal(err)
 	}
-	launcherPath := root + string(os.PathSeparator) + "Project0-Launcher.exe"
-	build := exec.Command("go", "build", "-o", launcherPath, ".")
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build launcher: %v\n%s", err, output)
-	}
+	for _, currentVersion := range []string{"0.12.0", "0.13.0"} {
+		t.Run(currentVersion, func(t *testing.T) {
+			launcherPath := filepath.Join(t.TempDir(), "Project0-Launcher.exe")
+			arguments := []string{"build", "-o", launcherPath}
+			if currentVersion != "0.12.0" {
+				arguments = append(arguments, "-ldflags", "-H=windowsgui -X main.launcherClientVersion="+currentVersion)
+			}
+			build := exec.Command("go", append(arguments, ".")...)
+			if output, err := build.CombinedOutput(); err != nil {
+				t.Fatalf("build launcher: %v\n%s", err, output)
+			}
 
-	localAppData := root + string(os.PathSeparator) + "localappdata"
-	command := exec.Command(launcherPath, "--test-ca-cert="+certificateFile)
-	command.Env = testEnvironment(os.Environ(), map[string]string{
-		"LOCALAPPDATA":              localAppData,
-		testManifestURLEnv:          server.URL,
-		testSigningPublicKeyFileEnv: publicKeyFile,
-	})
-	output, err := command.CombinedOutput()
-	if err == nil {
-		t.Fatal("expected launcher to reject the outdated client")
-	}
-	exitError, ok := err.(*exec.ExitError)
-	if !ok || exitError.ExitCode() != updateRequiredExitCode {
-		t.Fatalf("launcher error = %v, output = %s", err, output)
-	}
-	if strings.TrimSpace(string(output)) != "CLIENT_OUTDATED: required 0.13.0, local 0.12.0" {
-		t.Fatalf("launcher output = %q", output)
-	}
-	if _, err := os.Stat(localAppData); !os.IsNotExist(err) {
-		t.Fatalf("launcher created side effects under LOCALAPPDATA: %v", err)
+			localAppData := root + string(os.PathSeparator) + "localappdata"
+			command := exec.Command(launcherPath, "--test-ca-cert="+certificateFile)
+			command.Env = testEnvironment(os.Environ(), map[string]string{
+				"LOCALAPPDATA":              localAppData,
+				testManifestURLEnv:          server.URL,
+				testSigningPublicKeyFileEnv: publicKeyFile,
+			})
+			output, err := command.CombinedOutput()
+			if err == nil {
+				t.Fatal("expected launcher to reject the outdated client")
+			}
+			exitError, ok := err.(*exec.ExitError)
+			if !ok || exitError.ExitCode() != updateRequiredExitCode {
+				t.Fatalf("launcher error = %v, output = %s", err, output)
+			}
+			if strings.TrimSpace(string(output)) != "CLIENT_OUTDATED: required 0.14.0, local "+currentVersion {
+				t.Fatalf("launcher output = %q", output)
+			}
+			if _, err := os.Stat(localAppData); !os.IsNotExist(err) {
+				t.Fatalf("launcher created side effects under LOCALAPPDATA: %v", err)
+			}
+		})
 	}
 }
 
@@ -270,7 +278,7 @@ func writePayloadMismatchEvidence(t *testing.T, target string, validPayload, cor
 	computed := sha256.Sum256(corruptPayload)
 	timestamp := time.Now().UTC()
 	evidence := map[string]any{
-		"experiment_id":      "exp_1100_version_tuple_persistence",
+		"experiment_id":      "exp_1099_hash_mismatch",
 		"timestamp_ms":       timestamp.UnixMilli(),
 		"launcher_exit_code": 3,
 		"failure_reason":     "PAYLOAD_HASH_MISMATCH",
@@ -308,7 +316,7 @@ func writePayloadMismatchEvidence(t *testing.T, target string, validPayload, cor
 	if err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(evidenceDirectory, "exp_1100_version_tuple_persistence_"+timestamp.Format("20060102T150405.000Z")+"_"+strings.TrimSuffix(target, ".exe")+".json")
+	filename := filepath.Join(evidenceDirectory, "exp_1099_hash_mismatch_"+timestamp.Format("20060102T150405.000Z")+"_"+strings.TrimSuffix(target, ".exe")+".json")
 	if err := os.WriteFile(filename, append(content, '\n'), 0600); err != nil {
 		t.Fatal(err)
 	}
