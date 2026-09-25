@@ -56,7 +56,7 @@
 		{
 			"label": "Validation: Windows Launcher",
 			"type": "process",
-			"command": "powershell.exe",
+			"command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 			"args": [
 				"-NoProfile",
 				"-ExecutionPolicy",
@@ -67,6 +67,21 @@
 			"problemMatcher": [
 				"$go"
 			],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated"
+			}
+		},
+		{
+			"label": "Remote: Inspect Project0 Linux Checkout",
+			"type": "process",
+			"command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"ssh vic@192.168.1.254 \"cd /data/code/project0 && printf 'remote checkout: ' && pwd && git status --short --branch\""
+			],
+			"problemMatcher": [],
 			"presentation": {
 				"reveal": "always",
 				"panel": "dedicated"
@@ -85,7 +100,7 @@
 				"reveal": "always",
 				"panel": "dedicated"
 			}
-		}
+		},
 	],
 	"inputs": [
 		{

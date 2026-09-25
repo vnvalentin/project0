@@ -41,5 +41,8 @@ finally {
     Pop-Location
 }
 
+Copy-Item (Join-Path $SourcePackage "Project0.exe") (Join-Path (Split-Path $output) "Project0.exe")
+Copy-Item (Join-Path $SourcePackage "Project0.pck") (Join-Path (Split-Path $output) "Project0.pck")
+
 Write-Output "Built $output"
 (Get-FileHash $output -Algorithm SHA256).Hash

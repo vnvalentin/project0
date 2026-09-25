@@ -27,9 +27,19 @@ GODOT_CPP_REF="${GODOT_CPP_REF:-d5cc777}"
 VERSION_CONTRACT="shared/client_build_version.gd"
 VERSION_CONTRACT_BACKUP="$(mktemp)"
 cp "${VERSION_CONTRACT}" "${VERSION_CONTRACT_BACKUP}"
+SERVER_EXTENSION_STAGE="$(mktemp -d)"
+SERVER_SQLITE_EXTENSION="addons/godot-sqlite/gdsqlite.gdextension"
+EDITOR_EXTENSION_CACHE=".godot/extension_list.cfg"
 
 restore_version_contract() {
 	mv -f "${VERSION_CONTRACT_BACKUP}" "${VERSION_CONTRACT}"
+	if [[ -f "${SERVER_EXTENSION_STAGE}/gdsqlite.gdextension" ]]; then
+		mv -f "${SERVER_EXTENSION_STAGE}/gdsqlite.gdextension" "${SERVER_SQLITE_EXTENSION}"
+	fi
+	if [[ -f "${SERVER_EXTENSION_STAGE}/extension_list.cfg" ]]; then
+		mv -f "${SERVER_EXTENSION_STAGE}/extension_list.cfg" "${EDITOR_EXTENSION_CACHE}"
+	fi
+	rmdir "${SERVER_EXTENSION_STAGE}" 2>/dev/null || true
 }
 trap restore_version_contract EXIT
 
@@ -76,6 +86,12 @@ log "Exporting Godot Windows client"
 rm -rf "${STAGE}"
 mkdir -p "${STAGE}"
 scripts/stamp_client_build_version.sh "${VERSION}"
+# Keep the server-only SQLite declaration out of the client export. Godot's
+# import cache can otherwise preserve a stale extension reference in the pack.
+mv "${SERVER_SQLITE_EXTENSION}" "${SERVER_EXTENSION_STAGE}/gdsqlite.gdextension"
+if [[ -f "${EDITOR_EXTENSION_CACHE}" ]]; then
+	mv "${EDITOR_EXTENSION_CACHE}" "${SERVER_EXTENSION_STAGE}/extension_list.cfg"
+fi
 godot --headless --import >/dev/null 2>&1 || true
 # The headless export emits GDExtension load warnings for the Windows-only DLL
 # and can exit nonzero while still writing complete artifacts, so the artifacts

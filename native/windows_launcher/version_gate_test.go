@@ -282,9 +282,9 @@ func writePayloadMismatchEvidence(t *testing.T, target string, validPayload, cor
 			"computed_sha256": hex.EncodeToString(computed[:]),
 		},
 		"disk_integrity_audit": map[string]any{
-			"staging_bytes_written": 0,
-			"staging_path":          filepath.Join(filepath.Dir(activeDirectory), "staging"),
-			"active_dir_modified":   false,
+			"staging_bytes_written":    0,
+			"staging_path":             filepath.Join(filepath.Dir(activeDirectory), "staging"),
+			"active_dir_modified":      false,
 			"active_manifest_modified": false,
 			"active_dir": map[string]any{
 				"path":          activeDirectory,

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -13,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -23,6 +25,14 @@ const (
 	testManifestURLEnv          = "PROJECT0_TEST_MANIFEST_URL"
 	testSigningPublicKeyFileEnv = "PROJECT0_TEST_SIGNING_PUBLIC_KEY_FILE"
 )
+
+type payloadHashMismatchError struct {
+	Name string
+}
+
+func (e *payloadHashMismatchError) Error() string {
+	return fmt.Sprintf("PAYLOAD_HASH_MISMATCH: %s", e.Name)
+}
 
 func testManifestEndpoint() string {
 	if value := strings.TrimSpace(os.Getenv(testManifestURLEnv)); value != "" {
@@ -74,12 +84,43 @@ func runVersionGate(manifestURL, certificatePath, currentVersion string) error {
 	if err != nil {
 		return fmt.Errorf("manifest signature invalid: %w", err)
 	}
+	if err := verifyManifestPayloads(client, manifest); err != nil {
+		return err
+	}
 	comparison, err := compareSemVer(manifest.RequiredClientVersion, currentVersion)
 	if err != nil {
 		return err
 	}
 	if comparison > 0 {
 		return fmt.Errorf("CLIENT_OUTDATED: required %s, local %s", manifest.RequiredClientVersion, currentVersion)
+	}
+	return nil
+}
+
+func verifyManifestPayloads(client *http.Client, manifest updateManifest) error {
+	for _, payload := range manifest.Payloads {
+		if payload.Name == "" || payload.URL == "" || payload.SHA256 == "" {
+			return errors.New("manifest payload metadata is malformed")
+		}
+		if !strings.HasPrefix(payload.URL, "https://") {
+			return errors.New("manifest payload URL must be HTTPS")
+		}
+		response, err := client.Get(payload.URL)
+		if err != nil {
+			return fmt.Errorf("download %s: %w", filepath.Base(payload.Name), err)
+		}
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<30))
+		response.Body.Close()
+		if readErr != nil {
+			return fmt.Errorf("read %s: %w", filepath.Base(payload.Name), readErr)
+		}
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return fmt.Errorf("payload HTTP status %d for %s", response.StatusCode, filepath.Base(payload.Name))
+		}
+		digest := sha256.Sum256(body)
+		if hex.EncodeToString(digest[:]) != strings.ToLower(payload.SHA256) {
+			return &payloadHashMismatchError{Name: filepath.Base(payload.Name)}
+		}
 	}
 	return nil
 }

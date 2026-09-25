@@ -33,6 +33,10 @@ func main() {
 	if certificatePath, ok := testCACertArg(os.Args[1:]); ok {
 		if err := runVersionGate(testManifestEndpoint(), certificatePath, launcherClientVersion); err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			var hashMismatch *payloadHashMismatchError
+			if errors.As(err, &hashMismatch) {
+				os.Exit(3)
+			}
 			os.Exit(updateRequiredExitCode)
 		}
 	}

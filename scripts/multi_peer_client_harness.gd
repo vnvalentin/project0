@@ -50,7 +50,7 @@ func _run() -> void:
 	current_scene = _gameplay_instance
 	await process_frame
 
-	_network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, NetworkConfigScript.SERVER_PORT)
+	_network_client.connect_to_server(NetworkConfigScript.resolve_client_target_host(), NetworkConfigScript.SERVER_PORT)
 
 	if not _hold_input_action.is_empty():
 		Input.action_press(_hold_input_action)

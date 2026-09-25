@@ -54,11 +54,18 @@ const (
 )
 
 type updateManifest struct {
-	SchemaVersion         int    `json:"schema_version"`
-	RequiredClientVersion string `json:"required_client_version"`
-	PCKSHA256             string `json:"pck_sha256"`
-	PCKURL                string `json:"pck_url"`
-	SizeBytes             int64  `json:"size_bytes"`
+	SchemaVersion         int               `json:"schema_version"`
+	RequiredClientVersion string            `json:"required_client_version"`
+	PCKSHA256             string            `json:"pck_sha256"`
+	PCKURL                string            `json:"pck_url"`
+	SizeBytes             int64             `json:"size_bytes"`
+	Payloads              []manifestPayload `json:"payloads,omitempty"`
+}
+
+type manifestPayload struct {
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256"`
 }
 
 type UpdateDownloadResult struct {
