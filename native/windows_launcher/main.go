@@ -32,14 +32,18 @@ func main() {
 		return
 	}
 	if certificatePath, ok := testCACertArg(os.Args[1:]); ok {
-		if err := runVersionGate(testManifestEndpoint(), certificatePath, launcherClientVersion); err != nil {
+		if err := runVerifiedAdmission(testManifestEndpoint(), certificatePath, launcherClientVersion, forwardedArgs(os.Args[1:])); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			var hashMismatch *payloadHashMismatchError
 			if errors.As(err, &hashMismatch) {
 				os.Exit(3)
 			}
+			if strings.HasPrefix(err.Error(), "MANIFEST_SIGNATURE_INVALID:") {
+				os.Exit(1)
+			}
 			os.Exit(updateRequiredExitCode)
 		}
+		return
 	}
 
 	payloadDirectory, err := payloadDirectory()

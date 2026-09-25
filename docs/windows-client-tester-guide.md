@@ -5,6 +5,41 @@ file and a Linux server address, and wants to connect. It assumes no Godot
 editor, no access to the source repository or Linux network share, and no
 gameplay configuration beyond the server address.
 
+## Developer Experiment 1100
+
+On SETSUJOKU, run the VS Code task **Experiment: 1100 Verified Admission**, or:
+
+```powershell
+powershell.exe -NoProfile -File scripts/run_windows_experiment_1100.ps1
+```
+
+This developer-only command requires Go and an existing Windows baseline in
+`dist/current` with its `deployment-manifest.json`. It verifies the payload
+hashes, builds the current launcher, and executes 17 process cases using
+ephemeral test signing and in-process loopback HTTPS fixtures. No production
+service or trust store is changed. Run without elevation and with Project0
+closed; the harness refuses conflicting processes rather than terminating them.
+
+The explicit `--test-ca-cert` fresh-install path accepts only an absent
+process-local Project0 root. It installs the verified executable and pack under
+`active`, synchronously persists the signed manifest, then starts the selected
+engine without an installation prompt. Payloads are bounded to 256 MiB each.
+Existing installations are rejected unchanged; this is not an update/migration
+path. The default release launcher flow is unchanged.
+
+Child `LOCALAPPDATA` and `APPDATA` point to owned temporary state. The real
+Godot case runs headless for ten frames with backend addresses redirected away
+from production. Authentication remains inside Godot before gameplay (#1101);
+engine startup is not proof of authenticated gameplay or a pristine OS install.
+
+Results, process ordering, source identities, hashes, and teardown outcomes are
+retained under `logs/experiments/exp_1100_version_tuple_persistence_<run-id>/`.
+`result.json` is authoritative for the attempt; a nonzero command result or
+missing/failed cleanup evidence means failure. Temporary test roots and owned
+processes are removed; existing installations, saves, and prior evidence are
+preserved. Rollback is reverting the experiment implementation, not deleting
+the user's normal Project0 directory.
+
 ## What's in the package
 
 Extracting the ZIP produces a single folder,
