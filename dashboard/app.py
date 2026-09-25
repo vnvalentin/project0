@@ -1093,6 +1093,21 @@ def _tbp_story_map_html(issue_feed: dict) -> str:
 
 DELIVERY_MOCKUP_CSS = """
 .delivery-mockup{--mock-line:#2a3947;--mock-card:#17232e}
+.delivery-bands-page .nav{flex-wrap:wrap}
+.delivery-bands-page .milestone-band>summary::before{content:'\\25B6'}
+@media(max-width:600px){.delivery-bands-page header,.delivery-bands-page main{padding:16px}.delivery-bands-page .milestone-bands{grid-template-columns:minmax(0,1fr)}}
+.milestone-bands{align-items:start}.milestone-band{min-width:0;overflow-wrap:anywhere}
+.milestone-band .milestone-counts{flex-wrap:wrap}
+.milestone-slice{border-left:3px solid var(--cyan);padding-left:10px;margin:8px 0}
+.milestone-slice>summary{cursor:pointer;font-weight:700;font-size:12px}
+.milestone-slice-state{display:block;color:var(--muted);font-size:11px;font-weight:400;margin:4px 0}
+.milestone-slice dl{font-size:12px;margin:10px 0}.milestone-slice dt{color:var(--muted);margin-top:8px}.milestone-slice dd{margin:2px 0;white-space:pre-wrap}
+.milestone-member-list{list-style:none;padding:0;margin:8px 0;font-size:12px}.milestone-member-list li{padding:6px 0;border-bottom:1px solid var(--mock-line)}
+.milestone-member-list a{color:var(--text);text-decoration:none}.milestone-member-list a:hover{color:var(--cyan)}
+.milestone-member-list small{display:block;color:var(--muted)}
+.milestone-mapping-warning{color:var(--amber);font-size:12px;margin:8px 0}
+.milestone-scope{white-space:pre-wrap;font-size:12px;color:var(--muted)}
+.milestone-context{margin-top:12px}.milestone-context>summary{cursor:pointer;font-size:12px;font-weight:700}
 .delivery-mockup h2{margin-bottom:8px}.mockup-note{color:var(--muted);font-size:12px;margin:0 0 16px}
 .mockup-switcher{display:flex;gap:6px;margin:0 0 18px}.mockup-switcher a{color:var(--muted);text-decoration:none;border:1px solid var(--mock-line);padding:7px 10px;font-size:11px}.mockup-switcher a.on{color:var(--text);border-color:var(--cyan);background:#123044}
 .milestone-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.milestone-band{background:var(--mock-card);border:1px solid var(--mock-line);border-top:4px solid var(--cyan);padding:0}.milestone-band:nth-child(3n+2){border-top-color:var(--amber)}.milestone-band:nth-child(3n){border-top-color:#8ce3c2}.milestone-band>summary{cursor:pointer;list-style:none;padding:14px}.milestone-band>summary::-webkit-details-marker{display:none}.milestone-band>summary::before{content:'\25B6';display:inline-block;color:var(--muted);font-size:9px;margin-right:8px;transition:transform .15s}.milestone-band[open]>summary::before{transform:rotate(90deg)}.milestone-band h3{display:inline;margin:0 0 5px;font-size:15px}.milestone-band p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.4}.milestone-feature-summary{margin-top:12px;color:var(--muted);font-size:11px}.milestone-counts{display:flex;gap:5px;margin:7px 0 0;font-size:10px;font-weight:800}.milestone-counts span{padding:4px 6px;border-radius:8px}.milestone-counts .new{background:#4a2e18;color:#ffc079}.milestone-counts .ready{background:#30351e;color:#e4dc79}.milestone-counts .doing{background:#123d4a;color:#72e3f2}.milestone-counts .done{background:#173c2d;color:#8ce3c2}.milestone-issues{border-top:1px solid var(--mock-line);padding:12px 14px;display:flex;flex-direction:column;gap:5px}.milestone-issue-node{border-left:1px solid var(--mock-line);padding-left:10px}.milestone-issue-node>summary{cursor:pointer;list-style:none;color:var(--text);font-size:11px;padding:5px 0}.milestone-issue-node>summary::-webkit-details-marker{display:none}.milestone-issue-node>summary::before{content:'\25B6';color:var(--muted);font-size:8px;margin-right:6px}.milestone-issue-node[open]>summary::before{content:'\25BC'}.milestone-issue-node a{color:var(--text);text-decoration:none}.milestone-issue-node a:hover{color:var(--cyan)}.milestone-issue-children{margin-left:12px}.milestone-issue-parent{display:block;color:var(--muted);font-size:10px;padding:0 0 5px 14px}
@@ -1192,6 +1207,173 @@ def _delivery_issue_tree(issues: list[dict]) -> str:
     return "".join(render(root) for root in roots) or '<span class="mockup-empty">No assigned issues</span>'
 
 
+def _milestone_slice_plan(description: str) -> dict:
+    plan = {"slices": [], "sections": {}, "outcome": ""}
+    section = ""
+    current = None
+    field = ""
+    fence = ""
+    for raw_line in description.splitlines():
+        line = raw_line.strip()
+        fence_match = re.match(r"^(`{3,}|~{3,})", line)
+        if fence_match:
+            marker = fence_match.group(1)[0]
+            if not fence:
+                fence = marker
+            elif marker == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
+        if heading:
+            depth, title = len(heading[1]), heading[2]
+            if depth <= 2:
+                section = title.lower()
+                plan["sections"].setdefault(section, [])
+                current, field = None, ""
+            elif depth == 3 and section in {"slice mapping", "slices"}:
+                match = re.fullmatch(r"Slice\s+([^:]+):\s*(.*)", title, re.I)
+                current, field = None, ""
+                if match:
+                    current = {"id": match[1].strip(), "title": match[2].strip(),
+                               "outcome": "", "complete when": "", "dependency": "",
+                               "outcome evidence": "", "members": [], "warnings": []}
+                    plan["slices"].append(current)
+            continue
+        if current is not None:
+            match = re.match(r"^(Outcome|Included issues|Complete when|Dependency|Outcome evidence):\s*(.*)$", line, re.I)
+            if match:
+                field = match[1].lower()
+                if field != "included issues":
+                    current[field] = match[2].strip()
+                elif match[2].strip():
+                    current["warnings"].append("Included issues must use one '- #number' entry per line.")
+            elif line and field == "included issues":
+                member = re.fullmatch(r"[-*]\s+#([1-9][0-9]*)", line)
+                if member:
+                    current["members"].append(int(member[1]))
+                else:
+                    current["warnings"].append(f"Invalid member entry: {line}")
+            elif line and field:
+                current[field] += "\n" + line
+        elif section:
+            plan["sections"][section].append(raw_line)
+        elif line.lower().startswith("outcome:"):
+            plan["outcome"] = line.split(":", 1)[1].strip()
+    return plan
+
+
+def _milestone_group_state(group: dict, members: list[dict]) -> tuple[str, str]:
+    if group["warnings"] or not members:
+        return "new", "Definition or membership needs attention"
+    if all(member.get("state", "").lower() == "closed" for member in members):
+        if re.search(r"https?://\S+", group["outcome evidence"]):
+            return "done", "All members closed; outcome evidence linked"
+        return "doing", "Awaiting outcome evidence"
+    states = []
+    for member in members:
+        if member.get("state", "").lower() == "closed":
+            states.append("DONE")
+            continue
+        labels = {label.lower() for label in member.get("labels", [])}
+        body = member.get("body") or ""
+        if labels & {"blocked", "tbp:blocked", "tbp:needs-grilling", "needs grilling"} or re.search(
+            r"(?im)^(?:Status:\s*blocked\b|##\s+Blocked\b)", body
+        ):
+            return "new", f'Blocked or needs definition: #{member["number"]}'
+        if labels & {"tbp:in-progress", "in progress"}:
+            states.append("IN_PROGRESS")
+        elif labels & {"tbp:ready-to-pull", "ready-to-pull"}:
+            states.append("READY_TO_PULL")
+        elif labels & {"tbp:theme", "tbp:feature", "tbp:epic"}:
+            states.append(classify_tbp_state(member))
+        else:
+            states.append("NEEDS_GRILLING")
+    if "NEEDS_GRILLING" in states:
+        return "new", "Member readiness not established"
+    if "IN_PROGRESS" in states:
+        return "doing", "Included work in progress"
+    return "ready", "All remaining members ready"
+
+
+def _milestone_member_list(numbers: list[int], by_number: dict[int, dict]) -> str:
+    rows = []
+    for number in dict.fromkeys(numbers):
+        member = by_number.get(number)
+        if member is None:
+            rows.append(f'<li class="milestone-mapping-warning">Unresolved issue #{number}</li>')
+        else:
+            rows.append(f'<li>{_delivery_mockup_issue(member)}<small>GitHub {esc(member.get("state", "open"))}</small></li>')
+    return f'<ul class="milestone-member-list">{"".join(rows)}</ul>'
+
+
+def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
+    description = record.get("description") or ""
+    plan = _milestone_slice_plan(description)
+    by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
+    counts = {"new": 0, "ready": 0, "doing": 0, "done": 0}
+    membership: dict[int, list[str]] = {}
+    for group in plan["slices"]:
+        for number in group["members"]:
+            membership.setdefault(number, []).append(group["id"])
+    groups_html = []
+    for group in plan["slices"]:
+        if sum(other["id"].lower() == group["id"].lower() for other in plan["slices"]) > 1:
+            group["warnings"].append(f'Duplicate Slice identifier: {group["id"]}')
+        for required in ("title", "outcome", "complete when"):
+            if not group[required] or re.search(r"\{\{.*?\}\}|\b(?:TBD|TODO)\b", group[required], re.I):
+                group["warnings"].append(f"Missing or unfinished {required}.")
+        if not group["members"]:
+            group["warnings"].append("No included issues defined.")
+        members = []
+        for number in dict.fromkeys(group["members"]):
+            if len(membership[number]) > 1:
+                group["warnings"].append(f'Duplicate membership #{number}: {", ".join(membership[number])}')
+            member = by_number.get(number)
+            if member is None:
+                group["warnings"].append(f"Unresolved issue #{number}")
+            else:
+                members.append(member)
+                if member.get("milestone_number") != record["number"]:
+                    group["warnings"].append(f'Issue #{number} is not assigned to this milestone.')
+        state, reason = _milestone_group_state(group, members)
+        counts[state] += 1
+        fields = "".join(f'<dt>{esc(name.title())}</dt><dd>{esc(group[name])}</dd>'
+                         for name in ("outcome", "complete when", "dependency", "outcome evidence") if group[name])
+        warnings = "".join(f'<p class="milestone-mapping-warning">{esc(warning)}</p>' for warning in group["warnings"])
+        groups_html.append(
+            f'<details class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}">'
+            f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}'
+            f'<span class="milestone-slice-state">{state.title()} · {len(set(group["members"]))} issues · {esc(reason)}</span></summary>'
+            f'<dl>{fields}</dl>{warnings}{_milestone_member_list(group["members"], by_number)}</details>'
+        )
+    shared_text = "\n".join(plan["sections"].get("shared context", []))
+    shared = [int(number) for number in re.findall(r"#([1-9][0-9]*)\b", shared_text)]
+    unmapped = [issue["number"] for issue in record["issues"] if issue["number"] not in membership and issue["number"] not in shared]
+    extras = []
+    if shared:
+        extras.append(f'<details class="milestone-context"><summary>Shared context</summary>{_milestone_member_list(shared, by_number)}</details>')
+    if set(shared) & membership.keys():
+        extras.append('<p class="milestone-mapping-warning">Shared context overlaps Slice membership.</p>')
+    if unmapped:
+        extras.append(f'<details class="milestone-context"><summary>Unmapped milestone work ({len(unmapped)})</summary>{_milestone_member_list(unmapped, by_number)}</details>')
+    scope = "\n".join(plan["sections"].get("required scope awaiting slice definition", [])).strip()
+    if scope:
+        extras.append(f'<details class="milestone-context"><summary>Required scope awaiting Slice definition</summary><div class="milestone-scope">{esc(scope)}</div></details>')
+    if not groups_html:
+        groups_html.append('<p class="milestone-mapping-warning">No Slices defined in milestone description.</p>')
+    outcome = plan["outcome"] or (description.split("\n\n", 1)[0] if description else "")
+    count_html = "".join(f'<span class="{state}">{state.title()} {value}</span>' for state, value in counts.items())
+    attention = '<p class="milestone-mapping-warning">Unresolved scope or mapping requires attention.</p>' if scope or unmapped or any(group["warnings"] for group in plan["slices"]) else ""
+    return (
+        f'<details class="milestone-band" data-milestone="{record["number"]}"><summary><h3>{esc(record["title"])}</h3>'
+        f'<p>{esc(outcome)}</p><div class="milestone-feature-summary">Slice delivery: {counts["done"]}/{len(plan["slices"])} complete</div>'
+        f'<div class="milestone-counts">{count_html}</div>{attention}</summary>'
+        f'<div class="milestone-issues">{"".join(groups_html)}{"".join(extras)}</div></details>'
+    )
+
+
 def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
     records = _delivery_mockup_records(issue_feed)
     if not issue_feed.get("available"):
@@ -1220,13 +1402,7 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
             )
         body = f'<div class="delivery-gantt"><div class="gantt-axis"><span>Milestone</span><span>Expected delivery</span><div class="gantt-axis-track">{axis}</div></div>{"".join(rows)}</div><p class="mockup-note">Expected dates are editable in this prototype and remain local to the browser.</p>'
     else:
-        bands = []
-        for record in records:
-            slices = _delivery_milestone_slices(record["issues"])
-            counts = _delivery_slice_counts(slices)
-            slice_total = len(slices)
-            issue_tree = _delivery_issue_tree(record["issues"])
-            bands.append(f'<details class="milestone-band"><summary><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-feature-summary">Slice delivery: {counts["done"]}/{slice_total} complete</div><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div></summary><div class="milestone-issues">{issue_tree}</div></details>')
+        bands = [_delivery_mapped_band(record, issue_feed) for record in records]
         body = f'<div class="milestone-bands">{"".join(bands)}</div>'
     links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Gantt")))
     return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
@@ -1244,7 +1420,7 @@ def render_roadmap(mockup_variant: str = "") -> str:
     )
     return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Roadmap</title>
-<style>{EXEC_CSS}{OVERVIEW_CSS}{DELIVERY_MOCKUP_CSS if mockup else ""}</style></head><body>
+<style>{EXEC_CSS}{OVERVIEW_CSS}{DELIVERY_MOCKUP_CSS if mockup else ""}</style></head><body class="{'delivery-bands-page' if mockup == 'delivery-a' else ''}">
 <header>
     <div><h1>Project0 — Roadmap</h1><div class="sub">Live TBP story map from GitHub Issues</div></div>
     <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a><a href="/roadmap?mockup=delivery-a">Delivery mockup</a></div>
