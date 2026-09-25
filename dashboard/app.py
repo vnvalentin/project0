@@ -1025,8 +1025,8 @@ def _tbp_story_map_counts(children: list[dict]) -> str:
         counts[bucket] += 1
     return (
         f'<span class="story-map-counts">'
-        f'<span class="ready">Ready {counts["ready"]}</span>'
         f'<span class="new">New {counts["new"]}</span>'
+        f'<span class="ready">Ready {counts["ready"]}</span>'
         f'<span class="doing">Doing {counts["doing"]}</span>'
         f'<span class="done">Done {counts["done"]}</span>'
         f'</span>'
