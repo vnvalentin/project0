@@ -1095,7 +1095,7 @@ DELIVERY_MOCKUP_CSS = """
 .delivery-mockup{--mock-line:#2a3947;--mock-card:#17232e}
 .delivery-mockup h2{margin-bottom:8px}.mockup-note{color:var(--muted);font-size:12px;margin:0 0 16px}
 .mockup-switcher{display:flex;gap:6px;margin:0 0 18px}.mockup-switcher a{color:var(--muted);text-decoration:none;border:1px solid var(--mock-line);padding:7px 10px;font-size:11px}.mockup-switcher a.on{color:var(--text);border-color:var(--cyan);background:#123044}
-.milestone-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.milestone-band{background:var(--mock-card);border:1px solid var(--mock-line);border-top:4px solid var(--cyan);padding:0}.milestone-band:nth-child(3n+2){border-top-color:var(--amber)}.milestone-band:nth-child(3n){border-top-color:#8ce3c2}.milestone-band>summary{cursor:pointer;list-style:none;padding:14px}.milestone-band>summary::-webkit-details-marker{display:none}.milestone-band>summary::before{content:'\25B6';display:inline-block;color:var(--muted);font-size:9px;margin-right:8px;transition:transform .15s}.milestone-band[open]>summary::before{transform:rotate(90deg)}.milestone-band h3{display:inline;margin:0 0 5px;font-size:15px}.milestone-band p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.4}.milestone-counts{display:flex;gap:5px;margin:12px 0 0;font-size:10px;font-weight:800}.milestone-counts span{padding:4px 6px;border-radius:8px}.milestone-counts .new{background:#4a2e18;color:#ffc079}.milestone-counts .ready{background:#30351e;color:#e4dc79}.milestone-counts .doing{background:#123d4a;color:#72e3f2}.milestone-counts .done{background:#173c2d;color:#8ce3c2}.milestone-issues{border-top:1px solid var(--mock-line);padding:12px 14px;display:flex;flex-direction:column;gap:5px}.milestone-issue-node{border-left:1px solid var(--mock-line);padding-left:10px}.milestone-issue-node>summary{cursor:pointer;list-style:none;color:var(--text);font-size:11px;padding:5px 0}.milestone-issue-node>summary::-webkit-details-marker{display:none}.milestone-issue-node>summary::before{content:'\25B6';color:var(--muted);font-size:8px;margin-right:6px}.milestone-issue-node[open]>summary::before{content:'\25BC'}.milestone-issue-node a{color:var(--text);text-decoration:none}.milestone-issue-node a:hover{color:var(--cyan)}.milestone-issue-children{margin-left:12px}.milestone-issue-parent{display:block;color:var(--muted);font-size:10px;padding:0 0 5px 14px}
+.milestone-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.milestone-band{background:var(--mock-card);border:1px solid var(--mock-line);border-top:4px solid var(--cyan);padding:0}.milestone-band:nth-child(3n+2){border-top-color:var(--amber)}.milestone-band:nth-child(3n){border-top-color:#8ce3c2}.milestone-band>summary{cursor:pointer;list-style:none;padding:14px}.milestone-band>summary::-webkit-details-marker{display:none}.milestone-band>summary::before{content:'\25B6';display:inline-block;color:var(--muted);font-size:9px;margin-right:8px;transition:transform .15s}.milestone-band[open]>summary::before{transform:rotate(90deg)}.milestone-band h3{display:inline;margin:0 0 5px;font-size:15px}.milestone-band p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.4}.milestone-feature-summary{margin-top:12px;color:var(--muted);font-size:11px}.milestone-counts{display:flex;gap:5px;margin:7px 0 0;font-size:10px;font-weight:800}.milestone-counts span{padding:4px 6px;border-radius:8px}.milestone-counts .new{background:#4a2e18;color:#ffc079}.milestone-counts .ready{background:#30351e;color:#e4dc79}.milestone-counts .doing{background:#123d4a;color:#72e3f2}.milestone-counts .done{background:#173c2d;color:#8ce3c2}.milestone-issues{border-top:1px solid var(--mock-line);padding:12px 14px;display:flex;flex-direction:column;gap:5px}.milestone-issue-node{border-left:1px solid var(--mock-line);padding-left:10px}.milestone-issue-node>summary{cursor:pointer;list-style:none;color:var(--text);font-size:11px;padding:5px 0}.milestone-issue-node>summary::-webkit-details-marker{display:none}.milestone-issue-node>summary::before{content:'\25B6';color:var(--muted);font-size:8px;margin-right:6px}.milestone-issue-node[open]>summary::before{content:'\25BC'}.milestone-issue-node a{color:var(--text);text-decoration:none}.milestone-issue-node a:hover{color:var(--cyan)}.milestone-issue-children{margin-left:12px}.milestone-issue-parent{display:block;color:var(--muted);font-size:10px;padding:0 0 5px 14px}
 .delivery-timeline{display:flex;flex-direction:column;gap:10px}.timeline-row{display:grid;grid-template-columns:190px 1fr;gap:14px;background:var(--mock-card);border:1px solid var(--mock-line);padding:14px}.timeline-label h3{margin:0;font-size:15px}.timeline-label p{color:var(--muted);font-size:11px;margin:5px 0 0}.timeline-issues{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.timeline-issues section{border-left:2px solid var(--mock-line);padding-left:9px}.timeline-issues h4{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--muted)}.timeline-issues a{display:block;color:var(--text);font-size:11px;text-decoration:none;margin:5px 0}.timeline-issues a:hover{color:var(--cyan)}
 .delivery-gantt{overflow-x:auto}.gantt-axis,.gantt-row{display:grid;grid-template-columns:250px 150px minmax(720px,1fr);gap:12px;align-items:center}.gantt-axis{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:0 12px 8px}.gantt-axis-track,.gantt-track{display:grid;grid-template-columns:repeat(12,minmax(60px,1fr));gap:0;min-width:720px}.gantt-axis-track span{padding:0 5px;border-left:1px solid var(--mock-line)}.gantt-row{background:var(--mock-card);border:1px solid var(--mock-line);padding:12px;margin-bottom:7px}.gantt-title{color:var(--text);font-size:12px;font-weight:800}.gantt-date{width:140px;background:#101820;border:1px solid var(--mock-line);color:var(--text);padding:6px;font:inherit;font-size:11px}.gantt-track{height:28px;align-items:center;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(8.333% - 1px),var(--mock-line) calc(8.333% - 1px),var(--mock-line) 8.333%)}.gantt-bar{height:18px;border-radius:9px;background:var(--cyan);box-shadow:0 0 0 1px #72e3f2;position:relative}.gantt-bar:nth-child(3n){background:var(--amber);box-shadow:0 0 0 1px #ffc079}.gantt-bar span{position:absolute;left:8px;top:1px;color:#071117;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px)}.mockup-empty{color:var(--muted);font-style:italic}
 @media(max-width:760px){.timeline-row{grid-template-columns:1fr}.timeline-issues{grid-template-columns:1fr}}
@@ -1122,6 +1122,47 @@ def _delivery_mockup_counts(issues: list[dict]) -> dict[str, int]:
     counts = {"new": 0, "ready": 0, "doing": 0, "done": 0}
     for issue in issues:
         state = _delivery_mockup_state(issue)
+        bucket = {"READY_TO_PULL": "ready", "IN_PROGRESS": "doing", "DONE": "done"}.get(state, "new")
+        counts[bucket] += 1
+    return counts
+
+
+def _delivery_feature_nodes(issue_feed: dict) -> dict[int, dict]:
+    roots, _unlinked = _tbp_label_tree(issue_feed)
+    nodes: dict[int, dict] = {}
+
+    def visit(node: dict) -> None:
+        if "tbp:feature" in node.get("labels", []):
+            nodes[node["number"]] = node
+        for child in node.get("children", []):
+            visit(child)
+
+    for root in roots:
+        visit(root)
+    return nodes
+
+
+def _delivery_milestone_features(issue_feed: dict, issues: list[dict]) -> list[dict]:
+    by_number = {issue.get("number"): issue for issue in issue_feed.get("issues", [])}
+    feature_nodes = _delivery_feature_nodes(issue_feed)
+    features: dict[int, dict] = {}
+    for issue in issues:
+        current = issue
+        seen: set[int] = set()
+        while current and current.get("number") not in seen:
+            number = current.get("number")
+            seen.add(number)
+            if "tbp:feature" in current.get("labels", []):
+                features[number] = feature_nodes.get(number, current)
+                break
+            current = by_number.get(_delivery_issue_parent(current))
+    return list(features.values())
+
+
+def _delivery_feature_counts(features: list[dict]) -> dict[str, int]:
+    counts = {"new": 0, "ready": 0, "doing": 0, "done": 0}
+    for feature in features:
+        state = _tbp_roadmap_state(feature)
         bucket = {"READY_TO_PULL": "ready", "IN_PROGRESS": "doing", "DONE": "done"}.get(state, "new")
         counts[bucket] += 1
     return counts
@@ -1188,9 +1229,11 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
     else:
         bands = []
         for record in records:
-            counts = _delivery_mockup_counts(record["issues"])
+            features = _delivery_milestone_features(issue_feed, record["issues"])
+            counts = _delivery_feature_counts(features)
+            feature_total = len(features)
             issue_tree = _delivery_issue_tree(record["issues"])
-            bands.append(f'<details class="milestone-band"><summary><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div></summary><div class="milestone-issues">{issue_tree}</div></details>')
+            bands.append(f'<details class="milestone-band"><summary><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-feature-summary">Feature delivery: {counts["done"]}/{feature_total} complete</div><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div></summary><div class="milestone-issues">{issue_tree}</div></details>')
         body = f'<div class="milestone-bands">{"".join(bands)}</div>'
     links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Gantt")))
     return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
