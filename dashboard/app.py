@@ -1000,16 +1000,12 @@ def _tbp_story_map_cell(node: dict) -> str:
 
 def _tbp_story_map_node(node: dict, level: int = 0) -> str:
     labels = node.get("labels", [])
-    kind, label = next(
-        ((key, display) for key, display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels),
-        ("issue", "Issue"),
-    )
+    kind = next((key for key, _display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels), "issue")
     state = _tbp_roadmap_state(node)
     display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
     children = node.get("children", [])
     title = f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(node.get("title", ""))}</a>'
     summary = (
-        f'<span class="story-map-label">{label}</span>'
         f'<span class="story-map-node-title">{title}</span>'
         f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
     )
