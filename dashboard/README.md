@@ -98,8 +98,9 @@ Unscheduled backlog shows issues without a milestone. Group activity deduplicate
 members and excludes missing or foreign-milestone references. Closed issues
 never count active or blocked. Activity recognizes existing status labels and
 explicit current declarations such as `Status: In Progress` at the start of an
-issue or `In progress: ...` under `## Status` or `## Delivery Status`. Quoted,
-fenced, checklist, historical and general prose do not establish activity. GitHub
+issue or `In progress: ...` under level-two `## Status` or `## Delivery Status`
+headings. Quoted, fenced, indented-code, checklist, nested historical headings
+and general prose do not establish activity. GitHub
 Project-only status and issue comments are not read by this projection.
 
 The separate Slice delivery counter counts accepted groups, not individual

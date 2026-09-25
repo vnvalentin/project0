@@ -1304,19 +1304,21 @@ def _delivery_current_status(issue: dict) -> str:
     fence = ""
     status = ""
     for raw_line in (issue.get("body") or "").splitlines():
+        if raw_line.expandtabs(4).startswith("    "):
+            continue
         line = raw_line.strip()
         marker = re.match(r"^(`{3,}|~{3,})", line)
         if marker:
             if not fence:
-                fence = marker[1][0]
-            elif marker[1][0] == fence:
+                fence = marker[1]
+            elif marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not line[marker.end():].strip():
                 fence = ""
             continue
         if fence:
             continue
-        heading = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
         if heading:
-            section = heading[1].lower()
+            section = heading[2].lower() if len(heading[1]) == 2 else "other"
             continue
         if section not in {"", "status", "delivery status"}:
             continue

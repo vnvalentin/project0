@@ -387,6 +387,13 @@ def test_bands_no_definition_does_not_infer_slices_from_labels(monkeypatch):
     ([], "## Status\nIn progress: running\nStatus: Blocked", "open", 0, 1),
     ([], "## History\nIn progress: previously running\nStatus: In Progress", "open", 0, 0),
     ([], "## Status\n```text\nIn progress: example\n```", "open", 0, 0),
+    ([], "Status: Blocked\n## History\n### Status\nIn progress: previous attempt", "open", 0, 1),
+    ([], "## Status\nBlocked\n````markdown\n```text\nIn progress: example\n```\n````", "open", 0, 1),
+    ([], "Status: Blocked\n~~~text\n~~~not-a-closing-fence\nStatus: In Progress\n~~~", "open", 0, 1),
+    ([], "Status: Blocked\n\n    Status: In Progress", "open", 0, 1),
+    ([], "Status: Blocked\n\n \tStatus: In Progress", "open", 0, 1),
+    ([], "Status: Blocked\n\n  \tStatus: In Progress", "open", 0, 1),
+    ([], "Status: Blocked\n\n   \tStatus: In Progress", "open", 0, 1),
     ([], "## Status\n> In progress: quoted\n- [ ] In progress: pending", "open", 0, 0),
     ([], "We will put this In progress: later.", "open", 0, 0),
 ])
