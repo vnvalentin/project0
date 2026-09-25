@@ -186,6 +186,7 @@ var _target_dummies: Dictionary = {}
 ## slides the player against solids so the town is physically solid. null in
 ## tests/standalone contexts means free movement (backward compatible).
 var _collision_map: Object = null
+var _movement_admission: Callable = Callable()
 
 ## Slice 029: the server-owned monster manager this peer's hit test also
 ## checks against, injected by server_main.gd. Only living monsters (a fresh
@@ -245,6 +246,10 @@ func set_target_dummies(target_dummies: Dictionary) -> void:
 ## player out of walls and buildings during authoritative movement integration.
 func set_collision_map(collision_map: Object) -> void:
 	_collision_map = collision_map
+
+
+func set_movement_admission(admission: Callable) -> void:
+	_movement_admission = admission
 
 
 ## Public seam (Slice 029): called by server_main.gd to register the
@@ -473,7 +478,9 @@ func _physics_process(delta: float) -> void:
 			_vertical_velocity = 0.0
 			if _locomotion_mode == LocomotionContractScript.MODE_JUMP:
 				_locomotion_mode = LocomotionContractScript.MODE_NONE
-	position = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
+	var candidate: Vector3 = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
+	var admitted: Vector3 = _movement_admission.call(owning_peer_id, position, candidate) if _movement_admission.is_valid() else candidate
+	position = _collision_map.resolve_move(position, admitted) if _collision_map != null and admitted != candidate else admitted
 
 	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
 	# Requiring CONNECTION_CONNECTED guards test/standalone contexts — e.g.

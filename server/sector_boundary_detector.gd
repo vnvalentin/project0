@@ -10,6 +10,7 @@ const MAX_RETAINED_CANON_TRACES: int = 256
 signal sector_generation_requested(peer_id: int, sector_id: String, position: Vector3)
 
 var _last_sector_by_peer: Dictionary = {}
+var _prepared_by_peer: Dictionary = {}
 var _trace_by_sector: Dictionary = {}
 var _canon_lookup: Callable = Callable()
 var _request_callback: Callable = Callable()
@@ -42,6 +43,31 @@ func observe_position(peer_id: int, position: Vector3) -> Dictionary:
 	if _last_sector_by_peer.get(peer_id, "") == sector_id:
 		return {"sector_id": sector_id, "requested": false, "reloaded": false}
 	_last_sector_by_peer[peer_id] = sector_id
+	return _prepare_sector(peer_id, sector_id, position)
+
+
+func commit_position(peer_id: int, position: Vector3) -> void:
+	_last_sector_by_peer[peer_id] = sector_id_for_position(position)
+
+
+func prepare_position(peer_id: int, position: Vector3) -> Dictionary:
+	var sector_id: String = sector_id_for_position(position)
+	var prepared: Dictionary = _prepared_by_peer.get(peer_id, {})
+	if prepared.has(sector_id):
+		return {"sector_id": sector_id, "requested": false, "reloaded": false}
+	if prepared.size() >= 16:
+		prepared.erase(prepared.keys()[0])
+	prepared[sector_id] = true
+	_prepared_by_peer[peer_id] = prepared
+	return _prepare_sector(peer_id, sector_id, position)
+
+
+func forget_preparation(peer_id: int, sector_id: String) -> void:
+	var prepared: Dictionary = _prepared_by_peer.get(peer_id, {})
+	prepared.erase(sector_id)
+
+
+func _prepare_sector(peer_id: int, sector_id: String, position: Vector3) -> Dictionary:
 
 	if _has_canon(sector_id):
 		var retained_trace: Dictionary = _trace_by_sector.get(sector_id, {})
@@ -76,6 +102,7 @@ func remember_canon_trace(sector_id: String, trace: Dictionary) -> void:
 ## the same peer id is evaluated from its new authoritative position.
 func forget_peer(peer_id: int) -> void:
 	_last_sector_by_peer.erase(peer_id)
+	_prepared_by_peer.erase(peer_id)
 
 
 ## Public pure mapping seam. X is the world east/west axis and Z is the

@@ -22,6 +22,14 @@ func set_repository(repository: Object) -> void:
 	_repository = repository
 
 
+func active_journey_id(character_id: String, peer_id: int) -> String:
+	var journey_id: String = String(_journey_id_by_character.get(character_id, ""))
+	var journey: Dictionary = _journeys_by_id.get(journey_id, {})
+	if not bool(journey.get("active", false)) or int(journey.get("peer_id", 0)) != peer_id:
+		return ""
+	return journey_id
+
+
 func restore_records(records: Array) -> Dictionary:
 	for raw_record: Dictionary in records:
 		var journey_id: String = String(raw_record.get("journey_id", ""))
