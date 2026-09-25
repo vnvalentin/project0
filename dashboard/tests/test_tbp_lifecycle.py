@@ -333,6 +333,24 @@ def test_bands_reports_duplicate_missing_and_foreign_members(monkeypatch):
     assert 'data-slice-id="A1" data-state="new"' in page
     assert 'data-slice-id="A2" data-state="new"' in page
     assert "Slice delivery: 0/2 complete" in page
+    assert page.count("Issues: 0/1 closed") == 3
+    assert "Issues: 0/4 closed" not in page
+
+
+def test_bands_shows_member_activity_without_relaxing_acceptance(monkeypatch):
+    members = [
+        {**_roadmap_issue(7, "Accepted change", []), "milestone_number": 1, "state": "closed"},
+        {**_roadmap_issue(8, "Current experiment", [], "## Status\n\nIn progress: collecting evidence."), "milestone_number": 1},
+        {**_roadmap_issue(9, "Undefined work", []), "milestone_number": 1},
+    ]
+    page = _mapped_bands_page(monkeypatch, "## Slices\n" + _mapped_slice_definition(members="- #7\n- #8\n- #9"), members)
+
+    assert page.count("Issues: 1/3 closed") == 2
+    assert page.count("Active 1") == 2
+    assert "GitHub open · Active" in page
+    assert 'data-slice-id="A1" data-state="new"' in page
+    assert "Member readiness not established" in page
+    assert "Slice delivery: 0/1 complete" in page
 
 
 def test_bands_fenced_examples_and_other_sections_are_not_membership(monkeypatch):
@@ -347,11 +365,52 @@ def test_bands_fenced_examples_and_other_sections_are_not_membership(monkeypatch
 
 
 def test_bands_no_definition_does_not_infer_slices_from_labels(monkeypatch):
-    member = {**_roadmap_issue(7, "Legacy Slice", ["Slice"]), "milestone_number": 1}
-    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", [member])
+    members = [
+        {**_roadmap_issue(7, "Legacy Slice", ["Slice"]), "milestone_number": 1, "state": "closed"},
+        {**_roadmap_issue(8, "Current Slice", ["Slice"], "Status: In Progress"), "milestone_number": 1},
+    ]
+    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", members)
     assert "No Slices defined in milestone description." in page
-    assert "Slice delivery: 0/0 complete" in page
-    assert "Unmapped milestone work (1)" in page
+    assert "Outcome acceptance: not defined" in page
+    assert "Slice delivery: 0/0 complete" not in page
+    assert "Issues: 1/2 closed" in page and "Active 1" in page
+    assert "Unmapped milestone work (2)" in page
+    assert 'class="milestone-slice"' not in page
+
+
+@pytest.mark.parametrize("labels,body,state,active,blocked", [
+    (["tbp:in-progress", "blocked"], "", "open", 1, 1),
+    (["tbp:in-progress", "blocked"], "Status: In Progress", "closed", 0, 0),
+    ([], "Status: Blocked", "open", 0, 1),
+    ([], "## Status\nStatus: Awaiting evidence", "open", 1, 0),
+    ([], "## Delivery Status\nActive: validating", "open", 1, 0),
+    ([], "## Status\nIn progress: running\nStatus: Blocked", "open", 0, 1),
+    ([], "## History\nIn progress: previously running\nStatus: In Progress", "open", 0, 0),
+    ([], "## Status\n```text\nIn progress: example\n```", "open", 0, 0),
+    ([], "## Status\n> In progress: quoted\n- [ ] In progress: pending", "open", 0, 0),
+    ([], "We will put this In progress: later.", "open", 0, 0),
+])
+def test_bands_activity_uses_current_explicit_status_only(monkeypatch, labels, body, state, active, blocked):
+    member = {**_roadmap_issue(7, "Entry", labels, body), "milestone_number": 1, "state": state}
+    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", [member])
+    assert f"Active {active}" in page
+    assert f"Blocked {blocked}" in page
+    if state == "open":
+        assert (" · Active" in page) is bool(active)
+        assert (" · Blocked" in page) is bool(blocked)
+
+
+def test_bands_unscheduled_issues_show_activity_without_inventing_groups(monkeypatch):
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "milestones": [], "issues": [
+            {**_roadmap_issue(7, "Delivered work", []), "state": "closed"},
+            _roadmap_issue(8, "Active work", ["tbp:in-progress"]),
+        ],
+    })
+    page = render_roadmap()
+    assert "Unscheduled backlog" in page
+    assert "Issues: 1/2 closed" in page and "Active 1" in page
+    assert "Outcome acceptance: not defined" in page
     assert 'class="milestone-slice"' not in page
 
 

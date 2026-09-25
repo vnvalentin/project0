@@ -1101,6 +1101,8 @@ DELIVERY_MOCKUP_CSS = """
 .milestone-slice{border-left:3px solid var(--cyan);padding-left:10px;margin:8px 0}
 .milestone-slice>summary{cursor:pointer;font-weight:700;font-size:12px}
 .milestone-slice-state{display:block;color:var(--muted);font-size:11px;font-weight:400;margin:4px 0}
+.milestone-activity{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;font-size:12px;font-weight:400}
+.milestone-activity strong{font-weight:700}.milestone-activity .active{color:var(--cyan)}.milestone-activity .blocked{color:var(--amber)}
 .milestone-slice dl{font-size:12px;margin:10px 0}.milestone-slice dt{color:var(--muted);margin-top:8px}.milestone-slice dd{margin:2px 0;white-space:pre-wrap}
 .milestone-member-list{list-style:none;padding:0;margin:8px 0;font-size:12px}.milestone-member-list li{padding:6px 0;border-bottom:1px solid var(--mock-line)}
 .milestone-member-list a{color:var(--text);text-decoration:none}.milestone-member-list a:hover{color:var(--cyan)}
@@ -1297,6 +1299,59 @@ def _milestone_group_state(group: dict, members: list[dict]) -> tuple[str, str]:
     return "ready", "All remaining members ready"
 
 
+def _delivery_current_status(issue: dict) -> str:
+    section = ""
+    fence = ""
+    status = ""
+    for raw_line in (issue.get("body") or "").splitlines():
+        line = raw_line.strip()
+        marker = re.match(r"^(`{3,}|~{3,})", line)
+        if marker:
+            if not fence:
+                fence = marker[1][0]
+            elif marker[1][0] == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        heading = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if heading:
+            section = heading[1].lower()
+            continue
+        if section not in {"", "status", "delivery status"}:
+            continue
+        prefix = r"Status:\s*" if not section else r"(?:Status:\s*)?"
+        declaration = re.match(prefix + r"(in[ -]progress|active|blocked|ready|done|closed|awaiting evidence)(?=\s*[:.]|\s*$)", line, re.I)
+        if declaration:
+            status = declaration[1].lower().replace("-", " ")
+    return status
+
+
+def _delivery_issue_activity(issue: dict) -> set[str]:
+    if issue.get("state", "open").lower() == "closed":
+        return {"closed"}
+    labels = {label.lower() for label in issue.get("labels", [])}
+    status = _delivery_current_status(issue)
+    activity = set()
+    if labels & {"tbp:in-progress", "in progress"} or status in {"in progress", "active", "awaiting evidence"}:
+        activity.add("active")
+    if labels & {"blocked", "tbp:blocked"} or status == "blocked":
+        activity.add("blocked")
+    return activity
+
+
+def _delivery_activity_html(issues: list[dict]) -> str:
+    unique = {issue["number"]: issue for issue in issues}
+    activities = [_delivery_issue_activity(issue) for issue in unique.values()]
+    closed = sum("closed" in activity for activity in activities)
+    active = sum("active" in activity for activity in activities)
+    blocked = sum("blocked" in activity for activity in activities)
+    return (
+        f'<div class="milestone-activity"><strong>Issues: {closed}/{len(unique)} closed</strong>'
+        f'<span class="active">Active {active}</span><span class="blocked">Blocked {blocked}</span></div>'
+    )
+
+
 def _milestone_member_list(numbers: list[int], by_number: dict[int, dict]) -> str:
     rows = []
     for number in dict.fromkeys(numbers):
@@ -1304,7 +1359,9 @@ def _milestone_member_list(numbers: list[int], by_number: dict[int, dict]) -> st
         if member is None:
             rows.append(f'<li class="milestone-mapping-warning">Unresolved issue #{number}</li>')
         else:
-            rows.append(f'<li>{_delivery_mockup_issue(member)}<small>GitHub {esc(member.get("state", "open"))}</small></li>')
+            activity = _delivery_issue_activity(member)
+            indicators = "".join(f" · {state.title()}" for state in ("active", "blocked") if state in activity)
+            rows.append(f'<li>{_delivery_mockup_issue(member)}<small>GitHub {esc(member.get("state", "open"))}{indicators}</small></li>')
     return f'<ul class="milestone-member-list">{"".join(rows)}</ul>'
 
 
@@ -1342,10 +1399,11 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
         fields = "".join(f'<dt>{esc(name.title())}</dt><dd>{esc(group[name])}</dd>'
                          for name in ("outcome", "complete when", "dependency", "outcome evidence") if group[name])
         warnings = "".join(f'<p class="milestone-mapping-warning">{esc(warning)}</p>' for warning in group["warnings"])
+        activity = _delivery_activity_html([member for member in members if member.get("milestone_number") == record["number"]])
         groups_html.append(
             f'<details class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}">'
             f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}'
-            f'<span class="milestone-slice-state">{state.title()} · {len(set(group["members"]))} issues · {esc(reason)}</span></summary>'
+            f'<span class="milestone-slice-state">{state.title()} · {len(set(group["members"]))} issues · {esc(reason)}</span>{activity}</summary>'
             f'<dl>{fields}</dl>{warnings}{_milestone_member_list(group["members"], by_number)}</details>'
         )
     shared_text = "\n".join(plan["sections"].get("shared context", []))
@@ -1365,10 +1423,17 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
         groups_html.append('<p class="milestone-mapping-warning">No Slices defined in milestone description.</p>')
     outcome = plan["outcome"] or (description.split("\n\n", 1)[0] if description else "")
     count_html = "".join(f'<span class="{state}">{state.title()} {value}</span>' for state, value in counts.items())
+    acceptance = (
+        f'Slice delivery: {counts["done"]}/{len(plan["slices"])} complete'
+        if plan["slices"] else "Outcome acceptance: not defined"
+    )
+    if not plan["slices"]:
+        count_html = ""
     attention = '<p class="milestone-mapping-warning">Unresolved scope or mapping requires attention.</p>' if scope or unmapped or any(group["warnings"] for group in plan["slices"]) else ""
     return (
         f'<details class="milestone-band" data-milestone="{record["number"]}"><summary><h3>{esc(record["title"])}</h3>'
-        f'<p>{esc(outcome)}</p><div class="milestone-feature-summary">Slice delivery: {counts["done"]}/{len(plan["slices"])} complete</div>'
+        f'<p>{esc(outcome)}</p>{_delivery_activity_html(record["issues"])}'
+        f'<div class="milestone-feature-summary">{acceptance}</div>'
         f'<div class="milestone-counts">{count_html}</div>{attention}</summary>'
         f'<div class="milestone-issues">{"".join(groups_html)}{"".join(extras)}</div></details>'
     )

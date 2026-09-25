@@ -91,7 +91,20 @@ issues, duplicate membership, and issues assigned elsewhere are displayed as
 mapping warnings and keep the affected group New. Issues assigned to the
 milestone but outside its groups and shared context appear as unmapped work.
 
-The card counts groups, not individual issues. Open members need explicit
+Each card and defined group shows issue activity independently: closed/total,
+active, and blocked counts. These are issue counts, not accepted-outcome
+percentages. Milestone activity includes assigned issues outside defined groups;
+Unscheduled backlog shows issues without a milestone. Group activity deduplicates
+members and excludes missing or foreign-milestone references. Closed issues
+never count active or blocked. Activity recognizes existing status labels and
+explicit current declarations such as `Status: In Progress` at the start of an
+issue or `In progress: ...` under `## Status` or `## Delivery Status`. Quoted,
+fenced, checklist, historical and general prose do not establish activity. GitHub
+Project-only status and issue comments are not read by this projection.
+
+The separate Slice delivery counter counts accepted groups, not individual
+issues. No group definitions displays `Outcome acceptance: not defined`, while
+issue activity remains visible. Open members need explicit
 readiness or the existing TBP Theme/Feature/Epic definition checks; missing
 readiness and blockers keep a group New. Doing requires in-progress work with
 the remaining members ready or closed. All members closed without linked
