@@ -58,7 +58,19 @@ boundary:
 Apply the label when any changed path is under `native/windows_launcher/`, has a
 Windows-only build constraint, changes Windows packaging or installer behavior,
 or changes a client path whose acceptance depends on Windows runtime behavior.
+
   Ollama/SQLite validation are out of scope until those systems are built.
+
+## Server and Linux execution boundary
+
+The Project0 game server runs in a container on the Linux machine at
+`192.168.1.254`. The Windows client may run on this machine or on another
+Windows machine, but that does not change the server boundary.
+
+Any server-side, container, or Linux-only command MUST execute on
+`192.168.1.254` through SSH. Do not substitute a local Windows or WSL command
+for server work. If SSH access to `192.168.1.254` is unavailable, stop and
+report the blocker rather than running the command locally.
 
 ## Project boundaries
 
@@ -113,6 +125,9 @@ Do not create implementation slices or product code while this gate is open.
   of the repo-scoped agent working notes (agent `/memories/repo/` is per-machine
   and does not sync via the remote). Seed your repository memory from it, and
   keep it in sync when a convention changes.
+- GitHub operations: use the authenticated `gh` CLI for every GitHub read and
+  mutation. Do not use the GitHub API directly or alternate GitHub integration
+  tools for issue, project, pull request, label, or notification operations.
 - Implementation ownership: Copilot performs orchestration, bounded handoffs,
   validation coordination, and review. Claude CLI owns application-code,
   test-code, and implementation-facing delivery-record edits unless the user

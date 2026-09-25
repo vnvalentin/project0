@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	updateRequiredExitCode = 20
-	launcherClientVersion  = "0.6.0"
+	updateRequiredExitCode = 2
+	launcherClientVersion  = "0.12.0"
 	publicEnrollmentURL    = "https://project0.valentin.vip"
 	readinessTimeout       = 15 * time.Second
 )
@@ -29,6 +29,12 @@ func main() {
 			fail(err)
 		}
 		return
+	}
+	if certificatePath, ok := testCACertArg(os.Args[1:]); ok {
+		if err := runVersionGate(testManifestEndpoint(), certificatePath, launcherClientVersion); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(updateRequiredExitCode)
+		}
 	}
 
 	payloadDirectory, err := payloadDirectory()
@@ -278,7 +284,7 @@ func parseUpdaterArgs(args []string) map[string]string {
 func forwardedArgs(args []string) []string {
 	forwarded := make([]string, 0, len(args))
 	for _, arg := range args {
-		if strings.HasPrefix(arg, "--invite-code=") || arg == lanModeArg || arg == wanModeArg || strings.HasPrefix(arg, lanHostArgPrefix) {
+		if strings.HasPrefix(arg, "--invite-code=") || strings.HasPrefix(arg, "--test-ca-cert=") || arg == lanModeArg || arg == wanModeArg || strings.HasPrefix(arg, lanHostArgPrefix) {
 			continue
 		}
 		forwarded = append(forwarded, arg)
