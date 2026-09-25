@@ -166,6 +166,10 @@ def test_roadmap_view_renders_collapsible_layered_story_map(monkeypatch):
     assert "Hoshin: World" not in page and "Experiment: Login" not in page
     assert "#2 Identity" in page
     assert "story-map-node-preview" not in page
+    assert "story-map-counts" in page
+    assert "To Do 1" in page
+    assert "Doing 0" in page
+    assert "Done 0" in page
     assert "NEEDS GRILLING" in page
 
 

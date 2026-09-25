@@ -565,6 +565,11 @@ OVERVIEW_CSS = """
 .story-map-layer-label.level-epic{background:#4a2e18;color:#ffc079}
 .story-map-layer-label.level-experiment{background:#4a2528;color:#ff9c9c}
 .story-map-layer-label.level-issue{background:#29333d;color:var(--muted)}
+.story-map-counts{display:flex;flex:0 0 auto;gap:4px;color:var(--muted);font-size:9px;font-weight:800;white-space:nowrap}
+.story-map-counts span{padding:3px 5px;border-radius:8px}
+.story-map-counts .todo{background:#30351e;color:#e4dc79}
+.story-map-counts .doing{background:#123d4a;color:#72e3f2}
+.story-map-counts .done{background:#173c2d;color:#8ce3c2}
 .story-map-node-children{margin:8px 0 0 18px;padding-left:14px;border-left:1px solid var(--line)}
 .story-map-node-children>.story-map-node{margin-bottom:8px}
 .next-work{border-left:4px solid var(--amber);background:var(--panel);padding:16px}
@@ -1007,6 +1012,21 @@ def _tbp_story_map_title(node: dict) -> str:
     return re.sub(r"^(?:Hoshin|Theme|Feature|Epic|Experiment)\s*:\s*", "", title, flags=re.IGNORECASE)
 
 
+def _tbp_story_map_counts(children: list[dict]) -> str:
+    counts = {"todo": 0, "doing": 0, "done": 0}
+    for child in children:
+        state = _tbp_roadmap_state(child)
+        bucket = "done" if state == "DONE" else "doing" if state == "IN_PROGRESS" else "todo"
+        counts[bucket] += 1
+    return (
+        f'<span class="story-map-counts">'
+        f'<span class="todo">To Do {counts["todo"]}</span>'
+        f'<span class="doing">Doing {counts["doing"]}</span>'
+        f'<span class="done">Done {counts["done"]}</span>'
+        f'</span>'
+    )
+
+
 def _tbp_story_map_node(node: dict, level: int = 0) -> str:
     labels = node.get("labels", [])
     kind, label = next(
@@ -1020,6 +1040,7 @@ def _tbp_story_map_node(node: dict, level: int = 0) -> str:
     summary = (
         f'<span class="story-map-layer-label level-{kind}">{label}</span>'
         f'<span class="story-map-node-title">{title}</span>'
+        f'{_tbp_story_map_counts(children)}'
         f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
     )
     children_html = "".join(_tbp_story_map_node(child, level + 1) for child in children)
