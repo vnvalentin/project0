@@ -12,6 +12,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -45,6 +48,9 @@ func TestAdmissionEngineProbe(t *testing.T) {
 		t.Fatalf("unverified executable selected: %s (%v)", executable, err)
 	}
 	if err := os.WriteFile(os.Getenv("PROJECT0_ADMISSION_PROBE_RESULT"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("PROJECT0_ADMISSION_PROBE_RESULT")+".pid", []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("PROJECT0_ADMISSION_PROBE_HOLD") == "1" {
@@ -202,11 +208,31 @@ func runAdmissionMatrix(t *testing.T, engine, pack []byte, childArgs []string, p
 			ctx, cancel := context.WithTimeout(context.Background(), deadline)
 			defer cancel()
 			command := exec.CommandContext(ctx, launcher, append([]string{"--test-ca-cert=" + certificatePath}, childArgs...)...)
+			probeResult := filepath.Join(root, "probe.json")
 			command.Cancel = func() error {
-				return exec.Command("taskkill", "/PID", strconv.Itoa(command.Process.Pid), "/T", "/F").Run()
+				var handle syscall.Handle
+				var handleErr error
+				if rawPID, err := os.ReadFile(probeResult + ".pid"); err == nil {
+					childPID, err := strconv.ParseUint(string(rawPID), 10, 32)
+					if err != nil {
+						handleErr = err
+					} else {
+						handle, handleErr = syscall.OpenProcess(syscall.SYNCHRONIZE, false, uint32(childPID))
+						if handle != 0 {
+							defer syscall.CloseHandle(handle)
+						}
+					}
+				}
+				killErr := exec.Command("taskkill", "/PID", strconv.Itoa(command.Process.Pid), "/T", "/F").Run()
+				if handle != 0 {
+					status, waitErr := syscall.WaitForSingleObject(handle, 5000)
+					if waitErr != nil || status != syscall.WAIT_OBJECT_0 {
+						return errors.Join(killErr, fmt.Errorf("child termination wait: status=%d error=%v", status, waitErr))
+					}
+				}
+				return errors.Join(killErr, handleErr)
 			}
 			command.WaitDelay = 5 * time.Second
-			probeResult := filepath.Join(root, "probe.json")
 			installRoot := filepath.Join(root, "local", "Project0")
 			if scenario == "existing_root" {
 				for _, name := range []string{"active", "backup"} {
