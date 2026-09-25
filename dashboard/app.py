@@ -114,6 +114,7 @@ def github_issues() -> dict:
                     "description": str(item.get("description", "")),
                     "open_issues": int(item.get("open_issues", 0)),
                     "closed_issues": int(item.get("closed_issues", 0)),
+                    "due_on": str(item.get("due_on") or ""),
                 } for item in parsed)
                 if len(parsed) < 100:
                     break
@@ -1096,7 +1097,7 @@ DELIVERY_MOCKUP_CSS = """
 .mockup-switcher{display:flex;gap:6px;margin:0 0 18px}.mockup-switcher a{color:var(--muted);text-decoration:none;border:1px solid var(--mock-line);padding:7px 10px;font-size:11px}.mockup-switcher a.on{color:var(--text);border-color:var(--cyan);background:#123044}
 .milestone-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.milestone-band{background:var(--mock-card);border:1px solid var(--mock-line);border-top:4px solid var(--cyan);padding:14px}.milestone-band:nth-child(3n+2){border-top-color:var(--amber)}.milestone-band:nth-child(3n){border-top-color:#8ce3c2}.milestone-band h3{margin:0 0 5px;font-size:15px}.milestone-band p{margin:0;color:var(--muted);font-size:11px;line-height:1.4}.milestone-counts{display:flex;gap:5px;margin:12px 0;font-size:10px;font-weight:800}.milestone-counts span{padding:4px 6px;border-radius:8px}.milestone-counts .new{background:#4a2e18;color:#ffc079}.milestone-counts .ready{background:#30351e;color:#e4dc79}.milestone-counts .doing{background:#123d4a;color:#72e3f2}.milestone-counts .done{background:#173c2d;color:#8ce3c2}.milestone-issues{border-top:1px solid var(--mock-line);padding-top:9px;display:flex;flex-direction:column;gap:5px}.milestone-issues a{color:var(--text);text-decoration:none;font-size:11px}.milestone-issues a:hover{color:var(--cyan)}
 .delivery-timeline{display:flex;flex-direction:column;gap:10px}.timeline-row{display:grid;grid-template-columns:190px 1fr;gap:14px;background:var(--mock-card);border:1px solid var(--mock-line);padding:14px}.timeline-label h3{margin:0;font-size:15px}.timeline-label p{color:var(--muted);font-size:11px;margin:5px 0 0}.timeline-issues{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.timeline-issues section{border-left:2px solid var(--mock-line);padding-left:9px}.timeline-issues h4{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--muted)}.timeline-issues a{display:block;color:var(--text);font-size:11px;text-decoration:none;margin:5px 0}.timeline-issues a:hover{color:var(--cyan)}
-.delivery-matrix{overflow-x:auto}.delivery-matrix table{width:100%;min-width:760px;border-collapse:collapse;background:var(--mock-card)}.delivery-matrix th,.delivery-matrix td{border:1px solid var(--mock-line);padding:10px;vertical-align:top;text-align:left}.delivery-matrix th{color:var(--text);font-size:12px}.delivery-matrix td:first-child{width:110px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}.matrix-issue{display:block;color:var(--text);font-size:11px;text-decoration:none;margin:4px 0}.matrix-issue:hover{color:var(--cyan)}.mockup-empty{color:var(--muted);font-style:italic}
+.delivery-gantt{overflow-x:auto}.gantt-axis,.gantt-row{display:grid;grid-template-columns:250px 150px minmax(720px,1fr);gap:12px;align-items:center}.gantt-axis{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:0 12px 8px}.gantt-axis-track,.gantt-track{display:grid;grid-template-columns:repeat(12,minmax(60px,1fr));gap:0;min-width:720px}.gantt-axis-track span{padding:0 5px;border-left:1px solid var(--mock-line)}.gantt-row{background:var(--mock-card);border:1px solid var(--mock-line);padding:12px;margin-bottom:7px}.gantt-title{color:var(--text);font-size:12px;font-weight:800}.gantt-date{width:140px;background:#101820;border:1px solid var(--mock-line);color:var(--text);padding:6px;font:inherit;font-size:11px}.gantt-track{height:28px;align-items:center;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(8.333% - 1px),var(--mock-line) calc(8.333% - 1px),var(--mock-line) 8.333%)}.gantt-bar{height:18px;border-radius:9px;background:var(--cyan);box-shadow:0 0 0 1px #72e3f2;position:relative}.gantt-bar:nth-child(3n){background:var(--amber);box-shadow:0 0 0 1px #ffc079}.gantt-bar span{position:absolute;left:8px;top:1px;color:#071117;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px)}.mockup-empty{color:var(--muted);font-style:italic}
 @media(max-width:760px){.timeline-row{grid-template-columns:1fr}.timeline-issues{grid-template-columns:1fr}}
 """
 
@@ -1145,20 +1146,18 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
             rows.append(f'<article class="timeline-row"><div class="timeline-label"><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p></div><div class="timeline-issues">{"".join(columns)}</div></article>')
         body = f'<div class="delivery-timeline">{"".join(rows)}</div>'
     elif variant == "delivery-c":
-        headers = "".join(f'<th>{esc(record["title"])}</th>' for record in records)
+        axis = "".join(f'<span>{label}</span>' for label in ("Now", "30d", "60d", "90d", "120d", "150d", "180d", "210d", "240d", "270d", "300d", "Later"))
         rows = []
-        for state, label in (("NEEDS_GRILLING", "New"), ("READY_TO_PULL", "Ready"), ("IN_PROGRESS", "Doing"), ("DONE", "Done")):
-            cells = []
-            for record in records:
-                issue_links = "".join(
-                    f'<a class="matrix-issue" href="{esc(issue.get("url", ""))}">'
-                    f'#{issue.get("number", "")} {esc(_tbp_story_map_title(issue))}</a>'
-                    for issue in record["issues"]
-                    if _delivery_mockup_state(issue) == state
-                ) or '<span class="mockup-empty">—</span>'
-                cells.append(f'<td>{issue_links}</td>')
-            rows.append(f'<tr><td>{label}</td>{"".join(cells)}</tr>')
-        body = f'<div class="delivery-matrix"><table><thead><tr><th>State</th>{headers}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
+        for index, record in enumerate(records):
+            start = min(1 + index * 2, 8)
+            due_on = str(record.get("due_on", ""))[:10]
+            bar_label = esc(_tbp_story_map_title(record))
+            rows.append(
+                f'<article class="gantt-row"><strong class="gantt-title">{esc(record["title"])}</strong>'
+                f'<input class="gantt-date" type="date" value="{esc(due_on)}" aria-label="Expected delivery date for {esc(record["title"])}">'
+                f'<div class="gantt-track"><div class="gantt-bar" style="grid-column:{start} / span 3"><span>{bar_label}</span></div></div></article>'
+            )
+        body = f'<div class="delivery-gantt"><div class="gantt-axis"><span>Milestone</span><span>Expected delivery</span><div class="gantt-axis-track">{axis}</div></div>{"".join(rows)}</div><p class="mockup-note">Expected dates are editable in this prototype and remain local to the browser.</p>'
     else:
         bands = []
         for record in records:
@@ -1166,7 +1165,7 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
             issue_links = "".join(_delivery_mockup_issue(issue) for issue in record["issues"][:8]) or '<span class="mockup-empty">No assigned issues</span>'
             bands.append(f'<article class="milestone-band"><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div><div class="milestone-issues">{issue_links}</div></article>')
         body = f'<div class="milestone-bands">{"".join(bands)}</div>'
-    links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Matrix")))
+    links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Gantt")))
     return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
 
 
