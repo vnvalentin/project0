@@ -156,6 +156,14 @@ Do not create implementation slices or product code while this gate is open.
 - Test at the public seam and run the narrowest relevant validation first.
 - Stop on unexpected failure, degraded health, missing evidence, or unclear
   security boundaries.
+- Completion persistence rule: do not stop an implementation, experiment, or
+  delivery path while its governing GitHub issue remains open. Continue until
+  the issue is closed with acceptance evidence, or explicitly mark it blocked
+  or failed with the symptom, public seam, evidence, confirmed root cause (or
+  the unresolved hypotheses), acceptance criteria, rollback boundary, and next
+  owner/action recorded in the issue. A green local test, a merged code change,
+  or a partial artifact is never sufficient to report completion while the
+  governing issue remains open.
 - Root-cause learning gate: every unexpected runtime failure, user-reported
   defect, validation failure, or integration surprise must be recorded in the
   affected slice's `Root-cause learning` section before completion. Record the
@@ -163,6 +171,13 @@ Do not create implementation slices or product code while this gate is open.
   confirmed root cause, why existing tests missed it, countermeasure,
   regression evidence, and any remaining limitation or debt link. A chat or
   terminal log alone is not durable evidence.
+- Jidoka blocker protocol: when a blocker is found, stop the affected
+  experiment or delivery path immediately. Create or update a GitHub problem
+  issue before resuming work, recording the symptom, public seam, evidence,
+  falsifiable hypotheses, confirmed root cause, acceptance criteria, and
+  rollback boundary. Resume only after the owning seam has a focused fix and
+  the discriminating check passes; do not report the parent experiment as
+  complete while the problem remains open.
 - Never claim runtime behavior without runtime evidence.
 - Do not add dependencies, migrations, permissions, or external side effects
   without documenting their safety and rollback implications.

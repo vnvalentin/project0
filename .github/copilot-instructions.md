@@ -12,6 +12,22 @@ The tool-neutral systems/implementation contract is
 
 Use [TPSA](../docs/tpsa.md) as the core behavior profile for all activities.
 
+Jidoka rule: any blocker immediately stops the affected experiment or delivery
+path. Before resuming, create or update a GitHub problem issue with the
+symptom, public seam, evidence, falsifiable hypotheses, confirmed root cause,
+acceptance criteria, and rollback boundary. Resume only after the owning seam
+has a focused fix and its discriminating check passes; never report the parent
+experiment complete while the problem remains open.
+
+Completion persistence rule: do not stop an implementation, experiment, or
+delivery path while its governing GitHub issue remains open. Continue until the
+issue is closed with acceptance evidence, or explicitly mark it blocked or
+failed with the symptom, public seam, evidence, confirmed root cause (or the
+unresolved hypotheses), acceptance criteria, rollback boundary, and next
+owner/action recorded in the issue. A green local test, a merged code change,
+or a partial artifact is never sufficient to report completion while the
+governing issue remains open.
+
 For Windows-required work, read and enforce the `Windows-required work` section
 of `AGENTS.md` before touching the branch. A `platform:windows-required` issue
 must be implemented and validated on Windows; Linux may coordinate or review

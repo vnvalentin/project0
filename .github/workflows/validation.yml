@@ -94,6 +94,19 @@ jobs:
         shell: bash
         run: scripts/stage_launcher_payload_placeholders.sh
 
-      - name: Run launcher tests
-        working-directory: native/windows_launcher
-        run: go test ./...
+      - name: Run launcher validation
+        env:
+          PROJECT0_EXPERIMENT_EVIDENCE_DIR: ${{ github.workspace }}/logs/experiments
+        shell: pwsh
+        run: ./scripts/run_windows_launcher_validation.ps1
+
+      - name: Upload launcher validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project0-windows-launcher-${{ github.run_id }}
+          path: |
+            build/validation/windows_launcher/
+            logs/experiments/exp_1099_hash_mismatch_*.json
+          if-no-files-found: error
+          retention-days: 14

@@ -8,8 +8,17 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $moduleRoot = Join-Path $repositoryRoot "native\windows_launcher"
 $resultDirectory = Join-Path $repositoryRoot "build\validation\windows_launcher"
 $summaryPath = Join-Path $resultDirectory "validation-summary.json"
+$evidenceDirectory = if ($env:PROJECT0_EXPERIMENT_EVIDENCE_DIR) {
+    $env:PROJECT0_EXPERIMENT_EVIDENCE_DIR
+} else {
+    Join-Path $repositoryRoot "logs\experiments"
+}
 
 New-Item -ItemType Directory -Force -Path $resultDirectory | Out-Null
+New-Item -ItemType Directory -Force -Path $evidenceDirectory | Out-Null
+$evidencePattern = Join-Path $evidenceDirectory "exp_1099_hash_mismatch_*.json"
+Remove-Item -Force -ErrorAction SilentlyContinue $evidencePattern
+$env:PROJECT0_EXPERIMENT_EVIDENCE_DIR = $evidenceDirectory
 $startedAt = (Get-Date).ToUniversalTime()
 $goVersion = (& go version 2>&1 | Out-String).Trim()
 if ($LASTEXITCODE -ne 0) {
@@ -18,7 +27,8 @@ if ($LASTEXITCODE -ne 0) {
 
 Push-Location $moduleRoot
 try {
-    & go test ./...
+    # Evidence generation is a test side effect; force both subcases to execute.
+    & go test -count=1 ./...
     $exitCode = $LASTEXITCODE
 }
 finally {
