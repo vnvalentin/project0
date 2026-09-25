@@ -27,6 +27,7 @@ var _sessions: Object = null
 var _issuer: Object = null
 var _validator: Object = null
 var _nakama_authorized_peers: Dictionary = {}
+var _journey_registry: Object = null
 
 const OUTCOME_OK: String = "ok"
 const REASON_NO_SESSION: String = "no_session"
@@ -138,7 +139,19 @@ func delete_character(peer_id: int, character_id) -> Dictionary:
 ## in assertion-only mode) — it reads the session (snapshot from a validated
 ## assertion, or the DB in the in-process path), not the accounts authority.
 func get_selected_character(peer_id: int) -> Dictionary:
-	return _characters.get_selected_character(peer_id)
+	var result: Dictionary = _characters.get_selected_character(peer_id)
+	if result.get("outcome", "") != OUTCOME_OK or _journey_registry == null:
+		return result
+	var record: Object = result["character"]
+	var journey: Dictionary = _journey_registry.enter(record.character_id, peer_id, int(Time.get_unix_time_from_system()))
+	if journey.get("outcome", "") != OUTCOME_OK:
+		return {"outcome": journey.get("outcome", "journey_rejected")}
+	result["journey_id"] = String(journey["journey_id"])
+	return result
+
+
+func set_journey_registry(registry: Object) -> void:
+	_journey_registry = registry
 
 
 ## Slice 060: inject the Slice 059 assertion seams (issuer + validator).

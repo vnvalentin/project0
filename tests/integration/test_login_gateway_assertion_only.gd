@@ -14,6 +14,7 @@ const LoginGatewayScript: Script = preload("res://server/login_gateway.gd")
 const AssertionIssuerScript: Script = preload("res://server/assertion_issuer.gd")
 const AssertionValidatorScript: Script = preload("res://server/assertion_validator.gd")
 const SessionAssertionScript: Script = preload("res://shared/session_assertion.gd")
+const JourneyRegistryScript: Script = preload("res://server/journey_registry.gd")
 
 const SECRET: String = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
 const ISSUER: String = "project0-login"
@@ -25,6 +26,7 @@ var _repo: AccountCharacterRepository = null
 var _auth: Node = null
 var _characters: CharacterService = null
 var _gateway: Node = null
+var _journey_registry: RefCounted = null
 
 
 func before_each() -> void:
@@ -43,6 +45,8 @@ func before_each() -> void:
 	)
 	# Slice 076: the game server in a split deployment.
 	_gateway.set_account_authority_enabled(false)
+	_journey_registry = JourneyRegistryScript.new()
+	_gateway.set_journey_registry(_journey_registry)
 	add_child_autofree(_gateway)
 
 
@@ -85,3 +89,23 @@ func test_assertion_path_still_establishes_and_binds() -> void:
 	var selected: Dictionary = _gateway.get_selected_character(7)
 	assert_eq(selected["outcome"], "ok", "world entry still resolves the Character from the snapshot")
 	assert_eq(selected["character"].display_name, "Carol the Bold", "the bound Character came from the signed snapshot")
+
+
+func test_asserted_character_reclaims_one_journey_after_disconnect() -> void:
+	var issuer: RefCounted = AssertionIssuerScript.new(SECRET, ISSUER, AUDIENCE)
+	var token: String = issuer.issue("sess-1", "acc-1", "char-1", 1000, 300, "Carol the Bold", {})
+
+	assert_eq(_gateway.establish_session_from_assertion(7, token, 1001)["outcome"], LoginGatewayScript.OUTCOME_OK)
+	var first_entry: Dictionary = _gateway.get_selected_character(7)
+	assert_eq(first_entry["outcome"], LoginGatewayScript.OUTCOME_OK)
+
+	assert_eq(_gateway.establish_session_from_assertion(8, token, 1001)["outcome"], LoginGatewayScript.OUTCOME_OK)
+	var conflict: Dictionary = _gateway.get_selected_character(8)
+	assert_eq(conflict["outcome"], JourneyRegistryScript.REASON_CHARACTER_ACTIVE)
+
+	var disconnected: Dictionary = _journey_registry.mark_disconnected("char-1", 7, int(Time.get_unix_time_from_system()))
+	assert_eq(disconnected["kind"], "disconnect")
+	_gateway.clear_session(7)
+	var reclaimed: Dictionary = _gateway.get_selected_character(8)
+	assert_eq(reclaimed["outcome"], JourneyRegistryScript.OUTCOME_OK)
+	assert_eq(reclaimed["journey_id"], first_entry["journey_id"])
