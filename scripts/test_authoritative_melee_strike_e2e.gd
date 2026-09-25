@@ -28,6 +28,8 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 var _failures: int = 0
 var _server_process_id: int = -1
 var _gameplay_instance: Node3D
+var _accounts_db_name: String = ""
+var _saved_environment: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -35,10 +37,24 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	await _test_authoritative_melee_strike()
+	if _prepare_isolated_state():
+		await _test_authoritative_melee_strike()
 
 	if _server_process_id != -1 and OS.is_process_running(_server_process_id):
-		OS.kill(_server_process_id)
+		var kill_result: Error = OS.kill(_server_process_id)
+		_assert(kill_result == OK, "owned server process terminated")
+	var server_stopped: bool = _server_process_id == -1 or not OS.is_process_running(_server_process_id)
+	_assert(server_stopped, "owned server process is no longer running")
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		if server_stopped and not _accounts_db_name.is_empty():
+			var path: String = "user://" + _accounts_db_name + suffix
+			if FileAccess.file_exists(path):
+				_assert(DirAccess.remove_absolute(path) == OK, "temporary database removed")
+	for key: String in _saved_environment:
+		if _saved_environment[key] == null:
+			OS.unset_environment(key)
+		else:
+			OS.set_environment(key, _saved_environment[key])
 
 	if _failures == 0:
 		print("ALL PASS")
@@ -46,6 +62,29 @@ func _run() -> void:
 	else:
 		push_error("%d assertion(s) failed" % _failures)
 		quit(1)
+
+
+func _prepare_isolated_state() -> bool:
+	var socket: PacketPeerUDP = PacketPeerUDP.new()
+	var bind_result: Error = socket.bind(0, "127.0.0.1")
+	_assert(bind_result == OK, "isolated loopback port allocated")
+	if bind_result != OK:
+		return false
+	var port: int = socket.get_local_port()
+	socket.close()
+	_accounts_db_name = "test_melee_1173_%d_%d.db" % [OS.get_process_id(), Time.get_ticks_usec()]
+	var overrides: Dictionary = {
+		"PROJECT0_SERVER_PORT": str(port),
+		"PROJECT0_SERVER_BIND_ADDRESS": "127.0.0.1",
+		"PROJECT0_OPERATOR_CONTROL_PORT": "0",
+		"PROJECT0_ACCOUNTS_DB_PATH": _accounts_db_name,
+		"PROJECT0_CANON_DB_PATH": "",
+		"PROJECT0_E2E_DISABLE_TOWN_COLLISION": "1",
+	}
+	for key: String in overrides:
+		_saved_environment[key] = OS.get_environment(key) if OS.has_environment(key) else null
+		OS.set_environment(key, overrides[key])
+	return true
 
 
 func _assert(condition: bool, message: String) -> void:
@@ -72,11 +111,15 @@ func _test_authoritative_melee_strike() -> void:
 		"-s", "server/server_main.gd",
 	])
 	_assert(_server_process_id != -1, "server process starts")
+	if _server_process_id == -1:
+		return
 
 	var startup_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while OS.is_process_running(_server_process_id) and Time.get_ticks_msec() < startup_deadline_msec:
 		await process_frame
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
+	if not OS.is_process_running(_server_process_id):
+		return
 
 	var network_client: Node = root.get_node("NetworkClient")
 
@@ -91,6 +134,8 @@ func _test_authoritative_melee_strike() -> void:
 	while network_client.status != "connected: player spawned" and Time.get_ticks_msec() < connect_deadline_msec:
 		await process_frame
 	_assert(network_client.status == "connected: player spawned", "client connects and its Player is spawned")
+	if network_client.status != "connected: player spawned":
+		return
 
 	var player: Node3D = _gameplay_instance.get_node_or_null("Player")
 	_assert(player != null, "red predicted Player exists")

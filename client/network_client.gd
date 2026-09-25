@@ -1109,6 +1109,7 @@ static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, in
 		_navigation_target(blueprint, local_ingress)
 	)
 	if result["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		result.erase("readiness_node")
 		registry.remove_child(root)
 		root.free()
 		return result
