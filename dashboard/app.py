@@ -1090,22 +1090,105 @@ def _tbp_story_map_html(issue_feed: dict) -> str:
     return f'<div class="story-map">{full}</div>'
 
 
-def render_roadmap() -> str:
-        """Render the live TBP backlog as a full map and focused next branch."""
-        issue_feed = github_issues()
-        return f'''<!doctype html>
+DELIVERY_MOCKUP_CSS = """
+.delivery-mockup{--mock-line:#2a3947;--mock-card:#17232e}
+.delivery-mockup h2{margin-bottom:8px}.mockup-note{color:var(--muted);font-size:12px;margin:0 0 16px}
+.mockup-switcher{display:flex;gap:6px;margin:0 0 18px}.mockup-switcher a{color:var(--muted);text-decoration:none;border:1px solid var(--mock-line);padding:7px 10px;font-size:11px}.mockup-switcher a.on{color:var(--text);border-color:var(--cyan);background:#123044}
+.milestone-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.milestone-band{background:var(--mock-card);border:1px solid var(--mock-line);border-top:4px solid var(--cyan);padding:14px}.milestone-band:nth-child(3n+2){border-top-color:var(--amber)}.milestone-band:nth-child(3n){border-top-color:#8ce3c2}.milestone-band h3{margin:0 0 5px;font-size:15px}.milestone-band p{margin:0;color:var(--muted);font-size:11px;line-height:1.4}.milestone-counts{display:flex;gap:5px;margin:12px 0;font-size:10px;font-weight:800}.milestone-counts span{padding:4px 6px;border-radius:8px}.milestone-counts .new{background:#4a2e18;color:#ffc079}.milestone-counts .ready{background:#30351e;color:#e4dc79}.milestone-counts .doing{background:#123d4a;color:#72e3f2}.milestone-counts .done{background:#173c2d;color:#8ce3c2}.milestone-issues{border-top:1px solid var(--mock-line);padding-top:9px;display:flex;flex-direction:column;gap:5px}.milestone-issues a{color:var(--text);text-decoration:none;font-size:11px}.milestone-issues a:hover{color:var(--cyan)}
+.delivery-timeline{display:flex;flex-direction:column;gap:10px}.timeline-row{display:grid;grid-template-columns:190px 1fr;gap:14px;background:var(--mock-card);border:1px solid var(--mock-line);padding:14px}.timeline-label h3{margin:0;font-size:15px}.timeline-label p{color:var(--muted);font-size:11px;margin:5px 0 0}.timeline-issues{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.timeline-issues section{border-left:2px solid var(--mock-line);padding-left:9px}.timeline-issues h4{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--muted)}.timeline-issues a{display:block;color:var(--text);font-size:11px;text-decoration:none;margin:5px 0}.timeline-issues a:hover{color:var(--cyan)}
+.delivery-matrix{overflow-x:auto}.delivery-matrix table{width:100%;min-width:760px;border-collapse:collapse;background:var(--mock-card)}.delivery-matrix th,.delivery-matrix td{border:1px solid var(--mock-line);padding:10px;vertical-align:top;text-align:left}.delivery-matrix th{color:var(--text);font-size:12px}.delivery-matrix td:first-child{width:110px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}.matrix-issue{display:block;color:var(--text);font-size:11px;text-decoration:none;margin:4px 0}.matrix-issue:hover{color:var(--cyan)}.mockup-empty{color:var(--muted);font-style:italic}
+@media(max-width:760px){.timeline-row{grid-template-columns:1fr}.timeline-issues{grid-template-columns:1fr}}
+"""
+
+
+def _delivery_mockup_records(issue_feed: dict) -> list[dict]:
+    issues = issue_feed.get("issues", [])
+    records = []
+    for milestone in issue_feed.get("milestones", []):
+        assigned = [issue for issue in issues if issue.get("milestone_number") == milestone["number"]]
+        records.append({**milestone, "issues": assigned})
+    unassigned = [issue for issue in issues if issue.get("milestone_number") is None]
+    if unassigned:
+        records.append({"number": 0, "title": "Unscheduled backlog", "description": "Issues without a GitHub milestone", "issues": unassigned})
+    return records
+
+
+def _delivery_mockup_state(issue: dict) -> str:
+    return classify_tbp_state(issue)
+
+
+def _delivery_mockup_counts(issues: list[dict]) -> dict[str, int]:
+    counts = {"new": 0, "ready": 0, "doing": 0, "done": 0}
+    for issue in issues:
+        state = _delivery_mockup_state(issue)
+        bucket = {"READY_TO_PULL": "ready", "IN_PROGRESS": "doing", "DONE": "done"}.get(state, "new")
+        counts[bucket] += 1
+    return counts
+
+
+def _delivery_mockup_issue(issue: dict) -> str:
+    return f'<a href="{esc(issue.get("url", ""))}">#{issue.get("number", "")} {esc(_tbp_story_map_title(issue))}</a>'
+
+
+def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
+    records = _delivery_mockup_records(issue_feed)
+    if not issue_feed.get("available"):
+        body = f'<div class="sourcewarn">GitHub issues unavailable: {esc(issue_feed.get("error", "unknown error"))}</div>'
+    elif not records:
+        body = '<p class="mockup-empty">No live GitHub milestones or unassigned issues are available.</p>'
+    elif variant == "delivery-b":
+        rows = []
+        for record in records:
+            columns = []
+            for state, label in (("NEEDS_GRILLING", "New"), ("READY_TO_PULL", "Ready"), ("IN_PROGRESS", "Doing")):
+                columns.append(f'<section><h4>{label}</h4>{"".join(_delivery_mockup_issue(issue) for issue in record["issues"] if _delivery_mockup_state(issue) == state) or "<span class=mockup-empty>None</span>"}</section>')
+            rows.append(f'<article class="timeline-row"><div class="timeline-label"><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p></div><div class="timeline-issues">{"".join(columns)}</div></article>')
+        body = f'<div class="delivery-timeline">{"".join(rows)}</div>'
+    elif variant == "delivery-c":
+        headers = "".join(f'<th>{esc(record["title"])}</th>' for record in records)
+        rows = []
+        for state, label in (("NEEDS_GRILLING", "New"), ("READY_TO_PULL", "Ready"), ("IN_PROGRESS", "Doing"), ("DONE", "Done")):
+            cells = []
+            for record in records:
+                issue_links = "".join(
+                    f'<a class="matrix-issue" href="{esc(issue.get("url", ""))}">'
+                    f'#{issue.get("number", "")} {esc(_tbp_story_map_title(issue))}</a>'
+                    for issue in record["issues"]
+                    if _delivery_mockup_state(issue) == state
+                ) or '<span class="mockup-empty">—</span>'
+                cells.append(f'<td>{issue_links}</td>')
+            rows.append(f'<tr><td>{label}</td>{"".join(cells)}</tr>')
+        body = f'<div class="delivery-matrix"><table><thead><tr><th>State</th>{headers}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
+    else:
+        bands = []
+        for record in records:
+            counts = _delivery_mockup_counts(record["issues"])
+            issue_links = "".join(_delivery_mockup_issue(issue) for issue in record["issues"][:8]) or '<span class="mockup-empty">No assigned issues</span>'
+            bands.append(f'<article class="milestone-band"><h3>{esc(record["title"])}</h3><p>{esc(record.get("description", ""))}</p><div class="milestone-counts"><span class="new">New {counts["new"]}</span><span class="ready">Ready {counts["ready"]}</span><span class="doing">Doing {counts["doing"]}</span><span class="done">Done {counts["done"]}</span></div><div class="milestone-issues">{issue_links}</div></article>')
+        body = f'<div class="milestone-bands">{"".join(bands)}</div>'
+    links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Matrix")))
+    return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
+
+
+def render_roadmap(mockup_variant: str = "") -> str:
+    """Render the live TBP backlog as a full map and focused next branch."""
+    issue_feed = github_issues()
+    mockup = mockup_variant if mockup_variant in {"delivery-a", "delivery-b", "delivery-c"} else ""
+    page_body = (
+        _delivery_mockup_view(issue_feed, mockup)
+        if mockup
+        else '<section class="sec"><h2>Full backlog</h2><div class="roadmap-intro">Expand a Hoshin to see the backlog arranged by Hoshin, Theme, Feature, Epic, and Experiment.</div>'
+        f'{_tbp_story_map_html(issue_feed)}</section>'
+    )
+    return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Roadmap</title>
-<style>{EXEC_CSS}{OVERVIEW_CSS}</style></head><body>
+<style>{EXEC_CSS}{OVERVIEW_CSS}{DELIVERY_MOCKUP_CSS if mockup else ""}</style></head><body>
 <header>
     <div><h1>Project0 — Roadmap</h1><div class="sub">Live TBP story map from GitHub Issues</div></div>
-    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a></div>
+    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a><a href="/roadmap?mockup=delivery-a">Delivery mockup</a></div>
 </header>
 <main>
-    <section class="sec">
-        <h2>Full backlog</h2>
-        <div class="roadmap-intro">Expand a Hoshin to see the backlog arranged by Hoshin, Theme, Feature, Epic, and Experiment.</div>
-        {_tbp_story_map_html(issue_feed)}
-    </section>
+    {page_body}
 </main></body></html>'''
 
 
@@ -1918,7 +2001,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/roadmap":
-            body = render_roadmap().encode("utf-8")
+            mockup = parse_qs(parsed.query).get("mockup", [""])[0]
+            body = render_roadmap(mockup).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:
