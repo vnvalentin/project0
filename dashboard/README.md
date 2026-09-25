@@ -1,10 +1,10 @@
 # Project0 Master Roadmap
 
-Read-only roadmap for the technology-neutral master game vision. It presents
-the player promise, outcome goals A-H, the Party/traversal vertical slice, the
-delivery order, and live GitHub planning focus. The roadmap is not an
-implementation status claim and does not choose storage, model, messaging, or
-map-builder technology.
+Read-only roadmap for the technology-neutral master game vision. The `/roadmap`
+page presents the live GitHub backlog as two views: a collapsible layered
+Hoshin-to-Experiment story map and a focused next-work branch. The page is not
+an implementation status claim and does not choose storage, model, messaging,
+or map-builder technology.
 
 ## Run
 
@@ -34,8 +34,11 @@ http://192.168.1.254:18083/roadmap. The root URL serves the same page for
 backward compatibility.
 
 The container mounts the repository read-only and has no write endpoint. It
-refreshes the roadmap every 30 seconds, so charter and planning changes appear
-without rebuilding the image.
+refreshes the roadmap every 60 seconds, so planning changes appear without
+rebuilding the image. The full backlog uses `tbp:hoshin`, `tbp:theme`,
+`tbp:feature`, `tbp:epic`, and `tbp:experiment` labels plus their parent links.
+The next-work view follows an in-progress branch; when none exists, it clearly
+labels the deterministic ready-to-pull branch as proposed rather than active.
 
 The page reads GitHub issues from `GITHUB_REPO` (default
 `vnvalentin/project0`) and caches the result for `GITHUB_ISSUE_CACHE_SECONDS`
