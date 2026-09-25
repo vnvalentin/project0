@@ -171,7 +171,7 @@ def test_roadmap_view_renders_collapsible_layered_story_map(monkeypatch):
     assert "New 0" in page
     assert "Doing 0" in page
     assert "Done 0" in page
-    assert "NEEDS GRILLING" in page
+    assert "NEEDS GRILLING" not in page
 
 
 def test_next_branch_prefers_most_recent_in_progress_leaf():

@@ -1039,15 +1039,12 @@ def _tbp_story_map_node(node: dict, level: int = 0) -> str:
         ((key, display) for key, display in _TBP_ROADMAP_LEVELS if f"tbp:{key}" in labels),
         ("issue", "Issue"),
     )
-    state = _tbp_roadmap_state(node)
-    display_state = "READY" if state == "READY_TO_PULL" else state.replace("_", " ")
     children = node.get("children", [])
     title = f'<a href="{esc(node.get("url", ""))}">#{node.get("number", "")} {esc(_tbp_story_map_title(node))}</a>'
     summary = (
         f'<span class="story-map-layer-label level-{kind}">{label}</span>'
         f'<span class="story-map-node-title">{title}</span>'
         f'{_tbp_story_map_counts(children)}'
-        f'<span class="story-map-badge {state}">{esc(display_state)}</span>'
     )
     children_html = "".join(_tbp_story_map_node(child, level + 1) for child in children)
     body = f'<div class="story-map-node-children">{children_html}</div>' if children_html else ""
