@@ -174,7 +174,7 @@ def test_roadmap_view_renders_collapsible_layered_story_map(monkeypatch):
     experiment = _roadmap_issue(5, "Experiment: Login", ["tbp:experiment", "tbp:needs-grilling"], "Parent Epic: #4")
     monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [hoshin, theme, feature, epic, experiment], "error": ""})
 
-    page = render_roadmap()
+    page = render_roadmap("backlog")
 
     assert "Full backlog" in page
     assert 'class="story-map-root"' in page
@@ -214,11 +214,29 @@ def test_next_branch_labels_ready_fallback_as_inactive():
 def test_roadmap_view_keeps_unlinked_and_unavailable_states_visible(monkeypatch):
     unlinked = _roadmap_issue(964, "Feature: Orphan", ["tbp:feature"])
     monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": [unlinked], "error": ""})
-    page = render_roadmap()
+    page = render_roadmap("backlog")
     assert "Unlinked TBP issues" in page
     assert "Feature: Orphan" in page
 
     monkeypatch.setattr("app.github_issues", lambda: {"available": False, "issues": [], "error": "network down"})
+    assert "GitHub issues unavailable: network down" in render_roadmap("backlog")
+
+
+@pytest.mark.parametrize("selection", [None, "", "delivery-a", "unknown"])
+def test_default_roadmap_is_bands_with_explicit_backlog_link(monkeypatch, selection):
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": [],
+        "milestones": [{"number": 1, "title": "Track A", "description": "Outcome: Trusted entry."}],
+    })
+    page = render_roadmap() if selection is None else render_roadmap(selection)
+    assert page == render_roadmap("delivery-a")
+    assert 'class="milestone-band"' in page
+    assert 'href="/roadmap?mockup=backlog">Backlog</a>' in page
+    assert "Full backlog" not in page
+
+
+def test_default_bands_retains_source_warning(monkeypatch):
+    monkeypatch.setattr("app.github_issues", lambda: {"available": False, "error": "network down"})
     assert "GitHub issues unavailable: network down" in render_roadmap()
 
 

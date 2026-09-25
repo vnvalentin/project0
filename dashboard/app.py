@@ -1409,9 +1409,11 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
 
 
 def render_roadmap(mockup_variant: str = "") -> str:
-    """Render the live TBP backlog as a full map and focused next branch."""
+    """Default to milestone Bands, with the backlog tree explicitly selectable."""
     issue_feed = github_issues()
-    mockup = mockup_variant if mockup_variant in {"delivery-a", "delivery-b", "delivery-c"} else ""
+    mockup = "" if mockup_variant == "backlog" else (
+        mockup_variant if mockup_variant in {"delivery-a", "delivery-b", "delivery-c"} else "delivery-a"
+    )
     page_body = (
         _delivery_mockup_view(issue_feed, mockup)
         if mockup
@@ -1423,7 +1425,7 @@ def render_roadmap(mockup_variant: str = "") -> str:
 <style>{EXEC_CSS}{OVERVIEW_CSS}{DELIVERY_MOCKUP_CSS if mockup else ""}</style></head><body class="{'delivery-bands-page' if mockup == 'delivery-a' else ''}">
 <header>
     <div><h1>Project0 — Roadmap</h1><div class="sub">Live TBP story map from GitHub Issues</div></div>
-    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a><a href="/roadmap?mockup=delivery-a">Delivery mockup</a></div>
+    <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a><a href="/roadmap?mockup=backlog">Backlog</a></div>
 </header>
 <main>
     {page_body}
