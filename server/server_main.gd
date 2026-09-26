@@ -803,6 +803,7 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 
 
 func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
+	var generation_started_usec: int = int(trace.get("generation_started_usec", Time.get_ticks_usec()))
 	if _provisional_sector_generator == null:
 		return
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
@@ -825,6 +826,7 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 		_jit_root_trace_by_sector[sector_id] = trace.duplicate(true)
 		_emit_jit_trace(trace, peer_id)
 	var initiating_trace: Dictionary = _jit_root_trace_by_sector.get(sector_id, trace)
+	initiating_trace["generation_started_usec"] = generation_started_usec
 	var prompt: String = _sector_generation_prompt(sector_id)
 	var selected_profile: String = _select_sector_profile(sector_id)
 	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, selected_profile, initiating_trace)

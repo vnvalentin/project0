@@ -1,7 +1,7 @@
 extends Node
 class_name SectorBlueprintService
 ## Server-side async request seam for Slice 008: sends a sector-generation
-## prompt to the local Ollama instance via the existing, unchanged
+## prompt to the local Ollama instance via the shared
 ## LocalLLMClient, then validates the result against SectorBlueprintSchema.
 ## Server-only, per shared/local_llm_client.gd and AGENTS.md; the client never
 ## calls Ollama.
@@ -9,14 +9,14 @@ class_name SectorBlueprintService
 ## Every request is assigned a correlation id and provenance (requested_at
 ## ticks, model, host) recorded in memory for the lifetime of this node, so a
 ## caller (or telemetry) can trace which request produced which outcome. This
-## node adds no persistence, no retry policy beyond LocalLLMClient's own
-## single bounded HTTPRequest timeout, no SQLite, and no world/geometry
+## node uses a JIT-only absolute monotonic deadline, capped at 3 seconds with
+## zero retries. It adds no persistence, no SQLite, and no world/geometry
 ## mutation — see docs/slices/008-sector-blueprint-contract.md for full scope
 ## and non-goals.
 ##
 ## Non-blocking by construction: request_sector_blueprint() is an async
 ## (coroutine) function that awaits LocalLLMClient's own await on
-## HTTPRequest.request_completed. Godot's await suspends only the calling
+## frame-driven deadline/HTTP completion. Godot's await suspends only the calling
 ## coroutine, not the SceneTree/multiplayer physics loop, so other nodes
 ## (including ServerPlayerState's per-peer _physics_process) keep ticking
 ## while a request is in flight.
@@ -33,6 +33,7 @@ const REQUEST_OUTCOME_TRANSPORT_ERROR: String = "transport_error"
 const REQUEST_OUTCOME_TIMEOUT: String = "timeout"
 const SOURCE_LLM: String = "llm"
 const SOURCE_FALLBACK: String = "fallback"
+const JIT_MAX_GENERATION_SEC: float = 3.0
 
 signal blueprint_request_completed(correlation_id: String, result: Dictionary)
 
@@ -45,6 +46,7 @@ var _llm_client: Node
 ## this node's lifetime; not persisted (no SQLite/Canon in this slice).
 var _request_provenance: Dictionary = {}
 var _next_sequence: int = 0
+var clock_usec: Callable = Callable()
 
 
 func _ready() -> void:
@@ -56,7 +58,16 @@ func _ready() -> void:
 	# environment. Without this the containerized server points at its own
 	# loopback and every sector request fails before validation.
 	_llm_client.configure_from_env()
+	_llm_client.request_timeout_sec = bounded_jit_timeout(_llm_client.request_timeout_sec)
 	add_child(_llm_client)
+
+
+static func bounded_jit_timeout(configured_sec: float) -> float:
+	return minf(configured_sec, JIT_MAX_GENERATION_SEC) if is_finite(configured_sec) and configured_sec > 0.0 else JIT_MAX_GENERATION_SEC
+
+
+func _now_usec() -> int:
+	return int(clock_usec.call()) if clock_usec.is_valid() else Time.get_ticks_usec()
 
 
 ## Public seam. Sends `prompt` to the local Ollama instance and validates the
@@ -75,21 +86,30 @@ func _ready() -> void:
 ## function is a coroutine (uses await) so callers must await it, but nothing
 ## it does blocks the SceneTree's own frame/physics processing while it is
 ## suspended.
-func request_sector_blueprint(prompt: String, sector_id: String = "generic-sector") -> Dictionary:
+func request_sector_blueprint(prompt: String, sector_id: String = "generic-sector", generation_started_usec: int = -1) -> Dictionary:
+	var started_usec: int = _now_usec() if generation_started_usec < 0 else generation_started_usec
+	var budget_sec: float = minf(bounded_jit_timeout(request_timeout_sec), bounded_jit_timeout(_llm_client.request_timeout_sec))
+	var deadline_usec: int = started_usec + int(budget_sec * 1000000.0)
 	var correlation_id: String = _generate_correlation_id()
 	var provenance: Dictionary = {
 		"correlation_id": correlation_id,
 		"requested_at_ticks_msec": Time.get_ticks_msec(),
 		"model": model_name,
 		"host": ollama_host,
+		"generation_started_usec": started_usec,
+		"generation_deadline_usec": deadline_usec,
+		"generation_budget_ms": budget_sec * 1000.0,
 	}
 	_request_provenance[correlation_id] = provenance
 
-	var llm_result: Dictionary = await _llm_client.generate_json(prompt)
+	var llm_result: Dictionary = await _llm_client.generate_json(prompt, deadline_usec, clock_usec)
+	var generation_completed_usec: int = _now_usec()
 
 	var result: Dictionary
-	if not llm_result["success"]:
-		var request_outcome: String = REQUEST_OUTCOME_TIMEOUT if _is_timeout(llm_result["error"]) else REQUEST_OUTCOME_TRANSPORT_ERROR
+	if generation_completed_usec >= deadline_usec:
+		result = _fallback_result(correlation_id, REQUEST_OUTCOME_TIMEOUT, "", "JIT generation deadline exceeded (result=%d)" % HTTPRequest.RESULT_TIMEOUT, sector_id, provenance)
+	elif not llm_result["success"]:
+		var request_outcome: String = REQUEST_OUTCOME_TIMEOUT if llm_result.get("outcome", "") == LocalLLMClientScript.OUTCOME_TIMEOUT else REQUEST_OUTCOME_TRANSPORT_ERROR
 		result = _fallback_result(correlation_id, request_outcome, "", llm_result["error"], sector_id, provenance)
 	else:
 		var validation: Dictionary = SectorBlueprintSchemaScript.validate_generated(llm_result["data"])
@@ -108,6 +128,11 @@ func request_sector_blueprint(prompt: String, sector_id: String = "generic-secto
 		else:
 			result = _fallback_result(correlation_id, REQUEST_OUTCOME_VALIDATED, validation["outcome"], "Generated blueprint rejected by schema gate.", sector_id, provenance)
 
+	result["timing"] = {
+		"generation_duration_ms": float(generation_completed_usec - started_usec) / 1000.0,
+		"validation_duration_ms": float(_now_usec() - generation_completed_usec) / 1000.0,
+		"deadline_overshoot_ms": float(maxi(0, generation_completed_usec - deadline_usec)) / 1000.0,
+	}
 	blueprint_request_completed.emit(correlation_id, result)
 	return result
 
@@ -116,15 +141,6 @@ func request_sector_blueprint(prompt: String, sector_id: String = "generic-secto
 ## given correlation id, or an empty Dictionary if unknown.
 func get_provenance(correlation_id: String) -> Dictionary:
 	return _request_provenance.get(correlation_id, {})
-
-
-func _is_timeout(error_text: String) -> bool:
-	# LocalLLMClient reports Godot's own HTTPRequest timeout as a non-OK
-	# result code inside its "HTTP request failed (result=...)" message
-	# (RESULT_TIMEOUT); no separate timeout signal exists on HTTPRequest, so
-	# this string check is the only seam available without modifying the
-	# preserved, unchanged LocalLLMClient. See shared/local_llm_client.gd.
-	return error_text.findn("result=%d" % HTTPRequest.RESULT_TIMEOUT) != -1
 
 
 func _generate_correlation_id() -> String:

@@ -1,7 +1,7 @@
 extends Node
 class_name ProvisionalSectorGenerator
 ## Server-side public seam for Slice 009: accepts a sector-generation request
-## keyed by sector id, drives the existing, unchanged Slice 008
+## keyed by sector id, drives the Slice 008
 ## SectorBlueprintService, and exposes an in-memory provisional
 ## result/outcome. See docs/slices/009-provisional-sector-generation.md.
 ##
@@ -16,7 +16,7 @@ class_name ProvisionalSectorGenerator
 ##
 ## Explicit non-goals (see .scratch/game-vision/issues/16-provisional-sector-generation.md):
 ## no geometry generation, no SQLite, no Canon persistence, no sector-boundary
-## detection, no quests, no retries beyond SectorBlueprintService's own bound,
+## detection, no quests, zero LLM retries,
 ## and no client-side Ollama calls. Results live only in _sector_state for
 ## this node's lifetime and are lost on process exit.
 ##
@@ -57,6 +57,11 @@ signal provisional_sector_ready(sector_id: String, result: Dictionary)
 ## own, used only for provenance against SectorBlueprintService.get_provenance()).
 ## In-memory only for this node's lifetime; no persistence.
 var _sector_state: Dictionary = {}
+var clock_usec: Callable = Callable()
+
+
+func _now_usec() -> int:
+	return int(clock_usec.call()) if clock_usec.is_valid() else Time.get_ticks_usec()
 
 
 ## Public seam. Accepts a request to provisionally generate `sector_id` from
@@ -82,6 +87,7 @@ func request_provisional_sector(sector_id: String, prompt: String, selected_prof
 		"selected_profile": selected_profile,
 		"result": null,
 		"trace": trace.duplicate(true),
+		"generation_started_usec": int(trace.get("generation_started_usec", _now_usec())),
 	}
 
 	_run_request.call_deferred(sector_id, prompt)
@@ -120,20 +126,22 @@ func get_provisional_result(sector_id: String) -> Dictionary:
 
 
 func _run_request(sector_id: String, prompt: String) -> void:
-	var started_usec: int = Time.get_ticks_usec()
+	var started_usec: int = _sector_state[sector_id]["generation_started_usec"]
 	var blueprint_service: Node = SectorBlueprintServiceScript.new()
 	blueprint_service.ollama_host = ollama_host
 	blueprint_service.model_name = model_name
 	blueprint_service.request_timeout_sec = request_timeout_sec
+	blueprint_service.clock_usec = clock_usec
 	add_child(blueprint_service)
 
-	var result: Dictionary = await blueprint_service.request_sector_blueprint(prompt, sector_id)
+	var result: Dictionary = await blueprint_service.request_sector_blueprint(prompt, sector_id, started_usec)
 	var trace: Dictionary = _sector_state[sector_id].get("trace", {})
 	if not trace.is_empty():
 		var generation_span: Dictionary = JitTraceContextScript.child(trace, "llm_generation_latency")
-		generation_span["duration_ms"] = float(Time.get_ticks_usec() - started_usec) / 1000.0
+		generation_span["duration_ms"] = result["timing"]["generation_duration_ms"]
 		generation_span["status"] = "OK" if result.get("request_outcome", "") == "validated" else "ERROR"
 		var validation_span: Dictionary = JitTraceContextScript.child(generation_span, "schema_validation_result")
+		validation_span["duration_ms"] = result["timing"]["validation_duration_ms"]
 		validation_span["status"] = "OK" if result.get("candidate_validation_outcome", result.get("validation_outcome", "")) == "valid" else "ERROR"
 		result["trace_spans"] = [generation_span, validation_span]
 		result["trace_context"] = validation_span

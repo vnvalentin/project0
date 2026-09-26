@@ -31,6 +31,32 @@ func _teardown(generator: Node, fake_server: Node) -> void:
 	await wait_process_frames(1)
 
 
+func test_deferred_generation_consumes_original_deadline() -> void:
+	var fake_server: Node = FakeOllamaHttpServerScript.new()
+	var port: int = fake_server.start()
+	add_child(fake_server)
+	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
+	var generator: Node = _make_generator(port, 180.0)
+	var clock: Array[int] = [1000000]
+	generator.set("clock_usec", func() -> int: return clock[0])
+	var trigger: Dictionary = JitTraceContextScript.root(41, "sector-0-0")
+	trigger["generation_started_usec"] = clock[0]
+	var identity: String = generator.request_provisional_sector("sector-0-0", "deferred prompt", trigger)
+	clock[0] = 4000000
+	assert_eq(generator.request_provisional_sector("sector-0-0", "duplicate", trigger), identity)
+	await generator.provisional_sector_ready
+	var result: Dictionary = generator.get_provisional_result("sector-0-0")
+	assert_eq(result["request_outcome"], "timeout", "deferred dispatch must not reset deadline")
+	assert_eq(fake_server.request_count, 0, "expired budget sends no HTTP request")
+	assert_eq(result["provenance"].get("generation_started_usec", -1), 1000000)
+	assert_eq(result["provenance"].get("generation_deadline_usec", -1), 4000000)
+	assert_eq(result["trace_spans"][0]["duration_ms"], 3000.0)
+	assert_eq(result["trace_spans"][0]["status"], "ERROR")
+	assert_eq(result["trace_spans"][1]["status"], "OK")
+	assert_eq(result["trace_spans"][0]["trace_id"], trigger["trace_id"])
+	await _teardown(generator, fake_server)
+
+
 func test_request_is_accepted_synchronously_as_pending() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
@@ -99,6 +125,12 @@ func test_trace_context_links_generation_and_validation_to_the_trigger() -> void
 	assert_eq(spans[1]["trace_id"], trigger["trace_id"])
 	assert_eq(spans[1]["parent_span_id"], spans[0]["span_id"])
 	assert_eq(result["trace_context"], spans[1])
+	assert_gt(int(trigger.get("generation_started_usec", -1)), 0, "boundary trace captures monotonic time zero")
+	assert_eq(result["provenance"]["generation_started_usec"], trigger.get("generation_started_usec", -1), "trace construction and scheduling consume the same budget")
+	assert_eq(spans[0]["duration_ms"], result["timing"]["generation_duration_ms"])
+	assert_eq(spans[1]["duration_ms"], result["timing"]["validation_duration_ms"])
+	assert_gt(spans[0]["duration_ms"], 0.0)
+	assert_gt(spans[1]["duration_ms"], 0.0, "schema validation duration is measured, not default zero")
 
 	await _teardown(generator, fake_server)
 
