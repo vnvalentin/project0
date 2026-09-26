@@ -68,8 +68,75 @@ func test_multi_peer_replication_harness_passes() -> void:
 	)
 
 	var joined_output: String = "\n".join(output)
+	_save_output("multi-peer-normal", joined_output)
 	assert_eq(exit_code, 0, "multi-peer replication E2E harness exits 0 — output tail:\n%s" % _tail(joined_output))
 	assert_true(joined_output.contains("ALL PASS"), "multi-peer replication E2E harness prints ALL PASS — output tail:\n%s" % _tail(joined_output))
+
+
+func test_readiness_survives_delayed_client_publication() -> void:
+	var output: Array = []
+	var exit_code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"-s", "tests/fixtures/gated_multi_peer_replication.gd",
+	]), output, true)
+	var joined_output: String = "\n".join(output)
+	_save_output("multi-peer-delayed", joined_output)
+	assert_true(joined_output.contains("READINESS_RELEASE"), "real client was released by the observer interleaving")
+	assert_eq(exit_code, 0, "readiness outlives observer frames without changing movement or disconnect assertions")
+	assert_true(joined_output.contains("ALL PASS"), "delayed real client completes the complete E2E contract")
+	assert_false(joined_output.contains("SCRIPT ERROR:"), "missing readiness never cascades into a script exception")
+	var release: Dictionary = _event(joined_output, "READINESS_RELEASE ")
+	assert_gt(int(release.get("a_reads", 0)), 300, "observer remains active beyond the former frame budget")
+	assert_true(release.get("a_alive", false), "delayed client remains alive at release")
+	assert_lt(int(release.get("elapsed_msec", 20000)), 20000, "release stays inside the wall-clock contract")
+
+
+func test_readiness_fails_closed_when_client_exits() -> void:
+	_assert_readiness_failure("--stop-client-before-ready", "process_exited", "multi-peer-exited")
+
+
+func test_readiness_fails_closed_at_deadline() -> void:
+	_assert_readiness_failure("--never-release", "deadline", "multi-peer-deadline")
+
+
+func _assert_readiness_failure(argument: String, reason: String, artifact: String) -> void:
+	var output: Array = []
+	var exit_code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"-s", "tests/fixtures/gated_multi_peer_replication.gd", "--", argument,
+	]), output, true)
+	var joined_output: String = "\n".join(output)
+	_save_output(artifact, joined_output)
+	var failure: Dictionary = _event(joined_output, "PEER_OBSERVATION_FAILED ")
+	assert_eq(exit_code, 1, "unready real client fails the harness")
+	assert_eq(failure.get("reason", ""), reason, "failure distinguishes exit from deadline")
+	assert_eq(failure.get("last_valid_state", null), {}, "no invented ready snapshot")
+	assert_false(joined_output.contains("ALL PASS"), "failed readiness cannot pass")
+	assert_false(joined_output.contains("SCRIPT ERROR:"), "failed readiness cannot index absent peer state")
+	assert_true(joined_output.contains("PASS: owned authenticated fixture database removed"), "failed readiness runs owned teardown")
+	if reason == "deadline":
+		assert_gte(int(failure.get("elapsed_msec", 0)), 20000, "deadline does not depend on observer frame rate")
+		assert_true(failure.get("client_alive", false), "deadline evidence distinguishes a live gated client")
+	else:
+		assert_false(failure.get("client_alive", true), "exit evidence identifies the stopped client")
+
+
+func _save_output(artifact: String, text: String) -> void:
+	DirAccess.make_dir_recursive_absolute("res://build/validation")
+	var file: FileAccess = FileAccess.open("res://build/validation/" + artifact + ".log", FileAccess.WRITE)
+	assert_not_null(file, "complete subprocess evidence is retained")
+	if file != null:
+		file.store_string(text)
+		file.close()
+
+
+func _event(text: String, prefix: String) -> Dictionary:
+	for line: String in text.split("\n"):
+		if line.begins_with(prefix):
+			var parsed: Variant = JSON.parse_string(line.substr(prefix.length()))
+			if parsed is Dictionary:
+				return parsed
+	return {}
 
 
 func _tail(text: String) -> String:
