@@ -66,6 +66,7 @@ func _ready() -> void:
 ##   "correlation_id": String,
 ##   "request_outcome": String,   # REQUEST_OUTCOME_*
 ##   "validation_outcome": String,# SectorBlueprintSchema.OUTCOME_* or "" if not reached
+##   "candidate_validation_outcome": String, # independent fallback validation when selected
 ##   "detail": String,
 ##   "blueprint": Variant,        # validated Dictionary, or null
 ##   "provenance": Dictionary,
@@ -132,14 +133,16 @@ func _generate_correlation_id() -> String:
 
 
 func _fallback_result(correlation_id: String, request_outcome: String, validation_outcome: String, detail: String, sector_id: String, provenance: Dictionary) -> Dictionary:
+	var candidate_validation: Dictionary = SectorBlueprintSchemaScript.validate(_generic_fallback(sector_id))
 	return {
 		"correlation_id": correlation_id,
 		"request_outcome": request_outcome,
 		"validation_outcome": validation_outcome,
+		"candidate_validation_outcome": candidate_validation["outcome"],
 		"detail": detail,
 		"source": SOURCE_FALLBACK,
 		"fallback_selected": true,
-		"blueprint": _generic_fallback(sector_id),
+		"blueprint": candidate_validation["blueprint"],
 		"provenance": provenance,
 	}
 

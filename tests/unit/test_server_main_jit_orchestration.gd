@@ -575,6 +575,88 @@ func test_initial_canon_write_failure_recovers_without_regeneration() -> void:
 	server.free()
 
 
+func test_timeout_fallback_commits_canon_and_holds_until_matching_ack() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	state.set_physics_process(false)
+	var database: String = "test_fallback_canon_%d_%d.db" % [Time.get_ticks_usec(), randi()]
+	var store: RecoverableCanonStore = RecoverableCanonStore.new()
+	store.fail_writes = false
+	assert_eq(store.open(database)["outcome"], "ok")
+	var repository: CanonRepository = CanonRepositoryScript.new(store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	server._canon_repository = repository
+	server._sector_boundary_detector.set_canon_lookup(func(sector_id: String) -> bool:
+		return repository.get_canonical_sector(sector_id)["outcome"] == "ok"
+	)
+	var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
+	coordinator.set_canonicalize_callback(repository.canonicalize_blueprint)
+	server._canon_generation_coordinator = coordinator
+	var ollama: CountingOllamaServer = CountingOllamaServer.new()
+	ollama.respond_at_all = false
+	add_child_autofree(ollama)
+	var port: int = ollama.start()
+	assert_gt(port, 0)
+	server._provisional_sector_generator.free()
+	var generator: ProvisionalSectorGenerator = ProvisionalSectorGeneratorScript.new()
+	generator.ollama_host = "http://127.0.0.1:%d" % port
+	generator.request_timeout_sec = 0.1
+	add_child_autofree(generator)
+	generator.provisional_sector_ready.connect(server._on_provisional_sector_ready)
+	server._provisional_sector_generator = generator
+	watch_signals(generator)
+	state.apply_input_intent(7, Vector2(1, 0), 1)
+	state._physics_process(1.0 / 60.0)
+	assert_lt(state.position.x, 440.0)
+	var correlation: String = generator.get_correlation_id("sector-1-0")
+	await generator.provisional_sector_ready
+	await wait_process_frames(1)
+	var generated: Dictionary = generator.get_provisional_result("sector-1-0")
+	assert_eq(generated.get("request_outcome"), "timeout", "model timeout must not become LLM success")
+	assert_eq(generated.get("validation_outcome"), "", "model schema validation was never reached")
+	assert_eq(generated.get("source"), "fallback")
+	assert_true(generated.get("fallback_selected", false))
+	assert_true(String(generated.get("detail", "")).contains("result=%d" % HTTPRequest.RESULT_TIMEOUT))
+	assert_eq(generated.get("candidate_validation_outcome", ""), "valid", "fallback is validated separately")
+	assert_eq(generated["trace_spans"][0]["status"], "ERROR")
+	assert_eq(generated["trace_spans"][1]["status"], "OK", "schema span describes the deliverable candidate")
+	assert_eq(store.write_attempts, 1, "independently valid fallback reaches real SQLite Canon")
+	var stored: Dictionary = repository.get_canonical_sector("sector-1-0")
+	assert_eq(stored["outcome"], "ok")
+	assert_eq(server.presentations.size(), 1, "only stored Canon is dispatched")
+	state._physics_process(1.0 / 60.0)
+	assert_lt(state.position.x, 440.0, "committed fallback alone cannot release the frontier")
+	if server.presentations.size() == 1 and stored["outcome"] == "ok":
+		var presentation: Dictionary = server.presentations[0]
+		assert_eq(JSON.stringify(presentation["blueprint"]), JSON.stringify(stored["sector"]["blueprint"]), "all serialized Canon fields match")
+		assert_eq(presentation["blueprint"]["archetype"], "WILDERNESS")
+		server._on_client_telemetry_batch_received(8, [_ack_event(presentation["trace"])], 1)
+		state._physics_process(1.0 / 60.0)
+		assert_lt(state.position.x, 440.0, "wrong-peer ACK cannot release fallback")
+		server._on_client_telemetry_batch_received(7, [_ack_event(presentation["trace"])], 2)
+		state._physics_process(1.0 / 60.0)
+		assert_gt(state.position.x, 440.0, "correct ACK releases durable fallback")
+		assert_eq(coordinator.accept_generation_result("sector-1-0", "WILDERNESS", generated)["outcome"], "idempotent")
+		server._reload_sector_from_boundary(7, "sector-1-0", state.position, presentation["trace"])
+		assert_eq(server.presentations.back()["blueprint"], stored["sector"]["blueprint"])
+		assert_eq(server.presentations.back()["trace"]["spatial_guid"], presentation["trace"]["spatial_guid"])
+		assert_eq(repository.get_canonical_sector("sector-1-0")["sector"], stored["sector"])
+		var conflicting: Dictionary = generated.duplicate(true)
+		conflicting["blueprint"]["tiles"][0]["kind"] = "wall"
+		assert_eq(coordinator.accept_generation_result("sector-1-0", "WILDERNESS", conflicting)["outcome"], "conflict")
+		assert_eq(repository.get_canonical_sector("sector-1-0")["sector"], stored["sector"], "fallback cannot replace immutable Canon")
+	assert_eq(generator.get_correlation_id("sector-1-0"), correlation)
+	assert_signal_emit_count(generator, "provisional_sector_ready", 1, "no regeneration on replay")
+	assert_eq(ollama.requests, 1, "timeout delivery and replay never retry generation")
+	ollama.stop()
+	store.close()
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		var database_path: String = ProjectSettings.globalize_path("user://%s%s" % [database, suffix])
+		if FileAccess.file_exists(database_path):
+			DirAccess.remove_absolute(database_path)
+	server.free()
+
+
 func test_cached_invalid_and_fallback_candidates_cannot_release_frontier() -> void:
 	var valid: Dictionary = {
 		"request_outcome": "validated", "validation_outcome": "valid", "selected_profile": "WILDERNESS",
