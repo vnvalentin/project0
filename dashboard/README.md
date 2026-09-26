@@ -57,6 +57,17 @@ field access.
 
 ## Milestone Slice Mapping
 
+GitHub milestone titles use `Milestone N: Outcome`. Roadmap views order these
+numerically by the displayed milestone number, not GitHub's immutable milestone
+ID. Existing compact `M0` titles remain supported, and slice-detail URLs continue
+to use the original GitHub ID.
+
+M0 has the approved groups M0.1 Standalone Entry, M0.2 Movement and Traversal,
+M0.3 Solo Combat, and M0.4 Mind versus Tool. M1 has M1.1 Shared Exploration and
+M1.2 Co-op Combat. Their descriptions and issue memberships live in GitHub, not
+in a hardcoded dashboard list. Launcher milestones remain explicitly paused;
+their display numbers do not authorize resuming work.
+
 The default Roadmap at `/roadmap` opens Bands and reads delivery Slice groups
 from each GitHub milestone description. It does not infer membership from
 issue labels or parent links. The backlog tree is available through the

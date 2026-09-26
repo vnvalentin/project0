@@ -240,6 +240,29 @@ def test_default_bands_retains_source_warning(monkeypatch):
     assert "GitHub issues unavailable: network down" in render_roadmap()
 
 
+@pytest.mark.parametrize("selection", ["", "delivery-a", "delivery-b", "delivery-c"])
+def test_numbered_milestones_sort_numerically_and_keep_original_links(monkeypatch, selection):
+    milestones = [
+        {"number": number, "title": f"Milestone {order}: Outcome", "description": ""}
+        for number, order in [(2, 10), (15, 1), (14, 0), (1, 2)]
+    ]
+    milestones[2]["description"] = "## Slices\n" + _mapped_slice_definition("M0.1")
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True,
+        "issues": [{**_roadmap_issue(7, "Standalone entry", []), "milestone_number": 14}],
+        "milestones": milestones,
+    })
+
+    page = render_roadmap(selection)
+
+    positions = [page.index(f"Milestone {order}: Outcome") for order in [0, 1, 2, 10]]
+    assert positions == sorted(positions)
+    if selection in {"", "delivery-a"}:
+        assert 'data-slice-id="M0.1"' in page
+        assert 'href="/roadmap?milestone=14&amp;slice=M0.1"' in page
+        assert "Milestone 14:" not in page
+
+
 def test_bands_reads_description_slice_groups_not_issue_labels(monkeypatch):
     description = """Outcome: Trusted entry.
 ## Slice Mapping
@@ -285,6 +308,38 @@ Complete when: Update acceptance passes.
     assert "Required scope awaiting Slice definition" in page
     assert "Controller parity remains required." in page
     assert "### Slice" not in page
+
+
+def test_solo_and_shared_milestones_keep_approved_slice_groups(monkeypatch):
+    groups = {
+        14: (0, ["Standalone Entry", "Movement and Traversal", "Solo Combat", "Mind versus Tool"]),
+        15: (1, ["Shared Exploration", "Co-op Combat"]),
+    }
+    milestones, issues = [], []
+    for milestone_number, (order, titles) in groups.items():
+        description = "Outcome: Playable runtime proof.\n## Slice Mapping\n"
+        for index, title in enumerate(titles, 1):
+            number = milestone_number * 10 + index
+            description += (
+                f"### Slice M{order}.{index}: {title}\nOutcome: {title}.\n"
+                f"Included issues:\n- #{number}\nComplete when: Runtime proof passes.\n"
+                "Dependency: Existing authoritative runtime.\n"
+            )
+            issues.append({**_roadmap_issue(number, title, []), "milestone_number": milestone_number})
+        milestones.append({"number": milestone_number, "title": f"Milestone {order}: Playable", "description": description})
+    monkeypatch.setattr("app.github_issues", lambda: {"available": True, "issues": issues, "milestones": milestones})
+
+    page = render_roadmap()
+
+    assert page.count('class="milestone-band"') == 2
+    assert page.count('class="milestone-slice"') == 6
+    assert "Slice delivery: 0/4 complete" in page
+    assert "Slice delivery: 0/2 complete" in page
+    assert "Unmapped milestone work" not in page
+    assert "Unresolved scope or mapping" not in page
+    for order, titles in groups.values():
+        for index, title in enumerate(titles, 1):
+            assert f"Slice M{order}.{index}: {title}" in page
 
 
 def _mapped_bands_page(monkeypatch, description, issues):

@@ -810,7 +810,7 @@ VISION_STATEMENT = (
     "they can explore, alter, inhabit, build upon, and eventually help govern."
 )
 
-ROADMAP_MILESTONE_RE = re.compile(r"^M(\d+)(?:\+)?\s+·\s+")
+ROADMAP_MILESTONE_RE = re.compile(r"^(?:Milestone\s+|M)(\d+)(?:\+)?\s*(?:·|:)\s+")
 
 
 def _roadmap_metadata(milestone: dict) -> dict:
@@ -1124,7 +1124,7 @@ DELIVERY_MOCKUP_CSS = """
 def _delivery_mockup_records(issue_feed: dict) -> list[dict]:
     issues = issue_feed.get("issues", [])
     records = []
-    for milestone in issue_feed.get("milestones", []):
+    for milestone in _roadmap_milestones(issue_feed):
         assigned = [issue for issue in issues if issue.get("milestone_number") == milestone["number"]]
         records.append({**milestone, "issues": assigned})
     unassigned = [issue for issue in issues if issue.get("milestone_number") is None]
