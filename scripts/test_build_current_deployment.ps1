@@ -14,6 +14,7 @@ $rcedit = Join-Path $bin "rcedit.cmd"
 $savedPath = $env:PATH
 $savedGodotMode = $env:FAKE_GODOT_MODE
 $savedRceditFail = $env:FAKE_RCEDIT_FAIL
+$savedGodotVersion = $env:FAKE_GODOT_VERSION
 $evidence = Join-Path $PSScriptRoot "..\build\validation\standalone-packaging-tests-$runId.json"
 $testResult = [ordered]@{ issue = 1213; host_name = $env:COMPUTERNAME; status = "failed"; failure = $null; cleanup = $false; failure_cases = 0 }
 
@@ -27,7 +28,7 @@ function Get-Fingerprint([string[]]$Paths) {
 }
 
 try {
-    Remove-Item Env:FAKE_GODOT_MODE, Env:FAKE_RCEDIT_FAIL -ErrorAction SilentlyContinue
+    Remove-Item Env:FAKE_GODOT_MODE, Env:FAKE_RCEDIT_FAIL, Env:FAKE_GODOT_VERSION -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path (Join-Path $repo "scripts"), (Join-Path $repo "shared"), (Join-Path $repo "server"), $bin,
         (Join-Path $repo "dist\current"), (Join-Path $repo "native\windows_launcher\payload") | Out-Null
     Copy-Item (Join-Path $PSScriptRoot "build_current_deployment.ps1") (Join-Path $repo "scripts")
@@ -45,6 +46,10 @@ try {
     # The PCK is the staged version script, proving a fresh export of stamped source.
     [IO.File]::WriteAllText($godot, (@(
         '@echo off'
+        'if "%~1"=="--version" ('
+        '  if defined FAKE_GODOT_VERSION (echo %FAKE_GODOT_VERSION%) else (echo 4.7.2.stable.official.ed1daf0bf)'
+        '  exit /b 0'
+        ')'
         "echo godot %*>>`"$toolLog`""
         'if "%FAKE_GODOT_MODE%"=="fail" exit /b 7'
         'if not exist "%~3\server\starting_town_hub_fixture.gd" exit /b 12'
@@ -83,7 +88,7 @@ try {
     $names = @(Get-ChildItem $out -Force | ForEach-Object Name | Sort-Object)
     if (($names -join ",") -ne "deployment-manifest.json,$zipName") { throw "Unexpected package output: $($names -join ',')" }
     $manifest = Get-Content (Join-Path $out "deployment-manifest.json") -Raw | ConvertFrom-Json
-    if ($manifest.version -ne "0.14.0" -or $manifest.source_commit -ne $commit -or $manifest.source_tree_dirty -ne $false) {
+    if ($manifest.version -ne "0.14.0" -or $manifest.source_commit -ne $commit -or $manifest.source_tree_dirty -ne $false -or $manifest.godot_version -ne "4.7.2.stable.official.ed1daf0bf") {
         throw "Manifest identity/provenance is wrong: $($manifest | ConvertTo-Json -Depth 5)"
     }
     $zip = Get-Item (Join-Path $out $zipName)
@@ -123,6 +128,7 @@ try {
     $package = @(Get-ChildItem $out -File | ForEach-Object FullName)
     $packageBefore = Get-Fingerprint $package
     $failures = [ordered]@{
+        "unqualified-engine" = @{ EngineVersion = "4.3.stable.official.77dcf97d8"; Expect = "Unqualified Godot engine" }
         "export-exit" = @{ Mode = "fail"; Expect = "Godot export failed: 7" }
         "export-diagnostics" = @{ Mode = "error"; Expect = "Godot export reported error diagnostics" }
         "missing-exe" = @{ Mode = "noexe"; Expect = "Missing Godot client executable" }
@@ -137,6 +143,7 @@ try {
         $spec = $failures[$case]
         $env:FAKE_GODOT_MODE = $spec.Mode
         $env:FAKE_RCEDIT_FAIL = $spec.RceditFail
+        $env:FAKE_GODOT_VERSION = $spec.EngineVersion
         try {
             $version = if ($spec.Version) { $spec.Version } else { "0.15.0" }
             $rceditArg = if ($spec.Rcedit) { $spec.Rcedit } else { $rcedit }
@@ -144,7 +151,7 @@ try {
             $result = Invoke-Build $version $rceditArg
         }
         finally {
-            Remove-Item Env:FAKE_GODOT_MODE, Env:FAKE_RCEDIT_FAIL -ErrorAction SilentlyContinue
+            Remove-Item Env:FAKE_GODOT_MODE, Env:FAKE_RCEDIT_FAIL, Env:FAKE_GODOT_VERSION -ErrorAction SilentlyContinue
         }
         if ($result.ExitCode -eq 0) { throw "$case was accepted." }
         if (-not ($result.Output -replace '\s+', ' ').Contains($spec.Expect)) { throw "$case failed for the wrong reason:`n$($result.Output)" }
@@ -152,8 +159,8 @@ try {
         if ((Get-Fingerprint $package) -ne $packageBefore -or @(Get-ChildItem $out -Force).Count -ne 2) {
             throw "$case changed the existing 0.14.0 package."
         }
-        if ($case -eq "version-collision" -and @(Get-Content $toolLog | Where-Object { $_ -like "godot *" }).Count -ne $godotCallsBefore) {
-            throw "Version collision exported before refusing."
+        if ($case -in @("version-collision", "unqualified-engine") -and @(Get-Content $toolLog | Where-Object { $_ -like "godot *" }).Count -ne $godotCallsBefore) {
+            throw "$case exported before refusing."
         }
         & $checkClean $case
         $testResult.failure_cases++
@@ -172,6 +179,7 @@ finally {
     $env:PATH = $savedPath
     $env:FAKE_GODOT_MODE = $savedGodotMode
     $env:FAKE_RCEDIT_FAIL = $savedRceditFail
+    $env:FAKE_GODOT_VERSION = $savedGodotVersion
     try {
         if (Test-Path $root) { Remove-Item $root -Recurse -Force }
         $testResult.cleanup = -not (Test-Path $root)

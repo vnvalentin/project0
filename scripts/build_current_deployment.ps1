@@ -62,6 +62,7 @@ $result = [ordered]@{
     status = "failed"
     failure = $null
     export_exit_code = $null
+    godot_version = $null
     export_error_lines = @()
     quarantined_package = $null
     staging_removed = $false
@@ -69,6 +70,14 @@ $result = [ordered]@{
 New-Item -ItemType Directory -Path $evidence | Out-Null
 try {
     New-Item -ItemType Directory -Path $work, $clientStage, $packageStage | Out-Null
+    $versionProcess = Start-Process -FilePath $GodotPath -ArgumentList @("--version") -Wait -PassThru -NoNewWindow -RedirectStandardOutput (Join-Path $evidence "engine-version.txt") -RedirectStandardError (Join-Path $evidence "engine-version.stderr.log")
+    $versionExitCode = $versionProcess.ExitCode
+    $versionProcess.Dispose()
+    $result.godot_version = [IO.File]::ReadAllText((Join-Path $evidence "engine-version.txt")).Trim()
+    $versionErrors = [IO.File]::ReadAllText((Join-Path $evidence "engine-version.stderr.log")).Trim()
+    if ($versionExitCode -ne 0 -or $versionErrors -or $result.godot_version -notmatch '^4[.]7[.]2[.]stable([.]|$)') {
+        throw "Unqualified Godot engine '$($result.godot_version)'; use the verified 4.7.2 stable editor and matching Windows release template."
+    }
     Write-Output "Exporting Godot Windows client $Version from $sourceCommit..."
     $excludedDirectories = @(
         (Join-Path $repo ".git"),
@@ -143,6 +152,7 @@ try {
         source_commit = $sourceCommit
         source_tree_dirty = $sourceStatus.Count -gt 0
         godot_export_exit_code = $exportExitCode
+        godot_version = $result.godot_version
         release_eligible = $result.export_error_lines.Count -eq 0
         export_error_lines = $result.export_error_lines
         archive = Get-FileRecord $zipPath

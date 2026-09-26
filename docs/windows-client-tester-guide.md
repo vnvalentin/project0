@@ -10,7 +10,8 @@ gameplay configuration beyond the server address.
 On SETSUJOKU, build a fresh standalone client package from the current checkout:
 
 ```powershell
-pwsh -NoProfile -File scripts/build_current_deployment.ps1 -Version 0.14.2 `
+pwsh -NoProfile -File scripts/build_current_deployment.ps1 -Version 0.14.13 `
+   -GodotPath <path to the qualified Godot 4.7.2 editor or isolated wrapper> `
    -RceditPath <path to an installed rcedit-x64.exe>
 ```
 
@@ -20,9 +21,19 @@ an operator prerequisite; the script only rejects existing local output. The
 requested version is stamped into the exported PCK's
 `CLIENT_BUILD_VERSION`; it does not change the server's required version, so
 the server must be configured to admit it through its own controlled step
-before a gameplay retest. `-GodotPath` defaults to `godot` on `PATH`;
+before a gameplay retest. The qualified build engine is Godot **4.7.2 stable**
+with its matching official Windows release template. The build checks `--version`
+before export and records it in the manifest. Older or other unqualified engines
+are rejected; a 4.3 installation on `PATH` is not silently accepted.
+`-GodotPath` defaults to `godot` on `PATH`;
 `-RceditPath` defaults to `build\tools\rcedit\...\rcedit-x64.exe` and is never
 installed automatically.
+
+The editor and templates can be installed normally or supplied through an
+isolated wrapper with its own Godot configuration directory. Qualification on
+SETSUJOKU used SHA-512-verified official archives in `build/tools`; it did not
+replace the global 4.3 installation or change the server. An engine change still
+requires controlled client/server compatibility testing before distribution.
 
 The command needs no Go and never builds or tests the launcher. Output goes to
 `dist/standalone/<version>/`: `Project0-client-windows-x64-<version>.zip` and
@@ -55,21 +66,34 @@ needed. It preserves caller environment variables and writes JSON evidence under
 To inspect the actual exported EXE/PCK, run:
 
 ```powershell
-pwsh -NoProfile -File scripts/verify_standalone_package.ps1 -Version 0.14.2 -Windowed
+pwsh -NoProfile -File scripts/verify_standalone_package.ps1 -Version 0.14.13 -Windowed
 ```
 
 The bounded probe uses isolated temporary user state and an offscreen Windows
-GL window; omit `-Windowed` for the headless renderer. It validates hashes,
+GL window; omit `-Windowed` for a separate headless diagnostic. It validates hashes,
 compiled RPC arity, safe/fallback navigation readiness, and absence of server
 runtime, without connecting to a server. `-PackageRoot` selects a diagnostic
-package without making it releasable. `-FaultInjection ArchiveHash` or `PckHash`
-must fail before launch. Results and logs are retained under `build/validation`.
+package without making it releasable. The verifier launches the real EXE with
+`-- --verify-package`, which selects a fixed compiled probe already inside the
+PCK, before login setup. Without that flag the normal login path is unchanged.
+It does not load an external script or disable release-template path protections.
+The probe also checks the engine version and rejects debug/editor binaries.
+Its evidence is explicitly not gameplay acceptance, and an existing evidence
+file is never overwritten.
 
-Current #1213 evidence: `0.14.1` passes the compiled-contract assertions but is
-quarantined for exporter resource-leak diagnostics; verification also fails on
-Area3D teardown errors. Neither diagnostic is suppressed. Controlled compatible
-server admission, normal movement, LAN/WAN testing, and player approval remain
-outstanding.
+`-FaultInjection ArchiveHash` or `PckHash` must fail before launch.
+`-FaultInjection ProbeFlag -TimeoutSeconds 10` omits the flag: the normal client
+must not emit self-test evidence; the verifier times out and terminates only its
+owned process. This negative check is not an authentication or usability test.
+Results and logs are retained under `build/validation`.
+
+The original 4.3 release-template Area3D monitor-cleanup fault was reproduced
+without Project0 code; 4.3 editor/debug controls passed. A 4.4.1 release template
+fixed that fault but retained the exporter diagnostics. The original application
+code exports cleanly on 4.7.2, and a real 4.7.2 EXE/PCK passes embedded verification.
+No errors are suppressed and no gameplay/cache refactor is required. Controlled
+compatible-server admission, normal movement, LAN/WAN testing, full applicable
+validation, and player approval still gate release and closure of #1213.
 
 ## Developer Experiment 1100
 
@@ -164,10 +188,10 @@ Extracting the ZIP produces a single folder,
 - `Project0.exe` — the client executable.
 - `Project0.pck` — the packaged client scenes and scripts.
 
-There is no installer, no editor, no server files, no Ollama or SQLite
-components, and no credentials. This package only replays the same identity
-gate, movement, and networking behavior already validated on the development
-build; it adds no new gameplay.
+There is no installer, no editor, no server runtime, no Ollama or SQLite
+components, and no credentials. The package adds no new gameplay. Its version
+and engine compatibility must be validated against the selected authoritative
+server before distribution.
 
 The portable client ZIP is the primary distribution and needs no launcher.
 Launcher work is currently deferred; the optional Project0 launcher is a

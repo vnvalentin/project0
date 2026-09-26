@@ -9,14 +9,14 @@ param(
     [int]$TimeoutSeconds = 60,
     # Focused fail-closed checks: corrupt the owned archive copy or the extracted
     # PCK; either must be rejected before the client is launched.
-    [ValidateSet("None", "ArchiveHash", "PckHash")]
+    [ValidateSet("None", "ArchiveHash", "PckHash", "ProbeFlag")]
     [string]$FaultInjection = "None"
 )
 
 # #1213: verifies a built standalone Windows client package without the editor,
 # launcher, servers, network, or credentials. The ZIP is copied into owned temp
 # state, the archive and extracted EXE/PCK are checked against the manifest, then
-# the extracted real EXE runs scripts/standalone_package_probe.gd headless with
+# the extracted real EXE runs its fixed compiled package probe with
 # isolated APPDATA/LOCALAPPDATA/TEMP and loopback-only backend settings. Passing
 # proves the packaged compiled contract and client-side geometry readiness only;
 # it is not gameplay acceptance. Evidence: build/validation/standalone-package-*.
@@ -27,7 +27,6 @@ if (-not $PackageRoot) { $PackageRoot = Join-Path $repo "dist\standalone\$Versio
 $runId = [Guid]::NewGuid().ToString("N")
 $evidence = Join-Path $repo "build\validation\standalone-package-$Version-$runId"
 $root = Join-Path ([IO.Path]::GetTempPath()) "project0-package-verify-$runId"
-$probeSource = Join-Path $PSScriptRoot "standalone_package_probe.gd"
 $client = $null
 $stdout = $null
 $stderr = $null
@@ -45,15 +44,15 @@ $result = [ordered]@{
     renderer = $(if ($Windowed) { "windows-gl_compatibility" } else { "headless" })
     package_root = $PackageRoot
     verifier_sha256 = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
-    probe_sha256 = $null
+    probe_entrypoint = "res://client/standalone_package_probe.gd"
     manifest = $null
     archive = $null
     archive_contents = @()
     client_launched = $false
     client = $null
     probe = $null
-    runtime_error_lines = @()
-    runtime_warning_lines = @()
+    runtime_error_lines = $null
+    runtime_warning_lines = $null
     isolated_user_files = @()
     local_root = $root
     local_cleanup = $false
@@ -111,22 +110,17 @@ try {
     }
 
     $result.stage = "launch"
-    if (-not (Test-Path -LiteralPath $probeSource -PathType Leaf)) { throw "Missing packaged-client probe: $probeSource" }
-    $probeDir = Join-Path $root "probe"
     $roaming = Join-Path $root "appdata\roaming"
     $local = Join-Path $root "appdata\local"
     $temp = Join-Path $root "tmp"
-    New-Item -ItemType Directory -Path $probeDir, $roaming, $local, $temp | Out-Null
-    $probePath = Join-Path $probeDir "standalone_package_probe.gd"
-    Copy-Item -LiteralPath $probeSource -Destination $probePath
-    $result.probe_sha256 = (Get-FileHash -LiteralPath $probePath -Algorithm SHA256).Hash
+    New-Item -ItemType Directory -Path $roaming, $local, $temp | Out-Null
     $probeEvidence = Join-Path $evidence "probe.json"
 
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = Join-Path $package "Project0.exe"
     # No --main-pack: the real EXE must mount its adjacent Project0.pck itself.
     $rendererArguments = if ($Windowed) { '--rendering-method gl_compatibility --audio-driver Dummy --resolution 64x64 --position -32000,-32000' } else { '--headless' }
-    $start.Arguments = $rendererArguments + ' --script "' + $probePath + '"'
+    $start.Arguments = $rendererArguments + $(if ($FaultInjection -eq "ProbeFlag") { "" } else { " -- --verify-package" })
     $start.WorkingDirectory = $package
     $start.UseShellExecute = $false
     $start.RedirectStandardOutput = $true

@@ -4,7 +4,7 @@ Governing issue: https://github.com/vnvalentin/project0/issues/1213
 Issue-first checkpoint: https://github.com/vnvalentin/project0/issues/1213#issuecomment-5849368601
 Parent feature: #551 (roadmap #318)
 Milestone: 14 - Milestone 0: Solo Playable Foundation
-Project #2 item 255626539: In Progress; blocked on export/runtime evidence (see GitHub for current state)
+Project #2 item 255626539: In Progress; see GitHub for current validation and dependency status
 Outcome: C Authoritative content systems
 Branch/worktree: `fix/1213-standalone-packaging` at `D:/code/project0-1213` (SETSUJOKU)
 
@@ -144,3 +144,42 @@ compatible-server movement/LAN/WAN/player evidence remain gates before merge or
 closing #1213. Rollback is this isolated branch; never delete previous packages
 or user data. Next owner: Copilot/user on SETSUJOKU for a bounded lifecycle
 diagnosis; server operator only after controlled admission is agreed.
+
+## Lifecycle remediation (supersedes the diagnostic blocker above)
+
+Checkpoint: https://github.com/vnvalentin/project0/issues/1213#issuecomment-5850516058.
+The user authorized root-cause diagnosis and repair on SETSUJOKU.
+
+- A minimal Area3D/StaticBody3D case, with no Project0 code, isolates the 4.3
+  release-template active-monitor cleanup defect. Ordinary exits pass; clearing
+  an overlapping monitor leaves native tree callbacks connected after the body
+  map is cleared. The editor/debug controls pass. The same case passes on the
+  verified 4.4.1 release template; the full 0.14.5 packaged runtime also passes.
+- The exporter diagnostics are retained GDScript resources on older toolchains.
+  Verbose logs identify translator/lookup, effective-mechanics/schema, and three
+  Nakama scripts. Static-unload, import-first, text export and deferred factory
+  probes were not fixes. Removing translator static caches reduced seven to five
+  but was unnecessary with the qualified newer engine; all such product probes
+  were restored, preserving caching, type contracts and SDK source.
+- SHA-512-verified official Godot 4.7.2 exports the original application code
+  cleanly. Tools/templates are isolated under build/tools; no global tool or
+  server installation was changed. Build preflight now requires qualified 4.7.2
+  stable and records the actual engine version. Ten failure cases pass, including
+  rejection of 4.3 before export and retained rejection of exit-zero error logs.
+- The official 4.7.2 release template restricts external path overrides. The old
+  external-script probe did not run, so the same fixed probe now lives in the
+  PCK as client/standalone_package_probe.gd. Only --verify-package user args select
+  it before login setup; no arbitrary external code is loaded. It verifies the
+  actual release engine and compiled resources, RPC arguments, safe/fallback
+  readiness and no network peer, then exits. Existing evidence is not overwritten.
+- Real 0.14.12 EXE/PCK verification passed; archive/PCK tampering was rejected
+  before launch, and omitting the flag did not enter self-test mode. These are
+  offline artifact checks, not authentication or gameplay acceptance. Final guards
+  are to be validated on a clean committed-source build, not inferred from 0.14.12.
+
+Independent read-only correctness/safety and specification reviews found no
+actionable defects. Keep PR #1224 draft until the qualified engine is validated
+against a controlled compatible server and the full applicable validation route,
+normal movement/frontier/LAN/WAN checks and user approval are satisfied. #1213
+must remain open with an explicit dependency handoff. No errors are suppressed,
+no launcher work resumed, and nothing has been installed or published for players.
