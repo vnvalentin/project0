@@ -134,7 +134,7 @@ func _run_request(sector_id: String, prompt: String) -> void:
 		generation_span["duration_ms"] = float(Time.get_ticks_usec() - started_usec) / 1000.0
 		generation_span["status"] = "OK" if result.get("request_outcome", "") == "validated" else "ERROR"
 		var validation_span: Dictionary = JitTraceContextScript.child(generation_span, "schema_validation_result")
-		validation_span["status"] = "OK" if result.get("validation_outcome", "") == "valid" else "ERROR"
+		validation_span["status"] = "OK" if result.get("candidate_validation_outcome", result.get("validation_outcome", "")) == "valid" else "ERROR"
 		result["trace_spans"] = [generation_span, validation_span]
 		result["trace_context"] = validation_span
 
