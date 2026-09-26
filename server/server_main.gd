@@ -211,6 +211,12 @@ var _jit_peer_by_sector: Dictionary = {}
 var _jit_root_trace_by_sector: Dictionary = {}
 var _jit_commit_trace_by_sector: Dictionary = {}
 var _jit_presentation_ack_tracker: Object = JitPresentationAckTrackerScript.new()
+var _frontier_versions: Dictionary = {}
+var _frontier_bindings: Dictionary = {}
+var _frontier_town_tiles: Dictionary = {}
+const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
+var _frontier_prepared_at_by_peer: Dictionary = {}
+var _frontier_ack_limiter: Object = TelemetryRateLimiterScript.new()
 
 ## Slice 162 (telemetry map #282): the dedicated telemetry database and its
 ## per-peer rate limiter. Best-effort, non-fatal: unlike accounts/Canon,
@@ -600,15 +606,18 @@ func _admit_peer(peer_id: int) -> void:
 		root.multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
 
+	var player_state: Node = ServerPlayerStateScript.new()
+	_player_states[peer_id] = player_state
+	_configure_player_frontier(peer_id, player_state)
+
 	# Slice 017: replicate the validated starting town hub to this peer before
 	# spawning any Player, so the world exists before its occupants. All these
 	# RPCs are reliable, so ordering is guaranteed.
-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(_starting_town_hub_blueprint.get("sector_id", ""), _starting_town_hub_blueprint), start_position)
+	_present_frontier_sector(peer_id, String(_starting_town_hub_blueprint.get("sector_id", "")), _starting_town_hub_blueprint, start_position, {})
 	print("Sent starting town hub blueprint to peer %d (sector_id=%s)." % [peer_id, _starting_town_hub_blueprint.get("sector_id", "")])
 
 	network_client.rpc_id(peer_id, "spawn_own_player_representation")
 
-	var player_state: Node = ServerPlayerStateScript.new()
 	player_state.name = "ServerPlayerState_%d" % peer_id
 	player_state.position_updated.connect(_on_player_state_position_updated)
 	player_state.action_resolved.connect(_on_player_state_action_resolved)
@@ -630,7 +639,6 @@ func _admit_peer(peer_id: int) -> void:
 	# depends on. Default OFF; never set on the real LAN server path.
 	if OS.get_environment("PROJECT0_E2E_DISABLE_TOWN_COLLISION") != "1":
 		player_state.set_collision_map(_town_collision)
-	_player_states[peer_id] = player_state
 
 	# Slice 019: assign this peer a unique house from the pool and tell only the
 	# owning client. Fail closed (log) if the pool is somehow exhausted — this is
@@ -720,6 +728,12 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
 	_jit_presentation_ack_tracker.forget_peer(peer_id)
+	_frontier_bindings.erase(peer_id)
+	_frontier_prepared_at_by_peer.erase(peer_id)
+	_frontier_ack_limiter.forget_peer(peer_id)
+	for sector_id: String in _sector_ingress_positions.keys():
+		var ingresses: Dictionary = _sector_ingress_positions[sector_id]
+		ingresses.erase(peer_id)
 	if _telemetry_rate_limiter != null:
 		_telemetry_rate_limiter.forget_peer(peer_id)
 
@@ -756,7 +770,7 @@ func _broadcast_presence_snapshot() -> void:
 ## ServerPlayerState._physics_process via receive_authoritative_position.
 func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
 	if _sector_boundary_detector != null:
-		_sector_boundary_detector.observe_position(peer_id, updated_position)
+		_sector_boundary_detector.commit_position(peer_id, updated_position)
 	var last_position: Vector3 = _last_journey_checkpoint_position_by_peer.get(peer_id, updated_position)
 	if last_position.distance_squared_to(updated_position) >= JOURNEY_CHECKPOINT_DISTANCE_UNITS * JOURNEY_CHECKPOINT_DISTANCE_UNITS:
 		_checkpoint_journey(peer_id, updated_position)
@@ -774,16 +788,13 @@ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) 
 ## client can label that peer's remote representation as the selected Character.
 ## Identity only — never a trusted position or outcome.
 func _on_player_state_character_bound(peer_id: int, display_name: String, cosmetic: Dictionary) -> void:
+	var player_state: Node = _player_states.get(peer_id)
+	if player_state != null:
+		_configure_player_frontier(peer_id, player_state)
+		_present_current_frontier(peer_id, player_state.position)
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
-	var player_state: Node = _player_states.get(peer_id)
-	if player_state != null and _canon_repository != null:
-		var sector_id: String = SectorBoundaryDetectorScript.sector_id_for_position(player_state.position)
-		var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
-		if canon_result.get("outcome", "") == "ok":
-			var sector: Dictionary = canon_result.get("sector", {})
-			network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, sector.get("blueprint", {})), player_state.position)
 	for other_peer_id: int in _player_states.keys():
 		if other_peer_id == peer_id:
 			continue
@@ -797,10 +808,18 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
 	sector_ingresses[peer_id] = position
 	_sector_ingress_positions[sector_id] = sector_ingresses
+	if _provisional_sector_generator.get_status(sector_id) == ProvisionalSectorGeneratorScript.STATUS_READY:
+		var cached_result: Dictionary = _provisional_sector_generator.get_provisional_result(sector_id).duplicate(true)
+		cached_result.erase("trace_spans")
+		_jit_peer_by_sector[sector_id] = peer_id
+		_on_provisional_sector_ready(sector_id, cached_result)
+		return
 	var starts_generation: bool = (
 		_provisional_sector_generator.get_status(sector_id)
 		== ProvisionalSectorGeneratorScript.STATUS_UNKNOWN
 	)
+	if not starts_generation and _jit_peer_by_sector.has(sector_id):
+		return
 	if starts_generation:
 		_jit_peer_by_sector[sector_id] = peer_id
 		_jit_root_trace_by_sector[sector_id] = trace.duplicate(true)
@@ -841,11 +860,8 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK:
 		return
 	_emit_jit_trace(trace, peer_id)
-	var network_client: Node = root.get_node_or_null("NetworkClient")
-	if network_client == null:
-		return
 	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), position, trace)
+	_present_frontier_sector(peer_id, sector_id, blueprint, position, trace)
 	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
 
 
@@ -878,20 +894,156 @@ func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void
 
 
 func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> void:
-	var network_client: Node = root.get_node_or_null("NetworkClient")
-	if network_client == null:
-		return
 	var commit_trace: Dictionary = _jit_commit_trace_by_sector.get(sector_id, {})
-	var initiating_peer_id: int = int(_jit_peer_by_sector.get(sector_id, 0))
-	var presentation_trace: Dictionary = _jit_presentation_ack_tracker.issue(initiating_peer_id, commit_trace)
-	if _sector_boundary_detector != null and not presentation_trace.is_empty():
-		_sector_boundary_detector.remember_canon_trace(sector_id, presentation_trace)
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
-	for peer_id: int in _player_states.keys():
+	for peer_id: int in sector_ingresses.keys():
 		var ingress: Vector3 = sector_ingresses.get(peer_id, Vector3.ZERO)
-		var peer_trace: Dictionary = presentation_trace if peer_id == initiating_peer_id else {}
-		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), ingress, peer_trace)
+		_present_frontier_sector(peer_id, sector_id, blueprint, ingress, commit_trace)
+	_sector_ingress_positions.erase(sector_id)
 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
+
+
+func _configure_player_frontier(peer_id: int, player_state: Node) -> void:
+	_jit_presentation_ack_tracker.forget_peer(peer_id)
+	_frontier_prepared_at_by_peer.erase(peer_id)
+	if _sector_boundary_detector != null:
+		_sector_boundary_detector.forget_peer(peer_id)
+	for sector_id: String in _sector_ingress_positions.keys():
+		var ingresses: Dictionary = _sector_ingress_positions[sector_id]
+		ingresses.erase(peer_id)
+	_frontier_bindings[peer_id] = {
+		"connection": player_state.get_instance_id(),
+		"character": String(player_state.character_id),
+		"journey": _frontier_journey_id(peer_id, String(player_state.character_id)),
+	}
+	player_state.set_movement_admission(Callable(self, "_resolve_frontier_movement"))
+	if _frontier_town_tiles.is_empty():
+		for tile: Dictionary in _starting_town_hub_blueprint.get("tiles", []):
+			_frontier_town_tiles[Vector2i(int(tile["x"]), int(tile["y"]))] = true
+
+
+func _present_current_frontier(peer_id: int, position: Vector3) -> void:
+	_prepare_frontier_position(peer_id, position)
+
+
+func _frontier_now_msec() -> int:
+	return Time.get_ticks_msec()
+
+
+## Bound replay/ACK-loss recovery independently of physics ticks. This retries
+## presentation/preparation, never the generator's single accepted LLM request.
+func _prepare_frontier_position(peer_id: int, position: Vector3) -> void:
+	var sector_id: String = _frontier_sector_at(position)
+	var attempts: Dictionary = _frontier_prepared_at_by_peer.get(peer_id, {})
+	if attempts.has(sector_id) and _frontier_now_msec() - int(attempts[sector_id]) < FRONTIER_PREPARATION_RETRY_MSEC:
+		return
+	_remember_frontier_preparation(peer_id, sector_id)
+	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
+		_present_frontier_sector(peer_id, sector_id, _starting_town_hub_blueprint, position, {})
+	elif _sector_boundary_detector != null:
+		_sector_boundary_detector.forget_preparation(peer_id, sector_id)
+		_sector_boundary_detector.prepare_position(peer_id, position)
+
+
+func _remember_frontier_preparation(peer_id: int, sector_id: String) -> void:
+	var attempts: Dictionary = _frontier_prepared_at_by_peer.get(peer_id, {})
+	if not attempts.has(sector_id) and attempts.size() >= JitPresentationAckTrackerScript.MAX_PENDING_PER_PEER:
+		attempts.erase(attempts.keys()[0])
+	attempts[sector_id] = _frontier_now_msec()
+	_frontier_prepared_at_by_peer[peer_id] = attempts
+
+
+func _frontier_binding(peer_id: int, sector_id: String) -> Dictionary:
+	var player_state: Node = _player_states.get(peer_id)
+	var binding: Dictionary = _frontier_bindings.get(peer_id, {})
+	if player_state == null:
+		return {}
+	if binding.get("connection") != player_state.get_instance_id() or binding.get("character") != String(player_state.character_id) or binding.get("journey") != _frontier_journey_id(peer_id, String(player_state.character_id)):
+		_jit_presentation_ack_tracker.forget_peer(peer_id)
+		return {}
+	if not _frontier_versions.has(sector_id):
+		return {}
+	var context: Dictionary = binding.duplicate(true)
+	context["presentation"] = _frontier_versions[sector_id]
+	return context
+
+
+func _frontier_journey_id(peer_id: int, character_id: String) -> String:
+	return _journey_registry.active_journey_id(character_id, peer_id) if _journey_registry != null else ""
+
+
+func _invalidate_frontier_sector(sector_id: String, clear_preparation: bool = true) -> void:
+	_frontier_versions.erase(sector_id)
+	for peer_id: int in _player_states.keys():
+		_jit_presentation_ack_tracker.forget_presentation(peer_id, sector_id)
+		if clear_preparation:
+			var attempts: Dictionary = _frontier_prepared_at_by_peer.get(peer_id, {})
+			attempts.erase(sector_id)
+		if clear_preparation and _sector_boundary_detector != null:
+			_sector_boundary_detector.forget_preparation(peer_id, sector_id)
+
+
+func _frontier_sector_at(position: Vector3) -> String:
+	if _frontier_town_tiles.has(Vector2i(floori(position.x + 0.5), floori(position.z + 0.5))):
+		return String(_starting_town_hub_blueprint.get("sector_id", ""))
+	return SectorBoundaryDetectorScript.sector_id_for_position(position)
+
+
+func _frontier_position_ready(peer_id: int, position: Vector3) -> bool:
+	var sector_id: String = _frontier_sector_at(position)
+	return _jit_presentation_ack_tracker.is_ready(peer_id, sector_id, _frontier_binding(peer_id, sector_id))
+
+
+func _resolve_frontier_movement(peer_id: int, current: Vector3, candidate: Vector3) -> Vector3:
+	if _frontier_position_ready(peer_id, candidate):
+		return candidate
+	_prepare_frontier_position(peer_id, candidate)
+	var along_x: Vector3 = Vector3(candidate.x, candidate.y, current.z)
+	var along_z: Vector3 = Vector3(current.x, candidate.y, candidate.z)
+	if _frontier_position_ready(peer_id, along_x):
+		return along_x
+	if _frontier_position_ready(peer_id, along_z):
+		return along_z
+	return Vector3(current.x, candidate.y, current.z)
+
+
+func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictionary, ingress: Vector3, parent_trace: Dictionary) -> void:
+	if not _player_states.has(peer_id) or not _frontier_bindings.has(peer_id):
+		return
+	if String(blueprint.get("sector_id", "")) != sector_id:
+		return
+	_remember_frontier_preparation(peer_id, sector_id)
+	var effective: Dictionary = blueprint
+	var revision: int = 0
+	if _canon_mutation_repository != null:
+		var listed: Dictionary = _canon_mutation_repository.list_mutations(sector_id)
+		if listed.get("outcome") != "ok":
+			# Revoke stale authority, but preserve the failed-attempt cooldown.
+			_invalidate_frontier_sector(sector_id, false)
+			return
+		var mutations: Array = listed.get("mutations", [])
+		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, mutations)
+		if not mutations.is_empty():
+			revision = int(mutations.back()["applied_revision"])
+	_frontier_versions[sector_id] = "%d:%s" % [revision, JSON.stringify(effective).sha256_text()]
+	var binding: Dictionary = _frontier_binding(peer_id, sector_id)
+	if binding.is_empty():
+		return
+	var parent: Dictionary = parent_trace if not parent_trace.is_empty() else JitTraceContextScript.root(peer_id, sector_id)
+	# Preserve the pending token on retry so slow/reordered ACKs remain valid.
+	# A changed presentation/connection binding still requires a fresh token.
+	var trace: Dictionary = _jit_presentation_ack_tracker.pending_trace(peer_id, sector_id, binding)
+	if trace.is_empty():
+		trace = _jit_presentation_ack_tracker.issue(peer_id, parent, binding)
+	if _sector_boundary_detector != null:
+		_sector_boundary_detector.remember_canon_trace(sector_id, trace)
+	_send_sector_blueprint(peer_id, effective, ingress, trace)
+
+
+func _send_sector_blueprint(peer_id: int, blueprint: Dictionary, ingress: Vector3, trace: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client != null:
+		network_client.rpc_id(peer_id, "receive_sector_blueprint", blueprint, ingress, trace)
 
 
 ## Slice 098 (P-013): replay the sector's durable mutation log onto its blueprint
@@ -917,6 +1069,8 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
 	if player_state == null:
 		return
 	var resolution: Dictionary = _canon_mutation_service.resolve_intent(player_state.character_id, intent)
+	if resolution.get("status") == CanonMutationServiceScript.STATUS_ACCEPTED and resolution.get("reason") == CanonMutationRepositoryScript.OUTCOME_OK:
+		_invalidate_frontier_sector(String(intent.get("sector_id", "")))
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
@@ -970,27 +1124,27 @@ func _emit_jit_trace(trace: Dictionary, peer_id: int) -> void:
 ## and the actual write. A telemetry-unavailable server (see boot wiring
 ## above) makes this a no-op — telemetry never blocks or disconnects a peer.
 func _on_client_telemetry_batch_received(peer_id: int, events: Array, _client_sequence: int) -> void:
-	if _telemetry_ingest == null:
+	if not _player_states.has(peer_id) or events.is_empty() or events.size() > int(TelemetryRateLimiterScript.CAPACITY):
+		return
+	if not _frontier_ack_limiter.try_consume(peer_id, events.size(), Time.get_ticks_msec() / 1000.0):
 		return
 	var character_id: String = ""
 	var player_state: Node = _player_states.get(peer_id)
 	if player_state != null:
 		character_id = player_state.character_id
 	var verified_events: Array[Dictionary] = _jit_presentation_ack_tracker.verified_events(peer_id, events)
-	var accepted_events: Array[Dictionary] = _telemetry_ingest.ingest_batch(
-		peer_id,
-		verified_events,
-		character_id,
-		int(Time.get_unix_time_from_system()),
-		_current_server_tick(),
-	)
-	var presentation_traces: Array[Dictionary] = _jit_presentation_ack_tracker.confirm_accepted(peer_id, accepted_events)
-	for presentation_trace: Dictionary in presentation_traces:
-		if _sector_boundary_detector != null and not presentation_trace.is_empty():
+	for event: Dictionary in verified_events:
+		if event.get("event_type") != "client_presentation_ack":
+			continue
+		var sector_id: String = String(event["payload"].get("sector_id", ""))
+		var presentation_trace: Dictionary = _jit_presentation_ack_tracker.confirm_ready(peer_id, event, _frontier_binding(peer_id, sector_id))
+		if not presentation_trace.is_empty() and _sector_boundary_detector != null:
 			_sector_boundary_detector.remember_canon_trace(
-				String(presentation_trace.get("sector_id", "")),
+				sector_id,
 				presentation_trace,
 			)
+	if _telemetry_ingest != null:
+		_telemetry_ingest.ingest_batch(peer_id, verified_events, character_id, int(Time.get_unix_time_from_system()), _current_server_tick())
 ## Deterministic, visibly distinct starting positions for connected peers so
 ## Player representations never spawn on top of each other.
 func _start_position_for_slot(slot_index: int) -> Vector3:
