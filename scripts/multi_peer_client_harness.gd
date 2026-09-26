@@ -25,6 +25,7 @@ extends SceneTree
 ##                             harness/observer).
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
 
 var _state_file_path: String = ""
 var _hold_input_action: String = ""
@@ -52,6 +53,10 @@ func _run() -> void:
 
 	_network_client.connect_to_server(NetworkConfigScript.resolve_client_target_host(), NetworkConfigScript.SERVER_PORT)
 
+	if not await GameplayTestSessionScript.enter_world(_network_client):
+		push_error("Test client session admission failed")
+		quit(1)
+		return
 	if not _hold_input_action.is_empty():
 		Input.action_press(_hold_input_action)
 
@@ -104,10 +109,18 @@ func _write_state() -> void:
 			remote_players[child.name] = _vector3_to_array(child.position)
 	state["remote_players"] = remote_players
 
-	var file: FileAccess = FileAccess.open(_state_file_path, FileAccess.WRITE)
+	var pending_path: String = _state_file_path + ".pending"
+	var file: FileAccess = FileAccess.open(pending_path, FileAccess.WRITE)
 	if file != null:
 		file.store_string(JSON.stringify(state))
 		file.close()
+		var publish_error: Error = DirAccess.rename_absolute(pending_path, _state_file_path)
+		if publish_error != OK:
+			push_error("multi_peer_client_harness: state publication failed: %s" % error_string(publish_error))
+			quit(1)
+	else:
+		push_error("multi_peer_client_harness: state file could not be opened")
+		quit(1)
 
 
 func _vector3_to_array(vector: Vector3) -> Array:

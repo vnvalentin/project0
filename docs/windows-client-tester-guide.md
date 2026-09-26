@@ -40,6 +40,56 @@ processes are removed; existing installations, saves, and prior evidence are
 preserved. Rollback is reverting the experiment implementation, not deleting
 the user's normal Project0 directory.
 
+## Developer Lifecycle Checks for 1101
+
+The Windows harness currently implements lifecycle controls and the
+missing-session check, **not the full authentication matrix**. Run as a standard
+user with Project0 closed:
+
+```powershell
+powershell.exe -NoProfile -File scripts/run_windows_experiment_1101.ps1 `
+   -BackendRepository /tmp/project0-auth-admission-fix `
+   -ProbeMode MissingSession
+```
+
+The retained backend checkout above was created for #1186. Alternatively, pass
+an existing repository on `192.168.1.254` containing the selected `BackendCommit`
+and Linux native libraries. The default commit is the fixed authorization
+baseline `318dd8ddcdb25333db8f85dd64f2eebbe5ac96b4`. Execution uses a private git
+archive, fresh imports, separate state and a temporary port; the source checkout
+and other workers are not modified. SSH must work without interactive prompts.
+
+`ProbeMode` accepts `Offline`, `Transport`, `VersionRPC`, `VersionSignal`, and
+`MissingSession`.
+Only `MissingSession` exercises an authentication rejection. The first three
+distinguish startup, raw ENet, and scene-managed RPC shutdown. The real Windows
+engine, pack, and probe script are copied into owned state; hashes and source
+identities are recorded in `logs/experiments/exp_1101_<run-id>/result.json`.
+No position samples means motion is unobserved, not a measured zero. A nonzero
+exit, runtime error, missing result, or failed cleanup is a failed attempt.
+
+`VersionSignal` is explicitly a simulated dictionary signal-contract check,
+not network rejection or authentication evidence. For failure-path diagnostics,
+`BackendRequiredVersion` can provoke a real version mismatch, and
+`ClientTimeoutSeconds` can reduce the client deadline (1-45 seconds). A remote
+disconnect may precede a structured version-rejection reply; the evidence records
+what was observed rather than inventing a rejection reason. Client output is
+retained on timeout, along with SSH diagnostics and up to the last 64 KiB of
+backend logs (truncation is recorded). Unconfirmed remote cleanup stays a failure.
+
+For Godot 4.3, the ending probe removes its owned RPC autoload from the tree
+while the multiplayer cache is alive, then resets multiplayer. This lets the
+cache's bound one-shot `tree_exited` callback run before cache clearing; see
+[the upstream cache implementation](https://github.com/godotengine/godot/blob/4.3-stable/modules/multiplayer/scene_cache_interface.cpp)
+and #1194 for the red/green evidence. Server-driven disconnects use the public
+`server_disconnected` signal, which Godot emits before cache clearing, to detach
+the same owned node. No errors are suppressed and Godot itself is not modified.
+This is process teardown, not a live-client reconnect helper.
+
+Successful lifecycle/missing-session checks do not prove invalid/expired-token,
+auth-service failure, authenticated gameplay, pristine installation, or normal
+release-path behavior. Those remaining #1101 obligations stay open.
+
 ## What's in the package
 
 Extracting the ZIP produces a single folder,

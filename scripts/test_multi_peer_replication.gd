@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless integration smoke test for Slice 007: proves two-client
 ## authoritative Player replication. Spawns three real OS processes — the
-## unmodified production server/server_main.gd, and two instances of the
+## production server through a test-only timeout fixture, and two instances of
 ## test-only scripts/multi_peer_client_harness.gd, each a faithful client
 ## instance that loads the real client/gameplay.tscn and connects through the
 ## real production NetworkClient/ENet path — because Godot 4.3 allows only
@@ -28,6 +28,8 @@ extends SceneTree
 ##   godot --headless --path . -s scripts/test_multi_peer_replication.gd
 ## Exits 0 and prints "ALL PASS" only if every assertion below holds.
 
+const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
+
 var _failures: int = 0
 var _server_process_id: int = -1
 var _client_a_process_id: int = -1
@@ -41,8 +43,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_two_peer_replication_and_disconnect_cleanup()
 	_cleanup_processes()
+	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
 
 	if _failures == 0:
 		print("ALL PASS")
@@ -67,6 +71,8 @@ func _cleanup_processes() -> void:
 	for path: String in [_state_file_a, _state_file_b]:
 		if not path.is_empty() and FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
+		if not path.is_empty() and FileAccess.file_exists(path + ".pending"):
+			DirAccess.remove_absolute(path + ".pending")
 
 
 func _test_two_peer_replication_and_disconnect_cleanup() -> void:
@@ -75,7 +81,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 
 	_server_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
-		"-s", "server/server_main.gd",
+		"-s", "scripts/multi_peer_server_harness.gd",
 	])
 	_assert(_server_process_id != -1, "server process starts")
 
@@ -101,6 +107,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	])
 	_assert(_client_a_process_id != -1, "client A process starts")
 
+	GameplayTestSessionScript.refresh_identity()
 	_client_b_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
 		"-s", "scripts/multi_peer_client_harness.gd",
@@ -147,8 +154,11 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	remote_players_on_a = state_a.get("remote_players", {})
 	remote_players_on_b = state_b.get("remote_players", {})
 
-	var b_seen_from_a: Vector3 = _array_to_vector3(remote_players_on_a.values()[0]) if remote_players_on_a.size() > 0 else Vector3.ZERO
-	var a_seen_from_b: Vector3 = _array_to_vector3(remote_players_on_b.values()[0]) if remote_players_on_b.size() > 0 else Vector3.ZERO
+	_assert(remote_players_on_a.size() == 1 and remote_players_on_b.size() == 1, "movement observations contain both remote peers")
+	if remote_players_on_a.size() != 1 or remote_players_on_b.size() != 1:
+		return
+	var b_seen_from_a: Vector3 = _array_to_vector3(remote_players_on_a.values()[0])
+	var a_seen_from_b: Vector3 = _array_to_vector3(remote_players_on_b.values()[0])
 
 	var b_moved_as_seen_from_a: float = b_seen_from_a.distance_to(b_seen_from_a_baseline)
 	var a_moved_as_seen_from_b: float = a_seen_from_b.distance_to(a_seen_from_b_baseline)
@@ -163,17 +173,17 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	# a fixed number of engine frames. A headless SceneTree with nothing to
 	# render can iterate process_frame far faster than real time, so this
 	# wait polls on a real wall-clock deadline (Time.get_ticks_msec()) rather
-	# than a frame count, so it reliably outlasts ENet's own timeout instead
-	# of racing it.
+	# than a frame count. The test server sets ENet's maximum to five seconds,
+	# leaving the existing twenty-second observation deadline unchanged.
 	if _client_a_process_id != -1 and OS.is_process_running(_client_a_process_id):
 		OS.kill(_client_a_process_id)
 		_client_a_process_id = -1
 
 	var state_b_after_disconnect: Dictionary = await _wait_for_state_with_deadline(_state_file_b, func(s: Dictionary) -> bool:
-		return s.get("remote_players", {}).size() == 0
+		return s.has("remote_players") and s["remote_players"].size() == 0
 	, 20000)
 
-	_assert(state_b_after_disconnect.get("remote_players", {}).size() == 0, "disconnecting client A removes its RemotePlayer representation from client B")
+	_assert(state_b_after_disconnect.has("remote_players") and state_b_after_disconnect["remote_players"].size() == 0, "disconnecting client A removes its RemotePlayer representation from client B")
 	_assert(OS.is_process_running(_client_b_process_id), "client B's process is still running (no crash) after client A disconnects")
 	_assert(_client_b_process_id != -1 and OS.is_process_running(_client_b_process_id), "client B remains connected and usable after the other peer's disconnect")
 

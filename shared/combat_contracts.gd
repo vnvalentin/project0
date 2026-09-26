@@ -41,6 +41,7 @@ const REJECTED_BUSY: String = "REJECTED_BUSY"
 const REJECTED_COOLDOWN: String = "REJECTED_COOLDOWN"
 const REJECTED_STALE: String = "REJECTED_STALE"
 const REJECTED_INVALID_STATE: String = "REJECTED_INVALID_STATE"
+const REJECTED_NOT_ADMITTED: String = "NOT_ADMITTED"
 
 ## Authoritative attack lifecycle phases (see server/server_player_state.gd).
 const PHASE_IDLE: String = "IDLE"

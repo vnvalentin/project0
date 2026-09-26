@@ -77,6 +77,10 @@ func login(peer_id: int, username: String, password: String) -> Dictionary:
 
 ## Game-server-local session state (per the login-boundary decision, the game
 ## server keeps its own per-peer session binding).
+func get_session_epoch(peer_id: int) -> int:
+	return _sessions.get_session_epoch(peer_id)
+
+
 func is_authenticated(peer_id: int) -> bool:
 	return _sessions.is_authenticated(peer_id)
 
