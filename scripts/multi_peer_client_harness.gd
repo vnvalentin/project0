@@ -32,6 +32,7 @@ var _hold_input_action: String = ""
 var _run_ticks: int = -1
 var _gameplay_instance: Node3D
 var _network_client: Node
+var _startup_gate: String = ""
 
 
 func _initialize() -> void:
@@ -44,6 +45,9 @@ func _run() -> void:
 		push_error("multi_peer_client_harness: --state-file= is required")
 		quit(1)
 		return
+
+	while not _startup_gate.is_empty() and not FileAccess.file_exists(_startup_gate):
+		await process_frame
 
 	_network_client = root.get_node("NetworkClient")
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
@@ -82,6 +86,8 @@ func _parse_args() -> void:
 			_hold_input_action = argument.substr("--hold-input=".length())
 		elif argument.begins_with("--run-ticks="):
 			_run_ticks = argument.substr("--run-ticks=".length()).to_int()
+		elif argument.begins_with("--startup-gate="):
+			_startup_gate = argument.substr("--startup-gate=".length())
 
 
 ## Writes this harness's currently observable public-seam state: connection
