@@ -13,6 +13,7 @@ static func root(peer_id: int, sector_id: String) -> Dictionary:
 	)
 	return {
 		"trace_id": CanonEntityGuidScript.uuid_v5(CanonEntityGuidScript.NAMESPACE_DNS_UUID, trace_name),
+		"generation_started_usec": trigger_usec,
 		"span_id": _uuid_v4(),
 		"parent_span_id": null,
 		"event_type": "player_trigger_event",

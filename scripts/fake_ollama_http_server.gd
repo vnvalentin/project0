@@ -26,6 +26,12 @@ var respond_at_all: bool = true
 var next_response_status: int = 200
 var next_response_body: String = "{}"
 var last_request_body: String = ""
+var response_delay_usec: int = 0
+var request_count: int = 0
+var response_count: int = 0
+var disconnect_count: int = 0
+var _received_at_usec: int = 0
+signal response_sent
 
 
 func start() -> int:
@@ -44,6 +50,9 @@ func stop() -> void:
 	set_process(false)
 	if _tcp_server != null and _tcp_server.is_listening():
 		_tcp_server.stop()
+	if _pending_connection != null:
+		_pending_connection.disconnect_from_host()
+		_pending_connection = null
 
 
 func _process(_delta: float) -> void:
@@ -52,23 +61,28 @@ func _process(_delta: float) -> void:
 	if _tcp_server.is_connection_available():
 		var connection: StreamPeerTCP = _tcp_server.take_connection()
 		_pending_connection = connection
+		_received_at_usec = 0
+		request_count += 1
 
 	if _pending_connection == null:
 		return
 
 	_pending_connection.poll()
 	if _pending_connection.get_status() != StreamPeerTCP.STATUS_CONNECTED:
+		disconnect_count += 1
+		_pending_connection = null
 		return
-	if _pending_connection.get_available_bytes() <= 0:
+	if _received_at_usec == 0:
+		if _pending_connection.get_available_bytes() <= 0:
+			return
+		var request_bytes: PackedByteArray = _pending_connection.get_data(_pending_connection.get_available_bytes())[1]
+		var request_text: String = request_bytes.get_string_from_utf8()
+		var body_separator_index: int = request_text.find("\r\n\r\n")
+		if body_separator_index >= 0:
+			last_request_body = request_text.substr(body_separator_index + 4)
+		_received_at_usec = Time.get_ticks_usec()
+	if Time.get_ticks_usec() - _received_at_usec < response_delay_usec:
 		return
-
-	# Drain the request. Every fixture targets the same endpoint, so only the
-	# body is retained for payload assertions.
-	var request_bytes: PackedByteArray = _pending_connection.get_data(_pending_connection.get_available_bytes())[1]
-	var request_text: String = request_bytes.get_string_from_utf8()
-	var body_separator_index: int = request_text.find("\r\n\r\n")
-	if body_separator_index >= 0:
-		last_request_body = request_text.substr(body_separator_index + 4)
 
 	if not respond_at_all:
 		# Deliberately do not close or write; the connection stays open and
@@ -83,5 +97,7 @@ func _process(_delta: float) -> void:
 		next_response_status, status_text, body_bytes.size(), next_response_body,
 	]
 	_pending_connection.put_data(response_text.to_utf8_buffer())
+	response_count += 1
+	response_sent.emit()
 	_pending_connection.disconnect_from_host()
 	_pending_connection = null

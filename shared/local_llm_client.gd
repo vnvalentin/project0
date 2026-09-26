@@ -105,7 +105,12 @@ func configure_from_env() -> void:
 ## "error": String, "outcome": String, "duration_ms": int}. Also emits
 ## request_outcome_reported() with a bounded telemetry Dictionary carrying no
 ## prompt text, raw body, or secrets.
-func generate_json(prompt: String) -> Dictionary:
+## An optional server-owned absolute monotonic deadline includes preparation
+## time. At/after it no candidate is accepted; cancellation resumes on the first
+## runnable frame, not a hard real-time scheduling guarantee. The native Timer
+## is disabled only for this path. clock_usec is an injectable monotonic clock.
+func generate_json(prompt: String, deadline_usec: int = 0, clock_usec: Callable = Callable()) -> Dictionary:
+	var started_usec: int = _now_usec(clock_usec)
 	var url: String = "%s/api/generate" % ollama_host
 	var headers: PackedStringArray = ["Content-Type: application/json"]
 
@@ -118,27 +123,64 @@ func generate_json(prompt: String) -> Dictionary:
 	}
 	var body: String = JSON.stringify(body_dict)
 
-	var start_ticks_msec: int = Time.get_ticks_msec()
+	if deadline_usec > 0 and _now_usec(clock_usec) >= deadline_usec:
+		return _deadline_result(started_usec, clock_usec)
+	var responses: Array[Array] = []
+	var capture: Callable = func(result_code: int, response_code: int, response_headers: PackedStringArray, response_body: PackedByteArray) -> void:
+		responses.append([result_code, response_code, response_headers, response_body])
+	if deadline_usec > 0:
+		_http_request.request_completed.connect(capture)
 
+	_http_request.timeout = 0.0 if deadline_usec > 0 else request_timeout_sec
 	var error: Error = _http_request.request(url, headers, HTTPClient.METHOD_POST, body)
 	if error != OK:
+		if deadline_usec > 0:
+			_http_request.request_completed.disconnect(capture)
 		var fail_result: Dictionary = {
 			"success": false,
 			"data": null,
 			"raw": "",
 			"error": "Failed to start request: %s" % error,
 			"outcome": OUTCOME_TRANSPORT_ERROR,
-			"duration_ms": Time.get_ticks_msec() - start_ticks_msec,
+			"duration_ms": (_now_usec(clock_usec) - started_usec) / 1000,
 		}
 		_report_outcome(fail_result, -1)
 		return fail_result
 
-	var response: Array = await _http_request.request_completed
-	var duration_ms: int = Time.get_ticks_msec() - start_ticks_msec
+	var response: Array
+	if deadline_usec > 0:
+		while responses.is_empty() and _now_usec(clock_usec) < deadline_usec:
+			await get_tree().process_frame
+		_http_request.request_completed.disconnect(capture)
+		if _now_usec(clock_usec) >= deadline_usec:
+			_http_request.cancel_request()
+			return _deadline_result(started_usec, clock_usec)
+		response = responses[0]
+	else:
+		response = await _http_request.request_completed
 	var result: Dictionary = _parse_response(response)
-	result["duration_ms"] = duration_ms
+	if deadline_usec > 0 and _now_usec(clock_usec) >= deadline_usec:
+		return _deadline_result(started_usec, clock_usec)
+	result["duration_ms"] = (_now_usec(clock_usec) - started_usec) / 1000
 	_report_outcome(result, response[1])
 	return result
+
+
+func _deadline_result(started_usec: int, clock_usec: Callable) -> Dictionary:
+	var result: Dictionary = {
+		"success": false,
+		"data": null,
+		"raw": "",
+		"error": "JIT generation deadline exceeded (result=%d)" % HTTPRequest.RESULT_TIMEOUT,
+		"outcome": OUTCOME_TIMEOUT,
+		"duration_ms": (_now_usec(clock_usec) - started_usec) / 1000,
+	}
+	_report_outcome(result, -1)
+	return result
+
+
+func _now_usec(clock_usec: Callable) -> int:
+	return int(clock_usec.call()) if clock_usec.is_valid() else Time.get_ticks_usec()
 
 
 func _report_outcome(result: Dictionary, response_code: int) -> void:

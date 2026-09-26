@@ -74,6 +74,86 @@ func _make_service(fake_port: int) -> Node:
 	return service
 
 
+func test_jit_environment_cannot_extend_three_second_cutoff() -> void:
+	var previous_timeout: String = OS.get_environment("PROJECT0_OLLAMA_TIMEOUT_SEC")
+	OS.set_environment("PROJECT0_OLLAMA_TIMEOUT_SEC", "180")
+	var fake_server: Node = FakeOllamaHttpServerScript.new()
+	var port: int = fake_server.start()
+	add_child_autofree(fake_server)
+	fake_server.response_delay_usec = 3200000
+	fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
+	var service: Node = SectorBlueprintServiceScript.new()
+	service.ollama_host = "http://127.0.0.1:%d" % port
+	add_child_autofree(service)
+	OS.set_environment("PROJECT0_OLLAMA_TIMEOUT_SEC", previous_timeout)
+	var dispatched: Array[Dictionary] = []
+	service.blueprint_request_completed.connect(func(_identity: String, result: Dictionary) -> void: dispatched.append(result))
+	var started_usec: int = Time.get_ticks_usec()
+	var result: Dictionary = await service.request_sector_blueprint("deadline fixture", "sector-9-4")
+	var elapsed_ms: float = float(Time.get_ticks_usec() - started_usec) / 1000.0
+	assert_eq(result["request_outcome"], "timeout")
+	assert_eq(result["source"], "fallback")
+	assert_eq(result.get("candidate_validation_outcome", ""), "valid")
+	assert_eq(result["blueprint"], EXPECTED_FALLBACK)
+	assert_eq(result["provenance"]["generation_budget_ms"], 3000.0)
+	assert_eq(result["detail"], "JIT generation deadline exceeded (result=13)")
+	assert_between(elapsed_ms, 2900.0, 3150.0, "3s deadline plus explicit 150ms scheduler tolerance, not hard real-time proof")
+	await wait_seconds(0.35)
+	assert_eq(fake_server.request_count, 1, "zero retries")
+	assert_eq(fake_server.disconnect_count, 1, "timeout closes the pending HTTP connection")
+	assert_eq(fake_server.response_count, 0, "delayed model cannot publish after cancellation")
+	assert_eq(dispatched.size(), 1, "late response cannot dispatch twice")
+	print("JIT_DEADLINE_WALL_CLOCK ", JSON.stringify({"elapsed_ms": elapsed_ms, "scheduler_tolerance_ms": 150, "result": result}))
+	fake_server.stop()
+
+
+func test_jit_response_before_at_and_after_absolute_deadline() -> void:
+	for offset_usec: int in [-1, 0, 1]:
+		var fake_server: Node = FakeOllamaHttpServerScript.new()
+		var port: int = fake_server.start()
+		add_child_autofree(fake_server)
+		fake_server.next_response_body = JSON.stringify({"response": FixturesScript.VALID})
+		var service: Node = _make_service(port)
+		var clock: Array[int] = [1000000]
+		service.clock_usec = func() -> int: return clock[0]
+		fake_server.response_sent.connect(func() -> void: clock[0] = 3000000 + offset_usec)
+		var result: Dictionary = await service.request_sector_blueprint("precise deadline", "sector-0-0", 1000000)
+		assert_eq(result["request_outcome"], "validated" if offset_usec < 0 else "timeout")
+		assert_eq(result["source"], "llm" if offset_usec < 0 else "fallback")
+		assert_eq(result["provenance"]["generation_deadline_usec"], 3000000)
+		assert_eq(fake_server.request_count, 1)
+		assert_eq(fake_server.response_count, 1, "real HTTP response sent, late acceptance still rejected")
+		assert_eq(result["timing"]["generation_duration_ms"], 2000.0 + float(offset_usec) / 1000.0)
+		fake_server.stop()
+
+
+func test_jit_preserves_short_explicit_timeout_under_large_environment() -> void:
+	var previous_timeout: String = OS.get_environment("PROJECT0_OLLAMA_TIMEOUT_SEC")
+	OS.set_environment("PROJECT0_OLLAMA_TIMEOUT_SEC", "180")
+	var fake_server: Node = FakeOllamaHttpServerScript.new()
+	var port: int = fake_server.start()
+	add_child_autofree(fake_server)
+	fake_server.respond_at_all = false
+	var service: Node = SectorBlueprintServiceScript.new()
+	service.ollama_host = "http://127.0.0.1:%d" % port
+	service.request_timeout_sec = 0.05
+	add_child_autofree(service)
+	OS.set_environment("PROJECT0_OLLAMA_TIMEOUT_SEC", previous_timeout)
+	var result: Dictionary = await service.request_sector_blueprint("short deadline")
+	assert_eq(result["request_outcome"], "timeout")
+	assert_eq(result["provenance"]["generation_budget_ms"], 50.0)
+	assert_between(result["timing"]["generation_duration_ms"], 50.0, 200.0)
+	assert_eq(fake_server.request_count, 1)
+	fake_server.stop()
+
+
+func test_jit_invalid_timeout_cannot_disable_cap() -> void:
+	for configured_sec: float in [0.0, -1.0, INF, NAN, 60.0, 180.0]:
+		assert_eq(SectorBlueprintServiceScript.bounded_jit_timeout(configured_sec), 3.0)
+	assert_eq(SectorBlueprintServiceScript.bounded_jit_timeout(0.025), 0.025)
+	assert_eq(preload("res://shared/local_llm_client.gd").DEFAULT_TIMEOUT_SEC, 60.0)
+
+
 func test_experiment_994_schema_gate_and_fallback_trace() -> void:
 	var fake_server: Node = FakeOllamaHttpServerScript.new()
 	var port: int = fake_server.start()
