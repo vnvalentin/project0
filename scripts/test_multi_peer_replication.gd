@@ -36,6 +36,7 @@ var _client_a_process_id: int = -1
 var _client_b_process_id: int = -1
 var _state_file_a: String = ""
 var _state_file_b: String = ""
+var _client_startup_gate: String = ""
 
 
 func _initialize() -> void:
@@ -104,6 +105,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		"--headless", "--path", project_path,
 		"-s", "scripts/multi_peer_client_harness.gd",
 		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_a, "--hold-input=move_back",
+		"--startup-gate=%s" % _client_startup_gate,
 	])
 	_assert(_client_a_process_id != -1, "client A process starts")
 
@@ -116,12 +118,15 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	_assert(_client_b_process_id != -1, "client B process starts")
 
 	# --- Both clients connect and see two distinct Player representations --
-	var state_a: Dictionary = await _wait_for_state(_state_file_a, func(s: Dictionary) -> bool:
+	var state_a: Dictionary = await _wait_for_state_with_deadline(_state_file_a, func(s: Dictionary) -> bool:
 		return s.get("status", "") == "connected: player spawned" and s.get("remote_players", {}).size() >= 1
-	, 300)
-	var state_b: Dictionary = await _wait_for_state(_state_file_b, func(s: Dictionary) -> bool:
+	, 20000, _client_a_process_id)
+	_assert(not state_a.is_empty(), "client A readiness observation succeeds")
+	if state_a.is_empty():
+		return
+	var state_b: Dictionary = await _wait_for_state_with_deadline(_state_file_b, func(s: Dictionary) -> bool:
 		return s.get("status", "") == "connected: player spawned" and s.get("remote_players", {}).size() >= 1
-	, 300)
+	, 20000, _client_b_process_id)
 
 	_assert(state_a.get("status", "") == "connected: player spawned", "client A connects and spawns its own Player representation")
 	_assert(state_b.get("status", "") == "connected: player spawned", "client B connects and spawns its own Player representation")
@@ -132,6 +137,8 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	var remote_players_on_b: Dictionary = state_b.get("remote_players", {})
 	_assert(remote_players_on_a.size() == 1, "client A sees exactly one distinct remote peer representation for client B")
 	_assert(remote_players_on_b.size() == 1, "client B sees exactly one distinct remote peer representation for client A")
+	if _failures > 0:
+		return
 
 	# Baseline positions right after both peers are confirmed connected, since
 	# each peer's server-assigned start position depends on connection order
@@ -181,27 +188,11 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 
 	var state_b_after_disconnect: Dictionary = await _wait_for_state_with_deadline(_state_file_b, func(s: Dictionary) -> bool:
 		return s.has("remote_players") and s["remote_players"].size() == 0
-	, 20000)
+	, 20000, _client_b_process_id)
 
 	_assert(state_b_after_disconnect.has("remote_players") and state_b_after_disconnect["remote_players"].size() == 0, "disconnecting client A removes its RemotePlayer representation from client B")
 	_assert(OS.is_process_running(_client_b_process_id), "client B's process is still running (no crash) after client A disconnects")
 	_assert(_client_b_process_id != -1 and OS.is_process_running(_client_b_process_id), "client B remains connected and usable after the other peer's disconnect")
-
-
-## Polls the given JSON state file (written by multi_peer_client_harness.gd)
-## until the predicate matches its parsed contents or max_ticks elapses.
-## Returns the last successfully parsed state (or an empty Dictionary if none
-## parsed yet).
-func _wait_for_state(path: String, predicate: Callable, max_ticks: int) -> Dictionary:
-	var state: Dictionary = {}
-	var waited_ticks: int = 0
-	while waited_ticks < max_ticks:
-		state = _read_state(path)
-		if not state.is_empty() and predicate.call(state):
-			return state
-		await process_frame
-		waited_ticks += 1
-	return state
 
 
 func _array_to_vector3(value: Variant) -> Vector3:
@@ -210,21 +201,23 @@ func _array_to_vector3(value: Variant) -> Vector3:
 	return Vector3.ZERO
 
 
-## Same as _wait_for_state, but bounded by real wall-clock milliseconds
-## (OS.get_ticks_msec()) instead of a frame count, for waits whose real-world
-## duration does not scale with this headless SceneTree's own frame rate —
-## e.g. ENet's server-side peer timeout after an abrupt (SIGKILL) client
-## disconnect, which elapses in real time regardless of how many engine
-## frames this process renders while waiting.
-func _wait_for_state_with_deadline(path: String, predicate: Callable, max_wait_msec: int) -> Dictionary:
+func _wait_for_state_with_deadline(path: String, predicate: Callable, max_wait_msec: int, process_id: int) -> Dictionary:
 	var state: Dictionary = {}
-	var deadline_msec: int = Time.get_ticks_msec() + max_wait_msec
+	var started_msec: int = Time.get_ticks_msec()
+	var deadline_msec: int = started_msec + max_wait_msec
+	var reason: String = "deadline"
 	while Time.get_ticks_msec() < deadline_msec:
-		state = _read_state(path)
+		if process_id <= 0 or _server_process_id <= 0 or not OS.is_process_running(process_id) or not OS.is_process_running(_server_process_id):
+			reason = "process_exited"
+			break
+		var observed: Dictionary = _read_state(path)
+		if not observed.is_empty():
+			state = observed
 		if not state.is_empty() and predicate.call(state):
 			return state
 		await process_frame
-	return state
+	print("PEER_OBSERVATION_FAILED ", JSON.stringify({"reason": reason, "path": path, "elapsed_msec": Time.get_ticks_msec() - started_msec, "last_valid_state": state, "snapshot_exists": FileAccess.file_exists(path), "client_alive": process_id > 0 and OS.is_process_running(process_id), "server_alive": _server_process_id > 0 and OS.is_process_running(_server_process_id)}))
+	return {}
 
 
 func _read_state(path: String) -> Dictionary:
