@@ -5,6 +5,72 @@ file and a Linux server address, and wants to connect. It assumes no Godot
 editor, no access to the source repository or Linux network share, and no
 gameplay configuration beyond the server address.
 
+## Developer: building the standalone package (#1213)
+
+On SETSUJOKU, build a fresh standalone client package from the current checkout:
+
+```powershell
+pwsh -NoProfile -File scripts/build_current_deployment.ps1 -Version 0.14.2 `
+   -RceditPath <path to an installed rcedit-x64.exe>
+```
+
+`-Version` is required and must be distinct from any published package (the
+site advertised 0.13.5 when #1213 was opened). Checking published identities is
+an operator prerequisite; the script only rejects existing local output. The
+requested version is stamped into the exported PCK's
+`CLIENT_BUILD_VERSION`; it does not change the server's required version, so
+the server must be configured to admit it through its own controlled step
+before a gameplay retest. `-GodotPath` defaults to `godot` on `PATH`;
+`-RceditPath` defaults to `build\tools\rcedit\...\rcedit-x64.exe` and is never
+installed automatically.
+
+The command needs no Go and never builds or tests the launcher. Output goes to
+`dist/standalone/<version>/`: `Project0-client-windows-x64-<version>.zip` and
+`deployment-manifest.json` with the full source commit, dirty-tree flag, and
+the size and SHA-256 of the ZIP and of the `Project0.exe`/`Project0.pck` inside
+it. An existing version directory is refused rather than overwritten, and
+`dist/current` and the launcher payload are not touched. Export, rcedit, or
+archive failures and missing or empty outputs fail the command. Owned export
+and package staging are cleaned on success and failure, with cleanup failures
+reported explicitly. A built package is not
+published or deployed, and exporting it is not proof of compatible gameplay.
+
+The client rendering fallback requires `server/starting_town_hub_fixture.gd`.
+Only that shared-schema-dependent resource is copied from `server/`; all other
+server source remains excluded. Only the staged export configuration is changed.
+
+Export logs and a JSON result are retained in
+`build/validation/standalone-build-<version>-<run>/`. Error or leak diagnostics
+fail the command even when Godot exits zero. Any diagnostic package is retained
+there under `quarantined-package`, with `release_eligible: false`, never in the
+normal standalone output. Do not publish or install a quarantined package.
+The manifest flag describes the exporter diagnostic gate, not gameplay approval.
+
+The focused regression is
+`pwsh -NoProfile -File scripts/test_build_current_deployment.ps1`; it uses a
+temporary fixture repository and fake tools, so Go and the launcher are not
+needed. It preserves caller environment variables and writes JSON evidence under
+`build/validation/standalone-packaging-tests-<run>.json`.
+
+To inspect the actual exported EXE/PCK, run:
+
+```powershell
+pwsh -NoProfile -File scripts/verify_standalone_package.ps1 -Version 0.14.2 -Windowed
+```
+
+The bounded probe uses isolated temporary user state and an offscreen Windows
+GL window; omit `-Windowed` for the headless renderer. It validates hashes,
+compiled RPC arity, safe/fallback navigation readiness, and absence of server
+runtime, without connecting to a server. `-PackageRoot` selects a diagnostic
+package without making it releasable. `-FaultInjection ArchiveHash` or `PckHash`
+must fail before launch. Results and logs are retained under `build/validation`.
+
+Current #1213 evidence: `0.14.1` passes the compiled-contract assertions but is
+quarantined for exporter resource-leak diagnostics; verification also fails on
+Area3D teardown errors. Neither diagnostic is suppressed. Controlled compatible
+server admission, normal movement, LAN/WAN testing, and player approval remain
+outstanding.
+
 ## Developer Experiment 1100
 
 On SETSUJOKU, run the VS Code task **Experiment: 1100 Verified Admission**, or:
@@ -103,8 +169,9 @@ components, and no credentials. This package only replays the same identity
 gate, movement, and networking behavior already validated on the development
 build; it adds no new gameplay.
 
-The portable client ZIP is the primary distribution. The optional Project0
-launcher is a separate updater/bootstrapper around the same `Project0.exe` and
+The portable client ZIP is the primary distribution and needs no launcher.
+Launcher work is currently deferred; the optional Project0 launcher is a
+separate updater/bootstrapper around the same `Project0.exe` and
 `Project0.pck` payload. Release launchers should be Authenticode-signed;
 unsigned local builds may trigger Windows SmartScreen or antivirus reputation
 warnings because the launcher downloads updates and starts a child process.
