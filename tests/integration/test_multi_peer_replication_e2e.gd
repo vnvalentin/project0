@@ -13,6 +13,43 @@ extends GutTest
 ## hardened "every tests/**/test_*.gd present in gut.xml" gate stays green.
 ## Unset, the harness MUST actually execute.
 
+class SnapshotClient extends "res://scripts/multi_peer_client_harness.gd":
+	func _initialize() -> void:
+		pass
+
+
+class SnapshotNetwork extends Node:
+	var status: String = "connected: player spawned"
+
+
+func test_snapshot_publication_preserves_an_in_flight_reader() -> void:
+	var client: SnapshotClient = SnapshotClient.new()
+	var network: SnapshotNetwork = SnapshotNetwork.new()
+	var gameplay: Node3D = Node3D.new()
+	var remotes: Node3D = Node3D.new()
+	remotes.name = "RemotePlayers"
+	gameplay.add_child(remotes)
+	var remote: Node3D = Node3D.new()
+	remote.name = "RemotePlayer_2"
+	remotes.add_child(remote)
+	client._network_client = network
+	client._gameplay_instance = gameplay
+	client._state_file_path = "user://peer_snapshot_%d.json" % Time.get_ticks_usec()
+	client._write_state()
+	var reader: FileAccess = FileAccess.open(client._state_file_path, FileAccess.READ)
+	remote.position = Vector3(0.0, 0.0, 9.0)
+	client._write_state()
+	var in_flight: Dictionary = JSON.parse_string(reader.get_as_text())
+	reader.close()
+	var latest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(client._state_file_path))
+	assert_eq(in_flight["remote_players"]["RemotePlayer_2"], [0.0, 0.0, 0.0], "an open reader retains its complete snapshot during publication")
+	assert_eq(latest["remote_players"]["RemotePlayer_2"], [0.0, 0.0, 9.0], "a new reader observes published movement")
+	DirAccess.remove_absolute(client._state_file_path)
+	gameplay.free()
+	network.free()
+	client.free()
+
+
 func test_multi_peer_replication_harness_passes() -> void:
 	if not OS.get_environment("PROJECT0_SKIP_E2E").is_empty():
 		pending("PROJECT0_SKIP_E2E set: skipping real multi-process E2E harness run")
