@@ -279,7 +279,7 @@ Complete when: Update acceptance passes.
     assert page.count('class="milestone-slice"') == 2
     assert 'data-slice-id="A1"' in page
     assert 'data-slice-id="A2"' in page
-    assert "Trusted First Install" in page and "Windows acceptance passes." in page
+    assert "Trusted First Install" in page and "Windows acceptance passes." not in page
     assert "Shared context" in page and "Release continuity" in page
     assert "Unmapped milestone work" in page and "Input parity" in page
     assert "Required scope awaiting Slice definition" in page
@@ -301,6 +301,75 @@ def _mapped_slice_definition(identifier="A1", members="- #7", evidence=""):
         f"Included issues:\n{members}\nComplete when: Windows acceptance passes.\n"
         f"{evidence}\n"
     )
+
+
+def test_bands_compact_members_link_to_slice_description(monkeypatch):
+    members = [
+        {**_roadmap_issue(7, "Closed work", ["tbp:in-progress"]), "milestone_number": 1, "state": "closed"},
+        {**_roadmap_issue(8, "Active work", [], "Status: In Progress"), "milestone_number": 1},
+        {**_roadmap_issue(9, "Open work", []), "milestone_number": 1},
+    ]
+    description = "## Slices\n" + _mapped_slice_definition(members="- #7\n- #8\n- #9") + "Dependency: Verified payload.\n"
+    page = _mapped_bands_page(monkeypatch, description, members)
+
+    assert '>#7</a>' in page and '>#8</a>' in page and '>#9</a>' in page
+    for status in ("closed", "active", "open"):
+        assert f'class="issue-status {status}"' in page
+        assert f'>{status.title()}</span>' in page
+    assert "Verified installation." not in page
+    assert "Windows acceptance passes." not in page
+    assert "Verified payload." not in page
+    assert 'class="milestone-counts"' not in page
+    assert 'class="milestone-slice-state"' not in page
+    assert "New · 7 issues · Member readiness not established" not in page
+    assert 'href="/roadmap?milestone=1&amp;slice=A1"' in page
+
+    detail = render_roadmap(milestone_number="1", slice_id="A1")
+    assert "Slice A1: Trusted entry" in detail
+    assert "<dt>Outcome</dt><dd>Verified installation.</dd>" in detail
+    assert "<dt>Completion description</dt><dd>Windows acceptance passes.</dd>" in detail
+    assert "<dt>Dependency</dt><dd>Verified payload.</dd>" in detail
+    assert '>Back to roadmap</a>' in detail
+
+
+def test_slice_description_is_scoped_to_milestone_and_escapes_text(monkeypatch):
+    description = "## Slices\n" + _mapped_slice_definition("A&B").replace("Verified installation.", "<script>unsafe</script>")
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "issues": [], "milestones": [
+            {"number": 1, "title": "Track A", "description": description},
+            {"number": 2, "title": "Track B", "description": description.replace("<script>unsafe</script>", "Second milestone outcome.")},
+        ],
+    })
+    assert 'href="/roadmap?milestone=1&amp;slice=A%26B"' in render_roadmap()
+    first = render_roadmap(milestone_number="1", slice_id="A&B")
+    assert "&lt;script&gt;unsafe&lt;/script&gt;" in first
+    assert "<script>unsafe</script>" not in first
+    assert "<dt>Dependency</dt><dd>Not specified</dd>" in first
+    second = render_roadmap(milestone_number="2", slice_id="A&B")
+    assert "Second milestone outcome." in second
+    assert "unsafe" not in second
+
+
+@pytest.mark.parametrize("milestone,slice_id,duplicate", [
+    ("999", "A1", False),
+    ("1", "missing", False),
+    ("1", "", False),
+    ("1", "A1", True),
+])
+def test_slice_description_rejects_missing_or_ambiguous_selection(monkeypatch, milestone, slice_id, duplicate):
+    description = "## Slices\n" + _mapped_slice_definition() * (2 if duplicate else 1)
+    _mapped_bands_page(monkeypatch, description, [])
+    page = render_roadmap(milestone_number=milestone, slice_id=slice_id)
+    assert "Slice description unavailable" in page
+    assert "Verified installation." not in page
+    assert '>Back to roadmap</a>' in page
+
+
+def test_slice_description_retains_source_warning(monkeypatch):
+    monkeypatch.setattr("app.github_issues", lambda: {"available": False, "error": "network down"})
+    page = render_roadmap(milestone_number="1", slice_id="A1")
+    assert "GitHub issues unavailable: network down" in page
+    assert '>Back to roadmap</a>' in page
 
 
 @pytest.mark.parametrize("labels,closed,evidence,expected,reason", [
@@ -333,6 +402,24 @@ def test_bands_reports_duplicate_missing_and_foreign_members(monkeypatch):
     assert 'data-slice-id="A1" data-state="new"' in page
     assert 'data-slice-id="A2" data-state="new"' in page
     assert "Slice delivery: 0/2 complete" in page
+    assert page.count("Issues: 0/1 closed") == 3
+    assert "Issues: 0/4 closed" not in page
+
+
+def test_bands_shows_member_activity_without_relaxing_acceptance(monkeypatch):
+    members = [
+        {**_roadmap_issue(7, "Accepted change", []), "milestone_number": 1, "state": "closed"},
+        {**_roadmap_issue(8, "Current experiment", [], "## Status\n\nIn progress: collecting evidence."), "milestone_number": 1},
+        {**_roadmap_issue(9, "Undefined work", []), "milestone_number": 1},
+    ]
+    page = _mapped_bands_page(monkeypatch, "## Slices\n" + _mapped_slice_definition(members="- #7\n- #8\n- #9"), members)
+
+    assert page.count("Issues: 1/3 closed") == 2
+    assert page.count("Active 1") == 2
+    assert 'class="issue-status active"' in page
+    assert 'data-slice-id="A1" data-state="new"' in page
+    assert "Member readiness not established" in page
+    assert "Slice delivery: 0/1 complete" in page
 
 
 def test_bands_fenced_examples_and_other_sections_are_not_membership(monkeypatch):
@@ -347,11 +434,59 @@ def test_bands_fenced_examples_and_other_sections_are_not_membership(monkeypatch
 
 
 def test_bands_no_definition_does_not_infer_slices_from_labels(monkeypatch):
-    member = {**_roadmap_issue(7, "Legacy Slice", ["Slice"]), "milestone_number": 1}
-    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", [member])
+    members = [
+        {**_roadmap_issue(7, "Legacy Slice", ["Slice"]), "milestone_number": 1, "state": "closed"},
+        {**_roadmap_issue(8, "Current Slice", ["Slice"], "Status: In Progress"), "milestone_number": 1},
+    ]
+    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", members)
     assert "No Slices defined in milestone description." in page
-    assert "Slice delivery: 0/0 complete" in page
-    assert "Unmapped milestone work (1)" in page
+    assert "Outcome acceptance: not defined" in page
+    assert "Slice delivery: 0/0 complete" not in page
+    assert "Issues: 1/2 closed" in page and "Active 1" in page
+    assert "Unmapped milestone work (2)" in page
+    assert 'class="milestone-slice"' not in page
+
+
+@pytest.mark.parametrize("labels,body,state,active,blocked", [
+    (["tbp:in-progress", "blocked"], "", "open", 1, 1),
+    (["tbp:in-progress", "blocked"], "Status: In Progress", "closed", 0, 0),
+    ([], "Status: Blocked", "open", 0, 1),
+    ([], "## Status\nStatus: Awaiting evidence", "open", 1, 0),
+    ([], "## Delivery Status\nActive: validating", "open", 1, 0),
+    ([], "## Status\nIn progress: running\nStatus: Blocked", "open", 0, 1),
+    ([], "## History\nIn progress: previously running\nStatus: In Progress", "open", 0, 0),
+    ([], "## Status\n```text\nIn progress: example\n```", "open", 0, 0),
+    ([], "Status: Blocked\n## History\n### Status\nIn progress: previous attempt", "open", 0, 1),
+    ([], "## Status\nBlocked\n````markdown\n```text\nIn progress: example\n```\n````", "open", 0, 1),
+    ([], "Status: Blocked\n~~~text\n~~~not-a-closing-fence\nStatus: In Progress\n~~~", "open", 0, 1),
+    ([], "Status: Blocked\n\n    Status: In Progress", "open", 0, 1),
+    ([], "Status: Blocked\n\n \tStatus: In Progress", "open", 0, 1),
+    ([], "Status: Blocked\n\n  \tStatus: In Progress", "open", 0, 1),
+    ([], "Status: Blocked\n\n   \tStatus: In Progress", "open", 0, 1),
+    ([], "## Status\n> In progress: quoted\n- [ ] In progress: pending", "open", 0, 0),
+    ([], "We will put this In progress: later.", "open", 0, 0),
+])
+def test_bands_activity_uses_current_explicit_status_only(monkeypatch, labels, body, state, active, blocked):
+    member = {**_roadmap_issue(7, "Entry", labels, body), "milestone_number": 1, "state": state}
+    page = _mapped_bands_page(monkeypatch, "Outcome: Safe entry.", [member])
+    assert f"Active {active}" in page
+    assert f"Blocked {blocked}" in page
+    if state == "open":
+        assert ('class="issue-status active"' in page) is bool(active)
+        assert (', blocked"' in page) is bool(blocked)
+
+
+def test_bands_unscheduled_issues_show_activity_without_inventing_groups(monkeypatch):
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True, "milestones": [], "issues": [
+            {**_roadmap_issue(7, "Delivered work", []), "state": "closed"},
+            _roadmap_issue(8, "Active work", ["tbp:in-progress"]),
+        ],
+    })
+    page = render_roadmap()
+    assert "Unscheduled backlog" in page
+    assert "Issues: 1/2 closed" in page and "Active 1" in page
+    assert "Outcome acceptance: not defined" in page
     assert 'class="milestone-slice"' not in page
 
 

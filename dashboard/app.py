@@ -9,7 +9,7 @@ import time
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -1100,11 +1100,15 @@ DELIVERY_MOCKUP_CSS = """
 .milestone-band .milestone-counts{flex-wrap:wrap}
 .milestone-slice{border-left:3px solid var(--cyan);padding-left:10px;margin:8px 0}
 .milestone-slice>summary{cursor:pointer;font-weight:700;font-size:12px}
-.milestone-slice-state{display:block;color:var(--muted);font-size:11px;font-weight:400;margin:4px 0}
-.milestone-slice dl{font-size:12px;margin:10px 0}.milestone-slice dt{color:var(--muted);margin-top:8px}.milestone-slice dd{margin:2px 0;white-space:pre-wrap}
-.milestone-member-list{list-style:none;padding:0;margin:8px 0;font-size:12px}.milestone-member-list li{padding:6px 0;border-bottom:1px solid var(--mock-line)}
+.milestone-activity{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;font-size:12px;font-weight:400}
+.milestone-activity strong{font-weight:700}.milestone-activity .active{color:var(--cyan)}.milestone-activity .blocked{color:var(--amber)}
+.slice-description{max-width:760px;overflow-wrap:anywhere}.slice-description h2{font-size:22px;line-height:1.35;margin:20px 0}
+.slice-description dl{font-size:14px;line-height:1.6}.slice-description dt{font-weight:700;margin-top:22px}.slice-description dd{margin:6px 0;white-space:pre-wrap}
+.slice-description-link,.slice-back{display:inline-block;color:var(--cyan);font-size:12px;margin:10px 0}
+.milestone-member-list{list-style:none;padding:0;margin:8px 0;font-size:12px}.milestone-member-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--mock-line)}
 .milestone-member-list a{color:var(--text);text-decoration:none}.milestone-member-list a:hover{color:var(--cyan)}
-.milestone-member-list small{display:block;color:var(--muted)}
+.issue-status{flex-shrink:0;min-width:52px;text-align:center;padding:3px 6px;border-radius:4px;font-size:11px;font-weight:700}
+.issue-status.closed{background:#173c2d;color:#8ce3c2}.issue-status.open{background:#303942;color:#d4dce3}.issue-status.active{background:#123d4a;color:#72e3f2}
 .milestone-mapping-warning{color:var(--amber);font-size:12px;margin:8px 0}
 .milestone-scope{white-space:pre-wrap;font-size:12px;color:var(--muted)}
 .milestone-context{margin-top:12px}.milestone-context>summary{cursor:pointer;font-size:12px;font-weight:700}
@@ -1297,6 +1301,61 @@ def _milestone_group_state(group: dict, members: list[dict]) -> tuple[str, str]:
     return "ready", "All remaining members ready"
 
 
+def _delivery_current_status(issue: dict) -> str:
+    section = ""
+    fence = ""
+    status = ""
+    for raw_line in (issue.get("body") or "").splitlines():
+        if raw_line.expandtabs(4).startswith("    "):
+            continue
+        line = raw_line.strip()
+        marker = re.match(r"^(`{3,}|~{3,})", line)
+        if marker:
+            if not fence:
+                fence = marker[1]
+            elif marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not line[marker.end():].strip():
+                fence = ""
+            continue
+        if fence:
+            continue
+        heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
+        if heading:
+            section = heading[2].lower() if len(heading[1]) == 2 else "other"
+            continue
+        if section not in {"", "status", "delivery status"}:
+            continue
+        prefix = r"Status:\s*" if not section else r"(?:Status:\s*)?"
+        declaration = re.match(prefix + r"(in[ -]progress|active|blocked|ready|done|closed|awaiting evidence)(?=\s*[:.]|\s*$)", line, re.I)
+        if declaration:
+            status = declaration[1].lower().replace("-", " ")
+    return status
+
+
+def _delivery_issue_activity(issue: dict) -> set[str]:
+    if issue.get("state", "open").lower() == "closed":
+        return {"closed"}
+    labels = {label.lower() for label in issue.get("labels", [])}
+    status = _delivery_current_status(issue)
+    activity = set()
+    if labels & {"tbp:in-progress", "in progress"} or status in {"in progress", "active", "awaiting evidence"}:
+        activity.add("active")
+    if labels & {"blocked", "tbp:blocked"} or status == "blocked":
+        activity.add("blocked")
+    return activity
+
+
+def _delivery_activity_html(issues: list[dict]) -> str:
+    unique = {issue["number"]: issue for issue in issues}
+    activities = [_delivery_issue_activity(issue) for issue in unique.values()]
+    closed = sum("closed" in activity for activity in activities)
+    active = sum("active" in activity for activity in activities)
+    blocked = sum("blocked" in activity for activity in activities)
+    return (
+        f'<div class="milestone-activity"><strong>Issues: {closed}/{len(unique)} closed</strong>'
+        f'<span class="active">Active {active}</span><span class="blocked">Blocked {blocked}</span></div>'
+    )
+
+
 def _milestone_member_list(numbers: list[int], by_number: dict[int, dict]) -> str:
     rows = []
     for number in dict.fromkeys(numbers):
@@ -1304,7 +1363,15 @@ def _milestone_member_list(numbers: list[int], by_number: dict[int, dict]) -> st
         if member is None:
             rows.append(f'<li class="milestone-mapping-warning">Unresolved issue #{number}</li>')
         else:
-            rows.append(f'<li>{_delivery_mockup_issue(member)}<small>GitHub {esc(member.get("state", "open"))}</small></li>')
+            activity = _delivery_issue_activity(member)
+            status = "closed" if "closed" in activity else "active" if "active" in activity else "open"
+            status_label = status.title() + (", blocked" if "blocked" in activity else "")
+            title = esc(member.get("title", ""))
+            rows.append(
+                f'<li><a href="{esc(member.get("url", ""))}" title="{title}" '
+                f'aria-label="Issue #{number}: {title}">#{number}</a>'
+                f'<span class="issue-status {status}" aria-label="{status_label}" title="{status_label}">{status.title()}</span></li>'
+            )
     return f'<ul class="milestone-member-list">{"".join(rows)}</ul>'
 
 
@@ -1339,14 +1406,15 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
                     group["warnings"].append(f'Issue #{number} is not assigned to this milestone.')
         state, reason = _milestone_group_state(group, members)
         counts[state] += 1
-        fields = "".join(f'<dt>{esc(name.title())}</dt><dd>{esc(group[name])}</dd>'
-                         for name in ("outcome", "complete when", "dependency", "outcome evidence") if group[name])
+        detail_url = "/roadmap?" + urlencode({"milestone": record["number"], "slice": group["id"]})
         warnings = "".join(f'<p class="milestone-mapping-warning">{esc(warning)}</p>' for warning in group["warnings"])
+        activity = _delivery_activity_html([member for member in members if member.get("milestone_number") == record["number"]])
         groups_html.append(
-            f'<details class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}">'
-            f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}'
-            f'<span class="milestone-slice-state">{state.title()} · {len(set(group["members"]))} issues · {esc(reason)}</span></summary>'
-            f'<dl>{fields}</dl>{warnings}{_milestone_member_list(group["members"], by_number)}</details>'
+            f'<details class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}" data-reason="{esc(reason)}">'
+            f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}{activity}</summary>'
+            f'{warnings}{_milestone_member_list(group["members"], by_number)}'
+            f'<a class="slice-description-link" href="{esc(detail_url)}" '
+            f'aria-label="View Slice {esc(group["id"])} description">View Slice description</a></details>'
         )
     shared_text = "\n".join(plan["sections"].get("shared context", []))
     shared = [int(number) for number in re.findall(r"#([1-9][0-9]*)\b", shared_text)]
@@ -1363,13 +1431,18 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
         extras.append(f'<details class="milestone-context"><summary>Required scope awaiting Slice definition</summary><div class="milestone-scope">{esc(scope)}</div></details>')
     if not groups_html:
         groups_html.append('<p class="milestone-mapping-warning">No Slices defined in milestone description.</p>')
-    outcome = plan["outcome"] or (description.split("\n\n", 1)[0] if description else "")
-    count_html = "".join(f'<span class="{state}">{state.title()} {value}</span>' for state, value in counts.items())
+    introduction = re.split(r"(?m)^\s*#{1,6}\s", description, maxsplit=1)[0].strip()
+    outcome = plan["outcome"] or introduction.split("\n\n", 1)[0]
+    acceptance = (
+        f'Slice delivery: {counts["done"]}/{len(plan["slices"])} complete'
+        if plan["slices"] else "Outcome acceptance: not defined"
+    )
     attention = '<p class="milestone-mapping-warning">Unresolved scope or mapping requires attention.</p>' if scope or unmapped or any(group["warnings"] for group in plan["slices"]) else ""
     return (
         f'<details class="milestone-band" data-milestone="{record["number"]}"><summary><h3>{esc(record["title"])}</h3>'
-        f'<p>{esc(outcome)}</p><div class="milestone-feature-summary">Slice delivery: {counts["done"]}/{len(plan["slices"])} complete</div>'
-        f'<div class="milestone-counts">{count_html}</div>{attention}</summary>'
+        f'<p>{esc(outcome)}</p>{_delivery_activity_html(record["issues"])}'
+        f'<div class="milestone-feature-summary">{acceptance}</div>'
+        f'{attention}</summary>'
         f'<div class="milestone-issues">{"".join(groups_html)}{"".join(extras)}</div></details>'
     )
 
@@ -1408,7 +1481,33 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
     return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
 
 
-def render_roadmap(mockup_variant: str = "") -> str:
+def _delivery_slice_description(issue_feed: dict, milestone_number: str, slice_id: str) -> str:
+    back_link = '<a class="slice-back" href="/roadmap">Back to roadmap</a>'
+    if not issue_feed.get("available"):
+        content = f'<p class="sourcewarn">GitHub issues unavailable: {esc(issue_feed.get("error", "unknown error"))}</p>'
+    else:
+        groups = [
+            group
+            for milestone in issue_feed.get("milestones", [])
+            if str(milestone.get("number")) == milestone_number
+            for group in _milestone_slice_plan(milestone.get("description") or "")["slices"]
+            if group["id"] == slice_id
+        ]
+        if len(groups) != 1:
+            content = '<h2>Slice description unavailable</h2><p>The Slice is missing or its identifier is not unique.</p>'
+        else:
+            group = groups[0]
+            fields = "".join(
+                f'<dt>{label}</dt><dd>{esc(group[name] or "Not specified")}</dd>'
+                for name, label in (("outcome", "Outcome"), ("complete when", "Completion description"), ("dependency", "Dependency"))
+            )
+            if group["outcome evidence"]:
+                fields += f'<dt>Outcome evidence</dt><dd>{esc(group["outcome evidence"])}</dd>'
+            content = f'<h2>Slice {esc(group["id"])}: {esc(group["title"])}</h2><dl>{fields}</dl>'
+    return f'<section class="sec slice-description">{back_link}{content}</section>'
+
+
+def render_roadmap(mockup_variant: str = "", milestone_number: str = "", slice_id: str = "") -> str:
     """Default to milestone Bands, with the backlog tree explicitly selectable."""
     issue_feed = github_issues()
     mockup = "" if mockup_variant == "backlog" else (
@@ -1420,6 +1519,9 @@ def render_roadmap(mockup_variant: str = "") -> str:
         else '<section class="sec"><h2>Full backlog</h2><div class="roadmap-intro">Expand a Hoshin to see the backlog arranged by Hoshin, Theme, Feature, Epic, and Experiment.</div>'
         f'{_tbp_story_map_html(issue_feed)}</section>'
     )
+    if milestone_number or slice_id:
+        mockup = "delivery-a"
+        page_body = _delivery_slice_description(issue_feed, milestone_number, slice_id)
     return f'''<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="refresh" content="60"><title>Project0 — Roadmap</title>
 <style>{EXEC_CSS}{OVERVIEW_CSS}{DELIVERY_MOCKUP_CSS if mockup else ""}</style></head><body class="{'delivery-bands-page' if mockup == 'delivery-a' else ''}">
@@ -2241,8 +2343,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         elif path == "/roadmap":
-            mockup = parse_qs(parsed.query).get("mockup", [""])[0]
-            body = render_roadmap(mockup).encode("utf-8")
+            query = parse_qs(parsed.query)
+            body = render_roadmap(
+                query.get("mockup", [""])[0],
+                query.get("milestone", [""])[0],
+                query.get("slice", [""])[0],
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
         else:
