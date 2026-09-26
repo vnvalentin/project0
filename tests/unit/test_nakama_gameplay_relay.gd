@@ -11,6 +11,10 @@ class FakeSocket extends RefCounted:
 
 class FakeBridge extends RefCounted:
 	var received: Array = []
+	var unbound_connection_ids: Array[String] = []
+
+	func unbind(connection_id: String) -> void:
+		unbound_connection_ids.append(connection_id)
 
 	func receive_match_state(connection_id: String, data: String, tick: int) -> Dictionary:
 		received.append({"connection_id": connection_id, "data": data, "tick": tick})
@@ -27,7 +31,7 @@ class FakeMatchData extends RefCounted:
 func test_relay_forwards_socket_data_to_bridge_and_writes_back_to_match() -> void:
 	var socket: FakeSocket = FakeSocket.new()
 	var bridge: FakeBridge = FakeBridge.new()
-	var relay: Node = RelayScript.new(bridge, socket)
+	var relay: Node = autofree(RelayScript.new(bridge, socket))
 	relay._match_id = "shared-match"
 	relay._on_match_state(FakeMatchData.new())
 	assert_eq(bridge.received.size(), 1)
@@ -41,8 +45,9 @@ func test_relay_url_parser_rejects_invalid_port_without_exposing_secrets() -> vo
 
 func test_relay_unbind_allows_reconnect_for_same_identity() -> void:
 	var bridge: FakeBridge = FakeBridge.new()
-	var relay: Node = RelayScript.new(bridge, FakeSocket.new())
+	var relay: Node = autofree(RelayScript.new(bridge, FakeSocket.new()))
 	relay._match_id = "shared-match"
 	relay._presences["nakama-user"] = FakePresence.new()
 	relay.unbind_world_entry("nakama-user")
 	assert_false(relay._presences.has("nakama-user"))
+	assert_eq(bridge.unbound_connection_ids, ["nakama-user"])

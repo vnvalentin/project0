@@ -12,6 +12,7 @@ class_name SessionRegistry
 ## handler) without touching any other connected peer's state.
 
 var _sessions_by_peer_id: Dictionary = {}
+var _next_session_epoch: int = 1
 
 
 ## Public seam. Binds a fresh opaque CSPRNG session token to `peer_id`,
@@ -22,10 +23,12 @@ func bind(peer_id: int, account_id: String, username: String) -> String:
 	var token: String = _generate_token()
 	_sessions_by_peer_id[peer_id] = {
 		"session_token": token,
+		"session_epoch": _next_session_epoch,
 		"account_id": account_id,
 		"username": username,
 		"authenticated_at": Time.get_unix_time_from_system(),
 	}
+	_next_session_epoch += 1
 	return token
 
 
@@ -37,6 +40,10 @@ func is_authenticated(peer_id: int) -> bool:
 ## Public seam. Returns the bound session Dictionary for `peer_id`
 ## ({session_token, account_id, username, authenticated_at}), or an empty
 ## Dictionary if the peer holds no session.
+func get_session_epoch(peer_id: int) -> int:
+	return int(_sessions_by_peer_id.get(peer_id, {}).get("session_epoch", 0))
+
+
 func get_session(peer_id: int) -> Dictionary:
 	return _sessions_by_peer_id.get(peer_id, {})
 

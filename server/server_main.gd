@@ -32,7 +32,7 @@ extends SceneTree
 ## parallel channel — see docs/slices/033-client-monster-replication-and-rendering.md.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
-const ServerPlayerStateScript: Script = preload("res://server/server_player_state.gd")
+const ServerPlayerStateScript: Script = preload("res://server/admitted_player_state.gd")
 const StartingTownHubFixtureScript: Script = preload("res://server/starting_town_hub_fixture.gd")
 const HouseAllocatorScript: Script = preload("res://server/house_allocator.gd")
 const ServerMonsterManagerScript: Script = preload("res://server/server_monster_manager.gd")
