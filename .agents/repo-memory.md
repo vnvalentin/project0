@@ -60,6 +60,11 @@ quick-reference and seed, not a replacement for them.
 - Focused GUT: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gexit`
   (or `-gdir=res://tests/integration`).
 - Per-script parse check: `godot --headless --check-only -s <script.gd>`.
+- Remote (Linux host) commands from Windows: `scripts/remote.ps1 '<bash script>'`
+  sends the script over SSH stdin, so braces, `$vars` and quotes survive; never
+  hand-quote `ssh host "..."` (see AGENTS.md "Windows shell and SSH quoting").
+  Validate the helper with `scripts/test_remote.ps1` under both `pwsh` and
+  `powershell.exe`.
 
 ## Headless server boot (gotchas)
 
