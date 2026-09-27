@@ -20,8 +20,6 @@ jobs:
     name: ${{ matrix.image }}
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 45
-    env:
-      DOCKER_CONFIG: ${{ runner.temp }}/project0-image-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
@@ -54,9 +52,12 @@ jobs:
       - name: Prepare private Docker configuration
         id: docker-config
         shell: bash
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/project0-image-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.image }}
         run: |
           if [[ -e "$DOCKER_CONFIG" ]]; then exit 1; fi
           install -d -m 700 "$DOCKER_CONFIG"
+          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_CONFIG" >> "$GITHUB_ENV"
           printf 'owned=true\n' >> "$GITHUB_OUTPUT"
           docker buildx inspect default
       - name: Log in to GHCR
