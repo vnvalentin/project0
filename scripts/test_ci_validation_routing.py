@@ -29,6 +29,35 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(plan["linux_ref"], "a" * 40)
         self.assertEqual(plan["linux_host"], "192.168.1.254")
 
+    def test_named_windows_probes_preserve_linux_identity(self):
+        metadata = copy.deepcopy(self.metadata)
+        metadata["labels"] = ["platform:windows-required"]
+        metadata["baseline_tree"] = {"server/main.gd": "1" * 40}
+        for path in ("scripts/client_package_inventory.gd", "scripts/windows_paired_client.gd",
+                     "tests/fixtures/windows_client_packages.gd"):
+            metadata["candidate_tree"][path] = "3" * 40
+        self.assertEqual(self.routing.route(metadata)["linux_ref"], metadata["baseline"])
+        metadata["candidate_tree"]["scripts/unknown_probe.gd"] = "4" * 40
+        with self.assertRaises(ValueError):
+            self.routing.route(metadata)
+
+    def test_client_reports_require_execution_and_cleanup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "client/package-controls").mkdir(parents=True)
+            control = {"check": "windows-client-package-boundary-controls", "passed": True,
+                       "cleanup": True, "cases": [{"name": "valid", "passed": True}]}
+            path = root / "client/package-controls/result.json"
+            path.write_text(json.dumps(control))
+            (root / "client/build.json").write_text(json.dumps({"status": "passed", "cleanup": True, "failure_cases": 11}))
+            self.assertEqual(self.routing.client_tests(root), ["scripts/test_build_current_deployment.ps1",
+                                                               "scripts/test_windows_client_validation.ps1"])
+            for change in ({"passed": False}, {"cleanup": False}, {"cases": []},
+                           {"cases": [{"name": "valid", "passed": False}]}):
+                path.write_text(json.dumps(control | change))
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    self.routing.client_tests(root)
+
     def test_unknown_mixed_missing_and_contradictory_ownership_fail_closed(self):
         for path, labels in [("unclassified/test.dat", []), ("client/player.gd", []),
                              ("native/windows_launcher/main.go", ["platform:windows-required"]),
@@ -124,6 +153,19 @@ class RoutingTests(unittest.TestCase):
                 log.write_text(invalid)
                 with self.subTest(log=invalid), self.assertRaises(ValueError):
                     self.routing.launcher_tests(directory)
+            log.write_text(good)
+            metadata_path = directory / "native-package.json"
+            metadata = json.loads(metadata_path.read_text())
+            metadata["CollectedTests"].append("TestExperiment1100RealEngine")
+            metadata["SelectedTests"] = ["TestNative"]
+            metadata["OptInTests"] = ["TestExperiment1100RealEngine"]
+            metadata_path.write_text(json.dumps(metadata))
+            self.assertEqual(len(self.routing.launcher_tests(directory)), 3)
+            metadata["SelectedTests"] = []
+            metadata["OptInTests"].append("TestNative")
+            metadata_path.write_text(json.dumps(metadata))
+            with self.assertRaises(ValueError):
+                self.routing.launcher_tests(directory)
 
     def test_aggregate_checks_actual_artifact_bytes(self):
         import hashlib
@@ -174,6 +216,27 @@ class RoutingTests(unittest.TestCase):
             self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", block)
             self.assertIn("verify-source", block)
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
+        images = (ROOT / ".github/workflows/images.yml").read_text()
+        build = images.split("  build:\n", 1)[1]
+        self.assertIn("needs: route", build)
+        self.assertIn("runs-on: [self-hosted, Linux, X64, okami]", build)
+        self.assertLess(build.index("run: exit 1"), build.index("uses: actions/checkout@v4"))
+        self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", build)
+        self.assertIn("verify-source", build)
+
+    def test_manual_image_source_requires_main_ancestry(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            event = Path(temporary) / "event.json"
+            event.write_text("{}")
+            environment = {"GITHUB_EVENT_PATH": str(event), "GITHUB_REPOSITORY": "owner/repo",
+                           "GITHUB_SHA": "a" * 40, "GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main"}
+            with patch.dict(self.routing.os.environ, environment), patch.object(self.routing.sys, "platform", "win32"), \
+                    patch.object(self.routing, "git_tree", return_value={"server/main.gd": "1" * 40}), \
+                    patch.object(self.routing, "command", side_effect=["a" * 40, "b" * 40, ""]) as commands:
+                metadata = self.routing.metadata_from_event()
+                self.assertEqual(metadata["candidate"], "a" * 40)
+                self.assertEqual(metadata["baseline"], "a" * 40)
+                self.assertIn(("git", "merge-base", "--is-ancestor", "a" * 40, "b" * 40), [call.args for call in commands.call_args_list])
 
     def test_windows_candidate_requires_approved_linux_inputs_before_checkout(self):
         spec = importlib.util.spec_from_file_location("routing", ROOT / "scripts/ci_validation_routing.py")

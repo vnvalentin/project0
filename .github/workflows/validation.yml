@@ -241,21 +241,12 @@ jobs:
         shell: bash
         run: scripts/stage_launcher_payload_placeholders.sh
 
-      - name: Run launcher validation
-        env:
-          PROJECT0_EXPERIMENT_EVIDENCE_DIR: ${{ github.workspace }}/logs/experiments
-          GOFLAGS: -json
-        shell: pwsh
-        run: |
-          $directory = Join-Path $PWD 'build/validation/windows_launcher'
-          New-Item -ItemType Directory -Force $directory | Out-Null
-          ./scripts/run_windows_launcher_validation.ps1 *>&1 | Tee-Object -FilePath (Join-Path $directory 'execution.log')
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Record native test collection
         shell: pwsh
         run: |
           $directory = Join-Path $PWD 'build/validation/windows_launcher'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $selectedNames = @()
           $selections = @(
             @{ path = 'native/windows_launcher'; arguments = @('.'); output = 'native-package.json' },
             @{ path = 'scripts'; arguments = @('generate_1100_fixture.go', 'generate_1100_fixture_test.go'); output = 'fixture-package.json' }
@@ -269,14 +260,65 @@ jobs:
               $metadata = $text | ConvertFrom-Json
               $names = & go test -list '^(Test|Example|Fuzz)' @arguments
               if ($LASTEXITCODE -ne 0) { throw 'Go test collection failed' }
+              $collected = @($names | Where-Object { $_ -match '^(Test|Example|Fuzz)\S*$' })
+              $optIn = @($collected | Where-Object { $metadata.ImportPath -eq 'project0/windows-launcher' -and $_ -eq 'TestExperiment1100RealEngine' })
+              $selected = @($collected | Where-Object { $_ -notin $optIn })
+              if ($selected.Count -eq 0) { throw 'No default CI tests selected' }
+              $selectedNames += $selected
               @{
                 ImportPath = $metadata.ImportPath
                 TestGoFiles = $metadata.TestGoFiles
                 XTestGoFiles = $metadata.XTestGoFiles
-                CollectedTests = @($names | Where-Object { $_ -match '^(Test|Example|Fuzz)\S*$' })
+                CollectedTests = $collected
+                SelectedTests = $selected
+                OptInTests = $optIn
               } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $directory $selection.output) -Encoding utf8
             } finally { Pop-Location }
           }
+          $pattern = '^(' + (($selectedNames | Sort-Object -Unique) -join '|') + ')$'
+          "GOFLAGS=-json -run=$pattern" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+
+      - name: Run launcher validation
+        env:
+          PROJECT0_EXPERIMENT_EVIDENCE_DIR: ${{ github.workspace }}/logs/experiments
+        shell: pwsh
+        run: |
+          $directory = Join-Path $PWD 'build/validation/windows_launcher'
+          ./scripts/run_windows_launcher_validation.ps1 *>&1 | Tee-Object -FilePath (Join-Path $directory 'execution.log')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run required Windows client package checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $plan = Get-Content "$env:RUNNER_TEMP/routing/plan.json" -Raw | ConvertFrom-Json
+          if (-not $plan.windows_required) { Write-Output 'Client package checks are not required for this Linux-only candidate.'; return }
+          foreach ($script in @('scripts/test_windows_client_validation.ps1', 'scripts/test_build_current_deployment.ps1')) {
+            if (-not (Test-Path -LiteralPath $script)) { throw "Required Windows check is missing: $script" }
+          }
+          $tools = Join-Path $env:RUNNER_TEMP ('project0-godot-' + [Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $tools | Out-Null
+          try {
+            gh release download 4.7.2-stable --repo godotengine/godot-builds --pattern Godot_v4.7.2-stable_win64.exe.zip --dir $tools
+            if ($LASTEXITCODE -ne 0) { throw 'Qualified Windows editor is unavailable' }
+            $archive = Join-Path $tools 'Godot_v4.7.2-stable_win64.exe.zip'
+            $expected = '83decd58fdf67b9d657958a1ae6bf1929c20785315a81effe245874cdc57acb709bf868e00778a96984338c1b29dafdb453c6847747694621c6ecf5da2259993'
+            if ((Get-FileHash $archive -Algorithm SHA512).Hash.ToLowerInvariant() -ne $expected) { throw 'Windows editor checksum mismatch' }
+            Expand-Archive -LiteralPath $archive -DestinationPath $tools
+            $editor = Join-Path $tools 'Godot_v4.7.2-stable_win64.exe'
+            & pwsh -NoProfile -File scripts/test_windows_client_validation.ps1 -GodotPath $editor
+            if ($LASTEXITCODE -ne 0) { throw 'Native package controls failed' }
+            & pwsh -NoProfile -File scripts/test_build_current_deployment.ps1 -GodotPath $editor
+            if ($LASTEXITCODE -ne 0) { throw 'Native builder controls failed' }
+            $controls = @(Get-ChildItem 'build/validation/windows-client/*/result.json' -File)
+            $build = @(Get-ChildItem 'build/validation/standalone-packaging-tests-*.json' -File)
+            if ($controls.Count -ne 1 -or $build.Count -ne 1) { throw 'Missing or ambiguous Windows evidence' }
+            $destination = Join-Path $PWD 'build/validation/windows_launcher/client'
+            New-Item -ItemType Directory -Path $destination | Out-Null
+            Copy-Item $controls[0].Directory.FullName (Join-Path $destination 'package-controls') -Recurse
+            Copy-Item $build[0].FullName (Join-Path $destination 'build.json')
+          } finally { Remove-Item -LiteralPath $tools -Recurse -Force }
 
       - name: Bind actual Windows execution evidence
         shell: pwsh

@@ -11,11 +11,13 @@ import xml.etree.ElementTree as ET
 
 REQUIRED_JOBS = ["ownership", "godot", "records", "python", "launcher"]
 SHA = re.compile(r"[0-9a-f]{40}")
+WINDOWS_ASSETS = {"docs/validation-ownership.md", "scripts/client_package_inventory.gd",
+                  "scripts/windows_paired_client.gd", "tests/fixtures/windows_client_packages.gd"}
 
 
 def windows_tooling(path):
     return (path.startswith("scripts/") and len(PurePosixPath(path).parts) == 2
-            and path.endswith(".ps1")) or path == "docs/validation-ownership.md"
+            and path.endswith(".ps1")) or path in WINDOWS_ASSETS
 
 
 def digest(tree):
@@ -151,7 +153,7 @@ def metadata_from_event():
             "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(approved)}
 
 
-def expected_tests(tree):
+def expected_tests(tree, windows_required=False):
     return {
         "ownership": ["scripts/test_validation_ownership.py", "scripts/test_ci_validation_routing.py",
                       "scripts/check_validation_ownership.py"],
@@ -159,7 +161,8 @@ def expected_tests(tree):
         "records": ["scripts/check_record_sync.sh", "scripts/test_deploy_containers.sh"],
         "python": sorted(path for path in tree if re.fullmatch(r"infra/(enrollment|operator)/tests/test_[^/]+\.py", path)),
         "launcher": sorted(path for path in tree if path.startswith("native/windows_launcher/") and path.endswith("_test.go"))
-                    + ["scripts/generate_1100_fixture_test.go", "scripts/test_prepare_windows_experiment_1100.ps1"],
+                    + ["scripts/generate_1100_fixture_test.go", "scripts/test_prepare_windows_experiment_1100.ps1"]
+                    + (["scripts/test_build_current_deployment.ps1", "scripts/test_windows_client_validation.ps1"] if windows_required else []),
     }
 
 
@@ -184,21 +187,44 @@ def launcher_tests(directory):
         metadata = json.loads((directory / filename).read_text(encoding="utf-8-sig"))
         package = metadata["ImportPath"]
         collected = metadata.get("CollectedTests")
+        selected_tests = metadata.get("SelectedTests", collected)
+        opt_in = metadata.get("OptInTests", [])
         sources = (metadata.get("TestGoFiles") or []) + (metadata.get("XTestGoFiles") or [])
         if (package in packages or not isinstance(collected, list) or not collected or not sources
                 or any(not isinstance(name, str) or not re.fullmatch(r"[^/\\:]+_test\.go", name) for name in sources)):
             raise ValueError("invalid native test inventory")
+            allowed_opt_in = {"TestExperiment1100RealEngine"} if package == "project0/windows-launcher" else set()
+            expected_opt_in = set(collected) & allowed_opt_in
+            if (not isinstance(selected_tests, list) or not selected_tests or not isinstance(opt_in, list)
+                or set(opt_in) != expected_opt_in or set(selected_tests) != set(collected) - expected_opt_in):
+                raise ValueError("unapproved native test selection")
         packages.add(package)
         selected = [event for event in events if event["Package"] == package]
         started = {event["Test"] for event in selected if event["Action"] == "run" and "/" not in event.get("Test", "/")}
         passed = {event["Test"] for event in selected if event["Action"] == "pass" and "/" not in event.get("Test", "/")}
-        if set(collected) != started or started != passed:
+        if set(selected_tests) != started or started != passed:
             raise ValueError("missing native test execution")
         tests.extend(prefix + "/" + name for name in sources)
     completed = {event["Package"] for event in events if event["Action"] == "pass" and "Test" not in event}
     if completed != packages:
         raise ValueError("incomplete or unexpected native packages")
     return sorted(tests + ["scripts/test_prepare_windows_experiment_1100.ps1"])
+
+
+def client_tests(directory):
+    control = json.loads((directory / "client/package-controls/result.json").read_text(encoding="utf-8-sig"))
+    build = json.loads((directory / "client/build.json").read_text(encoding="utf-8-sig"))
+    if not isinstance(control, dict) or not isinstance(build, dict):
+        raise ValueError("invalid Windows client reports")
+    cases = control.get("cases")
+    if (control.get("check") != "windows-client-package-boundary-controls" or control.get("passed") is not True
+            or control.get("cleanup") is not True or not isinstance(cases, list) or not cases
+            or any(not isinstance(case, dict) or case.get("passed") is not True for case in cases)):
+        raise ValueError("missing or failed Windows package execution")
+    if (build.get("status") != "passed" or build.get("cleanup") is not True
+            or type(build.get("failure_cases")) is not int or build["failure_cases"] <= 0):
+        raise ValueError("missing or failed Windows builder execution")
+    return ["scripts/test_build_current_deployment.ps1", "scripts/test_windows_client_validation.ps1"]
 
 
 def seal(plan, job, directory):
@@ -210,6 +236,8 @@ def seal(plan, job, directory):
         if sys.platform != "win32":
             raise ValueError("native Windows sealing requires the Windows execution host")
         tests = launcher_tests(directory)
+        if plan.get("windows_required"):
+            tests += client_tests(directory)
     elif job in ("godot", "python"):
         report = directory / ("gut.xml" if job == "godot" else "python.xml")
         root = ET.parse(report).getroot()
@@ -236,9 +264,14 @@ def seal(plan, job, directory):
                  for path in directory.rglob("*") if path.is_file() and path.name != "result.json"}
     if not artifacts:
         raise ValueError("no execution artifacts")
-    return {"schema_version": 1, "candidate": plan["candidate"], "source_ref": source_ref,
-            "input_digest": plan["input_digest"], "status": "success", "skipped": 0,
-            "tests": tests, "artifacts": artifacts}
+    result = {"schema_version": 1, "candidate": plan["candidate"], "source_ref": source_ref,
+              "input_digest": plan["input_digest"], "status": "success", "skipped": 0,
+              "tests": tests, "artifacts": artifacts}
+    if job == "launcher":
+        metadata = json.loads((directory / "native-package.json").read_text(encoding="utf-8-sig"))
+        result["not_evaluated"] = [{"test": name, "reason": "explicit opt-in via scripts/run_windows_experiment_1100.ps1"}
+                                   for name in metadata.get("OptInTests", [])]
+    return result
 
 
 def main():
@@ -254,7 +287,7 @@ def main():
         if args.action == "plan":
             metadata = metadata_from_event()
             plan = route(metadata)
-            plan["expected_tests"] = expected_tests(metadata["candidate_tree"])
+            plan["expected_tests"] = expected_tests(metadata["candidate_tree"], plan["windows_required"])
             args.plan.parent.mkdir(parents=True, exist_ok=True)
             args.plan.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
             if os.environ.get("GITHUB_OUTPUT"):
