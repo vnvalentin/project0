@@ -331,6 +331,12 @@ calling the flow complete.
 
 ## 1. Intake and scope
 
+Before approving a validation plan, follow [validation ownership](validation-ownership.md).
+Record each selected test's owner, execution host, dependencies, expected artifacts,
+and the successful machine-readable preflight on the issue. A missing dependency
+is a setup defect only when the architecture assigns it to that runtime; otherwise
+correct test placement or paired orchestration, not the product's dependencies.
+
 Classify the request and identify the user outcome, affected systems and
 boundaries, unacceptable outcomes, smallest useful change, and explicit
 non-goals. Identify the governing GitHub Issue before work starts; create one

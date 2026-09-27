@@ -10,6 +10,16 @@ memory from it; keep it in sync when a convention changes.
 Canonical, authoritative rules live in the documents linked below. This file is a
 quick-reference and seed, not a replacement for them.
 
+## Validation ownership (#1243)
+
+- Before validation planning/execution or a dependency recommendation, follow
+  [validation ownership](../docs/validation-ownership.md) and run its JSON plan
+  preflight. Canon/SQLite evidence is Linux-server-only; Windows owns client
+  presentation/input/readiness. A combined fixture does not move server ownership.
+- The former #1242 Windows SQLite prerequisite is superseded by the user's
+  2026-09-27 correction. Correct test placement, not Windows dependencies. Static
+  CI checks and valid plans never substitute for paired native runtime evidence.
+
 ## Canonical rule sources (read these first)
 
 - Delivery + safety: [AGENTS.md](../AGENTS.md), [docs/SYSTEMS-SPECIFICATION.md](../docs/SYSTEMS-SPECIFICATION.md),
