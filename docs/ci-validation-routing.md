@@ -19,12 +19,31 @@ candidate branch is fetched by Linux. The exact candidate remains `windows_ref`.
 
 Linux-only changes use the candidate SHA. A `platform:windows-required` change
 may use the approved main baseline only when all tracked inputs except direct
-`scripts/*.ps1` files and `docs/validation-ownership.md` are byte-identical.
+`scripts/*.ps1` files, `docs/validation-ownership.md`, and the reviewed Windows
+assets `scripts/client_package_inventory.gd`, `scripts/windows_paired_client.gd`
+and `tests/fixtures/windows_client_packages.gd` are byte-identical.
 The sorted path/blob map binds additions and deletions as well as modifications.
 This narrow exclusion is for Windows tooling, not game/client/native changes.
 Changed client/native/export inputs, unknown paths, mixed Linux inputs, symlinks,
 submodules and missing Windows labels fail closed. The ownership manifest and
 workflow are Linux inputs: changing them cannot be hidden by baseline reuse.
+
+## Container Image Routing
+
+`images.yml` uses the same Windows metadata approval before any Linux checkout.
+The three image check names remain on the assigned okami runner. Denied or
+missing approval fails each job before acquisition. The approved ref and input
+digest are checked before Docker credentials or builds. Manual and tag requests
+must identify an exact commit in approved main history; an unmerged branch
+cannot authorize an image build through these event types.
+
+The existing `default` Docker builder is used without creating a builder service.
+Credentials live in job-private `DOCKER_CONFIG` under runner temp and are removed
+by unconditional cleanup. No GitHub cache exporter is requested from the default
+Docker driver. Images carry the approved source revision and SHA tag. PRs never
+publish. Windows-only candidates build identical approved Linux inputs as
+supporting evidence but never publish server images. Linux main/tag/manual
+publishing remains; publishing is not deployment.
 
 ## Execution And Evidence
 
@@ -85,11 +104,15 @@ writing `build/validation/windows_launcher/result.json` for the exact
 
 Coverage is derived from executed tests and native collection metadata, never
 copied from the plan into a success record. Source files are the compiled inputs
-of packages whose complete collected test set actually ran and passed. The
+of packages whose selected test set actually ran and passed. Only the existing
+`TestExperiment1100RealEngine` opt-in may be unselected; it is reported as
+unevaluated, not passed. Every other collected test must be selected, and every
+skipped selected test rejects the report. The
 summary alone is insufficient. Additional Windows client/paired gates require
 their own evidence; this report does not claim gameplay acceptance.
 
 Full GUT is supporting Linux evidence, never Windows or paired acceptance.
 Retain accepted diagnostic fingerprints and debts #1189/#1190; no global clean
-claim. Rollback only #1259's four routing files, never runtime state. Rollback
+claim. Rollback only #1259's owned routing, workflow, report and ownership
+metadata changes, never runtime state. Rollback
 restores the unsafe checkout route, so Windows publication must stop first.

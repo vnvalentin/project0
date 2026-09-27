@@ -161,6 +161,12 @@ class RoutingTests(unittest.TestCase):
             metadata["OptInTests"] = ["TestExperiment1100RealEngine"]
             metadata_path.write_text(json.dumps(metadata))
             self.assertEqual(len(self.routing.launcher_tests(directory)), 3)
+            required_omitted = copy.deepcopy(metadata)
+            required_omitted["CollectedTests"].append("TestRequired")
+            required_omitted["OptInTests"].append("TestRequired")
+            metadata_path.write_text(json.dumps(required_omitted))
+            with self.assertRaisesRegex(ValueError, "unapproved native test selection"):
+                self.routing.launcher_tests(directory)
             metadata["SelectedTests"] = []
             metadata["OptInTests"].append("TestNative")
             metadata_path.write_text(json.dumps(metadata))
@@ -223,6 +229,11 @@ class RoutingTests(unittest.TestCase):
         self.assertLess(build.index("run: exit 1"), build.index("uses: actions/checkout@v4"))
         self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", build)
         self.assertIn("verify-source", build)
+        self.assertNotIn("docker/setup-buildx-action", images)
+        self.assertIn("builder: default", build)
+        self.assertIn("needs.route.outputs.windows_required == 'false'", build)
+        self.assertIn("DOCKER_CONFIG: ${{ runner.temp }}/project0-image-", build)
+        self.assertIn("name: Remove private Docker credentials\n        if: always()", build)
 
     def test_manual_image_source_requires_main_ancestry(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -237,6 +248,22 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(metadata["candidate"], "a" * 40)
                 self.assertEqual(metadata["baseline"], "a" * 40)
                 self.assertIn(("git", "merge-base", "--is-ancestor", "a" * 40, "b" * 40), [call.args for call in commands.call_args_list])
+
+    def test_image_sources_reject_unapproved_main_history_before_tree_read(self):
+        for event_name, ref in [("workflow_dispatch", "refs/heads/main"), ("push", "refs/tags/v1.0.0")]:
+            with self.subTest(event=event_name), tempfile.TemporaryDirectory() as temporary:
+                event = Path(temporary) / "event.json"
+                event.write_text("{}")
+                environment = {"GITHUB_EVENT_PATH": str(event), "GITHUB_REPOSITORY": "owner/repo",
+                               "GITHUB_SHA": "a" * 40, "GITHUB_EVENT_NAME": event_name, "GITHUB_REF": ref}
+                with patch.dict(self.routing.os.environ, environment), patch.object(self.routing.sys, "platform", "win32"), \
+                        patch.object(self.routing, "git_tree") as trees, \
+                        patch.object(self.routing, "command", side_effect=["a" * 40, "b" * 40,
+                            subprocess.CalledProcessError(1, ["git", "merge-base", "--is-ancestor"])]) as commands:
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        self.routing.metadata_from_event()
+                    trees.assert_not_called()
+                    self.assertEqual(commands.call_args.args, ("git", "merge-base", "--is-ancestor", "a" * 40, "b" * 40))
 
     def test_windows_candidate_requires_approved_linux_inputs_before_checkout(self):
         spec = importlib.util.spec_from_file_location("routing", ROOT / "scripts/ci_validation_routing.py")

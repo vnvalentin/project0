@@ -119,6 +119,12 @@ def metadata_from_event():
     approved = command("git", "rev-parse", "refs/remotes/origin/main")
     if os.environ["GITHUB_EVENT_NAME"] == "pull_request":
         number = event["number"]
+    elif (os.environ["GITHUB_EVENT_NAME"] == "workflow_dispatch"
+          or (os.environ["GITHUB_EVENT_NAME"] == "push"
+              and os.environ["GITHUB_REF"].startswith("refs/tags/"))):
+        command("git", "merge-base", "--is-ancestor", candidate, approved)
+        return {"candidate": candidate, "baseline": candidate, "approved_baseline": candidate,
+                "labels": [], "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(candidate)}
     elif os.environ["GITHUB_EVENT_NAME"] == "push" and os.environ["GITHUB_REF"] != "refs/heads/main":
         pulls = json.loads(command("gh", "api", f"repos/{repository}/commits/{candidate}/pulls"))
         matches = [pull for pull in pulls if pull["state"] == "open" and pull["head"]["sha"] == candidate
@@ -193,11 +199,11 @@ def launcher_tests(directory):
         if (package in packages or not isinstance(collected, list) or not collected or not sources
                 or any(not isinstance(name, str) or not re.fullmatch(r"[^/\\:]+_test\.go", name) for name in sources)):
             raise ValueError("invalid native test inventory")
-            allowed_opt_in = {"TestExperiment1100RealEngine"} if package == "project0/windows-launcher" else set()
-            expected_opt_in = set(collected) & allowed_opt_in
-            if (not isinstance(selected_tests, list) or not selected_tests or not isinstance(opt_in, list)
+        allowed_opt_in = {"TestExperiment1100RealEngine"} if package == "project0/windows-launcher" else set()
+        expected_opt_in = set(collected) & allowed_opt_in
+        if (not isinstance(selected_tests, list) or not selected_tests or not isinstance(opt_in, list)
                 or set(opt_in) != expected_opt_in or set(selected_tests) != set(collected) - expected_opt_in):
-                raise ValueError("unapproved native test selection")
+            raise ValueError("unapproved native test selection")
         packages.add(package)
         selected = [event for event in events if event["Package"] == package]
         started = {event["Test"] for event in selected if event["Action"] == "run" and "/" not in event.get("Test", "/")}
@@ -293,6 +299,7 @@ def main():
             if os.environ.get("GITHUB_OUTPUT"):
                 with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
                     output.write(f"linux_ref={plan['linux_ref']}\nwindows_ref={plan['windows_ref']}\n")
+                    output.write(f"windows_required={str(plan['windows_required']).lower()}\n")
         else:
             plan = json.loads(args.plan.read_text(encoding="utf-8"))
             if args.action == "verify-source":
