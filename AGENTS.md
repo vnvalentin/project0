@@ -108,6 +108,10 @@ Do not create implementation slices or product code while this gate is open.
 ## Agent requirements
 
 - Preserve unrelated user changes.
+- Before planning or running validation, or recommending a missing dependency,
+  follow [validation ownership](docs/validation-ownership.md) and pass its plan
+  preflight. Match the dependency to its owning runtime first: SQLite and Canon
+  persistence execute on the Linux server; Windows validates client behavior.
 - Experiment lifecycle rule: every experiment harness owns setup, execution,
   evidence capture, and teardown in one non-interactive path. It must create
   isolated temporary state, enforce clean-target preconditions, emit
