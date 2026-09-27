@@ -37,6 +37,7 @@ var _client_b_process_id: int = -1
 var _state_file_a: String = ""
 var _state_file_b: String = ""
 var _client_startup_gate: String = ""
+var _movement_gate: String = ""
 
 
 func _initialize() -> void:
@@ -69,7 +70,7 @@ func _cleanup_processes() -> void:
 	for pid: int in [_server_process_id, _client_a_process_id, _client_b_process_id]:
 		if pid != -1 and OS.is_process_running(pid):
 			OS.kill(pid)
-	for path: String in [_state_file_a, _state_file_b]:
+	for path: String in [_state_file_a, _state_file_b, _movement_gate]:
 		if not path.is_empty() and FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 		if not path.is_empty() and FileAccess.file_exists(path + ".pending"):
@@ -79,6 +80,10 @@ func _cleanup_processes() -> void:
 func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	var godot_executable: String = OS.get_executable_path()
 	var project_path: String = ProjectSettings.globalize_path("res://")
+	_movement_gate = ProjectSettings.globalize_path("user://peer_movement_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
+	_assert(not FileAccess.file_exists(_movement_gate), "owned movement gate starts absent")
+	if FileAccess.file_exists(_movement_gate):
+		return
 
 	_server_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
@@ -106,6 +111,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		"-s", "scripts/multi_peer_client_harness.gd",
 		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_a, "--hold-input=move_back",
 		"--startup-gate=%s" % _client_startup_gate,
+		"--movement-gate=%s" % _movement_gate,
 	])
 	_assert(_client_a_process_id != -1, "client A process starts")
 
@@ -114,18 +120,19 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		"--headless", "--path", project_path,
 		"-s", "scripts/multi_peer_client_harness.gd",
 		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_b, "--hold-input=move_right",
+		"--movement-gate=%s" % _movement_gate,
 	])
 	_assert(_client_b_process_id != -1, "client B process starts")
 
 	# --- Both clients connect and see two distinct Player representations --
 	var state_a: Dictionary = await _wait_for_state_with_deadline(_state_file_a, func(s: Dictionary) -> bool:
-		return s.get("status", "") == "connected: player spawned" and s.get("remote_players", {}).size() >= 1
+		return s.get("status", "") == "connected: player spawned" and s.get("remote_players", {}).size() >= 1 and s.get("geometry_ready_sectors", []).has("starting_town_hub")
 	, 20000, _client_a_process_id)
 	_assert(not state_a.is_empty(), "client A readiness observation succeeds")
 	if state_a.is_empty():
 		return
 	var state_b: Dictionary = await _wait_for_state_with_deadline(_state_file_b, func(s: Dictionary) -> bool:
-		return s.get("status", "") == "connected: player spawned" and s.get("remote_players", {}).size() >= 1
+		return s.get("status", "") == "connected: player spawned" and s.get("remote_players", {}).size() >= 1 and s.get("geometry_ready_sectors", []).has("starting_town_hub")
 	, 20000, _client_b_process_id)
 
 	_assert(state_a.get("status", "") == "connected: player spawned", "client A connects and spawns its own Player representation")
@@ -147,6 +154,11 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	# coordinate) stays correct regardless of which peer claims which slot.
 	var b_seen_from_a_baseline: Vector3 = _array_to_vector3(remote_players_on_a.values()[0])
 	var a_seen_from_b_baseline: Vector3 = _array_to_vector3(remote_players_on_b.values()[0])
+	var movement_gate: FileAccess = FileAccess.open(_movement_gate, FileAccess.WRITE)
+	_assert(movement_gate != null, "held input is released only after ready baselines")
+	if movement_gate == null:
+		return
+	movement_gate.close()
 
 	# --- Movement from A reaches B, and from B reaches A, through the server -
 	# Let both held inputs run long enough for each server-authoritative tick

@@ -33,6 +33,7 @@ var _run_ticks: int = -1
 var _gameplay_instance: Node3D
 var _network_client: Node
 var _startup_gate: String = ""
+var _movement_gate: String = ""
 var _geometry_ready_sectors: Array[String] = []
 
 
@@ -63,6 +64,9 @@ func _run() -> void:
 		push_error("Test client session admission failed")
 		quit(1)
 		return
+	while not _movement_gate.is_empty() and not FileAccess.file_exists(_movement_gate):
+		await physics_frame
+		_write_state()
 	if not _hold_input_action.is_empty():
 		Input.action_press(_hold_input_action)
 
@@ -90,6 +94,8 @@ func _parse_args() -> void:
 			_run_ticks = argument.substr("--run-ticks=".length()).to_int()
 		elif argument.begins_with("--startup-gate="):
 			_startup_gate = argument.substr("--startup-gate=".length())
+		elif argument.begins_with("--movement-gate="):
+			_movement_gate = argument.substr("--movement-gate=".length())
 
 
 ## Writes this harness's currently observable public-seam state: connection
