@@ -1,0 +1,429 @@
+"""Linux-owned, bounded real-server lifecycle for issue #1260."""
+
+import argparse
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import signal
+import socket
+import sqlite3
+import subprocess
+import sys
+import time
+import uuid
+from pathlib import Path
+
+IMAGE = "sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
+HOST = "192.168.1.254"
+SCENARIO = "authenticated-input-ack-v1"
+IDENTITY_KEYS = ("schema_version", "run_id", "scenario_id", "correlation_id", "client_build", "server_build")
+RPC_FILES = ("network_client.gd", "player_identity.gd", "nakama_gameplay_bridge_client.gd",
+             "sector_geometry_translator.gd", "sector_navigation_readiness.gd", "telemetry_batch_queue.gd")
+PROJECT = '''config_version=5
+[application]
+config/name="Project0 Paired Server"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+[autoload]
+PlayerIdentity="*res://client/player_identity.gd"
+NetworkClient="*res://client/network_client.gd"
+[rendering]
+renderer/rendering_method="gl_compatibility"
+'''
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def command(*args, timeout=30, check=True):
+    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, timeout=timeout)
+    if check and result.returncode:
+        raise ValueError("command_failed:" + args[0])
+    return result
+
+
+def check_host(system=None, hostname=None):
+    if (system or platform.system()) != "Linux" or (hostname or socket.gethostname()) != "okami":
+        raise ValueError("wrong_host")
+
+
+def allowed(path):
+    return (path.startswith(("server/", "shared/", "addons/com.heroiclabs.nakama/"))
+            and path.endswith(".gd")) or path in {
+                "project.godot", "scripts/paired_server_fixture.gd",
+                "shared/spatial_schema_v1.json",
+                "addons/godot-sqlite/gdsqlite.gdextension",
+                "addons/godot-sqlite/bin/libgdsqlite.linux.template_debug.x86_64.so",
+                "addons/godot-sqlite/bin/libgdsqlite.linux.template_release.x86_64.so",
+                *("client/" + name for name in RPC_FILES),
+            }
+
+
+def check_files(root, manifest):
+    if not manifest.get("files"):
+        raise ValueError("artifact_missing")
+    for name, expected in manifest["files"].items():
+        path = root / name
+        if not allowed(name) or ".." in Path(name).parts or path.is_symlink():
+            raise ValueError("artifact_path")
+        if not path.is_file() or digest(path) != expected:
+            raise ValueError("artifact_hash")
+    actual = {path.relative_to(root).as_posix() for path in root.rglob("*")
+              if path.is_file() and path.name != "manifest.json"}
+    if actual != set(manifest["files"]):
+        raise ValueError("artifact_extra_files")
+
+
+def reserve_port(host, port):
+    listener = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        listener.bind((host, port))
+    except BaseException:
+        listener.close()
+        raise
+    return listener
+
+
+def check_runtime(manifest):
+    if manifest["image"] != IMAGE or manifest["server_engine"] != "4.3.stable.official.77dcf97d8":
+        raise ValueError("incompatible_runtime")
+
+
+def redact(text, secrets):
+    for value in secrets:
+        if value:
+            text = text.replace(value, "[REDACTED]")
+    text = re.sub(r"\b[A-Za-z0-9+/=]{40,}\.[A-Za-z0-9+/=]{20,}\b", "[REDACTED]", text)
+    return re.sub(r"\b[0-9a-fA-F]{64}\b", "[REDACTED]", text)
+
+
+def healthy(snapshot, now, previous_tick):
+    return (snapshot.get("status") == "healthy"
+            and snapshot.get("server_tick", -1) > previous_tick
+            and 0 <= now - snapshot.get("timestamp", 0) <= 5)
+
+
+def check_client(report, evidence):
+    if any(evidence.get(key) != report[key] for key in IDENTITY_KEYS):
+        raise ValueError("client_identity_mismatch")
+    observed = evidence.get("observed_at", 0)
+    if not isinstance(observed, (int, float)) or not report["started_at"] <= observed <= min(time.time() + 5, report["deadline_at"]):
+        raise ValueError("client_evidence_stale")
+    if (evidence.get("status") != "passed" or evidence.get("authenticated") is not True
+            or evidence.get("world_entered") is not True
+            or type(evidence.get("input_ack_sequence")) is not int
+            or evidence["input_ack_sequence"] < 0):
+        raise ValueError("client_evidence_failed")
+
+
+def write_json(path, value):
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n")
+    temporary.replace(path)
+
+
+def read_json(path):
+    return json.loads(path.read_text())
+
+
+def prepare(root, output):
+    check_host()
+    output.mkdir(mode=0o700, parents=True, exist_ok=False)
+    tracked = command("git", "-C", str(root), "ls-files").stdout.splitlines()
+    names = [name for name in tracked if allowed(name) and name != "project.godot"]
+    if "scripts/paired_server_fixture.gd" not in names:
+        names.append("scripts/paired_server_fixture.gd")
+    for name in names:
+        target = output / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / name, target)
+    (output / "project.godot").write_text(PROJECT)
+    (output / ".godot").mkdir()
+    manifest = {
+        "schema_version": 1, "source_commit": command("git", "-C", str(root), "rev-parse", "HEAD").stdout.strip(),
+        "image": IMAGE, "server_engine": "4.3.stable.official.77dcf97d8",
+        "files": {path.relative_to(output).as_posix(): digest(path)
+                  for path in sorted(output.rglob("*")) if path.is_file()},
+    }
+    write_json(output / "manifest.json", manifest)
+    return {"artifact": str(output), "sha256": digest(output / "manifest.json"), "files": len(manifest["files"])}
+
+
+def storage_facts(state, identity):
+    facts = {}
+    for filename, table in (("accounts.db", "journeys"), ("canon.db", "canon_sectors")):
+        matches = list(state.rglob(filename))
+        if len(matches) != 1:
+            raise ValueError("storage_missing:" + filename)
+        with sqlite3.connect(matches[0].as_uri() + "?mode=ro", uri=True, timeout=1) as database:
+            facts[filename] = {"user_version": database.execute("PRAGMA user_version").fetchone()[0],
+                               "rows": database.execute("SELECT COUNT(*) FROM " + table).fetchone()[0]}
+            if filename == "accounts.db":
+                facts["issued_character_journeys"] = database.execute(
+                    "SELECT COUNT(*) FROM journeys WHERE character_id = ?", (identity,)).fetchone()[0]
+    if facts["canon.db"]["rows"] < 1 or any(facts[name]["user_version"] != 1 for name in ("accounts.db", "canon.db")):
+        raise ValueError("storage_not_ready")
+    return facts
+
+
+def supervise(run):
+    report = read_json(run / "report.json")
+    request = read_json(run / "request.json")
+    state = run / "private"
+    name = "p0-paired-" + report["run_id"]
+    network = name + "-net"
+    owned_container = False
+    owned_network = False
+    reservation = None
+    interrupted = False
+
+    def cancel(_signum, _frame):
+        nonlocal interrupted
+        interrupted = True
+
+    signal.signal(signal.SIGTERM, cancel)
+    signal.signal(signal.SIGINT, cancel)
+    try:
+        check_host()
+        artifact = Path(request["artifact"])
+        if digest(artifact / "manifest.json") != request["artifact_sha256"]:
+            raise ValueError("artifact_manifest_hash")
+        manifest = read_json(artifact / "manifest.json")
+        check_files(artifact, manifest)
+        report["server_build"]["source_commit"] = manifest["source_commit"]
+        report["server_build"]["rpc_sha256"] = manifest["files"]["client/network_client.gd"]
+        report["server_build"]["engine"] = manifest["server_engine"]
+        report["supervisor_sha256"] = digest(Path(__file__))
+        check_runtime(manifest)
+        image = json.loads(command("docker", "image", "inspect", IMAGE).stdout)[0]
+        if image["Id"] != IMAGE:
+            raise ValueError("image_hash")
+        reservation = reserve_port(HOST, request["port"])
+        report["host"] = HOST
+        report["port"] = reservation.getsockname()[1]
+        state.mkdir(mode=0o700)
+        (state / "cache").mkdir()
+        (state / "cache/extension_list.cfg").write_text("res://addons/godot-sqlite/gdsqlite.gdextension\n")
+        report["resources"] = {"container": name, "network": network}
+        if command("docker", "network", "inspect", network, check=False).returncode == 0:
+            raise ValueError("network_occupied")
+        owned_network = True
+        command("docker", "network", "create", "--label", "project0.issue=1260", network)
+        reservation.close()
+        reservation = None
+        script = (
+            "umask 077; godot --version > /state/engine.txt; "
+            "godot --headless --path /app --editor --import > /state/import.log 2>&1; "
+            "exec godot --headless --path /app -s scripts/paired_server_fixture.gd"
+        )
+        args = ["docker", "run", "--detach", "--pull=never", "--name", name,
+                "--label", "project0.issue=1260", "--network", network,
+                "--publish", f"{HOST}:{report['port']}:9999/udp", "--read-only", "--cap-drop=ALL",
+                "--security-opt=no-new-privileges", "--user", f"{os.getuid()}:{os.getgid()}",
+                "--tmpfs", "/tmp:rw,nosuid,size=64m", "--pids-limit", "128", "--memory", "1g",
+                "--volume", f"{artifact}:/app:ro", "--volume", f"{state}:/state",
+                "--volume", f"{state / 'cache'}:/app/.godot", "--entrypoint", "/usr/bin/timeout"]
+        environment = {"HOME": "/state", "XDG_DATA_HOME": "/state/data", "PAIRED_RUN_ID": report["run_id"],
+                       "PROJECT0_ACCOUNTS_DB_PATH": "accounts.db", "PROJECT0_CANON_DB_PATH": "canon.db",
+                       "PROJECT0_HEALTH_FILE": "/state/health.json", "PROJECT0_SERVER_BIND_ADDRESS": "0.0.0.0",
+                       "PROJECT0_SERVER_PORT": "9999", "PROJECT0_OPERATOR_CONTROL_PORT": "8097",
+                       "PROJECT0_REQUIRED_CLIENT_VERSION": report["client_build"]["version"]}
+        for key, value in environment.items():
+            args += ["--env", key + "=" + value]
+        args += [IMAGE, "--signal=TERM", "--kill-after=5", str(request["deadline_seconds"]), "sh", "-ec", script]
+        owned_container = True
+        command(*args)
+        report["status"] = "starting"
+        write_json(run / "report.json", report)
+        ready_deadline = min(report["deadline_at"], time.time() + request["readiness_seconds"])
+        previous_tick = -1
+        while True:
+            now = time.time()
+            if interrupted:
+                raise ValueError("cancelled")
+            if now >= report["deadline_at"]:
+                raise ValueError("timeout")
+            control_path = run / "control.json"
+            if control_path.exists():
+                control = read_json(control_path)
+                if control["action"] == "abort":
+                    raise ValueError("aborted")
+                if control["action"] == "reject":
+                    raise ValueError("client_evidence_rejected")
+                check_client(report, control["evidence"])
+                admission = read_json(state / "admission.json")
+                facts = storage_facts(state, report["run_id"])
+                if (report["status"] != "ready" or not admission.get("authenticated")
+                        or admission.get("input_ack_sequence", -1) < control["evidence"]["input_ack_sequence"]
+                        or facts["issued_character_journeys"] != 1):
+                    raise ValueError("server_admission_missing")
+                report.update(status="server_passed", admission=admission, storage=facts,
+                              client_evidence_sha256=digest(control_path))
+                break
+            running = command("docker", "inspect", "--format", "{{.State.Running}}", name).stdout.strip()
+            if running != "true":
+                raise ValueError("runtime_exited")
+            health_path = state / "health.json"
+            if health_path.exists():
+                try:
+                    health = read_json(health_path)
+                except json.JSONDecodeError:
+                    health = {}
+                if report["status"] == "starting" and healthy(health, now, previous_tick) and previous_tick >= 0:
+                    engine = (state / "engine.txt").read_text().strip()
+                    if engine != manifest["server_engine"]:
+                        raise ValueError("runtime_version_mismatch")
+                    auth = read_json(state / "auth.json")
+                    if not all(auth.get(key) is True for key in ("issuer_validated", "tampered_rejected", "expired_rejected")):
+                        raise ValueError("authentication_not_ready")
+                    report.update(status="ready", ready_at=now, readiness={"health": health, "auth": auth,
+                                  "storage": storage_facts(state, report["run_id"]), "engine": engine})
+                    write_json(run / "report.json", report)
+                previous_tick = health.get("server_tick", previous_tick)
+                if report["status"] == "ready" and not healthy(health, now, -1):
+                    raise ValueError("runtime_unhealthy")
+                if report["status"] == "ready" and (state / "admission.json").exists():
+                    admission = read_json(state / "admission.json")
+                    if admission.get("authenticated") and health.get("connected_peers") == 0:
+                        raise ValueError("client_disconnected")
+            if report["status"] == "starting" and now >= ready_deadline:
+                raise ValueError("readiness_timeout")
+            time.sleep(0.1)
+    except Exception as error:
+        report.update(status="failed", reason=redact(str(error), []))
+    finally:
+        if reservation:
+            reservation.close()
+        outstanding = []
+        if owned_container:
+            try:
+                command("docker", "stop", "--time", "3", name, check=False)
+                raw = command("docker", "logs", name, check=False).stdout
+                token = (state / "assertion").read_text() if (state / "assertion").exists() else ""
+                if (state / "import.log").exists():
+                    imported = redact((state / "import.log").read_text(), [token])
+                    (run / "import.log").write_text(imported)
+                    report["import_log_sha256"] = digest(run / "import.log")
+                    report["import_error_lines"] = sum("ERROR:" in line for line in imported.splitlines())
+                sanitized = redact(raw, [token])
+                (run / "runtime.log").write_text(sanitized)
+                report["log_sha256"] = digest(run / "runtime.log")
+                report["runtime_error_lines"] = sum("ERROR:" in line or "SCRIPT ERROR:" in line for line in sanitized.splitlines())
+                if report["status"] == "server_passed" and report["runtime_error_lines"]:
+                    report.update(status="failed", reason="runtime_errors")
+                command("docker", "rm", "--force", name, check=False)
+                if command("docker", "container", "inspect", name, check=False).returncode == 0:
+                    outstanding.append(name)
+            except Exception:
+                outstanding.append(name)
+        if owned_network:
+            try:
+                command("docker", "network", "rm", network, check=False)
+                if command("docker", "network", "inspect", network, check=False).returncode == 0:
+                    outstanding.append(network)
+            except Exception:
+                outstanding.append(network)
+        try:
+            if state.exists():
+                shutil.rmtree(state)
+        except OSError:
+            outstanding.append(str(state))
+        report["cleanup"] = {"passed": not outstanding, "outstanding": outstanding,
+                             "private_state_removed": not state.exists()}
+        if outstanding:
+            report.update(status="failed", reason="cleanup_failed")
+        report["finished_at"] = time.time()
+        report["paired_acceptance"] = False
+        write_json(run / "report.json", report)
+
+
+def start(args):
+    check_host()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", args.correlation_id):
+        raise ValueError("correlation_id")
+    if not re.fullmatch(r"[a-f0-9]{64}", args.client_sha256) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.client_version):
+        raise ValueError("client_build")
+    if not 5 <= args.deadline_seconds <= 180 or not 1 <= args.readiness_seconds <= args.deadline_seconds:
+        raise ValueError("deadline")
+    args.run.mkdir(mode=0o700, parents=True, exist_ok=False)
+    now = time.time()
+    report = {"schema_version": 1, "scenario_id": SCENARIO, "correlation_id": args.correlation_id,
+              "run_id": uuid.uuid4().hex, "client_build": {"sha256": args.client_sha256,
+              "version": args.client_version, "engine": args.client_engine},
+              "server_build": {"sha256": args.artifact_sha256, "image": IMAGE},
+              "started_at": now, "deadline_at": now + args.deadline_seconds, "status": "accepted",
+              "paired_acceptance": False}
+    write_json(args.run / "request.json", {"artifact": str(args.artifact.resolve()),
+               "artifact_sha256": args.artifact_sha256, "port": args.port,
+               "deadline_seconds": args.deadline_seconds, "readiness_seconds": args.readiness_seconds})
+    write_json(args.run / "report.json", report)
+    with (args.run / "supervisor.log").open("w") as output:
+        process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "_supervise", "--run", str(args.run)],
+                                   stdin=subprocess.DEVNULL, stdout=output, stderr=output, start_new_session=True)
+    write_json(args.run / "supervisor.json", {"pid": process.pid})
+    return report
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="action", required=True)
+    package = commands.add_parser("prepare")
+    package.add_argument("--source", type=Path, default=Path.cwd())
+    package.add_argument("--artifact", type=Path, required=True)
+    launch = commands.add_parser("start")
+    launch.add_argument("--artifact", type=Path, required=True)
+    launch.add_argument("--artifact-sha256", required=True)
+    launch.add_argument("--correlation-id", required=True)
+    launch.add_argument("--client-sha256", required=True)
+    launch.add_argument("--client-version", required=True)
+    launch.add_argument("--client-engine", required=True)
+    launch.add_argument("--port", type=int, default=0)
+    launch.add_argument("--deadline-seconds", type=int, default=180)
+    launch.add_argument("--readiness-seconds", type=int, default=45)
+    for action in ("start", "status", "finish", "abort", "_supervise"):
+        child = launch if action == "start" else commands.add_parser(action)
+        child.add_argument("--run", type=Path, required=True)
+        if action == "finish":
+            child.add_argument("--evidence", type=Path, required=True)
+    args = parser.parse_args()
+    check_host()
+    if hasattr(args, "run"):
+        args.run = args.run.resolve()
+    if args.action == "prepare":
+        result = prepare(args.source.resolve(), args.artifact.resolve())
+    elif args.action == "start":
+        result = start(args)
+    elif args.action == "_supervise":
+        supervise(args.run)
+        return
+    elif args.action == "status":
+        result = read_json(args.run / "report.json")
+    else:
+        report = read_json(args.run / "report.json")
+        if "finished_at" in report:
+            raise ValueError("already_finished")
+        control = {"action": args.action}
+        if args.action == "finish":
+            try:
+                evidence = read_json(args.evidence)
+                check_client(report, evidence)
+            except (ValueError, OSError, TypeError):
+                write_json(args.run / "control.json", {"action": "reject"})
+                raise ValueError("client_evidence_rejected")
+            control["evidence"] = {key: evidence[key] for key in (*IDENTITY_KEYS, "status", "observed_at", "authenticated", "world_entered", "input_ack_sequence")}
+        write_json(args.run / "control.json", control)
+        result = {"action": args.action, "status": "requested", "run_id": report["run_id"]}
+    print(json.dumps(result, indent=2))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:
+        print(json.dumps({"status": "rejected", "reason": redact(str(error), [])}))
+        sys.exit(1)
