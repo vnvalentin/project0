@@ -44,19 +44,11 @@ quick-reference and seed, not a replacement for them.
 
 ## Implementation ownership (canonical in AGENTS.md)
 
-- Default: Claude CLI owns application-code, test-code, and
-  implementation-facing delivery-record edits; Copilot orchestrates, hands off,
-  validates, and reviews.
-- **Standing authorization (user, 2026-09-18):** when Claude CLI is
-  unavailable, interactive-only, rate-limited, or times out, Copilot implements
-  directly rather than stopping. The delivery gate is unchanged — records-first,
-  issue traceability, public-seam tests, validation evidence, record sync,
-  branch/PR/merge. Note the fallback trigger in the slice record.
-- Windows gotcha: `claude` and `claude -p` both open a full-screen TUI here, so
-  VS Code reports "the command opened the alternate buffer" and returns no
-  output; the `Claude:` VS Code tasks also fail on an unresolved
-  `${relativeFile}`. A launched session wedges the persistent shell — recover by
-  opening a NEW terminal, not by retrying the wedged one.
+- Copilot implements application code, tests, and implementation-facing
+  delivery records directly, and owns validation and review. No external CLI
+  handoff or fallback authorization is required.
+- The delivery gate is unchanged: records-first, issue traceability,
+  public-seam tests, validation evidence, record sync, branch/PR/merge.
 
 ## Validation / build quick-reference
 

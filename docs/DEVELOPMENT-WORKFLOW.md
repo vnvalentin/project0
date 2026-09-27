@@ -380,30 +380,27 @@ historical context. Do not update them as a second active status system.
 
 ## Agent-assisted delivery orchestration
 
-Implementation in this repository is split between an orchestration/review layer
-and an implementation layer. The authoritative ownership rules live in
+Copilot implements changes directly and owns validation and review. The
+authoritative ownership rules live in
 [AGENTS.md](../AGENTS.md) and
 [.github/copilot-instructions.md](../.github/copilot-instructions.md); this
-section defines how a handoff is expressed and what makes it *traceable*.
+section defines the implementation brief and what makes delivery *traceable*.
 
 The loop:
 
-1. **Brief** — Copilot fills the durable
-   [handoff template](templates/claude-code-handoff-template.md) from a governing
+1. **Brief** — Copilot records a durable implementation brief in the governing
    GitHub Issue and ticket with a recorded decision: user outcome, bounded scope
    and non-goals, target public seam, safety invariants, acceptance scenarios,
    the exact validation command, and the required return evidence.
-2. **Implement** — Claude Code CLI makes the named multi-file changes and runs
-   the validation, owning application/test and implementation-facing record
-   edits. Copilot makes these edits directly only when the user explicitly
-   authorizes it.
+2. **Implement** — Copilot makes the named application, test, and
+   implementation-facing record changes directly and runs the validation.
 3. **Return evidence** — the implementer reports files changed, exact commands
    and exit codes, behavior observed, limitations, and any scope deviation.
 4. **Review** — Copilot checks scope, safety, specification compliance, and
    synchronization, opening a `TECHNICAL-DEBT-TRACKER.md` liability for any gap
    rather than accepting it.
 
-A handoff is **traceable** only when the governing GitHub issue and Project item
+Delivery is **traceable** only when the governing GitHub issue and Project item
 together carry the brief, the change set at the declared seam, the validation
 evidence (focused command, expected pass signal, and the machine-readable
 artifact with its exit code), and the review outcome. An edit outside the
