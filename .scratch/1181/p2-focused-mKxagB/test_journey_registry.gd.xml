@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="0" tests="3" >
+  <testsuite name="tests/unit/test_journey_registry.gd" tests="3" failures="0" skipped="0" time="0.008533" >
+      <testcase name="test_entry_disconnect_and_reclaim_keep_one_journey_identity" assertions="5" status="pass" classname="tests/unit/test_journey_registry.gd" time="0.005799" >
+      </testcase>
+      <testcase name="test_active_character_claim_is_rejected_without_duplicate_presence" assertions="2" status="pass" classname="tests/unit/test_journey_registry.gd" time="0.001851" >
+      </testcase>
+      <testcase name="test_expired_disconnect_is_cleaned_and_next_entry_gets_new_journey" assertions="3" status="pass" classname="tests/unit/test_journey_registry.gd" time="0.000883" >
+      </testcase>
+      </testsuite>
+  </testsuites>

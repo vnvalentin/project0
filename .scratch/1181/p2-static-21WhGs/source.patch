@@ -1,0 +1,1319 @@
+diff --git a/server/jit_presentation_ack_tracker.gd b/server/jit_presentation_ack_tracker.gd
+index 21cac03..f33ec37 100644
+--- a/server/jit_presentation_ack_tracker.gd
++++ b/server/jit_presentation_ack_tracker.gd
+@@ -2,6 +2,7 @@ extends RefCounted
+ class_name JitPresentationAckTracker
+ 
+ const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
++const TelemetryEventScript: Script = preload("res://shared/telemetry_event.gd")
+ const MAX_PENDING_PER_PEER: int = 16
+ const SERVER_AUTHORED_EVENTS: Array[String] = [
+ 	"player_trigger_event",
+@@ -12,23 +13,30 @@ const SERVER_AUTHORED_EVENTS: Array[String] = [
+ ]
+ 
+ var _pending_by_peer: Dictionary = {}
++var _binding_by_peer: Dictionary = {}
++var _ready_by_peer: Dictionary = {}
+ 
+ 
+-func issue(peer_id: int, commit_trace: Dictionary) -> Dictionary:
++func issue(peer_id: int, commit_trace: Dictionary, binding: Dictionary = {}) -> Dictionary:
+ 	if peer_id <= 0 or commit_trace.is_empty():
+ 		return {}
+ 	var trace: Dictionary = JitTraceContextScript.child(commit_trace, "client_presentation_ack")
+ 	var pending: Dictionary = _pending_by_peer.get(peer_id, {})
+ 	var sector_id: String = String(trace.get("sector_id", ""))
+ 	if not pending.has(sector_id) and pending.size() >= MAX_PENDING_PER_PEER:
+-		pending.erase(pending.keys()[0])
++		forget_presentation(peer_id, String(pending.keys()[0]))
++	var bindings: Dictionary = _binding_by_peer.get(peer_id, {})
++	bindings[sector_id] = binding.duplicate(true)
++	_binding_by_peer[peer_id] = bindings
++	var ready: Dictionary = _ready_by_peer.get(peer_id, {})
++	ready.erase(sector_id)
+ 	pending[sector_id] = trace.duplicate(true)
+ 	_pending_by_peer[peer_id] = pending
+ 	return trace
+ 
+ 
+ func match_pending(peer_id: int, raw_event: Dictionary) -> Dictionary:
+-	if String(raw_event.get("event_type", "")) != "client_presentation_ack":
++	if not _valid_ack(raw_event):
+ 		return {}
+ 	var payload: Variant = raw_event.get("payload")
+ 	if not (payload is Dictionary):
+@@ -41,6 +49,49 @@ func match_pending(peer_id: int, raw_event: Dictionary) -> Dictionary:
+ 	return expected.duplicate(true)
+ 
+ 
++func is_ready(peer_id: int, sector_id: String, binding: Dictionary) -> bool:
++	var ready: Dictionary = _ready_by_peer.get(peer_id, {})
++	return not binding.is_empty() and ready.get(sector_id, {}) == binding
++
++
++func has_presentation(peer_id: int, sector_id: String, binding: Dictionary) -> bool:
++	var pending: Dictionary = _pending_by_peer.get(peer_id, {})
++	var bindings: Dictionary = _binding_by_peer.get(peer_id, {})
++	return is_ready(peer_id, sector_id, binding) or (pending.has(sector_id) and not binding.is_empty() and bindings.get(sector_id, {}) == binding)
++
++
++func pending_trace(peer_id: int, sector_id: String, binding: Dictionary) -> Dictionary:
++	var bindings: Dictionary = _binding_by_peer.get(peer_id, {})
++	if binding.is_empty() or bindings.get(sector_id, {}) != binding:
++		return {}
++	var pending: Dictionary = _pending_by_peer.get(peer_id, {})
++	return pending.get(sector_id, {}).duplicate(true)
++
++
++func confirm_ready(peer_id: int, event: Dictionary, binding: Dictionary) -> Dictionary:
++	var trace: Dictionary = match_pending(peer_id, event)
++	var sector_id: String = String(trace.get("sector_id", ""))
++	var bindings: Dictionary = _binding_by_peer.get(peer_id, {})
++	if binding.is_empty() or bindings.get(sector_id, {}) != binding:
++		return {}
++	var confirmed: Dictionary = confirm_persisted(peer_id, trace)
++	if confirmed.is_empty():
++		return {}
++	bindings.erase(sector_id)
++	var ready: Dictionary = _ready_by_peer.get(peer_id, {})
++	if not ready.has(sector_id) and ready.size() >= MAX_PENDING_PER_PEER:
++		ready.erase(ready.keys()[0])
++	ready[sector_id] = binding.duplicate(true)
++	_ready_by_peer[peer_id] = ready
++	return confirmed
++
++
++func forget_presentation(peer_id: int, sector_id: String) -> void:
++	for collection: Dictionary in [_pending_by_peer, _binding_by_peer, _ready_by_peer]:
++		var sectors: Dictionary = collection.get(peer_id, {})
++		sectors.erase(sector_id)
++
++
+ func confirm_persisted(peer_id: int, trace: Dictionary) -> Dictionary:
+ 	var sector_id: String = String(trace.get("sector_id", ""))
+ 	var pending: Dictionary = _pending_by_peer.get(peer_id, {})
+@@ -85,6 +136,27 @@ func confirm_accepted(peer_id: int, accepted_events: Array[Dictionary]) -> Array
+ 
+ func forget_peer(peer_id: int) -> void:
+ 	_pending_by_peer.erase(peer_id)
++	_binding_by_peer.erase(peer_id)
++	_ready_by_peer.erase(peer_id)
++
++
++func _valid_ack(event: Dictionary) -> bool:
++	if event.get("event_type") != "client_presentation_ack" or not (event.get("schema_version") is int) or event.get("schema_version") != 1:
++		return false
++	if not (event.get("payload") is Dictionary):
++		return false
++	var payload: Dictionary = event["payload"]
++	if payload.size() != 8:
++		return false
++	for field: String in ["trace_id", "span_id", "parent_span_id", "sector_id", "spatial_guid", "status"]:
++		if not (payload.get(field) is String) or String(payload[field]).is_empty():
++			return false
++	if not (payload.get("timestamp_ms") is int) or int(payload["timestamp_ms"]) < 0:
++		return false
++	var duration: Variant = payload.get("duration_ms")
++	if not (duration is float or duration is int) or not is_finite(float(duration)) or float(duration) < 0.0:
++		return false
++	return TelemetryEventScript.validate(TelemetryEventScript.build("client_presentation_ack", 1, 0, 0, 0, payload))["outcome"] == TelemetryEventScript.OUTCOME_ACCEPTED
+ 
+ 
+ func _matches(expected: Dictionary, payload: Dictionary) -> bool:
+diff --git a/server/journey_registry.gd b/server/journey_registry.gd
+index dfac06a..a5de9ae 100644
+--- a/server/journey_registry.gd
++++ b/server/journey_registry.gd
+@@ -22,6 +22,14 @@ func set_repository(repository: Object) -> void:
+ 	_repository = repository
+ 
+ 
++func active_journey_id(character_id: String, peer_id: int) -> String:
++	var journey_id: String = String(_journey_id_by_character.get(character_id, ""))
++	var journey: Dictionary = _journeys_by_id.get(journey_id, {})
++	if not bool(journey.get("active", false)) or int(journey.get("peer_id", 0)) != peer_id:
++		return ""
++	return journey_id
++
++
+ func restore_records(records: Array) -> Dictionary:
+ 	for raw_record: Dictionary in records:
+ 		var journey_id: String = String(raw_record.get("journey_id", ""))
+diff --git a/server/sector_boundary_detector.gd b/server/sector_boundary_detector.gd
+index 757d6a6..65613fa 100644
+--- a/server/sector_boundary_detector.gd
++++ b/server/sector_boundary_detector.gd
+@@ -10,6 +10,7 @@ const MAX_RETAINED_CANON_TRACES: int = 256
+ signal sector_generation_requested(peer_id: int, sector_id: String, position: Vector3)
+ 
+ var _last_sector_by_peer: Dictionary = {}
++var _prepared_by_peer: Dictionary = {}
+ var _trace_by_sector: Dictionary = {}
+ var _canon_lookup: Callable = Callable()
+ var _request_callback: Callable = Callable()
+@@ -42,6 +43,31 @@ func observe_position(peer_id: int, position: Vector3) -> Dictionary:
+ 	if _last_sector_by_peer.get(peer_id, "") == sector_id:
+ 		return {"sector_id": sector_id, "requested": false, "reloaded": false}
+ 	_last_sector_by_peer[peer_id] = sector_id
++	return _prepare_sector(peer_id, sector_id, position)
++
++
++func commit_position(peer_id: int, position: Vector3) -> void:
++	_last_sector_by_peer[peer_id] = sector_id_for_position(position)
++
++
++func prepare_position(peer_id: int, position: Vector3) -> Dictionary:
++	var sector_id: String = sector_id_for_position(position)
++	var prepared: Dictionary = _prepared_by_peer.get(peer_id, {})
++	if prepared.has(sector_id):
++		return {"sector_id": sector_id, "requested": false, "reloaded": false}
++	if prepared.size() >= 16:
++		prepared.erase(prepared.keys()[0])
++	prepared[sector_id] = true
++	_prepared_by_peer[peer_id] = prepared
++	return _prepare_sector(peer_id, sector_id, position)
++
++
++func forget_preparation(peer_id: int, sector_id: String) -> void:
++	var prepared: Dictionary = _prepared_by_peer.get(peer_id, {})
++	prepared.erase(sector_id)
++
++
++func _prepare_sector(peer_id: int, sector_id: String, position: Vector3) -> Dictionary:
+ 
+ 	if _has_canon(sector_id):
+ 		var retained_trace: Dictionary = _trace_by_sector.get(sector_id, {})
+@@ -76,6 +102,7 @@ func remember_canon_trace(sector_id: String, trace: Dictionary) -> void:
+ ## the same peer id is evaluated from its new authoritative position.
+ func forget_peer(peer_id: int) -> void:
+ 	_last_sector_by_peer.erase(peer_id)
++	_prepared_by_peer.erase(peer_id)
+ 
+ 
+ ## Public pure mapping seam. X is the world east/west axis and Z is the
+diff --git a/server/server_main.gd b/server/server_main.gd
+index 7702dde..ea259f8 100644
+--- a/server/server_main.gd
++++ b/server/server_main.gd
+@@ -211,6 +211,12 @@ var _jit_peer_by_sector: Dictionary = {}
+ var _jit_root_trace_by_sector: Dictionary = {}
+ var _jit_commit_trace_by_sector: Dictionary = {}
+ var _jit_presentation_ack_tracker: Object = JitPresentationAckTrackerScript.new()
++var _frontier_versions: Dictionary = {}
++var _frontier_bindings: Dictionary = {}
++var _frontier_town_tiles: Dictionary = {}
++const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
++var _frontier_prepared_at_by_peer: Dictionary = {}
++var _frontier_ack_limiter: Object = TelemetryRateLimiterScript.new()
+ 
+ ## Slice 162 (telemetry map #282): the dedicated telemetry database and its
+ ## per-peer rate limiter. Best-effort, non-fatal: unlike accounts/Canon,
+@@ -600,15 +606,18 @@ func _admit_peer(peer_id: int) -> void:
+ 		root.multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+ 		return
+ 
++	var player_state: Node = ServerPlayerStateScript.new()
++	_player_states[peer_id] = player_state
++	_configure_player_frontier(peer_id, player_state)
++
+ 	# Slice 017: replicate the validated starting town hub to this peer before
+ 	# spawning any Player, so the world exists before its occupants. All these
+ 	# RPCs are reliable, so ordering is guaranteed.
+-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(_starting_town_hub_blueprint.get("sector_id", ""), _starting_town_hub_blueprint), start_position)
++	_present_frontier_sector(peer_id, String(_starting_town_hub_blueprint.get("sector_id", "")), _starting_town_hub_blueprint, start_position, {})
+ 	print("Sent starting town hub blueprint to peer %d (sector_id=%s)." % [peer_id, _starting_town_hub_blueprint.get("sector_id", "")])
+ 
+ 	network_client.rpc_id(peer_id, "spawn_own_player_representation")
+ 
+-	var player_state: Node = ServerPlayerStateScript.new()
+ 	player_state.name = "ServerPlayerState_%d" % peer_id
+ 	player_state.position_updated.connect(_on_player_state_position_updated)
+ 	player_state.action_resolved.connect(_on_player_state_action_resolved)
+@@ -630,7 +639,6 @@ func _admit_peer(peer_id: int) -> void:
+ 	# depends on. Default OFF; never set on the real LAN server path.
+ 	if OS.get_environment("PROJECT0_E2E_DISABLE_TOWN_COLLISION") != "1":
+ 		player_state.set_collision_map(_town_collision)
+-	_player_states[peer_id] = player_state
+ 
+ 	# Slice 019: assign this peer a unique house from the pool and tell only the
+ 	# owning client. Fail closed (log) if the pool is somehow exhausted — this is
+@@ -720,6 +728,12 @@ func _on_peer_disconnected(peer_id: int) -> void:
+ 	if _sector_boundary_detector != null:
+ 		_sector_boundary_detector.forget_peer(peer_id)
+ 	_jit_presentation_ack_tracker.forget_peer(peer_id)
++	_frontier_bindings.erase(peer_id)
++	_frontier_prepared_at_by_peer.erase(peer_id)
++	_frontier_ack_limiter.forget_peer(peer_id)
++	for sector_id: String in _sector_ingress_positions.keys():
++		var ingresses: Dictionary = _sector_ingress_positions[sector_id]
++		ingresses.erase(peer_id)
+ 	if _telemetry_rate_limiter != null:
+ 		_telemetry_rate_limiter.forget_peer(peer_id)
+ 
+@@ -756,7 +770,7 @@ func _broadcast_presence_snapshot() -> void:
+ ## ServerPlayerState._physics_process via receive_authoritative_position.
+ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
+ 	if _sector_boundary_detector != null:
+-		_sector_boundary_detector.observe_position(peer_id, updated_position)
++		_sector_boundary_detector.commit_position(peer_id, updated_position)
+ 	var last_position: Vector3 = _last_journey_checkpoint_position_by_peer.get(peer_id, updated_position)
+ 	if last_position.distance_squared_to(updated_position) >= JOURNEY_CHECKPOINT_DISTANCE_UNITS * JOURNEY_CHECKPOINT_DISTANCE_UNITS:
+ 		_checkpoint_journey(peer_id, updated_position)
+@@ -774,16 +788,13 @@ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3)
+ ## client can label that peer's remote representation as the selected Character.
+ ## Identity only — never a trusted position or outcome.
+ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmetic: Dictionary) -> void:
++	var player_state: Node = _player_states.get(peer_id)
++	if player_state != null:
++		_configure_player_frontier(peer_id, player_state)
++		_present_current_frontier(peer_id, player_state.position)
+ 	var network_client: Node = root.get_node_or_null("NetworkClient")
+ 	if network_client == null:
+ 		return
+-	var player_state: Node = _player_states.get(peer_id)
+-	if player_state != null and _canon_repository != null:
+-		var sector_id: String = SectorBoundaryDetectorScript.sector_id_for_position(player_state.position)
+-		var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
+-		if canon_result.get("outcome", "") == "ok":
+-			var sector: Dictionary = canon_result.get("sector", {})
+-			network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, sector.get("blueprint", {})), player_state.position)
+ 	for other_peer_id: int in _player_states.keys():
+ 		if other_peer_id == peer_id:
+ 			continue
+@@ -797,10 +808,18 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
+ 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
+ 	sector_ingresses[peer_id] = position
+ 	_sector_ingress_positions[sector_id] = sector_ingresses
++	if _provisional_sector_generator.get_status(sector_id) == ProvisionalSectorGeneratorScript.STATUS_READY:
++		var cached_result: Dictionary = _provisional_sector_generator.get_provisional_result(sector_id).duplicate(true)
++		cached_result.erase("trace_spans")
++		_jit_peer_by_sector[sector_id] = peer_id
++		_on_provisional_sector_ready(sector_id, cached_result)
++		return
+ 	var starts_generation: bool = (
+ 		_provisional_sector_generator.get_status(sector_id)
+ 		== ProvisionalSectorGeneratorScript.STATUS_UNKNOWN
+ 	)
++	if not starts_generation and _jit_peer_by_sector.has(sector_id):
++		return
+ 	if starts_generation:
+ 		_jit_peer_by_sector[sector_id] = peer_id
+ 		_jit_root_trace_by_sector[sector_id] = trace.duplicate(true)
+@@ -841,11 +860,8 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
+ 	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK:
+ 		return
+ 	_emit_jit_trace(trace, peer_id)
+-	var network_client: Node = root.get_node_or_null("NetworkClient")
+-	if network_client == null:
+-		return
+ 	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
+-	network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), position, trace)
++	_present_frontier_sector(peer_id, sector_id, blueprint, position, trace)
+ 	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
+ 
+ 
+@@ -878,22 +894,158 @@ func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void
+ 
+ 
+ func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> void:
+-	var network_client: Node = root.get_node_or_null("NetworkClient")
+-	if network_client == null:
+-		return
+ 	var commit_trace: Dictionary = _jit_commit_trace_by_sector.get(sector_id, {})
+-	var initiating_peer_id: int = int(_jit_peer_by_sector.get(sector_id, 0))
+-	var presentation_trace: Dictionary = _jit_presentation_ack_tracker.issue(initiating_peer_id, commit_trace)
+-	if _sector_boundary_detector != null and not presentation_trace.is_empty():
+-		_sector_boundary_detector.remember_canon_trace(sector_id, presentation_trace)
+ 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
+-	for peer_id: int in _player_states.keys():
++	for peer_id: int in sector_ingresses.keys():
+ 		var ingress: Vector3 = sector_ingresses.get(peer_id, Vector3.ZERO)
+-		var peer_trace: Dictionary = presentation_trace if peer_id == initiating_peer_id else {}
+-		network_client.rpc_id(peer_id, "receive_sector_blueprint", _effective_blueprint_for(sector_id, blueprint), ingress, peer_trace)
++		_present_frontier_sector(peer_id, sector_id, blueprint, ingress, commit_trace)
++	_sector_ingress_positions.erase(sector_id)
+ 	print("Replicated canonical sector %s to %d connected peers." % [sector_id, _player_states.size()])
+ 
+ 
++func _configure_player_frontier(peer_id: int, player_state: Node) -> void:
++	_jit_presentation_ack_tracker.forget_peer(peer_id)
++	_frontier_prepared_at_by_peer.erase(peer_id)
++	if _sector_boundary_detector != null:
++		_sector_boundary_detector.forget_peer(peer_id)
++	for sector_id: String in _sector_ingress_positions.keys():
++		var ingresses: Dictionary = _sector_ingress_positions[sector_id]
++		ingresses.erase(peer_id)
++	_frontier_bindings[peer_id] = {
++		"connection": player_state.get_instance_id(),
++		"character": String(player_state.character_id),
++		"journey": _frontier_journey_id(peer_id, String(player_state.character_id)),
++	}
++	player_state.set_movement_admission(Callable(self, "_resolve_frontier_movement"))
++	if _frontier_town_tiles.is_empty():
++		for tile: Dictionary in _starting_town_hub_blueprint.get("tiles", []):
++			_frontier_town_tiles[Vector2i(int(tile["x"]), int(tile["y"]))] = true
++
++
++func _present_current_frontier(peer_id: int, position: Vector3) -> void:
++	_prepare_frontier_position(peer_id, position)
++
++
++func _frontier_now_msec() -> int:
++	return Time.get_ticks_msec()
++
++
++## Bound replay/ACK-loss recovery independently of physics ticks. This retries
++## presentation/preparation, never the generator's single accepted LLM request.
++func _prepare_frontier_position(peer_id: int, position: Vector3) -> void:
++	var sector_id: String = _frontier_sector_at(position)
++	var attempts: Dictionary = _frontier_prepared_at_by_peer.get(peer_id, {})
++	if attempts.has(sector_id) and _frontier_now_msec() - int(attempts[sector_id]) < FRONTIER_PREPARATION_RETRY_MSEC:
++		return
++	_remember_frontier_preparation(peer_id, sector_id)
++	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
++		_present_frontier_sector(peer_id, sector_id, _starting_town_hub_blueprint, position, {})
++	elif _sector_boundary_detector != null:
++		_sector_boundary_detector.forget_preparation(peer_id, sector_id)
++		_sector_boundary_detector.prepare_position(peer_id, position)
++
++
++func _remember_frontier_preparation(peer_id: int, sector_id: String) -> void:
++	var attempts: Dictionary = _frontier_prepared_at_by_peer.get(peer_id, {})
++	if not attempts.has(sector_id) and attempts.size() >= JitPresentationAckTrackerScript.MAX_PENDING_PER_PEER:
++		attempts.erase(attempts.keys()[0])
++	attempts[sector_id] = _frontier_now_msec()
++	_frontier_prepared_at_by_peer[peer_id] = attempts
++
++
++func _frontier_binding(peer_id: int, sector_id: String) -> Dictionary:
++	var player_state: Node = _player_states.get(peer_id)
++	var binding: Dictionary = _frontier_bindings.get(peer_id, {})
++	if player_state == null:
++		return {}
++	if binding.get("connection") != player_state.get_instance_id() or binding.get("character") != String(player_state.character_id) or binding.get("journey") != _frontier_journey_id(peer_id, String(player_state.character_id)):
++		_jit_presentation_ack_tracker.forget_peer(peer_id)
++		return {}
++	if not _frontier_versions.has(sector_id):
++		return {}
++	var context: Dictionary = binding.duplicate(true)
++	context["presentation"] = _frontier_versions[sector_id]
++	return context
++
++
++func _frontier_journey_id(peer_id: int, character_id: String) -> String:
++	return _journey_registry.active_journey_id(character_id, peer_id) if _journey_registry != null else ""
++
++
++func _invalidate_frontier_sector(sector_id: String, clear_preparation: bool = true) -> void:
++	_frontier_versions.erase(sector_id)
++	for peer_id: int in _player_states.keys():
++		_jit_presentation_ack_tracker.forget_presentation(peer_id, sector_id)
++		if clear_preparation:
++			var attempts: Dictionary = _frontier_prepared_at_by_peer.get(peer_id, {})
++			attempts.erase(sector_id)
++		if clear_preparation and _sector_boundary_detector != null:
++			_sector_boundary_detector.forget_preparation(peer_id, sector_id)
++
++
++func _frontier_sector_at(position: Vector3) -> String:
++	if _frontier_town_tiles.has(Vector2i(floori(position.x + 0.5), floori(position.z + 0.5))):
++		return String(_starting_town_hub_blueprint.get("sector_id", ""))
++	return SectorBoundaryDetectorScript.sector_id_for_position(position)
++
++
++func _frontier_position_ready(peer_id: int, position: Vector3) -> bool:
++	var sector_id: String = _frontier_sector_at(position)
++	return _jit_presentation_ack_tracker.is_ready(peer_id, sector_id, _frontier_binding(peer_id, sector_id))
++
++
++func _resolve_frontier_movement(peer_id: int, current: Vector3, candidate: Vector3) -> Vector3:
++	if _frontier_position_ready(peer_id, candidate):
++		return candidate
++	_prepare_frontier_position(peer_id, candidate)
++	var along_x: Vector3 = Vector3(candidate.x, candidate.y, current.z)
++	var along_z: Vector3 = Vector3(current.x, candidate.y, candidate.z)
++	if _frontier_position_ready(peer_id, along_x):
++		return along_x
++	if _frontier_position_ready(peer_id, along_z):
++		return along_z
++	return Vector3(current.x, candidate.y, current.z)
++
++
++func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictionary, ingress: Vector3, parent_trace: Dictionary) -> void:
++	if not _player_states.has(peer_id) or not _frontier_bindings.has(peer_id):
++		return
++	if String(blueprint.get("sector_id", "")) != sector_id:
++		return
++	_remember_frontier_preparation(peer_id, sector_id)
++	var effective: Dictionary = blueprint
++	var revision: int = 0
++	if _canon_mutation_repository != null:
++		var listed: Dictionary = _canon_mutation_repository.list_mutations(sector_id)
++		if listed.get("outcome") != "ok":
++			# Revoke stale authority, but preserve the failed-attempt cooldown.
++			_invalidate_frontier_sector(sector_id, false)
++			return
++		var mutations: Array = listed.get("mutations", [])
++		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, mutations)
++		if not mutations.is_empty():
++			revision = int(mutations.back()["applied_revision"])
++	_frontier_versions[sector_id] = "%d:%s" % [revision, JSON.stringify(effective).sha256_text()]
++	var binding: Dictionary = _frontier_binding(peer_id, sector_id)
++	if binding.is_empty():
++		return
++	var parent: Dictionary = parent_trace if not parent_trace.is_empty() else JitTraceContextScript.root(peer_id, sector_id)
++	# Preserve the pending token on retry so slow/reordered ACKs remain valid.
++	# A changed presentation/connection binding still requires a fresh token.
++	var trace: Dictionary = _jit_presentation_ack_tracker.pending_trace(peer_id, sector_id, binding)
++	if trace.is_empty():
++		trace = _jit_presentation_ack_tracker.issue(peer_id, parent, binding)
++	if _sector_boundary_detector != null:
++		_sector_boundary_detector.remember_canon_trace(sector_id, trace)
++	_send_sector_blueprint(peer_id, effective, ingress, trace)
++
++
++func _send_sector_blueprint(peer_id: int, blueprint: Dictionary, ingress: Vector3, trace: Dictionary) -> void:
++	var network_client: Node = root.get_node_or_null("NetworkClient")
++	if network_client != null:
++		network_client.rpc_id(peer_id, "receive_sector_blueprint", blueprint, ingress, trace)
++
++
+ ## Slice 098 (P-013): replay the sector's durable mutation log onto its blueprint
+ ## so peers render the effective (post-mutation) world. Falls back to the
+ ## unchanged blueprint when the mutation store is unavailable or empty.
+@@ -917,6 +1069,8 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
+ 	if player_state == null:
+ 		return
+ 	var resolution: Dictionary = _canon_mutation_service.resolve_intent(player_state.character_id, intent)
++	if resolution.get("status") == CanonMutationServiceScript.STATUS_ACCEPTED and resolution.get("reason") == CanonMutationRepositoryScript.OUTCOME_OK:
++		_invalidate_frontier_sector(String(intent.get("sector_id", "")))
+ 	var network_client: Node = root.get_node_or_null("NetworkClient")
+ 	if network_client == null:
+ 		return
+@@ -970,27 +1124,27 @@ func _emit_jit_trace(trace: Dictionary, peer_id: int) -> void:
+ ## and the actual write. A telemetry-unavailable server (see boot wiring
+ ## above) makes this a no-op — telemetry never blocks or disconnects a peer.
+ func _on_client_telemetry_batch_received(peer_id: int, events: Array, _client_sequence: int) -> void:
+-	if _telemetry_ingest == null:
++	if not _player_states.has(peer_id) or events.is_empty() or events.size() > int(TelemetryRateLimiterScript.CAPACITY):
++		return
++	if not _frontier_ack_limiter.try_consume(peer_id, events.size(), Time.get_ticks_msec() / 1000.0):
+ 		return
+ 	var character_id: String = ""
+ 	var player_state: Node = _player_states.get(peer_id)
+ 	if player_state != null:
+ 		character_id = player_state.character_id
+ 	var verified_events: Array[Dictionary] = _jit_presentation_ack_tracker.verified_events(peer_id, events)
+-	var accepted_events: Array[Dictionary] = _telemetry_ingest.ingest_batch(
+-		peer_id,
+-		verified_events,
+-		character_id,
+-		int(Time.get_unix_time_from_system()),
+-		_current_server_tick(),
+-	)
+-	var presentation_traces: Array[Dictionary] = _jit_presentation_ack_tracker.confirm_accepted(peer_id, accepted_events)
+-	for presentation_trace: Dictionary in presentation_traces:
+-		if _sector_boundary_detector != null and not presentation_trace.is_empty():
++	for event: Dictionary in verified_events:
++		if event.get("event_type") != "client_presentation_ack":
++			continue
++		var sector_id: String = String(event["payload"].get("sector_id", ""))
++		var presentation_trace: Dictionary = _jit_presentation_ack_tracker.confirm_ready(peer_id, event, _frontier_binding(peer_id, sector_id))
++		if not presentation_trace.is_empty() and _sector_boundary_detector != null:
+ 			_sector_boundary_detector.remember_canon_trace(
+-				String(presentation_trace.get("sector_id", "")),
++				sector_id,
+ 				presentation_trace,
+ 			)
++	if _telemetry_ingest != null:
++		_telemetry_ingest.ingest_batch(peer_id, verified_events, character_id, int(Time.get_unix_time_from_system()), _current_server_tick())
+ ## Deterministic, visibly distinct starting positions for connected peers so
+ ## Player representations never spawn on top of each other.
+ func _start_position_for_slot(slot_index: int) -> Vector3:
+diff --git a/server/server_player_state.gd b/server/server_player_state.gd
+index cd78292..3083595 100644
+--- a/server/server_player_state.gd
++++ b/server/server_player_state.gd
+@@ -186,6 +186,7 @@ var _target_dummies: Dictionary = {}
+ ## slides the player against solids so the town is physically solid. null in
+ ## tests/standalone contexts means free movement (backward compatible).
+ var _collision_map: Object = null
++var _movement_admission: Callable = Callable()
+ 
+ ## Slice 029: the server-owned monster manager this peer's hit test also
+ ## checks against, injected by server_main.gd. Only living monsters (a fresh
+@@ -247,6 +248,10 @@ func set_collision_map(collision_map: Object) -> void:
+ 	_collision_map = collision_map
+ 
+ 
++func set_movement_admission(admission: Callable) -> void:
++	_movement_admission = admission
++
++
+ ## Public seam (Slice 029): called by server_main.gd to register the
+ ## server-owned monster manager this peer's melee hit tests also check
+ ## against, alongside the target dummies above.
+@@ -473,7 +478,9 @@ func _physics_process(delta: float) -> void:
+ 			_vertical_velocity = 0.0
+ 			if _locomotion_mode == LocomotionContractScript.MODE_JUMP:
+ 				_locomotion_mode = LocomotionContractScript.MODE_NONE
+-	position = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
++	var candidate: Vector3 = _collision_map.resolve_move(position, desired_position) if _collision_map != null else desired_position
++	var admitted: Vector3 = _movement_admission.call(owning_peer_id, position, candidate) if _movement_admission.is_valid() else candidate
++	position = _collision_map.resolve_move(position, admitted) if _collision_map != null and admitted != candidate else admitted
+ 
+ 	var network_client: Node = get_tree().root.get_node_or_null("NetworkClient")
+ 	# Requiring CONNECTION_CONNECTED guards test/standalone contexts — e.g.
+diff --git a/tests/unit/test_server_main_jit_orchestration.gd b/tests/unit/test_server_main_jit_orchestration.gd
+index e3c29b2..a64d0a7 100644
+--- a/tests/unit/test_server_main_jit_orchestration.gd
++++ b/tests/unit/test_server_main_jit_orchestration.gd
+@@ -4,15 +4,49 @@ const ServerMainScript: Script = preload("res://server/server_main.gd")
+ const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
+ const JitTraceContextScript: Script = preload("res://shared/jit_trace_context.gd")
+ const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
++const ServerPlayerStateScript: Script = preload("res://server/server_player_state.gd")
++const JourneyRegistryScript: Script = preload("res://server/journey_registry.gd")
++const TelemetryIngestServiceScript: Script = preload("res://server/telemetry_ingest_service.gd")
++const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_limiter.gd")
++const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
++const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
++const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
++var _network_client: Node
++
++
++func before_all() -> void:
++	_network_client = get_tree().root.get_node_or_null("NetworkClient")
++	if _network_client != null:
++		_network_client.name = "FrontierTestNetworkClient"
++
++
++func after_all() -> void:
++	if _network_client != null:
++		_network_client.name = "NetworkClient"
++
++
++class FrontierServer extends "res://server/server_main.gd":
++	var presentations: Array[Dictionary] = []
++	var frontier_now: int = 0
++
++	func _frontier_now_msec() -> int:
++		return frontier_now
++
++	func _send_sector_blueprint(peer_id: int, blueprint: Dictionary, ingress: Vector3, trace: Dictionary) -> void:
++		presentations.append({"peer_id": peer_id, "blueprint": blueprint, "ingress": ingress, "trace": trace})
+ 
+ 
+ class FakeGenerator extends Node:
+ 	var status: String = "unknown"
+ 	var requests: Array[Dictionary] = []
++	var result: Dictionary = {}
+ 
+ 	func get_status(_sector_id: String) -> String:
+ 		return status
+ 
++	func get_provisional_result(_sector_id: String) -> Dictionary:
++		return result
++
+ 	func request_provisional_sector(sector_id: String, prompt: String, selected_profile: String, trace: Dictionary) -> String:
+ 		requests.append({
+ 			"sector_id": sector_id,
+@@ -33,10 +67,580 @@ class FakeCanonRepository extends RefCounted:
+ 
+ class FakeTelemetrySink extends RefCounted:
+ 	var envelopes: Array[Dictionary] = []
++	var outcome: String = "ok"
+ 
+ 	func emit(envelope: Dictionary) -> Dictionary:
+ 		envelopes.append(envelope)
+-		return {"outcome": "ok"}
++		return {"outcome": outcome}
++
++
++class FakeMutationService extends RefCounted:
++	func resolve_intent(_character_id: String, _intent: Dictionary) -> Dictionary:
++		return {"status": "accepted", "reason": "ok", "applied_revision": 1}
++
++
++class RecoverableCanonStore extends "res://server/sqlite_store.gd":
++	var fail_writes: bool = true
++	var write_attempts: int = 0
++
++	func transaction(body: Callable) -> Dictionary:
++		write_attempts += 1
++		if fail_writes:
++			return {"outcome": OUTCOME_TRANSACTION_FAILED, "detail": "Injected transient Canon write failure."}
++		return super.transaction(body)
++
++
++class CountingOllamaServer extends "res://scripts/fake_ollama_http_server.gd":
++	var requests: int = 0
++
++	func _process(delta: float) -> void:
++		last_request_body = ""
++		super._process(delta)
++		if not last_request_body.is_empty():
++			requests += 1
++
++
++class FakeMutationRepository extends RefCounted:
++	var outcome: String = "ok"
++	var revision: int = 0
++	var reads: int = 0
++
++	func list_mutations(_sector_id: String) -> Dictionary:
++		reads += 1
++		return {"outcome": outcome, "mutations": [] if revision == 0 else [{"applied_revision": revision, "mutation_kind": "loot"}]}
++
++
++func _frontier_server() -> FrontierServer:
++	var server: FrontierServer = FrontierServer.new()
++	var generator: FakeGenerator = FakeGenerator.new()
++	server.root.add_child(generator)
++	server._provisional_sector_generator = generator
++	var repository: FakeCanonRepository = FakeCanonRepository.new()
++	repository.blueprint = {"sector_id": "sector-0-0"}
++	server._canon_repository = repository
++	var detector: SectorBoundaryDetector = SectorBoundaryDetectorScript.new()
++	detector.set_canon_lookup(func(sector_id: String) -> bool: return sector_id == "sector-0-0")
++	detector.set_request_callback(Callable(server, "_request_sector_from_boundary"))
++	detector.set_reload_callback(Callable(server, "_reload_sector_from_boundary"))
++	server._sector_boundary_detector = detector
++	_add_frontier_peer(server, 7)
++	return server
++
++
++func _add_frontier_peer(server: FrontierServer, peer_id: int) -> Node:
++	var state: Node = ServerPlayerStateScript.new()
++	add_child_autofree(state)
++	state.start_for_peer(peer_id, Vector3(439.99, 1, 10))
++	server._player_states[peer_id] = state
++	server._configure_player_frontier(peer_id, state)
++	state.position_updated.connect(server._on_player_state_position_updated)
++	state.action_resolved.connect(server._on_player_state_action_resolved)
++	state.combat_event_emitted.connect(server._on_player_state_combat_event_emitted)
++	state.melee_swing_started.connect(server._on_player_state_melee_swing_started)
++	state.character_bound.connect(server._on_player_state_character_bound)
++	state.health_changed.connect(server._on_player_state_health_changed)
++	state.character_snapshot_ready.connect(server._on_player_state_character_snapshot_ready)
++	state.effective_mechanics_ready.connect(server._on_player_state_effective_mechanics_ready)
++	state.player_defeated.connect(server._on_player_state_player_defeated)
++	return state
++
++
++func _destination_trace(server: FrontierServer) -> Dictionary:
++	server._resolve_frontier_movement(7, Vector3(439.99, 1, 10), Vector3(440.1, 1, 10))
++	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(JitTraceContextScript.root(7, "sector-1-0"), "canon_db_commit")
++	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
++	return server.presentations.back()["trace"]
++
++
++func _ack_event(trace: Dictionary) -> Dictionary:
++	var payload: Dictionary = trace.duplicate(true)
++	payload.erase("event_type")
++	return {"event_type": "client_presentation_ack", "schema_version": 1, "payload": payload}
++
++
++func test_live_frontier_prepares_once_holds_then_releases_without_telemetry() -> void:
++	var server: FrontierServer = _frontier_server()
++	var state: Node = server._player_states[7]
++	server._reload_sector_from_boundary(7, "sector-0-0", state.position, JitTraceContextScript.root(7, "sector-0-0"))
++	for presentation: Dictionary in server.presentations:
++		server._on_client_telemetry_batch_received(7, [_ack_event(presentation["trace"])], 1)
++	state.apply_input_intent(7, Vector2(1, 1), 10)
++	for tick: int in range(20):
++		state._physics_process(1.0 / 60.0)
++	assert_lt(state.position.x, 440.0, "live server wiring holds the unready destination")
++	assert_gt(state.position.z, 10.5, "ready adjacent motion continues")
++	assert_eq(server._provisional_sector_generator.requests.size(), 1, "held frames prepare destination exactly once")
++	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(JitTraceContextScript.root(7, "sector-1-0"), "canon_db_commit")
++	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
++	assert_eq(server.presentations.size(), 2, "source reentry and destination each have a presentation")
++	if server.presentations.size() == 2:
++		var destination: Dictionary = server.presentations.back()["trace"]
++		assert_eq(destination.get("event_type"), "client_presentation_ack")
++		server._on_client_telemetry_batch_received(7, [_ack_event(destination)], 2)
++		state._physics_process(1.0 / 60.0)
++		assert_gt(state.position.x, 440.0, "valid ACK releases the next movement without persistence")
++		assert_eq(server.presentations.size(), 2, "committed crossing must not revoke its own ACK")
++	server.free()
++
++
++func test_current_town_ack_allows_origin_crossing_without_granting_neighbor_sector() -> void:
++	var server: FrontierServer = _frontier_server()
++	server._starting_town_hub_blueprint = {"sector_id": "starting_town_hub", "tiles": [
++		{"x": -1, "y": 0, "kind": "floor"},
++		{"x": 0, "y": 0, "kind": "floor"},
++		{"x": 1, "y": 0, "kind": "floor"},
++	]}
++	var state: Node = server._player_states[7]
++	state.position = Vector3(0.01, 1, 0)
++	server._on_player_state_character_bound(7, "Tester", {})
++	assert_eq(server.presentations.size(), 1, "world entry sends an explicit current-town presentation")
++	if server.presentations.size() == 1:
++		server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations[0]["trace"])], 1)
++	state.apply_input_intent(7, Vector2(-1, 0), 1)
++	state._physics_process(1.0 / 60.0)
++	assert_lt(state.position.x, 0.0, "acknowledged town footprint crosses the grid origin normally")
++	assert_eq(server._provisional_sector_generator.requests.size(), 0, "town footprint is not a new unexplored grid sector")
++	var far_candidate: Vector3 = Vector3(-100, 1, 0)
++	assert_ne(server._resolve_frontier_movement(7, state.position, far_candidate), far_candidate, "town ACK does not grant the whole neighboring 440-unit sector")
++	server.free()
++
++
++func test_invalid_ack_cannot_consume_pending_and_duplicate_keeps_valid_grant() -> void:
++	var server: FrontierServer = _frontier_server()
++	var trace: Dictionary = _destination_trace(server)
++	var original: Dictionary = _ack_event(trace)
++	var invalid_events: Array[Dictionary] = []
++	for field: String in ["sector_id", "span_id", "trace_id", "spatial_guid", "parent_span_id", "status"]:
++		var changed: Dictionary = original.duplicate(true)
++		changed["payload"][field] = "wrong"
++		invalid_events.append(changed)
++	for schema: Variant in [2, "1", 1.0, null]:
++		var changed: Dictionary = original.duplicate(true)
++		changed["schema_version"] = schema
++		invalid_events.append(changed)
++	for duration: Variant in [-1.0, NAN, INF, "0"]:
++		var changed: Dictionary = original.duplicate(true)
++		changed["payload"]["duration_ms"] = duration
++		invalid_events.append(changed)
++	server._on_client_telemetry_batch_received(8, [original], 1)
++	for event: Dictionary in invalid_events:
++		server._on_client_telemetry_batch_received(7, [event], 1)
++		assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++		assert_eq(server._jit_presentation_ack_tracker.match_pending(7, original), trace, "malformed ACK leaves the legitimate token pending")
++	server._on_client_telemetry_batch_received(7, [original], 2)
++	assert_true(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	server._on_client_telemetry_batch_received(7, [original], 3)
++	assert_true(server._frontier_position_ready(7, Vector3(441, 1, 10)), "duplicate does not revoke a valid grant")
++	assert_true(server._jit_presentation_ack_tracker.match_pending(7, original).is_empty(), "token consumed only once")
++	server.free()
++
++
++func test_two_waiters_receive_distinct_tokens_and_release_independently() -> void:
++	var server: FrontierServer = _frontier_server()
++	_add_frontier_peer(server, 8)
++	for peer_id: int in [7, 8]:
++		server._resolve_frontier_movement(peer_id, Vector3(439.99, 1, 10), Vector3(440.1, 1, 10))
++	assert_eq(server._provisional_sector_generator.requests.size(), 1, "second waiter must not reinvoke generation")
++	assert_eq(server._jit_peer_by_sector["sector-1-0"], 7, "generation owner is unchanged")
++	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(JitTraceContextScript.root(7, "sector-1-0"), "canon_db_commit")
++	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
++	assert_eq(server.presentations.size(), 2)
++	var first: Dictionary = server.presentations[0]["trace"]
++	var second: Dictionary = server.presentations[1]["trace"]
++	assert_ne(first["span_id"], second["span_id"])
++	server._on_client_telemetry_batch_received(8, [_ack_event(first)], 1)
++	assert_false(server._frontier_position_ready(8, Vector3(441, 1, 10)))
++	server._on_client_telemetry_batch_received(7, [_ack_event(first)], 1)
++	assert_true(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	assert_false(server._frontier_position_ready(8, Vector3(441, 1, 10)))
++	server._on_client_telemetry_batch_received(8, [_ack_event(second)], 2)
++	assert_true(server._frontier_position_ready(8, Vector3(441, 1, 10)))
++	server.free()
++
++
++func test_failed_telemetry_sink_does_not_prevent_valid_release() -> void:
++	var server: FrontierServer = _frontier_server()
++	var trace: Dictionary = _destination_trace(server)
++	var sink: FakeTelemetrySink = FakeTelemetrySink.new()
++	sink.outcome = "write_failed"
++	server._telemetry_ingest = TelemetryIngestServiceScript.new(sink, TelemetryRateLimiterScript.new())
++	server._on_client_telemetry_batch_received(7, [_ack_event(trace)], 1)
++	assert_eq(sink.envelopes.size(), 1, "the real ingest attempted persistence")
++	assert_true(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	server.free()
++
++
++func test_disconnect_and_reused_peer_id_do_not_inherit_pending_or_ready() -> void:
++	var server: FrontierServer = _frontier_server()
++	var old_trace: Dictionary = _destination_trace(server)
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 1)
++	server._on_peer_disconnected(7)
++	_add_frontier_peer(server, 7)
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 2)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	var fresh_trace: Dictionary = _destination_trace(server)
++	assert_ne(fresh_trace["span_id"], old_trace["span_id"])
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 3)
++	assert_eq(server._jit_presentation_ack_tracker.match_pending(7, _ack_event(fresh_trace)), fresh_trace)
++	server._on_peer_disconnected(7)
++	server._on_client_telemetry_batch_received(7, [_ack_event(fresh_trace)], 4)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	server.free()
++
++
++func test_changed_journey_invalidates_previous_presentation() -> void:
++	var server: FrontierServer = _frontier_server()
++	var registry: Object = JourneyRegistryScript.new()
++	server._journey_registry = registry
++	var state: Node = server._player_states[7]
++	state.character_id = "character-7"
++	registry.enter("character-7", 7, 100)
++	server._configure_player_frontier(7, state)
++	var old_trace: Dictionary = _destination_trace(server)
++	registry.mark_disconnected("character-7", 7, 101)
++	registry.cleanup(1000)
++	registry.enter("character-7", 7, 1001)
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 1)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)), "same character and peer cannot reuse an earlier journey token")
++	server.free()
++
++
++func test_authoritative_mutation_invalidates_pending_revision_before_ack() -> void:
++	var server: FrontierServer = _frontier_server()
++	var old_trace: Dictionary = _destination_trace(server)
++	server._canon_mutation_service = FakeMutationService.new()
++	server._on_canon_mutation_intent(7, {"sector_id": "sector-1-0"})
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 1)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)), "old presentation cannot authorize a changed Canon revision")
++	server.free()
++
++
++func test_changed_revision_reentry_rejects_old_token_and_accepts_new_child() -> void:
++	var server: FrontierServer = _frontier_server()
++	var mutations: FakeMutationRepository = FakeMutationRepository.new()
++	server._canon_mutation_repository = mutations
++	var old_trace: Dictionary = _destination_trace(server)
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 1)
++	mutations.revision = 1
++	server._canon_mutation_service = FakeMutationService.new()
++	server._on_canon_mutation_intent(7, {"sector_id": "sector-1-0"})
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)), "mutation clears already granted readiness")
++	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
++	var reentry: Dictionary = JitTraceContextScript.child(old_trace, "canon_reentry")
++	server._reload_sector_from_boundary(7, "sector-1-0", Vector3(440.1, 1, 10), reentry)
++	var fresh: Dictionary = server.presentations.back()["trace"]
++	assert_eq(fresh["event_type"], "client_presentation_ack")
++	assert_eq(fresh["parent_span_id"], reentry["span_id"], "reentry has its own presentation child")
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 2)
++	assert_eq(server._jit_presentation_ack_tracker.match_pending(7, _ack_event(fresh)), fresh)
++	server._on_client_telemetry_batch_received(7, [_ack_event(fresh)], 3)
++	assert_true(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	var reads_before_ticks: int = mutations.reads
++	for tick: int in range(20):
++		server._resolve_frontier_movement(7, Vector3(441, 1, 10), Vector3(441.1, 1, 10))
++	assert_eq(mutations.reads, reads_before_ticks, "movement/ACK uses presentation cache, never per-frame revision reads")
++	server.free()
++
++
++func test_revision_read_failure_revokes_old_readiness_without_zero_revision_fallback() -> void:
++	var server: FrontierServer = _frontier_server()
++	var old_trace: Dictionary = _destination_trace(server)
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 1)
++	var mutations: FakeMutationRepository = FakeMutationRepository.new()
++	mutations.outcome = "query_failed"
++	server._canon_mutation_repository = mutations
++	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
++	server._reload_sector_from_boundary(7, "sector-1-0", Vector3(440.1, 1, 10), JitTraceContextScript.root(7, "sector-1-0"))
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	assert_eq(server.presentations.size(), 1, "failed revision read sends no trusted presentation")
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 2)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	server.free()
++
++
++func test_oversized_ack_batch_is_bounded_without_consuming_legitimate_token() -> void:
++	var server: FrontierServer = _frontier_server()
++	var trace: Dictionary = _destination_trace(server)
++	var oversized: Array = []
++	oversized.resize(51)
++	oversized.fill(_ack_event(trace))
++	server._on_client_telemetry_batch_received(7, oversized, 1)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	assert_eq(server._jit_presentation_ack_tracker.match_pending(7, _ack_event(trace)), trace)
++	server._on_client_telemetry_batch_received(7, [_ack_event(trace)], 2)
++	assert_true(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	server.free()
++
++
++func test_character_change_drops_inflight_waiter_and_previous_ready_grants() -> void:
++	var server: FrontierServer = _frontier_server()
++	var old_trace: Dictionary = _destination_trace(server)
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 1)
++	server._resolve_frontier_movement(7, Vector3(879.99, 1, 10), Vector3(880.1, 1, 10))
++	var state: Node = server._player_states[7]
++	state.bind_character("new-character", "New", {})
++	var before_ready: int = server.presentations.size()
++	server._jit_commit_trace_by_sector["sector-2-0"] = JitTraceContextScript.root(7, "sector-2-0")
++	server._on_canonical_sector_ready("sector-2-0", {"sector_id": "sector-2-0"})
++	assert_eq(server.presentations.size(), before_ready, "old character waiter cannot receive a new grant")
++	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 2)
++	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
++	server.free()
++
++
++func test_town_revision_refresh_prepares_hub_not_grid_neighbor() -> void:
++	var server: FrontierServer = _frontier_server()
++	var town: Dictionary = {"sector_id": "starting_town_hub", "tiles": [{"x": 0, "y": 0, "kind": "floor"}]}
++	server._starting_town_hub_blueprint = town
++	server._canon_repository.blueprint = town
++	server._sector_boundary_detector.set_canon_lookup(func(sector_id: String) -> bool: return sector_id == "starting_town_hub")
++	var state: Node = server._player_states[7]
++	state.position = Vector3(0.01, 1, 0)
++	server._on_player_state_character_bound(7, "Tester", {})
++	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
++	server._canon_mutation_service = FakeMutationService.new()
++	server._on_canon_mutation_intent(7, {"sector_id": "starting_town_hub"})
++	state.apply_input_intent(7, Vector2(-1, 0), 1)
++	for tick: int in range(10):
++		state._physics_process(1.0 / 60.0)
++	assert_eq(server.presentations.size(), 2, "one fresh hub presentation replaces the invalidated revision")
++	assert_eq(server._provisional_sector_generator.requests.size(), 0, "refresh must not request the origin-adjacent grid sector")
++	server.free()
++
++
++func test_unavailable_revision_read_stays_held_without_per_frame_queries() -> void:
++	var server: FrontierServer = _frontier_server()
++	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
++	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
++	var mutations: FakeMutationRepository = FakeMutationRepository.new()
++	mutations.outcome = "query_failed"
++	server._canon_mutation_repository = mutations
++	var state: Node = server._player_states[7]
++	state.apply_input_intent(7, Vector2(1, 0), 1)
++	for tick: int in range(10):
++		state._physics_process(1.0 / 60.0)
++	assert_lt(state.position.x, 440.0)
++	assert_eq(mutations.reads, 1, "failed preparation stays deduplicated instead of retrying a DB query every tick")
++	assert_eq(server.presentations.size(), 0)
++	server.free()
++
++
++func test_lost_ack_retries_presentation_without_rotating_pending_token() -> void:
++	var server: FrontierServer = _frontier_server()
++	var trace: Dictionary = _destination_trace(server)
++	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
++	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
++	var current: Vector3 = Vector3(439.99, 1, 10)
++	var destination: Vector3 = Vector3(440.1, 1, 10)
++	for tick: int in range(10):
++		assert_ne(server._resolve_frontier_movement(7, current, destination), destination)
++	assert_eq(server.presentations.size(), 1, "no per-tick resends")
++	server.frontier_now = 1000
++	assert_ne(server._resolve_frontier_movement(7, current, destination), destination)
++	assert_eq(server.presentations.size(), 2, "lost unreliable ACK gets a bounded presentation retry")
++	assert_eq(server.presentations.back()["trace"], trace, "slow or reordered ACK remains valid across retry")
++	server._on_client_telemetry_batch_received(7, [_ack_event(trace)], 1)
++	assert_eq(server._resolve_frontier_movement(7, current, destination), destination)
++	assert_eq(server._provisional_sector_generator.requests.size(), 1, "presentation retry never retries LLM generation")
++	server.free()
++
++
++func test_evicted_readiness_can_reprepare_despite_different_ack_order() -> void:
++	var server: FrontierServer = _frontier_server()
++	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
++	var first_traces: Array[Dictionary] = []
++	for sector: int in range(1, 18):
++		var destination: Vector3 = Vector3(440 * sector + 0.1, 1, 10)
++		server._canon_repository.blueprint = {"sector_id": "sector-%d-0" % sector}
++		server._resolve_frontier_movement(7, Vector3(439.99, 1, 10), destination)
++		var trace: Dictionary = server.presentations.back()["trace"]
++		if sector < 3:
++			first_traces.append(trace)
++			if sector == 2:
++				server._on_client_telemetry_batch_received(7, [_ack_event(first_traces[1]), _ack_event(first_traces[0])], 1)
++		else:
++			server._on_client_telemetry_batch_received(7, [_ack_event(trace)], sector)
++	var revisit: Vector3 = Vector3(880.1, 1, 10)
++	assert_false(server._frontier_position_ready(7, revisit), "ACK-order eviction removed sector two")
++	server._canon_repository.blueprint = {"sector_id": "sector-2-0"}
++	server.frontier_now = 1000
++	var before_retry: int = server.presentations.size()
++	server._resolve_frontier_movement(7, Vector3(439.99, 1, 10), revisit)
++	assert_eq(server.presentations.size(), before_retry + 1, "cached preparation cannot suppress readiness recovery")
++	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 20)
++	assert_true(server._frontier_position_ready(7, revisit))
++	server.free()
++
++
++func test_failed_revision_lookup_recovers_after_bounded_retry() -> void:
++	var server: FrontierServer = _frontier_server()
++	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
++	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
++	var mutations: FakeMutationRepository = FakeMutationRepository.new()
++	mutations.outcome = "query_failed"
++	server._canon_mutation_repository = mutations
++	var current: Vector3 = Vector3(439.99, 1, 10)
++	var destination: Vector3 = Vector3(440.1, 1, 10)
++	server._resolve_frontier_movement(7, current, destination)
++	mutations.outcome = "ok"
++	server.frontier_now = 999
++	assert_ne(server._resolve_frontier_movement(7, current, destination), destination)
++	assert_eq(mutations.reads, 1, "failed read is not retried before the bound")
++	server.frontier_now = 1000
++	assert_ne(server._resolve_frontier_movement(7, current, destination), destination)
++	assert_eq(mutations.reads, 2)
++	if server.presentations.size() == 1:
++		server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations[0]["trace"])], 1)
++	assert_eq(server._resolve_frontier_movement(7, current, destination), destination)
++	server.free()
++
++
++func test_initial_canon_write_failure_recovers_without_regeneration() -> void:
++	var server: FrontierServer = _frontier_server()
++	var state: Node = server._player_states[7]
++	state.set_physics_process(false)
++	var database: String = "test_frontier_write_%d_%d.db" % [Time.get_ticks_usec(), randi()]
++	var store: RecoverableCanonStore = RecoverableCanonStore.new()
++	assert_eq(store.open(database)["outcome"], "ok")
++	var repository: CanonRepository = CanonRepositoryScript.new(store)
++	assert_eq(repository.ensure_schema()["outcome"], "ok")
++	server._canon_repository = repository
++	server._sector_boundary_detector.set_canon_lookup(func(sector_id: String) -> bool:
++		return repository.get_canonical_sector(sector_id)["outcome"] == "ok"
++	)
++	var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
++	coordinator.set_canonicalize_callback(repository.canonicalize_blueprint)
++	server._canon_generation_coordinator = coordinator
++	var ollama: CountingOllamaServer = CountingOllamaServer.new()
++	add_child_autofree(ollama)
++	var port: int = ollama.start()
++	assert_gt(port, 0)
++	var blueprint: Dictionary = {
++		"schema_version": 1, "sector_id": "sector-1-0", "origin": {"x": 0, "y": 0},
++		"tiles": [{"x": 0, "y": 0, "kind": "floor"}],
++	}
++	ollama.next_response_body = JSON.stringify({"response": JSON.stringify(blueprint)})
++	server._provisional_sector_generator.free()
++	var generator: ProvisionalSectorGenerator = ProvisionalSectorGeneratorScript.new()
++	generator.ollama_host = "http://127.0.0.1:%d" % port
++	generator.request_timeout_sec = 2.0
++	add_child_autofree(generator)
++	generator.provisional_sector_ready.connect(server._on_provisional_sector_ready)
++	server._provisional_sector_generator = generator
++	watch_signals(generator)
++	state.apply_input_intent(7, Vector2(1, 0), 1)
++	state._physics_process(1.0 / 60.0)
++	assert_lt(state.position.x, 440.0, "movement starts generation but holds before completion")
++	assert_eq(generator.get_status("sector-1-0"), ProvisionalSectorGeneratorScript.STATUS_PENDING)
++	var correlation: String = generator.get_correlation_id("sector-1-0")
++	await generator.provisional_sector_ready
++	await wait_process_frames(1)
++	assert_eq(generator.get_status("sector-1-0"), ProvisionalSectorGeneratorScript.STATUS_READY)
++	assert_eq(store.write_attempts, 1, "valid generation attempted the initial Canon write")
++	assert_eq(repository.get_canonical_sector("sector-1-0")["outcome"], "not_found")
++	assert_eq(server.presentations.size(), 0, "failed persistence cannot issue a presentation")
++	var premature: Dictionary = JitTraceContextScript.child(generator.get_provisional_result("sector-1-0")["trace_context"], "client_presentation_ack")
++	server._on_client_telemetry_batch_received(7, [_ack_event(premature)], 1)
++	store.fail_writes = false
++	server.frontier_now = 999
++	for tick: int in range(10):
++		state._physics_process(1.0 / 60.0)
++	assert_lt(state.position.x, 440.0, "premature ACK cannot release an uncommitted sector")
++	assert_eq(store.write_attempts, 1, "no per-frame persistence or pre-cooldown retry")
++	server.frontier_now = 1000
++	state._physics_process(1.0 / 60.0)
++	assert_eq(store.write_attempts, 2, "cooldown retries initial Canon persistence")
++	assert_eq(repository.get_canonical_sector("sector-1-0")["outcome"], "ok", "recovered write commits Canon")
++	assert_eq(server.presentations.size(), 1, "only committed Canon becomes a presentation")
++	assert_lt(state.position.x, 440.0, "commit alone does not authorize movement")
++	if server.presentations.size() == 1:
++		var presentation: Dictionary = server.presentations[0]
++		assert_eq(presentation["blueprint"], repository.get_canonical_sector("sector-1-0")["sector"]["blueprint"])
++		server._on_client_telemetry_batch_received(8, [_ack_event(presentation["trace"])], 2)
++		state._physics_process(1.0 / 60.0)
++		assert_lt(state.position.x, 440.0, "wrong-peer ACK cannot release committed Canon")
++		server._on_client_telemetry_batch_received(7, [_ack_event(presentation["trace"])], 3)
++	state._physics_process(1.0 / 60.0)
++	assert_gt(state.position.x, 440.0, "committed Canon and matching ACK release movement")
++	assert_eq(store.write_attempts, 2, "successful retry does not write on subsequent movement")
++	assert_eq(generator.get_correlation_id("sector-1-0"), correlation)
++	assert_eq(ollama.requests, 1, "persistence recovery must never issue another LLM request")
++	assert_signal_emit_count(generator, "provisional_sector_ready", 1, "one generation completion only")
++	ollama.stop()
++	store.close()
++	for suffix: String in ["", "-wal", "-shm", "-journal"]:
++		var database_path: String = ProjectSettings.globalize_path("user://%s%s" % [database, suffix])
++		if FileAccess.file_exists(database_path):
++			DirAccess.remove_absolute(database_path)
++	server.free()
++
++
++func test_cached_invalid_and_fallback_candidates_cannot_release_frontier() -> void:
++	var valid: Dictionary = {
++		"request_outcome": "validated", "validation_outcome": "valid", "selected_profile": "WILDERNESS",
++		"blueprint": {"schema_version": 1, "sector_id": "sector-1-0", "origin": {"x": 0, "y": 0},
++			"tiles": [{"x": 0, "y": 0, "kind": "floor"}]},
++	}
++	var fallback: Dictionary = valid.duplicate(true)
++	fallback["request_outcome"] = "transport_error"
++	fallback["fallback_selected"] = true
++	var invalid_schema: Dictionary = valid.duplicate(true)
++	invalid_schema["blueprint"]["tiles"][0]["kind"] = "unsupported"
++	var invalid_profile: Dictionary = valid.duplicate(true)
++	invalid_profile["blueprint"]["archetype"] = "SETTLEMENT"
++	var wrong_sector: Dictionary = valid.duplicate(true)
++	wrong_sector["blueprint"]["sector_id"] = "sector-2-0"
++	for candidate: Dictionary in [fallback, invalid_schema, invalid_profile, wrong_sector]:
++		var server: FrontierServer = _frontier_server()
++		var generator: FakeGenerator = server._provisional_sector_generator
++		generator.status = "ready"
++		generator.result = candidate
++		var writes: Array[Dictionary] = []
++		var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
++		coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
++			writes.append(blueprint)
++			return {"outcome": "ok", "sector": {"blueprint": blueprint}}
++		)
++		server._canon_generation_coordinator = coordinator
++		var state: Node = server._player_states[7]
++		state.apply_input_intent(7, Vector2(1, 0), 1)
++		for retry_time: int in [0, 999, 1000, 1999, 2000]:
++			server.frontier_now = retry_time
++			state._physics_process(1.0 / 60.0)
++			assert_lt(state.position.x, 440.0, "cached rejection cannot grant movement")
++		assert_eq(writes.size(), 0, "unchanged admission gates reject before Canon")
++		assert_eq(server.presentations.size(), 0)
++		assert_eq(generator.requests.size(), 0, "rejected cached results cannot restart generation")
++		server.free()
++
++
++func test_persistent_canon_write_failure_retries_only_at_preparation_bound() -> void:
++	var server: FrontierServer = _frontier_server()
++	var generator: FakeGenerator = server._provisional_sector_generator
++	generator.status = "ready"
++	generator.result = {
++		"request_outcome": "validated", "validation_outcome": "valid", "selected_profile": "WILDERNESS",
++		"blueprint": {"schema_version": 1, "sector_id": "sector-1-0", "origin": {"x": 0, "y": 0},
++			"tiles": [{"x": 0, "y": 0, "kind": "floor"}]},
++	}
++	var writes: Array[Dictionary] = []
++	var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
++	coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
++		writes.append(blueprint)
++		return {"outcome": "transaction_failed", "detail": "Persistence remains unavailable."}
++	)
++	server._canon_generation_coordinator = coordinator
++	var state: Node = server._player_states[7]
++	state.apply_input_intent(7, Vector2(1, 0), 1)
++	for retry_time: int in [0, 999, 1000, 1999, 2000]:
++		server.frontier_now = retry_time
++		for tick: int in range(10):
++			state._physics_process(1.0 / 60.0)
++		assert_eq(writes.size(), 1 + retry_time / 1000, "at most one persistence attempt per cooldown")
++		assert_lt(state.position.x, 440.0, "failed persistence remains fail-closed")
++	assert_eq(server.presentations.size(), 0)
++	assert_eq(generator.requests.size(), 0, "persistence retries cannot restart generation")
++	server.free()
+ 
+ 
+ func test_first_peer_remains_generation_owner_for_duplicate_sector_request() -> void:
+@@ -50,26 +654,22 @@ func test_first_peer_remains_generation_owner_for_duplicate_sector_request() ->
+ 	server._request_sector_from_boundary(8, "sector-1-0", Vector3(441.0, 0.0, 0.0), second_trace)
+ 
+ 	assert_eq(server._jit_peer_by_sector["sector-1-0"], 7)
+-	assert_eq(generator.requests.size(), 2)
+-	assert_eq(generator.requests[1]["trace"]["trace_id"], first_trace["trace_id"], "the generator retains its first trace")
++	assert_eq(generator.requests.size(), 1)
++	assert_eq(generator.requests[0]["trace"]["trace_id"], first_trace["trace_id"], "the generator retains its first trace")
+ 	generator.free()
+ 	server.free()
+ 
+ 
+ func test_presentation_context_is_retained_before_telemetry_persistence() -> void:
+-	var server: SceneTree = ServerMainScript.new()
+-	var network_client: Node = Node.new()
+-	network_client.name = "NetworkClient"
+-	server.root.add_child(network_client)
+-	var detector: SectorBoundaryDetector = SectorBoundaryDetectorScript.new()
+-	server._sector_boundary_detector = detector
+-	server._jit_peer_by_sector["sector-1-0"] = 7
++	var server: FrontierServer = _frontier_server()
++	var detector: Object = server._sector_boundary_detector
++	server._request_sector_from_boundary(7, "sector-1-0", Vector3(440, 1, 10), JitTraceContextScript.root(7, "sector-1-0"))
+ 	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(
+ 		JitTraceContextScript.root(7, "sector-1-0"),
+ 		"canon_db_commit",
+ 	)
+ 
+-	server._on_canonical_sector_ready("sector-1-0", {})
++	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
+ 
+ 	assert_true(detector._trace_by_sector.has("sector-1-0"), "send-time server context survives telemetry outage")
+ 	assert_eq(
+@@ -77,7 +677,6 @@ func test_presentation_context_is_retained_before_telemetry_persistence() -> voi
+ 		"client_presentation_ack",
+ 		"the retained parent is the server-issued presentation span",
+ 	)
+-	network_client.free()
+ 	server.free()
+ 
+ 
+@@ -98,6 +697,7 @@ func test_canon_reentry_is_emitted_by_server_before_client_presentation() -> voi
+ 	assert_eq(sink.envelopes.size(), 1)
+ 	assert_eq(sink.envelopes[0]["event_type"], "canon_reentry")
+ 	assert_eq(sink.envelopes[0]["payload"]["span_id"], reentry_trace["span_id"])
++	server.free()
+ 
+ 
+ func test_boundary_prompt_carries_schema_contract_for_the_requested_sector() -> void:
+diff --git a/tests/unit/test_server_player_state_collision.gd b/tests/unit/test_server_player_state_collision.gd
+index b3f1112..c779caf 100644
+--- a/tests/unit/test_server_player_state_collision.gd
++++ b/tests/unit/test_server_player_state_collision.gd
+@@ -9,6 +9,23 @@ const ServerPlayerStateScript: Script = preload("res://server/server_player_stat
+ const SectorCollisionMapScript: Script = preload("res://shared/sector_collision_map.gd")
+ 
+ const _DELTA: float = 1.0 / 60.0
++var _network_client: Node
++
++
++func before_all() -> void:
++	_network_client = get_tree().root.get_node_or_null("NetworkClient")
++	if _network_client != null:
++		_network_client.name = "CollisionTestNetworkClient"
++
++
++func after_all() -> void:
++	if _network_client != null:
++		_network_client.name = "NetworkClient"
++
++
++class DiagonalOnlyCollision extends RefCounted:
++	func resolve_move(current: Vector3, desired: Vector3) -> Vector3:
++		return current if desired.x > current.x and is_equal_approx(desired.z, current.z) else desired
+ 
+ 
+ func _new_state(start: Vector3) -> Node:
+@@ -63,3 +80,37 @@ func test_player_slides_along_a_wall_diagonally() -> void:
+ 	_advance(state, 60)
+ 	assert_lt(state.position.x, 1.5, "x stays out of the wall column")
+ 	assert_gt(state.position.z, 2.0, "z keeps sliding north along the wall")
++
++
++func test_frontier_hold_keeps_ticks_sequences_and_adjacent_movement_advancing() -> void:
++	var state: Node = _new_state(Vector3(439.99, 1, 10))
++	var admission: Callable = func(_peer_id: int, current: Vector3, candidate: Vector3) -> Vector3:
++		return Vector3(current.x, candidate.y, candidate.z) if candidate.x >= 440.0 else candidate
++	if state.has_method("set_movement_admission"):
++		state.set_movement_admission(admission)
++	watch_signals(state)
++	state.apply_input_intent(1, Vector2(1, 1), 10)
++	_advance(state, 20)
++	assert_lt(state.position.x, 440.0, "unready frontier must hold the authoritative position")
++	assert_gt(state.position.z, 10.5, "parallel movement continues while the crossing is held")
++	assert_signal_emit_count(state, "position_updated", 20, "held input still produces every simulation update")
++	state.apply_input_intent(1, Vector2(-1, 0), 11)
++	state.apply_input_intent(1, Vector2(1, 0), 10)
++	var before_retreat: float = state.position.x
++	_advance(state, 1)
++	assert_lt(state.position.x, before_retreat, "new sequence retreats; stale held intent cannot replace it")
++
++
++func test_frontier_slide_is_collision_checked_without_repeating_admission() -> void:
++	var state: Node = _new_state(Vector3(0, 1, 0))
++	state.set_collision_map(DiagonalOnlyCollision.new())
++	var candidates: Array[Vector3] = []
++	state.set_movement_admission(func(_peer_id: int, current: Vector3, candidate: Vector3) -> Vector3:
++		candidates.append(candidate)
++		return Vector3(candidate.x, candidate.y, current.z)
++	)
++	state.apply_input_intent(1, Vector2(1, 1), 1)
++	_advance(state, 1)
++	assert_eq(candidates.size(), 1, "admission side effects occur exactly once per tick")
++	assert_gt(candidates[0].z, 0.0, "admission received the collision-resolved diagonal candidate")
++	assert_eq(state.position, Vector3(0, 1, 0), "frontier clipping must not slide into a collision")

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="0" tests="24" >
+  <testsuite name="tests/unit/test_server_main_jit_orchestration.gd" tests="24" failures="0" skipped="0" time="0.119472" >
+      <testcase name="test_live_frontier_prepares_once_holds_then_releases_without_telemetry" assertions="7" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.003524" >
+      </testcase>
+      <testcase name="test_current_town_ack_allows_origin_crossing_without_granting_neighbor_sector" assertions="4" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001598" >
+      </testcase>
+      <testcase name="test_invalid_ack_cannot_consume_pending_and_duplicate_keeps_valid_grant" assertions="31" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.015165" >
+      </testcase>
+      <testcase name="test_two_waiters_receive_distinct_tokens_and_release_independently" assertions="8" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.002354" >
+      </testcase>
+      <testcase name="test_failed_telemetry_sink_does_not_prevent_valid_release" assertions="2" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001432" >
+      </testcase>
+      <testcase name="test_disconnect_and_reused_peer_id_do_not_inherit_pending_or_ready" assertions="4" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.003065" >
+      </testcase>
+      <testcase name="test_changed_journey_invalidates_previous_presentation" assertions="1" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001491" >
+      </testcase>
+      <testcase name="test_authoritative_mutation_invalidates_pending_revision_before_ack" assertions="1" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001208" >
+      </testcase>
+      <testcase name="test_changed_revision_reentry_rejects_old_token_and_accepts_new_child" assertions="6" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.003183" >
+      </testcase>
+      <testcase name="test_revision_read_failure_revokes_old_readiness_without_zero_revision_fallback" assertions="3" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001649" >
+      </testcase>
+      <testcase name="test_oversized_ack_batch_is_bounded_without_consuming_legitimate_token" assertions="3" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.002228" >
+      </testcase>
+      <testcase name="test_character_change_drops_inflight_waiter_and_previous_ready_grants" assertions="2" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.002004" >
+      </testcase>
+      <testcase name="test_town_revision_refresh_prepares_hub_not_grid_neighbor" assertions="2" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001785" >
+      </testcase>
+      <testcase name="test_unavailable_revision_read_stays_held_without_per_frame_queries" assertions="3" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001495" >
+      </testcase>
+      <testcase name="test_lost_ack_retries_presentation_without_rotating_pending_token" assertions="16" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.003882" >
+      </testcase>
+      <testcase name="test_evicted_readiness_can_reprepare_despite_different_ack_order" assertions="3" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.00962" >
+      </testcase>
+      <testcase name="test_failed_revision_lookup_recovers_after_bounded_retry" assertions="5" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001827" >
+      </testcase>
+      <testcase name="test_initial_canon_write_failure_recovers_without_regeneration" assertions="22" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.045482" >
+      </testcase>
+      <testcase name="test_cached_invalid_and_fallback_candidates_cannot_release_frontier" assertions="32" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.007751" >
+      </testcase>
+      <testcase name="test_persistent_canon_write_failure_retries_only_at_preparation_bound" assertions="12" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.005056" >
+      </testcase>
+      <testcase name="test_first_peer_remains_generation_owner_for_duplicate_sector_request" assertions="3" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.000858" >
+      </testcase>
+      <testcase name="test_presentation_context_is_retained_before_telemetry_persistence" assertions="2" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.001107" >
+      </testcase>
+      <testcase name="test_canon_reentry_is_emitted_by_server_before_client_presentation" assertions="3" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.00079" >
+      </testcase>
+      <testcase name="test_boundary_prompt_carries_schema_contract_for_the_requested_sector" assertions="19" status="pass" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.000918" >
+      </testcase>
+      </testsuite>
+  </testsuites>

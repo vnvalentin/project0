@@ -1,0 +1,15 @@
+{
+  "commit": "a5fb9ec3168cf9a70253017f9b34b35c0a52422c",
+  "status": "## slice/1181-frontier-readiness...origin/main [ahead 1, behind 4]\n?? .scratch/1181/",
+  "files": [
+    "server/jit_presentation_ack_tracker.gd",
+    "server/journey_registry.gd",
+    "server/sector_boundary_detector.gd",
+    "server/server_main.gd",
+    "server/server_player_state.gd",
+    "tests/unit/test_server_main_jit_orchestration.gd",
+    "tests/unit/test_server_player_state_collision.gd"
+  ],
+  "committed_source_matches_focused_snapshot": true,
+  "owned_containers_remaining": 0
+}

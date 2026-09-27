@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="5" tests="1" >
+  <testsuite name="tests/unit/test_server_main_jit_orchestration.gd" tests="1" failures="5" skipped="0" time="0.033282" >
+      <testcase name="test_initial_canon_write_failure_recovers_without_regeneration" assertions="20" status="fail" classname="tests/unit/test_server_main_jit_orchestration.gd" time="0.033282" >
+      <failure message="failed"><![CDATA[[1] expected to equal [2]:  cooldown retries initial Canon persistence
+            at line -1]]></failure></testcase>
+      </testsuite>
+  </testsuites>

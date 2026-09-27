@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="0" tests="5" >
+  <testsuite name="tests/unit/test_jit_presentation_ack_tracker.gd" tests="5" failures="0" skipped="0" time="0.010049" >
+      <testcase name="test_only_exact_accepted_peer_acknowledgement_promotes_pending_trace" assertions="7" status="pass" classname="tests/unit/test_jit_presentation_ack_tracker.gd" time="0.003035" >
+      </testcase>
+      <testcase name="test_missing_acknowledgement_never_promotes_a_trace" assertions="1" status="pass" classname="tests/unit/test_jit_presentation_ack_tracker.gd" time="0.000311" >
+      </testcase>
+      <testcase name="test_pending_acknowledgements_are_bounded_per_peer" assertions="2" status="pass" classname="tests/unit/test_jit_presentation_ack_tracker.gd" time="0.003221" >
+      </testcase>
+      <testcase name="test_verified_batch_drops_forged_ack_and_promotes_only_after_persistence" assertions="5" status="pass" classname="tests/unit/test_jit_presentation_ack_tracker.gd" time="0.002746" >
+      </testcase>
+      <testcase name="test_verified_batch_drops_forged_server_authored_trace_events" assertions="1" status="pass" classname="tests/unit/test_jit_presentation_ack_tracker.gd" time="0.000736" >
+      </testcase>
+      </testsuite>
+  </testsuites>

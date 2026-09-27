@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="0" tests="7" >
+  <testsuite name="tests/unit/test_sector_boundary_detector.gd" tests="7" failures="0" skipped="0" time="0.007064" >
+      <testcase name="test_sector_mapping_uses_floor_for_negative_coordinates" assertions="4" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.000792" >
+      </testcase>
+      <testcase name="test_each_peer_requests_once_per_unseen_sector" assertions="6" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.00062" >
+      </testcase>
+      <testcase name="test_peers_have_independent_transition_state" assertions="1" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.000829" >
+      </testcase>
+      <testcase name="test_canonical_sector_suppresses_generation" assertions="4" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.000846" >
+      </testcase>
+      <testcase name="test_forget_peer_allows_reassessment_after_disconnect" assertions="2" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.000396" >
+      </testcase>
+      <testcase name="test_reentry_continues_the_original_generation_trace" assertions="12" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.001165" >
+      </testcase>
+      <testcase name="test_retained_canon_traces_are_bounded" assertions="2" status="pass" classname="tests/unit/test_sector_boundary_detector.gd" time="0.002416" >
+      </testcase>
+      </testsuite>
+  </testsuites>

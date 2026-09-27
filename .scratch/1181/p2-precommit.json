@@ -1,0 +1,16 @@
+{
+  "branch": "slice/1181-frontier-readiness",
+  "base": "9406e52c98c34dcaa452e3d69a35fd43ce4f061a",
+  "files": [
+    "server/jit_presentation_ack_tracker.gd",
+    "server/journey_registry.gd",
+    "server/sector_boundary_detector.gd",
+    "server/server_main.gd",
+    "server/server_player_state.gd",
+    "tests/unit/test_server_main_jit_orchestration.gd",
+    "tests/unit/test_server_player_state_collision.gd"
+  ],
+  "source_diff_sha256": "1a796d106f1542bf97bbd00f3cadf2a00cab96493fc8aa172ed782b177cd39af",
+  "executableHooks": [],
+  "status": "## slice/1181-frontier-readiness...origin/main [behind 4]\n M server/jit_presentation_ack_tracker.gd\n M server/journey_registry.gd\n M server/sector_boundary_detector.gd\n M server/server_main.gd\n M server/server_player_state.gd\n M tests/unit/test_server_main_jit_orchestration.gd\n M tests/unit/test_server_player_state_collision.gd\n?? .scratch/1181/"
+}

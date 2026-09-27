@@ -1,0 +1,22 @@
+commit a5fb9ec3168cf9a70253017f9b34b35c0a52422c
+Author:     project0-bot <devnull@example.com>
+AuthorDate: Fri Sep 25 23:39:18 2026 +0000
+Commit:     project0-bot <devnull@example.com>
+CommitDate: Fri Sep 25 23:39:18 2026 +0000
+
+    fix(server): hold frontier movement and recover Canon writes (#1181)
+    
+    Preserve the seven-file frontier readiness implementation. Re-finalize cached READY candidates on bounded preparation retries through unchanged Canon admission gates; never regenerate or release before committed presentation and valid ACK.
+    
+    P2 clean RED: 1 test, 20 assertions, 5 expected failures. GREEN: 1 test, 22 assertions. Focused: 50 tests, 281 assertions. Seven isolated parse checks passed. Source diff SHA256: 1a796d106f1542bf97bbd00f3cadf2a00cab96493fc8aa172ed782b177cd39af.
+    
+    Refs #1181, #1179. Evidence: issue comment 5841124330 and .scratch/1181/p2-handoff.md. Local checkpoint only: cleanup #1184/PR #1192 integration, final-base full validation, independent review and Windows acceptance remain pending. No push, merge, deploy or issue closure.
+
+ server/jit_presentation_ack_tracker.gd           |  78 ++-
+ server/journey_registry.gd                       |   8 +
+ server/sector_boundary_detector.gd               |  27 +
+ server/server_main.gd                            | 228 +++++++--
+ server/server_player_state.gd                    |   9 +-
+ tests/unit/test_server_main_jit_orchestration.gd | 624 ++++++++++++++++++++++-
+ tests/unit/test_server_player_state_collision.gd |  51 ++
+ 7 files changed, 972 insertions(+), 53 deletions(-)

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="0" tests="5" >
+  <testsuite name="tests/unit/test_canon_generation_coordinator.gd" tests="5" failures="0" skipped="0" time="0.002459" >
+      <testcase name="test_success_emits_only_the_canonical_blueprint" assertions="5" status="pass" classname="tests/unit/test_canon_generation_coordinator.gd" time="0.000735" >
+      </testcase>
+      <testcase name="test_idempotent_replay_emits_existing_canon" assertions="2" status="pass" classname="tests/unit/test_canon_generation_coordinator.gd" time="0.000536" >
+      </testcase>
+      <testcase name="test_transport_and_schema_failures_emit_nothing" assertions="3" status="pass" classname="tests/unit/test_canon_generation_coordinator.gd" time="0.00029" >
+      </testcase>
+      <testcase name="test_conflict_emits_nothing" assertions="2" status="pass" classname="tests/unit/test_canon_generation_coordinator.gd" time="0.000491" >
+      </testcase>
+      <testcase name="test_rejected_candidate_never_reaches_canon" assertions="5" status="pass" classname="tests/unit/test_canon_generation_coordinator.gd" time="0.000407" >
+      </testcase>
+      </testsuite>
+  </testsuites>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="GutTests" failures="0" tests="6" >
+  <testsuite name="tests/unit/test_server_player_state_collision.gd" tests="6" failures="0" skipped="0" time="0.006498" >
+      <testcase name="test_player_moves_freely_without_a_collision_map" assertions="1" status="pass" classname="tests/unit/test_server_player_state_collision.gd" time="0.00081" >
+      </testcase>
+      <testcase name="test_player_is_blocked_by_a_wall" assertions="2" status="pass" classname="tests/unit/test_server_player_state_collision.gd" time="0.001374" >
+      </testcase>
+      <testcase name="test_player_is_blocked_by_a_building_footprint" assertions="1" status="pass" classname="tests/unit/test_server_player_state_collision.gd" time="0.001352" >
+      </testcase>
+      <testcase name="test_player_slides_along_a_wall_diagonally" assertions="2" status="pass" classname="tests/unit/test_server_player_state_collision.gd" time="0.000886" >
+      </testcase>
+      <testcase name="test_frontier_hold_keeps_ticks_sequences_and_adjacent_movement_advancing" assertions="4" status="pass" classname="tests/unit/test_server_player_state_collision.gd" time="0.001544" >
+      </testcase>
+      <testcase name="test_frontier_slide_is_collision_checked_without_repeating_admission" assertions="3" status="pass" classname="tests/unit/test_server_player_state_collision.gd" time="0.000532" >
+      </testcase>
+      </testsuite>
+  </testsuites>
