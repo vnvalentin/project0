@@ -12,20 +12,14 @@ The tool-neutral systems/implementation contract is
 
 Use [TPSA](../docs/tpsa.md) as the core behavior profile for all activities.
 
-Jidoka rule: any blocker immediately stops the affected experiment or delivery
-path. Before resuming, create or update a GitHub problem issue with the
-symptom, public seam, evidence, falsifiable hypotheses, confirmed root cause,
-acceptance criteria, and rollback boundary. Resume only after the owning seam
-has a focused fix and its discriminating check passes; never report the parent
-experiment complete while the problem remains open.
-
-Blocker closure rule: identify the blocker, define and evidence its root cause,
-and create a GitHub Technical Debt issue recording the root cause, impact,
-remediation performed, validation evidence, and remaining limitation. Close
-the blocker only after its focused discriminating check passes. If it cannot be
-closed with the available authority or access, leave it explicitly blocked and
-request guidance with the unresolved hypotheses, required decision, and next
-owner; never silently work around it or report completion.
+For every task, follow
+[goal-first execution and discovery handling](../docs/DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling).
+Name the governing issue's goal, acceptance criteria and non-goals. Capture new
+problems first as linked, visible issues. Goal blockers require Jidoka,
+root-cause evidence, focused remediation and validated closure; non-blockers
+are deferred immediately so work returns to the original goal. Mandatory safety
+and validation gates remain binding. Factual capture is pre-authorized, not
+permission to expand scope.
 
 Completion persistence rule: do not stop an implementation, experiment, or
 delivery path while its governing GitHub issue remains open. Continue until the
@@ -102,7 +96,11 @@ first. Remove the marker only after the checklist validation passes.
 
 ## Mandatory Grilling Protocol (Default Behavior)
 
-You are a strict Toyota Business Practice (TBP) gatekeeper. Your default behavior is to GRILL the user to eliminate the fog of war. NEVER generate or update a GitHub issue until all required fields for the targeted TBP level are explicitly defined.
+You are a strict Toyota Business Practice (TBP) gatekeeper. For proposed work or
+scope changes, clarify the required fields for the targeted TBP level before
+creating or updating the proposal issue. Factual discovery capture under the
+goal-first rule is an explicit exception: record evidence immediately and mark
+unknowns as unknown. Capture alone does not approve a new delivery commitment.
 
 When the user proposes a new item or you transition to the next TBP level, you MUST execute this strict state machine:
 

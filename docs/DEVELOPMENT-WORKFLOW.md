@@ -60,22 +60,65 @@ Close the work issue with proof; synchronize Project; retain learning
    v
 Delivered increment -> verify slice acceptance -> verify milestone outcome
 
-At ANY stage: unexpected failure, missing evidence or unclear safety boundary
-   -> STOP affected work
-   -> Record the blocker, evidence, hypotheses and rollback boundary
-   -> Establish root cause; record remediation and remaining liability
-   -> Apply a focused fix and pass its regression check
-   -> Resolve the blocker and repeat the affected delivery gates
+At ANY stage: a new problem is discovered
+   -> Capture a linked issue and make it visible in Project #2
+   -> Classify against the current goal and mandatory safety/validation gates
+   -> Blocking: STOP affected work; apply Jidoka; close with evidence
        OR remain explicitly blocked with the next owner and action recorded
+   -> Non-blocking: record as deferred follow-up; return to the original goal
 ```
+
+### Goal-first execution and discovery handling
+
+This rule applies to every task, as approved in
+[#1261](https://github.com/vnvalentin/project0/issues/1261).
+
+1. **Anchor the task.** Before starting, name its governing GitHub issue,
+   specific goal, acceptance criteria, and explicit non-goals. Clarify missing
+   or conflicting goals before implementation. The issue defines completion;
+   incidental discoveries do not silently expand it.
+2. **Capture first.** Create or update a GitHub issue for each newly discovered
+   problem before pursuing it. Link it to the governing issue, record the
+   symptom, affected public seam and available evidence, and make it visible in
+   Project #2 with an owner and next action. Immediate factual discovery capture
+   is authorized without another proposal-approval cycle; it does not authorize
+   scope expansion. Mark an unknown root cause as unknown. Reuse an existing
+   issue for the same problem rather than creating duplicates.
+3. **Classify against the goal.** A problem is blocking when it prevents the
+   governing issue's acceptance criteria or a mandatory safety or validation
+   gate from being satisfied. Record the classification and why. If uncertain,
+   perform only the smallest discriminating check needed to decide. Stop the
+   affected path immediately when safety is unclear; capture never delays
+   necessary containment. A failed required gate cannot be deferred merely
+   because its cause predates the task.
+4. **Blocking: apply Jidoka.** Stop the affected delivery path, establish the
+   root cause from evidence, and apply a focused countermeasure within
+   authorized boundaries. Record hypotheses, the discriminating check,
+   acceptance criteria and rollback boundary in the problem issue. Create or
+   update its Technical Debt record with root cause, impact, remediation,
+   validation evidence and remaining limitations; the same issue may serve both
+   roles. Pass the focused check and required regression gates, then close the
+   blocker with evidence before resuming the original goal. If authority,
+   access or evidence is insufficient, leave it explicitly blocked with the
+   unresolved hypotheses, required decision, next owner and action. Never bypass
+   it or claim the goal complete.
+5. **Non-blocking: record and return.** Make the issue visible as deferred
+   follow-up, record why it does not block the goal, and immediately return to
+   the original task. Further diagnosis or repair requires separately authorized
+   work. An unrelated open issue neither expands the current acceptance criteria
+   nor prevents completion when the original criteria and required gates pass.
+6. **Close the original goal.** Complete the task only with its own acceptance
+   evidence, required delivery gates, and synchronized issue/Project status.
+   Report linked deferred discoveries without making their closure an additional
+   requirement. Preserve the existing safety, platform and validation boundaries.
 
 ### Responsibilities and boundaries
 
 - The user defines the desired experience, confirms scope and meaningful
    tradeoffs, and provides acceptance where human judgment matters, such as
    whether movement feels responsive. Clarification is paced at no more than
-   two questions per turn; required fields and confirmation precede issue
-   creation or updates.
+   two questions per turn; required fields and confirmation precede proposed
+   scope changes. Factual discovery capture follows the rule above immediately.
 - Copilot owns investigation, implementation, tests, review, and delivery
    records within the authorized scope. Code or a deployment step is not
    authority to expand that scope. Blocked authorization or access is recorded,
@@ -86,10 +129,10 @@ At ANY stage: unexpected failure, missing evidence or unclear safety boundary
 - Windows-required changes are labeled, implemented and validated on Windows.
    Server-side, container and Linux-only work executes on `192.168.1.254` through
    SSH. Client-only validation cannot prove authoritative server behavior.
-- Every unexpected failure follows the Jidoka and root-cause learning gates.
-   A Technical Debt issue records the cause, impact, remediation, validation and
-   remaining limitation. A post-merge fix follows a new branch and PR cycle;
-   it does not bypass review or validation.
+- Every discovery follows goal-first classification above. Blocking failures
+   follow the Jidoka and root-cause learning gates; non-blocking discoveries
+   remain visible deferred work. A post-merge fix follows a new branch and PR
+   cycle; it does not bypass review or validation.
 
 ### What counts as delivered
 
