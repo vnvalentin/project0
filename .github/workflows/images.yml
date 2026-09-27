@@ -19,6 +19,13 @@ jobs:
     name: admission denied
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 2
+    env:
+      ACTIONS_RUNNER_HOOK_JOB_STARTED: /bin/true
+      PROJECT0_PROBE_SHA: forged
+      PROJECT0_PROBE_AUDIT: /tmp/forged-admission.json
+      GITHUB_JOB: control
+      GITHUB_SHA: forged
+      GITHUB_REF: refs/heads/main
     steps:
       - name: Forbidden marker
         if: always()
