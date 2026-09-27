@@ -9,11 +9,60 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import paired_server as harness
 
 
 class PairedServerTests(unittest.TestCase):
+    def test_cleanup_requires_successful_absence_observation(self):
+        for kind in ("container", "network"):
+            with self.subTest(kind=kind):
+                with patch.object(harness, "command", return_value=subprocess.CompletedProcess([], 1, "daemon unavailable")):
+                    self.assertFalse(harness.remove_owned(kind, "owned-run", "run-1"))
+                with patch.object(harness, "command", return_value=subprocess.CompletedProcess([], 0, "owned-run\n")):
+                    self.assertFalse(harness.remove_owned(kind, "owned-run", "run-1"))
+                with patch.object(harness, "command", return_value=subprocess.CompletedProcess([], 0, "")):
+                    self.assertTrue(harness.remove_owned(kind, "owned-run", "run-1"))
+                responses = [subprocess.CompletedProcess([], 0, "owned-run\n"),
+                             subprocess.CompletedProcess([], 0, '{"project0.run":"different-run"}')]
+                with patch.object(harness, "command", side_effect=responses) as commands:
+                    self.assertFalse(harness.remove_owned(kind, "owned-run", "run-1"))
+                    self.assertFalse(any("rm" in call.args for call in commands.call_args_list))
+                responses = [subprocess.CompletedProcess([], 0, "owned-run\n"),
+                             subprocess.CompletedProcess([], 0, '{"project0.run":"run-1"}'),
+                             subprocess.CompletedProcess([], 0, "removed"),
+                             subprocess.CompletedProcess([], 0, "")]
+                with patch.object(harness, "command", side_effect=responses):
+                    self.assertTrue(harness.remove_owned(kind, "owned-run", "run-1"))
+
+    def test_finish_requires_fresh_current_admission(self):
+        now = time.time()
+        admission = {"authenticated": True, "input_ack_sequence": 3, "observed_at": now}
+        self.assertTrue(harness.valid_admission(admission, 3, now - 1, now))
+        for change in ({"authenticated": False}, {"input_ack_sequence": 2},
+                       {"observed_at": now - 6}, {"observed_at": now + 1}):
+            with self.subTest(change=change):
+                self.assertFalse(harness.valid_admission(admission | change, 3, now - 1, now))
+
+    def test_prepare_exports_committed_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "server").mkdir()
+            (root / "scripts").mkdir()
+            source = root / "server/server_main.gd"
+            source.write_text("extends SceneTree\n")
+            (root / "scripts/paired_server_fixture.gd").write_text("extends SceneTree\n")
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "server", "scripts"], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=fixture", "-c",
+                            "user.email=fixture@invalid", "commit", "-qm", "fixture"], check=True)
+            committed = source.read_bytes()
+            source.write_text("uncommitted change\n")
+            artifact = root / "artifact"
+            harness.prepare(root, artifact)
+            self.assertEqual((artifact / "server/server_main.gd").read_bytes(), committed)
+
     def test_wrong_host(self):
         with self.assertRaisesRegex(ValueError, "wrong_host"):
             harness.check_host("Windows", "not-okami")

@@ -107,6 +107,40 @@ def healthy(snapshot, now, previous_tick):
             and 0 <= now - snapshot.get("timestamp", 0) <= 5)
 
 
+def valid_admission(admission, sequence, since, now):
+    return (admission.get("authenticated") is True
+            and type(admission.get("input_ack_sequence")) is int
+            and admission["input_ack_sequence"] >= sequence
+            and since <= admission.get("observed_at", 0) <= now)
+
+
+def owned_resource(kind, name, run_id):
+    field = "{{json .Config.Labels}}" if kind == "container" else "{{json .Labels}}"
+    result = command("docker", kind, "inspect", "--format", field, name, check=False)
+    try:
+        return result.returncode == 0 and (json.loads(result.stdout) or {}).get("project0.run") == run_id
+    except (ValueError, AttributeError):
+        return False
+
+
+def remove_owned(kind, name, run_id):
+    listing = ["docker", kind, "ls"]
+    if kind == "container":
+        listing += ["--all"]
+    listing += ["--format", "{{.Names}}" if kind == "container" else "{{.Name}}"]
+    before = command(*listing, check=False)
+    if before.returncode:
+        return False
+    if name not in before.stdout.splitlines():
+        return True
+    if not owned_resource(kind, name, run_id):
+        return False
+    removal = ["docker", kind, "rm"] + (["--force"] if kind == "container" else [])
+    command(*removal, name, check=False)
+    after = command(*listing, check=False)
+    return after.returncode == 0 and name not in after.stdout.splitlines()
+
+
 def check_client(report, evidence):
     if any(evidence.get(key) != report[key] for key in IDENTITY_KEYS):
         raise ValueError("client_identity_mismatch")
@@ -139,19 +173,22 @@ def read_health(path, previous):
 
 def prepare(root, output):
     check_host()
+    source_commit = command("git", "-C", str(root), "rev-parse", "HEAD").stdout.strip()
+    tracked = command("git", "-C", str(root), "ls-tree", "-r", "--name-only", source_commit).stdout.splitlines()
+    if "scripts/paired_server_fixture.gd" not in tracked:
+        raise ValueError("fixture_must_be_committed")
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
-    tracked = command("git", "-C", str(root), "ls-files").stdout.splitlines()
     names = [name for name in tracked if allowed(name) and name != "project.godot"]
-    if "scripts/paired_server_fixture.gd" not in names:
-        names.append("scripts/paired_server_fixture.gd")
     for name in names:
         target = output / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(root / name, target)
+        target.write_bytes(subprocess.check_output(
+            ["git", "-C", str(root), "show", source_commit + ":" + name], timeout=30))
     (output / "project.godot").write_text(PROJECT)
     (output / ".godot").mkdir()
     manifest = {
-        "schema_version": 1, "source_commit": command("git", "-C", str(root), "rev-parse", "HEAD").stdout.strip(),
+        "schema_version": 1, "source_commit": source_commit,
+        "prepared_by_sha256": digest(Path(__file__)),
         "image": IMAGE, "server_engine": "4.3.stable.official.77dcf97d8",
         "files": {path.relative_to(output).as_posix(): digest(path)
                   for path in sorted(output.rglob("*")) if path.is_file()},
@@ -219,7 +256,8 @@ def supervise(run):
         if command("docker", "network", "inspect", network, check=False).returncode == 0:
             raise ValueError("network_occupied")
         owned_network = True
-        command("docker", "network", "create", "--label", "project0.issue=1260", network)
+        command("docker", "network", "create", "--label", "project0.issue=1260",
+            "--label", "project0.run=" + report["run_id"], network)
         reservation.close()
         reservation = None
         script = (
@@ -228,7 +266,7 @@ def supervise(run):
             "exec godot --headless --path /app -s scripts/paired_server_fixture.gd"
         )
         args = ["docker", "run", "--detach", "--pull=never", "--name", name,
-                "--label", "project0.issue=1260", "--network", network,
+                "--label", "project0.issue=1260", "--label", "project0.run=" + report["run_id"], "--network", network,
                 "--publish", f"{HOST}:{report['port']}:9999/udp", "--read-only", "--cap-drop=ALL",
                 "--security-opt=no-new-privileges", "--user", f"{os.getuid()}:{os.getgid()}",
                 "--tmpfs", "/tmp:rw,nosuid,size=64m", "--pids-limit", "128", "--memory", "1g",
@@ -249,6 +287,8 @@ def supervise(run):
         ready_deadline = min(report["deadline_at"], time.time() + request["readiness_seconds"])
         previous_tick = -1
         health = {}
+        finish_received_at = None
+        client_was_authenticated = False
         while True:
             now = time.time()
             if interrupted:
@@ -256,22 +296,13 @@ def supervise(run):
             if now >= report["deadline_at"]:
                 raise ValueError("timeout")
             control_path = run / "control.json"
+            control = None
             if control_path.exists():
                 control = read_json(control_path)
                 if control["action"] == "abort":
                     raise ValueError("aborted")
                 if control["action"] == "reject":
                     raise ValueError("client_evidence_rejected")
-                check_client(report, control["evidence"])
-                admission = read_json(state / "admission.json")
-                facts = storage_facts(state, report["run_id"])
-                if (report["status"] != "ready" or not admission.get("authenticated")
-                        or admission.get("input_ack_sequence", -1) < control["evidence"]["input_ack_sequence"]
-                        or facts["issued_character_journeys"] != 1):
-                    raise ValueError("server_admission_missing")
-                report.update(status="server_passed", admission=admission, storage=facts,
-                              client_evidence_sha256=digest(control_path))
-                break
             running = command("docker", "inspect", "--format", "{{.State.Running}}", name).stdout.strip()
             if running != "true":
                 raise ValueError("runtime_exited")
@@ -293,8 +324,28 @@ def supervise(run):
                     raise ValueError("runtime_unhealthy")
                 if report["status"] == "ready" and (state / "admission.json").exists():
                     admission = read_json(state / "admission.json")
-                    if admission.get("authenticated") and health.get("connected_peers") == 0:
+                    client_was_authenticated = client_was_authenticated or admission.get("authenticated") is True
+                    if client_was_authenticated and (admission.get("authenticated") is not True or health.get("connected_peers") == 0):
                         raise ValueError("client_disconnected")
+            if control:
+                check_client(report, control["evidence"])
+                now = time.time()
+                if finish_received_at is None:
+                    finish_received_at = now
+                admission = read_json(state / "admission.json")
+                if report["status"] != "ready" or not healthy(health, now, -1):
+                    raise ValueError("runtime_unhealthy")
+                if admission.get("observed_at", 0) < finish_received_at:
+                    if now - finish_received_at >= 2:
+                        raise ValueError("server_admission_stale")
+                else:
+                    facts = storage_facts(state, report["run_id"])
+                    if (not valid_admission(admission, control["evidence"]["input_ack_sequence"], finish_received_at, now)
+                            or facts["issued_character_journeys"] != 1):
+                        raise ValueError("server_admission_missing")
+                    report.update(status="server_passed", admission=admission, storage=facts,
+                                  client_evidence_sha256=digest(control_path))
+                    break
             if report["status"] == "starting" and now >= ready_deadline:
                 raise ValueError("readiness_timeout")
             time.sleep(0.1)
@@ -306,8 +357,10 @@ def supervise(run):
         outstanding = []
         if owned_container:
             try:
+                if not owned_resource("container", name, report["run_id"]):
+                    raise ValueError("container_ownership_unverified")
                 command("docker", "stop", "--time", "3", name, check=False)
-                raw = command("docker", "logs", name, check=False).stdout
+                raw = command("docker", "logs", name).stdout
                 token = (state / "assertion").read_text() if (state / "assertion").exists() else ""
                 if (state / "import.log").exists():
                     imported = redact((state / "import.log").read_text(), [token])
@@ -320,15 +373,19 @@ def supervise(run):
                 report["runtime_error_lines"] = sum("ERROR:" in line or "SCRIPT ERROR:" in line for line in sanitized.splitlines())
                 if report["status"] == "server_passed" and report["runtime_error_lines"]:
                     report.update(status="failed", reason="runtime_errors")
-                command("docker", "rm", "--force", name, check=False)
-                if command("docker", "container", "inspect", name, check=False).returncode == 0:
+            except Exception:
+                report["status"] = "failed"
+                report.setdefault("reason", "runtime_evidence_unavailable")
+                report["runtime_evidence_available"] = False
+                report["runtime_error_lines"] = None
+            try:
+                if not remove_owned("container", name, report["run_id"]):
                     outstanding.append(name)
             except Exception:
                 outstanding.append(name)
         if owned_network:
             try:
-                command("docker", "network", "rm", network, check=False)
-                if command("docker", "network", "inspect", network, check=False).returncode == 0:
+                if not remove_owned("network", network, report["run_id"]):
                     outstanding.append(network)
             except Exception:
                 outstanding.append(network)

@@ -25,6 +25,9 @@ the real server's RPC autoload without a client scene. No Windows executable,
 library, branch, test or presentation runtime is transferred or executed.
 `manifest.json` lists every file SHA-256, source commit, runtime and image.
 Publish this manifest and its hash on the issue before runtime execution.
+Preparation exports allowlisted bytes from the pinned Git commit, not dirty or
+untracked working-tree files. The generated server project and preparation-tool
+hash are recorded separately in the manifest.
 
 ## Protocol V1
 
@@ -110,13 +113,19 @@ matching authenticated input state observed on the Linux server. Finish returns
 `requested`; poll for terminal `server_passed` and `cleanup.passed: true`.
 The Windows coordinator still owns the combined verdict; `paired_acceptance`
 is always false in server-only reports. No parent issue is auto-closed.
+Finish requires current runtime health and an authenticated admission observation
+written after the finish request. Historical admission cannot survive disconnect
+as a passing observation.
 
 Abort, SIGINT/SIGTERM cancellation, deadline, runtime exit, failed readiness or
 disconnect ends the run and records the reason. Cleanup stops/removes only the
 uniquely named owned container/network and private tree. Cleanup failure overrides
 success and lists outstanding resources. Reports and redacted log fingerprints
-remain under RUN; raw private storage and bearer are deleted. Runtime errors are
-counted separately in import/runtime logs, not hidden or called clean. The pinned
+remain under RUN; raw private storage and bearer are deleted.
+Ownership labels must match the run before removal. Only a successful Docker
+listing proves absence; daemon/permission errors leave cleanup unverified.
+Missing runtime logs fail evidence collection rather than reporting zero errors.
+Runtime errors are counted separately in import/runtime logs, not hidden or called clean. The pinned
 engine importer reports a retained resource-at-exit diagnostic; its count and
 fingerprint are separate from live-server errors and do not prove clean import.
 An independent container timeout bounds

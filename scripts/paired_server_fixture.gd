@@ -36,11 +36,12 @@ func _install_paired_observer() -> void:
 
 
 func _observe_paired_admission() -> void:
+	_paired_observation = {"authenticated": false, "input_ack_sequence": -1, "observed_at": Time.get_unix_time_from_system()}
 	for peer_id: int in _player_states:
 		var state: Node = _player_states[peer_id]
 		if state.character_id == _paired_identity and state._gameplay_authorized():
 			_paired_observation["authenticated"] = true
-			_paired_observation["input_ack_sequence"] = maxi(int(_paired_observation["input_ack_sequence"]), state._last_processed_sequence)
+			_paired_observation["input_ack_sequence"] = state._last_processed_sequence
 			_paired_observation["observed_at"] = Time.get_unix_time_from_system()
 	_write_paired("admission.json", JSON.stringify(_paired_observation))
 
