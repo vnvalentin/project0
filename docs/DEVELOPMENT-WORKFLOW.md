@@ -4,6 +4,118 @@ This workflow operationalizes the [Engineering Constitution](ENGINEERING-CONSTIT
 It is mandatory for implementation slices and creates the evidence trail from
 customer need to validated product behavior.
 
+## Delivery process: request to usable functionality
+
+The delivery process is **request -> agreed outcome -> small tested change ->
+integrated application -> evidence that it works**. This overview summarizes
+the required gates below; it does not claim that past deliveries satisfied them.
+Documentation of this overview is tracked in
+[issue #1254](https://github.com/vnvalentin/project0/issues/1254).
+
+```text
+User requests a change
+   |
+   v
+Clarify the player outcome, current gap, constraints and measurable success
+   |
+   v
+User confirms scope <---------------- Revise if not confirmed
+   |
+   v
+Record or update the GitHub issue and Project #2
+Link the parent outcome and smallest useful delivery slice
+   |
+   v
+Inspect actual behavior; investigate or experiment where uncertainty remains
+   |
+   v
+Define behavior scenarios, design boundaries, acceptance tests and rollback
+   |
+   v
+Check foundation prerequisites and platform; create a change branch
+   |
+   v
+Write a failing behavior test -> implement the smallest change -> rerun
+   |
+   v
+Validate focused behavior, integration, full suite and delivery records
+   |
+   v
+Review code and evidence -> push PR -> merge only when gates pass
+   |
+   v
+Make the change available in the intended development application
+Deploy the server or replace the client as needed within authorized scope
+   |
+   v
+Exercise the real player journey; capture runtime evidence
+Obtain user acceptance where the agreed outcome requires human judgment
+   |
+   v
+Close the delivery issue with proof; synchronize Project; retain learning
+   |
+   v
+Delivered functionality -> reassess the remaining parent outcome
+
+At ANY stage: unexpected failure, missing evidence or unclear safety boundary
+   -> STOP affected work
+   -> Record the blocker, evidence, hypotheses and rollback boundary
+   -> Establish root cause; record remediation and remaining liability
+   -> Apply a focused fix and pass its regression check
+   -> Resolve the blocker and repeat the affected delivery gates
+       OR remain explicitly blocked with the next owner and action recorded
+```
+
+### Responsibilities and boundaries
+
+- The user defines the desired experience, confirms scope and meaningful
+   tradeoffs, and provides acceptance where human judgment matters, such as
+   whether movement feels responsive. Clarification is paced at no more than
+   two questions per turn; required fields and confirmation precede issue
+   creation or updates.
+- Copilot owns investigation, implementation, tests, review, and delivery
+   records within the authorized scope. Code or a deployment step is not
+   authority to expand that scope. Blocked authorization or access is recorded,
+   not silently bypassed.
+- GitHub Issues and Project #2 own active delivery state and evidence. Local
+   planning notes do not replace the governing issue, and frozen Markdown
+   trackers must not become a second active status system.
+- Windows-required changes are labeled, implemented and validated on Windows.
+   Server-side, container and Linux-only work executes on `192.168.1.254` through
+   SSH. Client-only validation cannot prove authoritative server behavior.
+- Every unexpected failure follows the Jidoka and root-cause learning gates.
+   A Technical Debt issue records the cause, impact, remediation, validation and
+   remaining limitation. A post-merge fix follows a new branch and PR cycle;
+   it does not bypass review or validation.
+
+### What counts as delivered
+
+| State | Meaning |
+| --- | --- |
+| Code written | A candidate solution exists. |
+| Tests pass | The checked behaviors work under test conditions. |
+| PR merged | The change is integrated into the repository. |
+| Available in the app | The intended runtime contains the change. |
+| Delivered | The agreed user outcome is demonstrated, evidence and review are recorded, Project is synchronized, and the governing issue is closed. |
+
+For example, "fix movement sticking at sector boundaries" is not complete
+because a movement test passes. Run the updated Windows client against the
+authoritative development server, cross the relevant boundary, and demonstrate
+the agreed behavior. Record the commands, results, artifacts and required user
+acceptance. Unit tests or startup success alone cannot prove the player journey.
+
+For documentation-only work, the observable outcome is the documented contract
+and its checks, not a fictitious application deployment. Record which runtime
+steps are inapplicable and why; the applicable traceability, review and merge
+gates still apply.
+
+Deliver one small, useful increment, then reassess what remains. Closing a slice
+does not automatically complete its parent Feature, Goal or milestone. Missing
+acceptance evidence means **awaiting evidence**; an unresolved blocker means
+**blocked**, never delivered. Retain proven reusable practices in the Library
+and identified problems with confirmed root causes in the Memorial; unresolved
+liabilities remain active Technical Debt issues.
+
 ## Phases and slices
 
 A **phase** defines the product-level desired outcome and exit gate. An
