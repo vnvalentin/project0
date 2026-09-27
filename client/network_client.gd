@@ -1672,7 +1672,7 @@ func receive_enter_world_request_on_server() -> void:
 	var player_state: Node = get_tree().root.get_node_or_null("ServerPlayerState_%d" % sender_id)
 	if login_gateway == null or player_state == null:
 		return
-	var result: Dictionary = login_gateway.get_selected_character(sender_id)
+	var result: Dictionary = login_gateway.get_selected_character(sender_id, player_state.position)
 	if result["outcome"] == "ok":
 		var record: Object = result["character"]
 		var journey: Dictionary = result.get("journey", {})

@@ -37,6 +37,14 @@ var _nakama_client: Object = null
 const SETTINGS_PATH: String = "user://project0-client-settings.cfg"
 
 func _ready() -> void:
+	if "--verify-package" in OS.get_cmdline_user_args():
+		visible = false
+		var probe_script: Script = load("res://client/standalone_package_probe.gd")
+		if probe_script == null:
+			get_tree().quit(1)
+			return
+		get_tree().root.add_child.call_deferred(probe_script.new())
+		return
 	# Connect to NetworkClient auth signals
 	NetworkClient.auth_result_received.connect(_on_auth_result)
 	NetworkClient.connection_status_changed.connect(_on_connection_status)

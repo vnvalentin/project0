@@ -130,3 +130,44 @@ func test_reclaimed_journey_preserves_authoritative_checkpoint_for_world_entry()
 	assert_eq(float(reclaimed["journey"]["position_x"]), 12.0)
 	assert_eq(float(reclaimed["journey"]["position_z"]), -8.0)
 	assert_eq(reclaimed["journey"]["sector_id"], "sector-0-0")
+
+
+func test_fresh_world_entry_keeps_server_selected_spawn() -> void:
+	# #1230: the gateway forwards the server-owned spawn into a fresh journey so
+	# world entry restores the grounded capsule-center Y1, not the origin Y0.
+	var issuer: RefCounted = AssertionIssuerScript.new(SECRET, ISSUER, AUDIENCE)
+	var now: int = int(Time.get_unix_time_from_system())
+	var token: String = issuer.issue("sess-1", "acc-1", "char-1", now, 300, "Carol the Bold", {})
+
+	assert_eq(_gateway.establish_session_from_assertion(7, token, now + 1)["outcome"], LoginGatewayScript.OUTCOME_OK)
+	var entered: Dictionary = _gateway.get_selected_character(7, Vector3(-3.0, 1.0, 5.0))
+	assert_eq(entered["outcome"], LoginGatewayScript.OUTCOME_OK)
+	assert_eq(float(entered["journey"]["position_x"]), -3.0)
+	assert_eq(float(entered["journey"]["position_y"]), 1.0)
+	assert_eq(float(entered["journey"]["position_z"]), 5.0)
+
+
+func test_reclaim_ignores_new_spawn_and_keeps_checkpoint() -> void:
+	var issuer: RefCounted = AssertionIssuerScript.new(SECRET, ISSUER, AUDIENCE)
+	var now: int = int(Time.get_unix_time_from_system())
+	var token: String = issuer.issue("sess-1", "acc-1", "char-1", now, 300, "Carol the Bold", {})
+
+	assert_eq(_gateway.establish_session_from_assertion(7, token, now + 1)["outcome"], LoginGatewayScript.OUTCOME_OK)
+	_gateway.get_selected_character(7, Vector3(-3.0, 1.0, 5.0))
+	_journey_registry.checkpoint("char-1", Vector3(12.0, 0.0, -8.0), now + 2, "sector-0-0", 1, "geometry-hash")
+	_journey_registry.mark_disconnected("char-1", 7, now + 3)
+	_gateway.clear_session(7)
+
+	assert_eq(_gateway.establish_session_from_assertion(8, token, now + 4)["outcome"], LoginGatewayScript.OUTCOME_OK)
+	var reclaimed: Dictionary = _gateway.get_selected_character(8, Vector3(3.0, 1.0, 5.0))
+	assert_eq(reclaimed["outcome"], LoginGatewayScript.OUTCOME_OK)
+	assert_eq(float(reclaimed["journey"]["position_x"]), 12.0)
+	assert_eq(float(reclaimed["journey"]["position_y"]), 0.0, "a legitimate saved Y0 is not rewritten to the new spawn")
+	assert_eq(float(reclaimed["journey"]["position_z"]), -8.0)
+
+
+func test_unauthenticated_world_entry_is_rejected_without_journey() -> void:
+	var rejected: Dictionary = _gateway.get_selected_character(9, Vector3(-3.0, 1.0, 5.0))
+	assert_ne(rejected["outcome"], LoginGatewayScript.OUTCOME_OK)
+	assert_false(rejected.has("journey"))
+	assert_eq(_journey_registry.active_journey_id("char-1", 9), "")
