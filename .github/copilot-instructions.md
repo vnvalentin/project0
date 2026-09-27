@@ -60,37 +60,28 @@ historical or explanatory context only:
 
 ## Implementation ownership
 
-Copilot is the orchestration and review layer for implementation work in this
-repository. Unless the user explicitly requests direct Copilot edits, Copilot
-must not modify application code, tests, or implementation-facing delivery
-records. Copilot may inspect files, form the bounded handoff, invoke Claude CLI,
-coordinate validation, and review Claude's resulting diff and evidence.
+Copilot implements application code, tests, and implementation-facing delivery
+records directly, and owns validation and review. No external CLI handoff or
+fallback authorization is required. Before implementation, name the target
+slice, public seam, non-goals, validation command, and required evidence.
 
-Claude CLI owns application-code, test-code, and implementation-facing
-delivery-record edits. Every handoff must name the target slice, public seam,
-non-goals, validation command, and required evidence.
+Every delivery gate below still applies in full: records-first, GitHub issue
+traceability, public-seam tests, real validation evidence, record sync, and
+branch/PR/merge.
 
-**Standing authorization (user, 2026-09-18):** if Claude CLI is unavailable,
-interactive-only, rate-limited, or the handoff times out, Copilot is authorized
-to implement the slice directly instead of stopping. This changes only who
-edits. Every delivery gate below still applies in full — records-first, GitHub
-issue traceability, public-seam tests, real validation evidence, record sync,
-and branch/PR/merge. Record the fallback trigger in the slice record so the
-ownership deviation stays auditable.
+## Delivery gates
 
-## Claude delivery gates
-
-Claude must create or update the governing GitHub issue, planning ticket, and
+The implementing agent must create or update the governing GitHub issue, planning ticket, and
 required parent/project links before implementation begins, not as deferred
-cleanup. The handoff must explicitly confirm this issue-first checkpoint and
+cleanup. The implementation brief must confirm this issue-first checkpoint and
 then verify the issue, Project fields, evidence, and linked PR still exist after
 implementation. A slice cannot be reported complete when its code or tests
 pass but its SDD/BDD/TDD, validation evidence, review status, and synchronized
 GitHub records are missing.
 
-If Claude reaches a session limit, timeout, or validation failure, the slice is
+If the implementing agent reaches a session limit, timeout, or validation failure, the slice is
 `blocked` or `awaiting evidence`; do not infer completion from files appearing
-in the workspace. A follow-up handoff may repair only the missing checkpoint,
+in the workspace. A follow-up attempt may repair only the missing checkpoint,
 but must re-read current user-edited tracker files before changing them.
 
 Before implementation, identify the primary outcome, phase, parent issue, and

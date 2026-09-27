@@ -6,8 +6,8 @@ Use [TPSA](docs/tpsa.md) as the core behavior profile for all activities.
 
 The tool-neutral systems/implementation contract is
 [docs/SYSTEMS-SPECIFICATION.md](docs/SYSTEMS-SPECIFICATION.md) (formerly
-`CLAUDE.md`, now a pointer stub). Any LLM working this repo — Copilot, Claude, or
-another — treats it as authoritative.
+`CLAUDE.md`, now a pointer stub). Every agent working in this repository treats
+it as authoritative.
 
 ## Repository commands
 
@@ -135,18 +135,12 @@ Do not create implementation slices or product code while this gate is open.
 - GitHub operations: use the authenticated `gh` CLI for every GitHub read and
   mutation. Do not use the GitHub API directly or alternate GitHub integration
   tools for issue, project, pull request, label, or notification operations.
-- Implementation ownership: Copilot performs orchestration, bounded handoffs,
-  validation coordination, and review. Claude CLI owns application-code,
-  test-code, and implementation-facing delivery-record edits unless the user
-  explicitly authorizes Copilot to edit directly. **Standing authorization
-  (user, 2026-09-18): if Claude CLI is unavailable, interactive-only,
-  rate-limited, or times out, Copilot is authorized to implement directly
-  rather than stopping.** The fallback changes who edits, never what the
-  delivery gate requires: records-first, GitHub issue traceability,
-  public-seam tests, real validation evidence, and record sync still apply in
-  full. Note the fallback trigger in the slice record so the ownership
-  deviation stays auditable.
-- Delivery gate: Claude must create or update the governing GitHub issue,
+- Implementation ownership: Copilot implements application code, tests, and
+  implementation-facing delivery records directly, and owns validation and
+  review. No external CLI handoff or fallback authorization is required.
+  Records-first, GitHub issue traceability, public-seam tests, real validation
+  evidence, and record sync still apply in full.
+- Delivery gate: the implementing agent must create or update the governing GitHub issue,
   planning ticket, and required issue links before implementation begins. Code
   and tests passing is insufficient to mark a slice complete unless the
   SDD/BDD/TDD, validation evidence, review status, and GitHub links are
