@@ -51,7 +51,7 @@ func restore_records(records: Array) -> Dictionary:
 	return {"outcome": OUTCOME_OK, "detail": "Restored %d journey record(s)." % _journeys_by_id.size()}
 
 
-func enter(character_id: String, peer_id: int, now_unix: int) -> Dictionary:
+func enter(character_id: String, peer_id: int, now_unix: int, initial_position: Vector3 = Vector3.ZERO) -> Dictionary:
 	if character_id.strip_edges().is_empty() or peer_id < 1:
 		return _rejection(REASON_INVALID_CHARACTER, character_id, peer_id)
 	_cleanup_expired(now_unix)
@@ -65,9 +65,9 @@ func enter(character_id: String, peer_id: int, now_unix: int) -> Dictionary:
 			"active": true,
 			"disconnected_at": 0,
 			"lifecycle_status": "active",
-			"position_x": 0.0,
-			"position_y": 0.0,
-			"position_z": 0.0,
+			"position_x": initial_position.x,
+			"position_y": initial_position.y,
+			"position_z": initial_position.z,
 			"sector_id": "",
 			"sector_revision": 0,
 			"sector_geometry_hash": "",

@@ -11,6 +11,33 @@ Branch/worktree: `fix/1213-standalone-packaging` at `D:/code/project0-1213` (SET
 This ticket is a local planning aid only; #1213 and Project #2 remain the
 delivery record.
 
+## Current merge checkpoint (2026-09-26)
+
+The user explicitly authorized commit, push and merge of the validated changes
+so the server-side owner can consume them. Copilot implements directly; no Claude
+handoff is used. Older blocked/draft statements below are historical evidence.
+
+- #1230 corrects fresh journey initialization: the existing server-selected
+  position passes through authenticated world entry; stored checkpoints are unchanged.
+- Windows registry regression: 8/8 tests, 24 assertions, with retained red/green
+  evidence. Linux signed-assertion gateway regression: 8/8; prediction E2E: 2/2.
+- Full GUT: 140/140 scripts, exit 0; record sync: exit 0. Exact-source validation:
+  `remote-gates-96f58ece13e2464abce90bab1da4e659`. The owned private-network
+  container and snapshot were removed. Prior shared-port failures remain recorded.
+- Windows development candidate 0.14.14 passed export and all four real package
+  checks. Its dirty-source provenance and all five source hashes were recorded;
+  it is not being relabeled as a clean-commit release artifact.
+- Paired run `9396a6e342f449c9886c06f51d3a7878`: signed entry, town geometry ACK,
+  143 authoritative samples all at Y1, user-confirmed normal in-town movement and
+  grounded capsule, client exit 0, and verified local/remote cleanup.
+- Town exit remains unresolved in #1242, with its handoff in
+  `.scratch/handoffs/town-exit-server.md`. Parent #1213 stays open. Neither
+  outside-sector traversal nor genuine WAN acceptance is claimed by this merge.
+
+Merge is delivery of the validated packaging/capsule correction and the server
+handoff, not publication or deployment. Project0 is unreleased development.
+GitHub issues and PR #1224 carry final commit, CI, review and merge evidence.
+
 ## Root cause in this slice
 
 `scripts/build_current_deployment.ps1` unconditionally requires Go, builds and
