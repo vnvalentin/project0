@@ -62,6 +62,10 @@ quick-reference and seed, not a replacement for them.
 
 ## Validation / build quick-reference
 
+- Every task follows [goal-first execution and discovery handling](../docs/DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling):
+  anchor the issue goal, capture discoveries first, resolve blockers through
+  Jidoka, and defer non-blockers without expanding the current task.
+
 - Full suite: `scripts/run_gut_validation.sh` — writes `build/validation/gut.xml`
   and `build/validation/validation-summary.json` (expect `scripts_expected ==
   scripts_ran`, `exit_code: 0`).
