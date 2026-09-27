@@ -1,8 +1,14 @@
+[CmdletBinding()]
+param(
+    [string]$GodotPath,
+    [ValidateSet('pwsh', 'powershell')][string]$BuildShell = 'pwsh'
+)
+
 $ErrorActionPreference = "Stop"
 # #1213: standalone Windows client packaging must not need Go or the launcher,
 # must package a fresh export with full provenance, and must never replace or
 # delete existing outputs. Runs the real build script in a throwaway fixture
-# repository with fake Godot/rcedit/go/launcher tools.
+# repository with fake export/rcedit/go/launcher tools and a real native PCK audit.
 $runId = [Guid]::NewGuid().ToString("N")
 $root = Join-Path ([IO.Path]::GetTempPath()) ("project0 package fixture-" + $runId)
 $repo = Join-Path $root "repo"
@@ -16,10 +22,11 @@ $savedGodotMode = $env:FAKE_GODOT_MODE
 $savedRceditFail = $env:FAKE_RCEDIT_FAIL
 $savedGodotVersion = $env:FAKE_GODOT_VERSION
 $evidence = Join-Path $PSScriptRoot "..\build\validation\standalone-packaging-tests-$runId.json"
-$testResult = [ordered]@{ issue = 1213; host_name = $env:COMPUTERNAME; status = "failed"; failure = $null; cleanup = $false; failure_cases = 0 }
+$testResult = [ordered]@{ issue = 1244; host_name = $env:COMPUTERNAME; status = "failed"; failure = $null; cleanup = $false; failure_cases = 0; runtime_acceptance = $false; dependencies = @('godot-client', 'powershell', 'git') }
+$testResult.build_shell = $BuildShell
 
 function Invoke-Build([string]$Version, [string]$Rcedit = $rcedit) {
-    $output = & pwsh -NoProfile -File $build -Version $Version -GodotPath $godot -RceditPath $Rcedit 2>&1 | Out-String
+    $output = & $BuildShell -NoProfile -File $build -Version $Version -GodotPath $godot -PackageInspectorPath $GodotPath -RceditPath $Rcedit 2>&1 | Out-String
     return @{ ExitCode = $LASTEXITCODE; Output = $output }
 }
 
@@ -28,10 +35,17 @@ function Get-Fingerprint([string[]]$Paths) {
 }
 
 try {
+    if (-not $GodotPath) { $GodotPath = (Get-Command godot -ErrorAction Stop).Source }
+    $GodotPath = (Resolve-Path -LiteralPath $GodotPath).Path
     Remove-Item Env:FAKE_GODOT_MODE, Env:FAKE_RCEDIT_FAIL, Env:FAKE_GODOT_VERSION -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path (Join-Path $repo "scripts"), (Join-Path $repo "shared"), (Join-Path $repo "server"), $bin,
         (Join-Path $repo "dist\current"), (Join-Path $repo "native\windows_launcher\payload") | Out-Null
     Copy-Item (Join-Path $PSScriptRoot "build_current_deployment.ps1") (Join-Path $repo "scripts")
+    foreach ($name in @('check_windows_client_package.ps1', 'client_package_inventory.gd', 'validation_ownership.json')) {
+        Copy-Item (Join-Path $PSScriptRoot $name) (Join-Path $repo 'scripts')
+    }
+    $packFixture = Join-Path $root 'pack-fixture.gd'
+    Copy-Item (Join-Path $PSScriptRoot '../tests/fixtures/windows_client_packages.gd') $packFixture
     Copy-Item (Join-Path $PSScriptRoot "..\shared\client_build_version.gd") (Join-Path $repo "shared")
     Copy-Item (Join-Path $PSScriptRoot "..\server\starting_town_hub_fixture.gd") (Join-Path $repo "server")
     Copy-Item (Join-Path $PSScriptRoot "..\export_presets.cfg") $repo
@@ -43,7 +57,7 @@ try {
         [IO.File]::WriteAllText((Join-Path $bin "$tool.cmd"), "@echo off`r`necho $tool invoked>>`"$toolLog`"`r`nexit /b 1`r`n")
     }
     # Fake Godot: args are --headless --path <source> --export-release "Windows Desktop" <exe>.
-    # The PCK is the staged version script, proving a fresh export of stamped source.
+    # Native PCK fixtures contain the staged version script; the package gate stays real.
     [IO.File]::WriteAllText($godot, (@(
         '@echo off'
         'if "%~1"=="--version" ('
@@ -58,7 +72,8 @@ try {
         'if not errorlevel 1 exit /b 14'
         'if not "%FAKE_GODOT_MODE%"=="noexe" echo fake-godot-exe>"%~6"'
         'if "%FAKE_GODOT_MODE%"=="emptyexe" type nul>"%~6"'
-        'if not "%FAKE_GODOT_MODE%"=="nopck" copy /y "%~3\shared\client_build_version.gd" "%~dpn6.pck" >nul'
+        "if not `"%FAKE_GODOT_MODE%`"==`"nopck`" `"$GodotPath`" --headless --path `"%~3`" --script `"$packFixture`" -- `"%~3`" `"%~dpn6.pck`" `"%FAKE_GODOT_MODE%`""
+        'if not "%FAKE_GODOT_MODE%"=="nopck" if errorlevel 1 exit /b 15'
         'if "%FAKE_GODOT_MODE%"=="emptypck" type nul>"%~dpn6.pck"'
         'if "%FAKE_GODOT_MODE%"=="error" echo ERROR: injected export diagnostic 1>&2'
         'exit /b 0'
@@ -135,6 +150,7 @@ try {
         "missing-pck" = @{ Mode = "nopck"; Expect = "Missing Godot client PCK" }
         "empty-exe" = @{ Mode = "emptyexe"; Expect = "Empty Godot client executable" }
         "empty-pck" = @{ Mode = "emptypck"; Expect = "Empty Godot client PCK" }
+        "package-persistence" = @{ Mode = "persistence"; Expect = "Standalone package dependency boundary failed" }
         "rcedit-exit" = @{ RceditFail = "1"; Expect = "rcedit failed with exit code 5" }
         "rcedit-missing" = @{ Rcedit = (Join-Path $bin "absent-rcedit.exe"); Expect = "Missing rcedit executable" }
         "version-collision" = @{ Version = "0.14.0"; Expect = "already exists and will not be overwritten" }

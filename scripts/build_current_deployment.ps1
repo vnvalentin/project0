@@ -3,6 +3,7 @@ param(
     [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
     [string]$Version,
     [string]$GodotPath,
+    [string]$PackageInspectorPath,
     [string]$RceditPath
 )
 
@@ -26,6 +27,7 @@ $packageStage = Join-Path $repo "dist\standalone\.pending-$runId"
 $evidence = Join-Path $repo "build\validation\standalone-build-$Version-$runId"
 $zipName = "Project0-client-windows-x64-$Version.zip"
 if (-not $GodotPath) { $GodotPath = (Get-Command godot -ErrorAction Stop).Source }
+if (-not $PackageInspectorPath) { $PackageInspectorPath = $GodotPath }
 if (-not $RceditPath) { $RceditPath = Join-Path $repo "build\tools\rcedit\node_modules\rcedit\bin\rcedit-x64.exe" }
 
 function Test-RequiredFile([string]$Path, [string]$Description) {
@@ -136,6 +138,9 @@ try {
     if ($exportExitCode -ne 0) { throw "Godot export failed: $exportExitCode" }
     Test-RequiredFile $clientExe "Godot client executable"
     Test-RequiredFile $clientPck "Godot client PCK"
+    $boundaryEvidence = Join-Path $evidence "package-boundary.json"
+    & pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot "check_windows_client_package.ps1") -PackPath $clientPck -GodotPath $PackageInspectorPath -OutputPath $boundaryEvidence
+    if ($LASTEXITCODE -ne 0) { throw "Standalone package dependency boundary failed: $boundaryEvidence" }
     $rceditVersion = "$Version.0"
     & $RceditPath $clientExe --set-file-version $rceditVersion --set-product-version $rceditVersion
     if ($LASTEXITCODE -ne 0) { throw "rcedit failed with exit code $LASTEXITCODE." }

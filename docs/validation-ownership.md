@@ -97,6 +97,48 @@ packaged contents require native artifact/startup checks on Windows. Do not clai
 those checks passed from this report, and do not install Windows SQLite to make a
 source-tree harness run. Fix client isolation under its Windows-owned issue.
 
+## Windows Package Boundary
+
+Run the Windows-only package controls on an assigned Windows host with a qualified
+Godot 4.7.2 editor; the older `godot` on PATH may not read the current PCK format:
+
+```powershell
+pwsh -File scripts/test_windows_client_validation.ps1 -GodotPath $GodotPath
+pwsh -File scripts/verify_standalone_package.ps1 -Version $Version -PackageRoot $PackageRoot -GodotPath $GodotPath -Windowed
+```
+
+The first command creates native PCK fixtures and records positive and negative
+controls under `build/validation/windows-client/<run-id>/`. It proves the package
+gate, not gameplay. The second verifies an existing immutable standalone archive,
+audits its actual PCK, then runs its compiled native client probe. It records
+evidence under `build/validation/standalone-package-<version>-<run-id>/` and proves
+only the client/package behaviors asserted by that probe.
+
+Both require Windows PowerShell 7 and the Windows Godot editor, not SQLite,
+Canon, Ollama or a local server. The audit mounts the pack in an isolated project
+without running its scripts. It rejects server resources outside the manifest's
+exact data exceptions, SQLite, and unapproved native libraries/extensions,
+including unreferenced files and compiled-script remaps. Native dependencies
+require a reviewed ownership change; renaming a library is not an exemption.
+The standalone builder performs this audit before publishing its output.
+
+For a PCK-only check, use `scripts/check_windows_client_package.ps1` with
+`-PackPath`, `-GodotPath` and a new `-OutputPath`. Each result records host,
+command, ownership/engine/inspector/package hashes, native inventory, failure
+reason and cleanup. Evidence paths are not overwritten. Setup failures retain
+JSON when an output location is available. Only owned processes/temp state are
+removed; existing packages and development services are unchanged.
+
+Package inventory, synthetic negative controls, and the compiled offline probe
+are not paired-runtime evidence. Preserve the package's original source identity;
+running a new validator against it does not rebuild or re-identify that client.
+The package controls do not replace the other inventoried Windows or Linux tests.
+The builder lifecycle regression is `scripts/test_build_current_deployment.ps1
+-GodotPath <qualified-editor.exe>`: its exporter/EXE remain lifecycle fixtures,
+while PCK creation and dependency inspection use the real editor. The builder's
+optional `-PackageInspectorPath` supports that separation; ordinarily it defaults
+to the same qualified editor supplied as `-GodotPath`.
+
 ## Blocker Handling
 
 Classify a failed check as product behavior, test placement, host setup, missing
