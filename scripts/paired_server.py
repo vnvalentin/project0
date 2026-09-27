@@ -288,6 +288,7 @@ def supervise(run):
         previous_tick = -1
         health = {}
         finish_received_at = None
+        finish_sequence = -1
         client_was_authenticated = False
         while True:
             now = time.time()
@@ -309,6 +310,7 @@ def supervise(run):
             health_path = state / "health.json"
             if health_path.exists():
                 health = read_health(health_path, health)
+                report["observed_health"] = health
                 if report["status"] == "starting" and healthy(health, now, previous_tick) and previous_tick >= 0:
                     engine = (state / "engine.txt").read_text().strip()
                     if engine != manifest["server_engine"]:
@@ -324,15 +326,18 @@ def supervise(run):
                     raise ValueError("runtime_unhealthy")
                 if report["status"] == "ready" and (state / "admission.json").exists():
                     admission = read_json(state / "admission.json")
+                    report["admission"] = admission
                     client_was_authenticated = client_was_authenticated or admission.get("authenticated") is True
-                    if client_was_authenticated and (admission.get("authenticated") is not True or health.get("connected_peers") == 0):
+                    if client_was_authenticated and admission.get("authenticated") is not True:
                         raise ValueError("client_disconnected")
             if control:
                 check_client(report, control["evidence"])
+                admission = read_json(state / "admission.json")
                 now = time.time()
                 if finish_received_at is None:
                     finish_received_at = now
-                admission = read_json(state / "admission.json")
+                    finish_sequence = admission.get("input_ack_sequence", -1)
+                    report["finish_observation"] = {"received_at": now, "input_ack_sequence": finish_sequence}
                 if report["status"] != "ready" or not healthy(health, now, -1):
                     raise ValueError("runtime_unhealthy")
                 if admission.get("observed_at", 0) < finish_received_at:
@@ -340,12 +345,15 @@ def supervise(run):
                         raise ValueError("server_admission_stale")
                 else:
                     facts = storage_facts(state, report["run_id"])
-                    if (not valid_admission(admission, control["evidence"]["input_ack_sequence"], finish_received_at, now)
-                            or facts["issued_character_journeys"] != 1):
+                    if admission.get("authenticated") is not True or facts["issued_character_journeys"] != 1:
                         raise ValueError("server_admission_missing")
-                    report.update(status="server_passed", admission=admission, storage=facts,
-                                  client_evidence_sha256=digest(control_path))
-                    break
+                    required_sequence = max(control["evidence"]["input_ack_sequence"], finish_sequence + 1)
+                    if valid_admission(admission, required_sequence, finish_received_at, now):
+                        report.update(status="server_passed", admission=admission, storage=facts,
+                                      client_evidence_sha256=digest(control_path))
+                        break
+                    if now - finish_received_at >= 2:
+                        raise ValueError("server_input_stale")
             if report["status"] == "starting" and now >= ready_deadline:
                 raise ValueError("readiness_timeout")
             time.sleep(0.1)

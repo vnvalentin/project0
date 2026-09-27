@@ -116,6 +116,9 @@ is always false in server-only reports. No parent issue is auto-closed.
 Finish requires current runtime health and an authenticated admission observation
 written after the finish request. Historical admission cannot survive disconnect
 as a passing observation.
+Keep normal client physics/input processing active until the terminal server
+result: finish also requires a later input ACK than the sequence observed when
+the request arrived. Sampled aggregate peer counts are not disconnect evidence.
 
 Abort, SIGINT/SIGTERM cancellation, deadline, runtime exit, failed readiness or
 disconnect ends the run and records the reason. Cleanup stops/removes only the
