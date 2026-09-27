@@ -93,6 +93,38 @@ class RoutingTests(unittest.TestCase):
             self.assertFalse(report["passed"])
             self.assertTrue(report["errors"])
 
+    def test_windows_report_requires_actual_complete_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            records = []
+            packages = {
+                "native-package.json": ("project0/windows-launcher", "native_test.go", "TestNative"),
+                "fixture-package.json": ("command-line-arguments", "generate_1100_fixture_test.go", "TestFixture"),
+            }
+            for filename, (package, source, test) in packages.items():
+                (directory / filename).write_text(json.dumps({"ImportPath": package,
+                    "TestGoFiles": [source], "CollectedTests": [test]}))
+                records.extend([{"Action": "run", "Package": package, "Test": test},
+                                {"Action": "pass", "Package": package, "Test": test},
+                                {"Action": "pass", "Package": package}])
+            (directory / "validation-summary.json").write_text(json.dumps({
+                "status": "passed", "exit_code": 0, "includes_fixture_preparation": True,
+                "os": "Microsoft Windows NT"}))
+            marker = "Fixture lifecycle PASS: publication, version/hash/missing/signing rejection, prior evidence preserved, staging removed."
+            log = directory / "execution.log"
+            good = "\n".join(json.dumps(record) for record in records) + "\n" + marker
+            log.write_text(good)
+            self.assertEqual(self.routing.launcher_tests(directory), [
+                "native/windows_launcher/native_test.go", "scripts/generate_1100_fixture_test.go",
+                "scripts/test_prepare_windows_experiment_1100.ps1"])
+            for invalid in (marker, good.replace(marker, ""),
+                            good + '\n{"Action":"skip","Package":"project0/windows-launcher","Test":"TestNative/child"}',
+                            good.replace('"Action": "pass", "Package": "project0/windows-launcher", "Test": "TestNative"',
+                                         '"Action": "output", "Package": "project0/windows-launcher", "Test": "TestNative"')):
+                log.write_text(invalid)
+                with self.subTest(log=invalid), self.assertRaises(ValueError):
+                    self.routing.launcher_tests(directory)
+
     def test_aggregate_checks_actual_artifact_bytes(self):
         import hashlib
         plan = self.routing.route(self.metadata)

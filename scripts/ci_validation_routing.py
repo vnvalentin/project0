@@ -163,13 +163,54 @@ def expected_tests(tree):
     }
 
 
+def launcher_tests(directory):
+    summary = json.loads((directory / "validation-summary.json").read_text(encoding="utf-8-sig"))
+    if (summary.get("status") != "passed" or type(summary.get("exit_code")) is not int
+            or summary["exit_code"] != 0 or summary.get("includes_fixture_preparation") is not True
+            or "windows" not in str(summary.get("os", "")).lower()):
+        raise ValueError("failed or missing native Windows summary")
+    log = (directory / "execution.log").read_text(encoding="utf-8-sig")
+    marker = "Fixture lifecycle PASS: publication, version/hash/missing/signing rejection, prior evidence preserved, staging removed."
+    if marker not in log:
+        raise ValueError("fixture preparation execution evidence missing")
+    events = [json.loads(line) for line in log.splitlines() if line.lstrip().startswith("{")]
+    events = [event for event in events if isinstance(event, dict) and "Action" in event and "Package" in event]
+    if not events or any(event["Action"] in ("fail", "skip") for event in events):
+        raise ValueError("empty, failed, or skipped native Go execution")
+    tests = []
+    packages = set()
+    for filename, prefix in (("native-package.json", "native/windows_launcher"),
+                             ("fixture-package.json", "scripts")):
+        metadata = json.loads((directory / filename).read_text(encoding="utf-8-sig"))
+        package = metadata["ImportPath"]
+        collected = metadata.get("CollectedTests")
+        sources = (metadata.get("TestGoFiles") or []) + (metadata.get("XTestGoFiles") or [])
+        if (package in packages or not isinstance(collected, list) or not collected or not sources
+                or any(not isinstance(name, str) or not re.fullmatch(r"[^/\\:]+_test\.go", name) for name in sources)):
+            raise ValueError("invalid native test inventory")
+        packages.add(package)
+        selected = [event for event in events if event["Package"] == package]
+        started = {event["Test"] for event in selected if event["Action"] == "run" and "/" not in event.get("Test", "/")}
+        passed = {event["Test"] for event in selected if event["Action"] == "pass" and "/" not in event.get("Test", "/")}
+        if set(collected) != started or started != passed:
+            raise ValueError("missing native test execution")
+        tests.extend(prefix + "/" + name for name in sources)
+    completed = {event["Package"] for event in events if event["Action"] == "pass" and "Test" not in event}
+    if completed != packages:
+        raise ValueError("incomplete or unexpected native packages")
+    return sorted(tests + ["scripts/test_prepare_windows_experiment_1100.ps1"])
+
+
 def seal(plan, job, directory):
-    if job == "launcher":
-        raise ValueError("Windows native executed coverage must be supplied by #1244")
-    if command("git", "rev-parse", "HEAD") != plan["linux_ref"]:
+    source_ref = plan["windows_ref"] if job == "launcher" else plan["linux_ref"]
+    if command("git", "rev-parse", "HEAD") != source_ref:
         raise ValueError("result source identity mismatch")
     tests = []
-    if job in ("godot", "python"):
+    if job == "launcher":
+        if sys.platform != "win32":
+            raise ValueError("native Windows sealing requires the Windows execution host")
+        tests = launcher_tests(directory)
+    elif job in ("godot", "python"):
         report = directory / ("gut.xml" if job == "godot" else "python.xml")
         root = ET.parse(report).getroot()
         cases = root.findall(".//testcase")
@@ -195,7 +236,7 @@ def seal(plan, job, directory):
                  for path in directory.rglob("*") if path.is_file() and path.name != "result.json"}
     if not artifacts:
         raise ValueError("no execution artifacts")
-    return {"schema_version": 1, "candidate": plan["candidate"], "source_ref": plan["linux_ref"],
+    return {"schema_version": 1, "candidate": plan["candidate"], "source_ref": source_ref,
             "input_digest": plan["input_digest"], "status": "success", "skipped": 0,
             "tests": tests, "artifacts": artifacts}
 
@@ -232,6 +273,8 @@ def main():
                 if not args.job:
                     raise ValueError("job required")
                 directory = Path("build/validation")
+                if args.job == "launcher":
+                    directory = directory / "windows_launcher"
                 result = seal(plan, args.job, directory)
                 (directory / "result.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
             else:

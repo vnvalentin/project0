@@ -62,11 +62,13 @@ CLI failures emit `routing/report.json`; original job artifacts upload on failur
 
 ## Windows Handoff
 
-#1244 owns native test execution and its result producer. The existing Windows
-runner script must write `build/validation/windows_launcher/result.json` plus
-its proofs in that directory, preserving the exact `windows_ref`. This workflow
-uploads them as `result-launcher-<run_id>-<run_attempt>` without another workflow
-edit. The result schema is:
+The existing Windows runner still executes the native tests. CI captures its
+real `go test -json` stream, independently collects Go test names/source files,
+and retains the fixture lifecycle completion signal and runner summary. The
+shared sealer rejects missing, failed, skipped or uncollected execution before
+writing `build/validation/windows_launcher/result.json` for the exact
+`windows_ref`. The workflow uploads that report and proofs as
+`result-launcher-<run_id>-<run_attempt>`. The result schema is:
 
 ```json
 {
@@ -81,12 +83,11 @@ edit. The result schema is:
 }
 ```
 
-The producer must derive coverage from executed tests, never copy the expected
-list into a success record. Additional Windows client/paired gates require a
-coordinated extension to the required job contract; they are not supplied here.
-Existing launcher summary JSON lacks executed-test coverage, so aggregate
-acceptance intentionally remains blocked until this adapter is integrated.
-Do not merge this change as a complete delivery while that blocker remains.
+Coverage is derived from executed tests and native collection metadata, never
+copied from the plan into a success record. Source files are the compiled inputs
+of packages whose complete collected test set actually ran and passed. The
+summary alone is insufficient. Additional Windows client/paired gates require
+their own evidence; this report does not claim gameplay acceptance.
 
 Full GUT is supporting Linux evidence, never Windows or paired acceptance.
 Retain accepted diagnostic fingerprints and debts #1189/#1190; no global clean

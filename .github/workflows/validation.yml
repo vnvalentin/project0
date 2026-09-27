@@ -244,8 +244,43 @@ jobs:
       - name: Run launcher validation
         env:
           PROJECT0_EXPERIMENT_EVIDENCE_DIR: ${{ github.workspace }}/logs/experiments
+          GOFLAGS: -json
         shell: pwsh
-        run: ./scripts/run_windows_launcher_validation.ps1
+        run: |
+          $directory = Join-Path $PWD 'build/validation/windows_launcher'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          ./scripts/run_windows_launcher_validation.ps1 *>&1 | Tee-Object -FilePath (Join-Path $directory 'execution.log')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Record native test collection
+        shell: pwsh
+        run: |
+          $directory = Join-Path $PWD 'build/validation/windows_launcher'
+          $selections = @(
+            @{ path = 'native/windows_launcher'; arguments = @('.'); output = 'native-package.json' },
+            @{ path = 'scripts'; arguments = @('generate_1100_fixture.go', 'generate_1100_fixture_test.go'); output = 'fixture-package.json' }
+          )
+          foreach ($selection in $selections) {
+            Push-Location $selection.path
+            try {
+              $arguments = $selection.arguments
+              $text = & go list -json @arguments
+              if ($LASTEXITCODE -ne 0) { throw 'Go source inventory failed' }
+              $metadata = $text | ConvertFrom-Json
+              $names = & go test -list '^(Test|Example|Fuzz)' @arguments
+              if ($LASTEXITCODE -ne 0) { throw 'Go test collection failed' }
+              @{
+                ImportPath = $metadata.ImportPath
+                TestGoFiles = $metadata.TestGoFiles
+                XTestGoFiles = $metadata.XTestGoFiles
+                CollectedTests = @($names | Where-Object { $_ -match '^(Test|Example|Fuzz)\S*$' })
+              } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $directory $selection.output) -Encoding utf8
+            } finally { Pop-Location }
+          }
+
+      - name: Bind actual Windows execution evidence
+        shell: pwsh
+        run: python scripts/ci_validation_routing.py seal --job launcher --plan "$env:RUNNER_TEMP/routing/plan.json"
 
       - name: Upload launcher validation evidence
         if: always()
