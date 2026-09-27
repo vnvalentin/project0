@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,9 +99,25 @@ class AdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             policy_path = Path(temporary) / "policy.json"
             policy_path.write_text(json.dumps(policy))
+            source_path = Path(self.admission.__file__).absolute()
+            with mock.patch.object(
+                self.admission,
+                "trusted_file",
+                side_effect=lambda path: Path(path).absolute() == source_path,
+            ):
+                with self.assertRaisesRegex(ValueError, "independently owned"):
+                    self.admission.load_policy(policy_path)
+
+            event_path = Path(temporary) / "event.json"
+            event_path.write_text(json.dumps({"repository": {"full_name": "vnvalentin/project0"}}))
+            github_env = Path(temporary) / "github-env"
             result = subprocess.run([sys.executable, str(ROOT / "scripts/ci_runner_admission.py"),
                                      "--policy", str(policy_path)],
-                                    env=os.environ | {name: self.context.get(name, "") for name in self.admission.CONTEXT_FIELDS},
+                                    env=os.environ | {
+                                        **{name: self.context.get(name, "") for name in self.admission.CONTEXT_FIELDS},
+                                        "GITHUB_EVENT_PATH": str(event_path),
+                                        "GITHUB_ENV": str(github_env),
+                                    },
                                     capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 1)
             self.assertFalse(json.loads(result.stdout)["allowed"])
