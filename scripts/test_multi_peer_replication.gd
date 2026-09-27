@@ -176,12 +176,14 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	, 20000, _client_a_process_id)
 	_assert(not state_a.is_empty(), "client A observes authoritative movement within the deadline")
 	if state_a.is_empty():
+		print("MOVEMENT_STAGE_FAILED ", JSON.stringify({"observer": "A", "expected_peer": peer_b_name}))
 		return
 	state_b = await _wait_for_state_with_deadline(_state_file_b, func(state: Dictionary) -> bool:
 		return _observes_remote_movement(state, peer_a_name, a_seen_from_b_baseline)
 	, 20000, _client_b_process_id)
 	_assert(not state_b.is_empty(), "client B observes authoritative movement within the deadline")
 	if state_b.is_empty():
+		print("MOVEMENT_STAGE_FAILED ", JSON.stringify({"observer": "B", "expected_peer": peer_a_name}))
 		return
 	remote_players_on_a = state_a.get("remote_players", {})
 	remote_players_on_b = state_b.get("remote_players", {})
@@ -233,7 +235,11 @@ func _observes_remote_movement(state: Dictionary, peer_name: String, baseline: V
 	for coordinate: Variant in position:
 		if not (coordinate is int or coordinate is float) or not is_finite(float(coordinate)):
 			return false
-	return _array_to_vector3(position).distance_to(baseline) > 0.5
+	var observed_position: Vector3 = _array_to_vector3(position)
+	if not observed_position.is_finite() or not baseline.is_finite():
+		return false
+	var distance: float = observed_position.distance_to(baseline)
+	return is_finite(distance) and distance > 0.5
 
 
 func _array_to_vector3(value: Variant) -> Vector3:

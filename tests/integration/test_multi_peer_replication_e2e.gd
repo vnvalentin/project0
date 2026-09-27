@@ -146,6 +146,10 @@ func test_movement_fails_closed_when_observer_client_exits() -> void:
 	_assert_movement_failure("--stop-observer-client", "process_exited", "multi-peer-movement-exited")
 
 
+func test_movement_rejects_vector_conversion_overflow() -> void:
+	_assert_movement_failure("--overflow-observation", "deadline", "multi-peer-movement-overflow")
+
+
 func _assert_movement_failure(argument: String, reason: String, artifact: String) -> void:
 	var output: Array = []
 	var exit_code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
@@ -155,6 +159,16 @@ func _assert_movement_failure(argument: String, reason: String, artifact: String
 	var joined_output: String = "\n".join(output)
 	_save_output(artifact, joined_output)
 	var failure: Dictionary = _event(joined_output, "PEER_OBSERVATION_FAILED ")
+	var stage: Dictionary = _event(joined_output, "MOVEMENT_STAGE_FAILED ")
+	var held: Dictionary = _event(joined_output, "MOVEMENT_PUBLICATION_HELD ")
+	var held_remotes: Dictionary = held.get("published", {}).get("remote_players", {})
+	assert_eq(stage.get("observer", ""), "A", "failure occurred in A's movement observation, not readiness")
+	assert_eq(held_remotes.size(), 1, "movement fault starts with a real ready peer baseline")
+	assert_true(held_remotes.has(stage.get("expected_peer", "")), "movement failure identifies the baseline peer")
+	assert_eq(joined_output.count("ERROR: FAIL:"), 1, "only the intended movement assertion fails")
+	var cleanup: Dictionary = _event(joined_output, "MOVEMENT_PUBLICATION_CLEANUP ")
+	assert_eq(cleanup.get("paths_checked", 0), 3, "every publication sidecar is checked after cleanup")
+	assert_true(cleanup.get("removed", false), "publication sidecars are gone after failure")
 	assert_eq(exit_code, 1, "missing published movement fails the harness")
 	assert_eq(failure.get("reason", ""), reason, "movement failure identifies its actual boundary")
 	assert_false(joined_output.contains("ALL PASS"), "failed movement never becomes success")
@@ -163,11 +177,15 @@ func _assert_movement_failure(argument: String, reason: String, artifact: String
 	if reason == "deadline":
 		assert_gte(int(failure.get("elapsed_msec", 0)), 20000, "missing publication waits for a monotonic deadline")
 		assert_true(failure.get("client_alive", false), "deadline retains live-client evidence")
-		var held: Dictionary = _event(joined_output, "MOVEMENT_PUBLICATION_HELD ")
 		var last_state: Dictionary = failure.get("last_valid_state", {})
-		assert_eq(last_state.get("remote_players", {}), held.get("published", {}).get("remote_players", {}), "observer does not replace stale state with unpublished data")
+		if argument == "--overflow-observation":
+			assert_false(_event(joined_output, "MOVEMENT_INVALID_POSITION ").is_empty(), "overflow input was applied at the observation boundary")
+		else:
+			assert_eq(last_state.get("remote_players", {}), held_remotes, "observer does not replace stale state with unpublished data")
+		assert_false(joined_output.contains("MOVEMENT_PUBLICATION_RELEASE "), "negative control never releases valid publication")
 	else:
 		assert_false(failure.get("client_alive", true), "exited client fails before inventing movement")
+		assert_true(joined_output.contains("PASS: owned observer client stops during movement"), "exit fault was applied after readiness")
 
 
 func _save_output(artifact: String, text: String) -> void:
