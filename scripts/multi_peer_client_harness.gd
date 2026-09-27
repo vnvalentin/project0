@@ -33,6 +33,7 @@ var _run_ticks: int = -1
 var _gameplay_instance: Node3D
 var _network_client: Node
 var _startup_gate: String = ""
+var _geometry_ready_sectors: Array[String] = []
 
 
 func _initialize() -> void:
@@ -50,6 +51,7 @@ func _run() -> void:
 		await process_frame
 
 	_network_client = root.get_node("NetworkClient")
+	_network_client.geometry_assembly_completed.connect(_record_geometry_ready)
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
 	root.add_child(_gameplay_instance)
 	current_scene = _gameplay_instance
@@ -98,6 +100,7 @@ func _parse_args() -> void:
 func _write_state() -> void:
 	var state: Dictionary = {
 		"status": _network_client.status,
+		"geometry_ready_sectors": _geometry_ready_sectors.duplicate(),
 	}
 
 	var player: Node3D = _gameplay_instance.get_node_or_null("Player")
@@ -127,6 +130,11 @@ func _write_state() -> void:
 	else:
 		push_error("multi_peer_client_harness: state file could not be opened")
 		quit(1)
+
+
+func _record_geometry_ready(sector_id: String, _result: Dictionary) -> void:
+	if not _geometry_ready_sectors.has(sector_id):
+		_geometry_ready_sectors.append(sector_id)
 
 
 func _vector3_to_array(vector: Vector3) -> Array:

@@ -169,6 +169,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 
 	var b_moved_as_seen_from_a: float = b_seen_from_a.distance_to(b_seen_from_a_baseline)
 	var a_moved_as_seen_from_b: float = a_seen_from_b.distance_to(a_seen_from_b_baseline)
+	print("MOVEMENT_OBSERVATION ", JSON.stringify({"a_baseline": a_seen_from_b_baseline, "a_observed": a_seen_from_b, "a_distance": a_moved_as_seen_from_b, "b_baseline": b_seen_from_a_baseline, "b_observed": b_seen_from_a, "b_distance": b_moved_as_seen_from_a, "a_state": state_a, "b_state": state_b}))
 
 	_assert(b_moved_as_seen_from_a > 0.5, "movement from client B (held move_right) reaches client A's view of B through server authority")
 	_assert(a_moved_as_seen_from_b > 0.5, "movement from client A (held move_back) reaches client B's view of A through server authority")
