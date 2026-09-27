@@ -1,32 +1,99 @@
-name: CI admission probe
+name: Container images
+
 on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
+  packages: write
+
 concurrency:
-  group: runner-admission-probe-1265
-  cancel-in-progress: false
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  control:
-    name: admission control
+  build:
+    name: ${{ matrix.image }}
     runs-on: [self-hosted, Linux, X64, okami]
-    timeout-minutes: 2
-    steps:
-      - name: Allowed marker
-        if: always()
-        run: printf 'PROJECT0_ALLOWED_STEP_EXECUTED\n'
-  denied:
-    name: admission denied
-    runs-on: [self-hosted, Linux, X64, okami]
-    timeout-minutes: 2
+    timeout-minutes: 45
     env:
-      ACTIONS_RUNNER_HOOK_JOB_STARTED: /bin/true
-      PROJECT0_PROBE_SHA: forged
-      PROJECT0_PROBE_AUDIT: /tmp/forged-admission.json
-      GITHUB_JOB: control
-      GITHUB_SHA: forged
-      GITHUB_REF: refs/heads/main
+      DOCKER_CONFIG: ${{ runner.temp }}/project0-image-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: project0-godot
+            dockerfile: deploy/game-server/Dockerfile
+            context: .
+          - image: project0-infra
+            dockerfile: deploy/infra/Dockerfile
+            context: .
+          - image: project0-dashboard
+            dockerfile: dashboard/Dockerfile
+            context: dashboard
     steps:
-      - name: Forbidden marker
-        if: always()
-        run: printf 'PROJECT0_FORBIDDEN_STEP_EXECUTED\n'
+      - name: Require independent source admission
+        shell: bash
+        run: |
+          [[ -n "${PROJECT0_APPROVED_SOURCE_REF:-}" && -n "${PROJECT0_APPROVED_SOURCE_TREE:-}" ]]
+          [[ "${PROJECT0_SOURCE_WINDOWS_REQUIRED:-}" == true || "${PROJECT0_SOURCE_WINDOWS_REQUIRED:-}" == false ]]
+      - name: Check out approved source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+          persist-credentials: false
+      - name: Verify approved source identity
+        shell: bash
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$PROJECT0_APPROVED_SOURCE_REF" ]]
+          [[ "$(git rev-parse 'HEAD^{tree}')" == "$PROJECT0_APPROVED_SOURCE_TREE" ]]
+      - name: Prepare private Docker configuration
+        id: docker-config
+        shell: bash
+        run: |
+          if [[ -e "$DOCKER_CONFIG" ]]; then exit 1; fi
+          install -d -m 700 "$DOCKER_CONFIG"
+          printf 'owned=true\n' >> "$GITHUB_OUTPUT"
+          docker buildx inspect default
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request' && env.PROJECT0_SOURCE_WINDOWS_REQUIRED == 'false'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      - name: Derive image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=sha-${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          builder: default
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: ${{ github.event_name != 'pull_request' && env.PROJECT0_SOURCE_WINDOWS_REQUIRED == 'false' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Remove private Docker configuration
+        if: always() && steps.docker-config.outputs.owned == 'true'
+        shell: bash
+        run: |
+          case "$DOCKER_CONFIG" in
+            "$RUNNER_TEMP"/project0-image-*) rm -rf -- "$DOCKER_CONFIG" ;;
+            *) exit 1 ;;
+          esac

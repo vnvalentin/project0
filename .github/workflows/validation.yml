@@ -14,49 +14,66 @@ concurrency:
 jobs:
   ownership:
     name: Validation ownership and client boundary
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, okami]
+    timeout-minutes: 10
     steps:
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+          persist-credentials: false
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
+      - name: Test independent admission
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/test_ci_runner_admission.py --report build/validation/runner-admission-tests.json
 
       - name: Test ownership preflight
         shell: bash
         run: |
           mkdir -p build/validation
-          python scripts/test_validation_ownership.py --report build/validation/ownership-tests.json 2>&1 | tee build/validation/ownership-tests.log
+          /data/code/project0/.venv-enrollment/bin/python scripts/test_validation_ownership.py --report build/validation/ownership-tests.json 2>&1 | tee build/validation/ownership-tests.log
 
       - name: Check test ownership and static client dependencies
         if: always()
-        run: python scripts/check_validation_ownership.py --output build/validation/ownership.json
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/check_validation_ownership.py --output build/validation/ownership.json
 
       - name: Upload ownership report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: project0-ownership-${{ github.run_id }}
-          path: build/validation/ownership*
+          path: |
+            build/validation/ownership*
+            build/validation/runner-admission-tests.json
           if-no-files-found: error
           retention-days: 14
 
   godot:
     name: Godot GUT suite
-    runs-on: ubuntu-latest
-    container:
-      image: barichello/godot-ci:4.3
+    runs-on: [self-hosted, Linux, X64, okami]
+    timeout-minutes: 25
     steps:
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Import Godot resources
-        run: godot --headless --import
+        with:
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+          persist-credentials: false
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
 
       - name: Run validation suite
-        run: scripts/run_gut_validation.sh
+        shell: bash
+        run: |
+          container="project0-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+          image=sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602
+          docker image inspect "$image" >/dev/null
+          if docker container inspect "$container" >/dev/null 2>&1; then exit 1; fi
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          timeout --kill-after=15s 1100 docker run --rm --name "$container" --label project0.validation=1265 --network none --no-healthcheck --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev --user "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/app" -w /app --entrypoint /usr/bin/env "$image" -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard bash scripts/run_gut_validation.sh
 
       - name: Upload validation telemetry
         if: always()
@@ -69,10 +86,18 @@ jobs:
 
   records:
     name: Delivery record sync
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, okami]
+    timeout-minutes: 10
     steps:
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+          persist-credentials: false
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
 
       - name: Check delivery record sync
         run: bash scripts/check_record_sync.sh
@@ -82,29 +107,21 @@ jobs:
 
   python:
     name: Python service tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, okami]
+    timeout-minutes: 10
     steps:
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            infra/enrollment/requirements.txt
-            infra/operator/requirements.txt
-
-      - name: Install service dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r infra/enrollment/requirements.txt \
-                      -r infra/operator/requirements.txt \
-                      pytest
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
+          persist-credentials: false
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
 
       - name: Run enrollment and operator tests
-        run: python -m pytest infra/enrollment/tests infra/operator/tests -q
+        run: /data/code/project0/.venv-enrollment/bin/python -m pytest infra/enrollment/tests infra/operator/tests -q --junitxml=build/validation/python.xml -o junit_family=xunit1
 
   launcher:
     name: Windows launcher tests
