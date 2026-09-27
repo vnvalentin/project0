@@ -29,7 +29,7 @@ server persistence evidence.
 Run on `192.168.1.254` through SSH, using the configured Python interpreter:
 
 ```sh
-python -m unittest discover -s scripts -p test_validation_ownership.py -v
+python scripts/test_validation_ownership.py --report build/validation/ownership-tests.json
 python scripts/check_validation_ownership.py --output build/validation/ownership.json
 python scripts/check_validation_ownership.py --plan .scratch/<issue>/validation-plan.json --output build/validation/plan-ownership.json
 ```
@@ -38,6 +38,9 @@ These commands inspect plans/source and never launch Godot, install a package,
 start a server or invoke a Windows test. Exit 0 means the static check or plan
 passed, not that runtime acceptance passed. Invalid input exits 1 with JSON reasons.
 Existing Linux CI uses the explicit `github-actions-linux` host identifier.
+The manifest assigns `SETSUJOKU` and `github-actions-windows` to Windows. Other
+hosts require an ownership update; a platform label alone is insufficient.
+Every step explicitly declares at least its suite's required dependencies.
 
 Example component plan:
 
@@ -72,6 +75,9 @@ first-party `test_*.gd`, `test_*.py`, `test_*.sh`, `test_*.ps1` and `*_test.go`
 under the manifest's roots. Patterns match path components, so nested tests do not
 silently become part of a nonrecursive GUT suite. Inventory includes the separate
 GDScript smoke harnesses; it is not a claim that GUT executes them all.
+The regression runner writes JSON for passing and failing runs. CI retains that
+report and its console log and runs the separate static audit even after a test
+failure; no passing audit overrides a failed regression step.
 
 Existing GUT and service gates remain unchanged. Windows scripts and launcher
 tests are inventoried only, not executed by this Linux job. Their native validation
@@ -80,7 +86,8 @@ No suite is skipped or removed to make the architecture gate pass.
 
 Static dependency checks traverse client scripts/scenes/resources, literal
 `res://` references and project `class_name` references through shared helpers.
-Server runtime/persistence and SQLite references fail. The existing pure starting
+Canonicalized resource paths (including symlink targets) to server
+runtime/persistence and SQLite fail. The existing pure starting
 town fixture is an exact path exception, and its dependencies are still checked.
 `ResourceLoader.exists` probes are not imports. Comments are not dependencies.
 

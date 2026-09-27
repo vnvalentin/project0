@@ -54,13 +54,19 @@ def check_plan(root: Path, manifest: dict, plan: dict) -> list[str]:
             errors.append(f"{prefix}: execution host is required")
         if not isinstance(step.get("command"), str) or not step["command"].strip():
             errors.append(f"{prefix}: explicit validation command is required")
-        if suite["platform"] == "linux" and step.get("host") not in ("192.168.1.254", "github-actions-linux"):
-            errors.append(f"{prefix}: Linux execution requires 192.168.1.254 via SSH or github-actions-linux CI")
-        dependencies = step.get("dependencies", [])
-        if not isinstance(dependencies, list) or any(not isinstance(item, str) for item in dependencies):
-            errors.append(f"{prefix}: dependencies must be a string list")
-        elif step.get("platform") == "windows" and set(item.lower() for item in dependencies) & set(manifest["server_dependencies"]):
-            errors.append(f"{prefix}: server dependencies belong on Linux, not Windows; correct test placement before installing dependencies")
+        allowed_hosts = manifest["hosts"][suite["platform"]]
+        if step.get("host") not in allowed_hosts:
+            errors.append(f"{prefix}: {suite['platform']} execution requires an assigned host: {allowed_hosts}")
+        dependencies = step.get("dependencies")
+        if not string_list(dependencies):
+            errors.append(f"{prefix}: explicit nonempty dependencies are required")
+        else:
+            declared = {item.lower() for item in dependencies}
+            missing = set(suite["dependencies"]) - declared
+            if missing:
+                errors.append(f"{prefix}: missing declared dependencies: {sorted(missing)}")
+            if step.get("platform") == "windows" and declared & set(manifest["server_dependencies"]):
+                errors.append(f"{prefix}: server dependencies belong on Linux, not Windows; correct test placement before installing dependencies")
         if not string_list(step.get("artifacts")):
             errors.append(f"{prefix}: expected evidence artifact paths are required")
         tests = step.get("tests")
@@ -134,12 +140,13 @@ def check_client_dependencies(root: Path, manifest: dict) -> tuple[list[str], in
     visited: set[str] = set()
     while pending:
         name, parent = pending.pop()
-        if name in visited:
-            continue
-        visited.add(name)
         if not repository_path(root, name):
             errors.append(f"{parent}: invalid resource path {name}")
             continue
+        name = (root / name).resolve().relative_to(root.resolve()).as_posix()
+        if name in visited:
+            continue
+        visited.add(name)
         if name.startswith("addons/godot-sqlite/") or (name.startswith("server/") and name not in manifest["server_data_exceptions"]):
             errors.append(f"{parent} -> {name}: server dependency reachable from client")
             continue

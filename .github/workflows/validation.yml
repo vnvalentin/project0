@@ -25,9 +25,13 @@ jobs:
           python-version: "3.12"
 
       - name: Test ownership preflight
-        run: python -m unittest discover -s scripts -p test_validation_ownership.py -v
+        shell: bash
+        run: |
+          mkdir -p build/validation
+          python scripts/test_validation_ownership.py --report build/validation/ownership-tests.json 2>&1 | tee build/validation/ownership-tests.log
 
       - name: Check test ownership and static client dependencies
+        if: always()
         run: python scripts/check_validation_ownership.py --output build/validation/ownership.json
 
       - name: Upload ownership report
@@ -35,7 +39,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: project0-ownership-${{ github.run_id }}
-          path: build/validation/ownership.json
+          path: build/validation/ownership*
           if-no-files-found: error
           retention-days: 14
 

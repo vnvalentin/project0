@@ -1,5 +1,9 @@
 {
   "schema_version": 1,
+  "hosts": {
+    "linux": ["192.168.1.254", "github-actions-linux"],
+    "windows": ["SETSUJOKU", "github-actions-windows"]
+  },
   "test_roots": ["tests", "scripts", "infra", "dashboard", "operator_console", "native"],
   "server_data_exceptions": ["server/starting_town_hub_fixture.gd"],
   "server_dependencies": ["sqlite", "canon", "ollama"],
@@ -23,9 +27,25 @@
     "linux-tooling": {
       "platform": "linux",
       "owner": "linux-tooling",
-      "dependencies": ["python", "bash", "go"],
-      "runner": "Use the selected test's documented CLI; preflight never executes commands",
-      "tests": ["scripts/test_*.py", "scripts/test_*.sh", "scripts/*_test.go"],
+      "dependencies": ["python"],
+      "runner": "python scripts/test_validation_ownership.py",
+      "tests": ["scripts/test_*.py"],
+      "evidence": "supporting-component"
+    },
+    "linux-shell": {
+      "platform": "linux",
+      "owner": "linux-tooling",
+      "dependencies": ["bash"],
+      "runner": "bash <selected shell test>",
+      "tests": ["scripts/test_*.sh"],
+      "evidence": "supporting-component"
+    },
+    "linux-fixture": {
+      "platform": "linux",
+      "owner": "linux-tooling",
+      "dependencies": ["go"],
+      "runner": "go test scripts/generate_1100_fixture.go scripts/generate_1100_fixture_test.go",
+      "tests": ["scripts/*_test.go"],
       "evidence": "supporting-component"
     },
     "windows-client": {
