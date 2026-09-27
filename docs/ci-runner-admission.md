@@ -29,7 +29,7 @@ The tested version is 2.337.0. Do not install under a candidate checkout or use
 candidate-provided paths, interpreters, dependency installation or approval data.
 
 Install reviewed `ci_runner_admission.py` and `ci_runner_job_started.sh` below
-`/opt/project0-ci/admission/`, root-owned and not group/other writable. Install
+`/etc/project0-ci/gate/`, root-owned and not group/other writable. Install
 `/etc/project0-ci/admission.json` with the same ownership restrictions and its
 `gate_sha256` equal to the installed Python bytes. Parent directories must also
 be root-owned, not writable by the runner, and not symlinks.
