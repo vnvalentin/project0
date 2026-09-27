@@ -267,7 +267,7 @@ def seal(plan, job, directory):
     if sorted(tests) != sorted(plan["expected_tests"][job]):
         raise ValueError(f"{job}: missing or unexpected executed tests")
     artifacts = {path.relative_to(directory).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-                 for path in directory.rglob("*") if path.is_file() and path.name != "result.json"}
+                 for path in directory.rglob("*") if path.is_file() and path != directory / "result.json"}
     if not artifacts:
         raise ValueError("no execution artifacts")
     result = {"schema_version": 1, "candidate": plan["candidate"], "source_ref": source_ref,

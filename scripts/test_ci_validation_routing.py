@@ -111,6 +111,24 @@ class RoutingTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     self.routing.seal(plan, "ownership", directory)
 
+    def test_sealer_binds_nested_result_evidence(self):
+        import hashlib
+        plan = self.routing.route(self.metadata)
+        plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for name in ("ownership-tests.json", "routing-tests.json", "ownership.json"):
+                (directory / name).write_text(json.dumps({"passed": True, "skipped": []}))
+            nested = directory / "client/package-controls/result.json"
+            nested.parent.mkdir(parents=True)
+            nested.write_bytes(b'{"passed":true}')
+            (directory / "result.json").write_text("old seal")
+            with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
+                result = self.routing.seal(plan, "ownership", directory)
+            self.assertEqual(result["artifacts"].get("client/package-controls/result.json"),
+                             hashlib.sha256(nested.read_bytes()).hexdigest())
+            self.assertNotIn("result.json", result["artifacts"])
+
     def test_cli_failure_retains_report(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "failure.json"
