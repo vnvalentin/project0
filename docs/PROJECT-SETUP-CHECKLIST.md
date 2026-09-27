@@ -20,15 +20,19 @@ all checks below pass.
 
 - [x] Every active delivery item has a governing GitHub issue with its current
       condition, target outcome, acceptance criteria, non-goals, and evidence.
-- [x] Feature and Slice issues carry their required parent relationship in the
-      issue body and as a native GitHub parent link.
+- [x] Committed work maps to a milestone's named slice group and its Included
+      issues; applicable strategic parent links exist in issue bodies and native
+      GitHub relationships. Cross-cutting/uncommitted work states why no milestone
+      applies. Issue types do not require duplicate wrapper issues.
 - [x] Active issues are in GitHub Project `Project0 Delivery` (#2) with Outcome,
-      Phase, Status, Evidence, Blocked, owner, and Parent populated. Milestones
-      are assigned only to committed delivery outcomes.
+      Status, Evidence, Blocked, owner, and applicable parent links populated.
+      Milestones are assigned only for committed delivery outcomes. Phases are
+      retired; legacy fields are not required for readiness.
 - [x] The first implementation Slice issue links its SDD, BDD, public seam,
       safety invariant, ADR or no-ADR rationale, validation, and review outcome.
-- [x] Every known limitation is either a GitHub Technical Debt issue or an
-      explicit intentional scope boundary.
+- [x] Every known limitation is either a linked GitHub Technical Debt issue with
+      an owner and remediation/closure criteria, or an explicit intentional scope
+      boundary. Debt is assigned a milestone only when remediation is committed.
 
 `docs/PROJECT-TRACKER.md`, `docs/FEATURE-LIST.md`,
 `docs/TECHNICAL-DEBT-TRACKER.md`, and `docs/slices/` are frozen historical

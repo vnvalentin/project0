@@ -1,7 +1,7 @@
 # Slice Development Workflow
 
 This workflow operationalizes the [Engineering Constitution](ENGINEERING-CONSTITUTION.md).
-It is mandatory for implementation slices and creates the evidence trail from
+It is mandatory for implementation issues and creates the evidence trail from
 customer need to validated product behavior.
 
 ## Delivery process: request to usable functionality
@@ -10,7 +10,9 @@ The delivery process is **request -> agreed outcome -> small tested change ->
 integrated application -> evidence that it works**. This overview summarizes
 the required gates below; it does not claim that past deliveries satisfied them.
 Documentation of this overview is tracked in
-[issue #1254](https://github.com/vnvalentin/project0/issues/1254).
+[issue #1254](https://github.com/vnvalentin/project0/issues/1254); the current
+milestone alignment is tracked in
+[issue #1257](https://github.com/vnvalentin/project0/issues/1257).
 
 ```text
 User requests a change
@@ -23,7 +25,8 @@ User confirms scope <---------------- Revise if not confirmed
    |
    v
 Record or update the GitHub issue and Project #2
-Link the parent outcome and smallest useful delivery slice
+Locate the committed milestone and named slice group
+Link the bounded work issue, or record why it is cross-cutting/uncommitted
    |
    v
 Inspect actual behavior; investigate or experiment where uncertainty remains
@@ -52,10 +55,10 @@ Exercise the real player journey; capture runtime evidence
 Obtain user acceptance where the agreed outcome requires human judgment
    |
    v
-Close the delivery issue with proof; synchronize Project; retain learning
+Close the work issue with proof; synchronize Project; retain learning
    |
    v
-Delivered functionality -> reassess the remaining parent outcome
+Delivered increment -> verify slice acceptance -> verify milestone outcome
 
 At ANY stage: unexpected failure, missing evidence or unclear safety boundary
    -> STOP affected work
@@ -109,34 +112,92 @@ and its checks, not a fictitious application deployment. Record which runtime
 steps are inapplicable and why; the applicable traceability, review and merge
 gates still apply.
 
-Deliver one small, useful increment, then reassess what remains. Closing a slice
-does not automatically complete its parent Feature, Goal or milestone. Missing
+Deliver one small, useful increment, then reassess what remains. Closing an issue
+does not automatically complete its slice group or milestone. Missing
 acceptance evidence means **awaiting evidence**; an unresolved blocker means
 **blocked**, never delivered. Retain proven reusable practices in the Library
 and identified problems with confirmed root causes in the Memorial; unresolved
 liabilities remain active Technical Debt issues.
 
-## Phases and slices
+## Milestones, slice groups, and linked issues
 
-A **phase** defines the product-level desired outcome and exit gate. An
-**implementation slice** is the smallest observable, reversible increment that
-tests a stated hypothesis and delivers a bounded capability toward that phase.
-It is not a general task bundle or an experiment without a delivery seam.
+The active delivery structure is **Milestone -> named slice groups -> linked
+GitHub issues**, as approved in [#1217](https://github.com/vnvalentin/project0/issues/1217).
+Phases are retired. Existing Phase fields or historical text are legacy metadata:
+do not populate them or use them to sequence, approve, or complete current work.
 
-Every slice names its primary phase, user/system outcome, hypothesis or risk,
-public seam, acceptance evidence, and explicit non-goals. A slice can advance
-work tracked in another phase, but retains one primary phase for delivery
-ownership. Slice completion comes from its own record; phase completion comes
-from progress toward the phase exit gate.
+```text
+Milestone: committed, observable player/system outcome
+   +-- Named slice group: bounded part of that outcome
+   |     +-- Included GitHub issue: work, acceptance evidence, and resolution
+   |     +-- Included GitHub issue: investigation or implementation
+   |     +-- Linked Technical Debt: liability, owner, and remediation evidence
+   +-- Another named slice group with its own acceptance and dependencies
 
-Use TPSA small-lot, frequent delivery: choose the smallest independently
-observable and reversible slice that can test one hypothesis, deliver it, and
-learn from its evidence before planning the next slice. Do not turn a phase or
-feature group into a large implementation batch.
+Vision / Goals / Features: strategic purpose and retained parent links
+Project #2: operational status, ownership, evidence, and blockers
+```
+
+### Milestone and slice contracts
+
+A **milestone** commits an outcome, not a status or a batch of code. Its title
+uses `Milestone N: Outcome`; its stable GitHub number/URL is distinct from that
+display number. Preserve existing IDs, history and paused commitments. Renaming
+or completing another milestone never authorizes paused work.
+
+A **slice group** is a named, independently observable part of that milestone.
+The milestone description's `## Slice Mapping` owns the grouping. Each group
+states `Outcome:`, `Included issues:`, `Complete when:`, and `Dependency:` under
+a `### Slice M<N>.<n>: Name` heading. Keep issue milestone assignment and this
+mapping consistent. Shared context belongs in references, not duplicate work.
+
+An **issue** owns a bounded problem or work item, its acceptance criteria,
+evidence, owner, blockers and resolution. Reuse suitable existing issues; a
+slice group does not require a new wrapper issue or a particular issue label.
+An issue labeled `Slice` is still an issue, not automatically the milestone's
+slice-group record. Preserve applicable native parent/child relationships and
+body links; those relationships do not replace milestone membership or mapping.
+
+Before implementation, name the outcome, committed milestone, slice group,
+governing issue, applicable parent links, hypothesis, public seam, non-goals,
+rollback and exact checks. Cross-cutting governance or uncommitted work may
+have no milestone/slice: record that reason instead of inventing a commitment.
+Choose the smallest observable, reversible implementation increment within the
+owning issue. A group containing several issues is not one large coding batch.
+
+Each milestone outcome includes a `## Player Example`: starting situation,
+player action, visible experience and lasting result. Keep measurable technical
+acceptance separate. Completion requires the named slice outcomes and milestone
+acceptance evidence, not a count of closed issues or a successful merge.
+
+For example, GitHub milestone **14** is displayed as **Milestone 0: Solo Playable
+Foundation**. Its **M0.2 Movement and Traversal** group includes **#1213**. Closing
+the movement defect does not prove the repeatable traversal route or the user's
+responsiveness acceptance. The mapping, issue evidence and milestone acceptance
+must agree before that outcome is complete.
+
+### Technical Debt and blocking work
+
+Technical Debt is an active GitHub liability, not another hierarchy level or a
+Markdown tracker entry. Record classification, affected boundary, impact, owner,
+symptom, evidence, confirmed root cause (or explicitly unresolved hypotheses),
+remediation, regression check, remaining limitations and closure criteria.
+Link the affected issues and slice groups. Assign a milestone and include the
+debt in a slice only when its remediation is committed to that outcome; otherwise
+retain it as explicitly uncommitted work with an owner and next action.
+
+Blocking debt prevents acceptance of the affected issue, slice and milestone.
+Nonblocking follow-up must have an explicit rationale. An exception requires a
+recorded user decision naming its scope, risk and retained debt; it does not fix
+or close that debt and does not waive future delivery gates. A green result in
+another environment alone is not blocker resolution. Close debt only with its
+own required remediation and validation evidence.
 
 ## Vision, Goal, Feature, and Slice semantics (2026-09-20)
 
-Four record types form one causal chain, top to bottom:
+These strategic and historical issue relationships explain why work matters;
+they do not replace the milestone delivery structure above. Retain existing
+identifiers and applicable parent links rather than relabeling old issues.
 
 - The **Vision** is the single, permanent north star: the unchanging statement
   of what Project0 ultimately is (issue [#495](https://github.com/vnvalentin/project0/issues/495),
@@ -160,15 +221,11 @@ Four record types form one causal chain, top to bottom:
   yet justified: if it doesn't close distance toward a named capability item,
   why does it exist? The Feature resolves only when measurable proof shows
   the stated gap is closed — code merging is not, by itself, resolution.
-- A **Slice** is one step, or one bounded group of steps, that resolves a root
-  cause standing between the current condition and the Feature's target
-  condition. Slices are not experiments run to see whether a gap closes --
-  they are where the code that closes it actually gets written. A Slice issue
-  must name the root cause it addresses (`Parent feature: #N`) and the
-  evidence that step closes that portion of the gap. A Slice that does not
-  reduce the Feature's stated gap is scope creep, not delivery. A Feature
-  closes only when its Slices' combined evidence satisfies the Feature's
-  resolution proof.
+- Existing **Slice issues** record bounded implementation work. Keep their
+   `Parent feature: #N` links when applicable and their root-cause and acceptance
+   evidence. They can be included in a milestone's slice group alongside other
+   issue types; creating one is not a mandatory intermediate step. A Feature
+   closes only when evidence satisfies its own stated resolution proof.
 
 Every milestone outcome record, including a Feature that serves as a milestone,
 must include a `## Player Example` section. State one concrete scenario in
@@ -201,13 +258,10 @@ opposite is also possible: an apparent solution may leave the other Epics
 unchanged. Update the Feature's child links and ordering to match the evidence;
 do not execute obsolete Epics merely because they were identified earlier.
 
-A Goal's percent-complete is **never** derived from the Goal issue's own
-open/closed state or a hand-ticked WGL checkbox — both are unreliable signals
-on their own. It is the fraction of WGL items that have at least one
-`Advances:` Feature which is itself resolved (closed, or every one of its
-Slices closed). An item with zero linked Features, or only unresolved ones,
-is not done, no matter what its checkbox says or whether the Goal issue itself
-got closed.
+A Goal's completion is **never** established by its open/closed state, a
+hand-ticked WGL checkbox, or issue-count progress alone. Each capability item
+needs linked evidence that the stated outcome holds. Required descendant work
+must be resolved, but closing descendants does not replace outcome acceptance.
 
 This applies to every Goal regardless of its current status, including
 `chartering`, `research-first`, and `design gate` ones: a Goal without a stated
@@ -241,7 +295,7 @@ spawn a Feature:
    - **Who**: the actor or beneficiary the outcome is measured against (a
      playtester, the server, an operator, two Characters, etc.) — a Goal
      without a "who" is measuring nothing real.
-   - **By when**: a bound — a phase, a dependency, or an explicit "no fixed
+   - **By when**: a bound — a committed milestone, a dependency, or an explicit "no fixed
      date, gated on evidence X" — never left implicit.
 3. **What Good Looks Like** — the existing checklist, now understood as the
    itemized, individually Feature-trackable breakdown of the single capability
@@ -263,22 +317,22 @@ delivery state.
 
 ### Stages
 
-1. **Vetting** — the capability exists only as one or more issues under a
-   `.scratch/<goal>/` map. Each issue is validated and refined (grilled,
-   researched, scoped) until its design is settled. Issue status moves
-   `unclaimed` → `claimed` (being refined) → `resolved`. Decision-type issues
-   (`grilling`, `research`, `architecture`) resolve into an ADR or recorded
-   decision, not a feature.
-2. **Ready** — a `resolved` *implementation* (`task`) issue graduates to a
-   GitHub issue labeled `Feature` (`Parent goal: #N` in its body). Its design is
-   complete and a developer can pick it up, but no implementation has started.
-3. **Active** — a developer has started the slice. Feature `Status: In Progress`
-   (equivalently *Active*). The slice follows SDD → BDD → TDD → verification.
-4. **Awaiting evidence** — the slice's code is complete but its focused
-   validation, telemetry artifact, and review are not yet green. It is NOT Done;
-   this is a sub-state of Active enforced by the Jidoka evidence gate.
-5. **Done** — the slice is delivered and validated with evidence. Feature
-   `Status: Implemented` (equivalently *Done*).
+1. **Vetting** - clarify the current gap, target outcome, scope and acceptance.
+   Confirm required fields with the user before creating or updating an issue.
+   Research and architecture work resolve into evidence or decisions, not
+   automatic Feature/Slice promotion. Local `.scratch` notes are optional aids.
+2. **Ready** - the governing issue has an approved brief, applicable milestone
+   and slice mapping, explicit dependencies and executable acceptance checks.
+   Record readiness on the issue; Project Status remains `Todo` until work starts.
+3. **Active** - Project Status is `In Progress`; the issue follows SDD, BDD, TDD
+   and verification in small increments.
+4. **Awaiting evidence / blocked** - implementation or checks are incomplete,
+   contradictory or blocked. Keep the issue open, retain `In Progress` for
+   started work, and use Evidence and Blocked fields plus the next owner/action
+   to explain the hold. Code written is not Done.
+5. **Done** - the issue's acceptance, applicable runtime evidence, review and
+   merge gates are satisfied and synchronized; close it and mark Project Status
+   `Done`. Re-evaluate the owning slice and milestone against their own criteria.
 
 A **goal/map** is "complete" only when its own `## What Good Looks Like`
 criteria are satisfied by evidence. Child issues are the known work and learning
@@ -292,33 +346,14 @@ dashboard can distinguish target-condition coverage from child-issue workflow
 state. A goal folder with no `map.md` is a new, unresearched goal and has 0%
 target coverage until the map and criteria are written.
 
-### Promotion rules
-
-- **The unit of promotion is the issue, not the goal.** Each resolved
-  implementation issue becomes its own feature and slice; goals are containers,
-  not the unit that ships.
-- **Only implementation (`task`) issues become features.** `grilling`,
-  `research`, and `architecture` issues resolve into ADRs/decisions that inform
-  features.
-- **A capability whose originating issues are not all `resolved` stays
-  `Planned`**, never `Ready`.
-
 ### Stable identifiers
 
-A feature keeps ONE identifier for its whole life; its `Status:` field carries
-the lifecycle. The legacy `P-`/`IP-`/`F-` prefixes are frozen, opaque history and
-no longer signal status — never rename an item when its status changes. New
-features take the next unused number as `F-<n>` with an authoritative `Status:`.
-
-### Cross-layer status mapping
-
-| Lifecycle stage | `.scratch` issue | `FEATURE-LIST.md` status | Tracker badge | Dashboard |
-| --- | --- | --- | --- | --- |
-| Vetting | `unclaimed`/`claimed`/`resolved` | — | `queued` | Goal roadmap |
-| Ready | `resolved` | `Ready` | `ready` | Ready |
-| Active | `resolved` | `In Progress` (Active) | `in-progress` | Active |
-| Awaiting evidence | `resolved` | `In Progress` (Active) | `in-progress` | Awaiting evidence |
-| Done | `resolved` | `Implemented` (Done) | `done` | Done |
+GitHub assigns new issue numbers. Preserve existing issue IDs, milestone IDs,
+slice-group identifiers and parent links as status changes. Legacy `P-`/`IP-`/
+`F-` prefixes and archived numbered slices are history, not allocation or status
+authorities. Do not allocate new records in `FEATURE-LIST.md`, the Slice Registry
+or other frozen trackers. The dashboard is a view of GitHub, not a second status
+system.
 
 ## Process maps and material/information flow
 
@@ -342,8 +377,8 @@ boundaries, unacceptable outcomes, smallest useful change, and explicit
 non-goals. Identify the governing GitHub Issue before work starts; create one
 when no suitable issue exists. Local `.scratch/<goal>/issues/*.md` planning
 tickets can refine design and decisions, but they are not a substitute for the
-GitHub Issue. Check `FEATURE-LIST.md` for an existing feature before creating a
-new one. Record the GitHub Issue and feature IDs advanced by the slice and ask
+GitHub Issue. Check GitHub for an existing issue before creating a new one.
+Record the milestone, slice group, governing issue and applicable parent links, and ask
 Wayfinder or grilling questions when a product, ownership, or safety decision is
 unclear. Ask only questions that affect implementation or safety.
 
@@ -352,7 +387,7 @@ unclear. Ask only questions that affect implementation or safety.
 Write a short slice design before coding when the change crosses a meaningful
 boundary. State the goal, domain boundary, public seam, input/output contract,
 invariants, failure behavior, persistence or integration effects, rollback plan,
-and explicit non-goals. Link relevant tracker work and accepted ADRs.
+and explicit non-goals. Link the governing issue, slice group and accepted ADRs.
 
 ## 3. BDD
 
@@ -384,7 +419,7 @@ technical debt rather than silently treating manual inspection as equivalent.
 
 Create or update an ADR for an architectural, security, ownership, persistence,
 integration, or irreversible boundary decision. Ordinary implementation details
-do not require an ADR. Link the decision from the SDD and tracker.
+do not require an ADR. Link the decision from the SDD and governing issue.
 
 ## 6. Verification and review
 
@@ -401,8 +436,8 @@ specification compliance, observability, reversibility, and missing tests.
 Every unexpected runtime failure, failed validation, user-reported defect, or
 integration surprise MUST produce a durable learning record before the slice,
 fix, or PR can be marked done. The record belongs in the affected slice's
-`Root-cause learning` section and, when the liability remains open, in
-`TECHNICAL-DEBT-TRACKER.md` as well. A chat message, terminal log, or commit
+`Root-cause learning` section on its governing issue and, when the liability
+remains open, in a linked Technical Debt issue. A chat message, terminal log, or commit
 message alone is not a sufficient record.
 
 Each learning record MUST state:
@@ -443,8 +478,8 @@ pull request.
 
 - **Branch per change.** Before starting work, fetch and branch from the latest
   `origin/main`. Name the branch `type/short-topic`, where `type` is one of
-  `slice`, `fix`, `docs`, or `chore` — e.g. `slice/054-<topic>` (matching the
-  number reserved in the [Slice Registry](slices/SLICE-REGISTRY.md)),
+   `slice`, `fix`, `docs`, or `chore` — e.g. `slice/<issue-number>-<topic>`
+   (using the governing GitHub issue number),
   `fix/<topic>`, `docs/<topic>`. Keep one logical change per branch, consistent
   with small-lot delivery.
 - **No direct commits to `main`.** All history reaches `main` through a pull
@@ -467,7 +502,7 @@ pull request.
   This is the repository's chosen automation setting and may be tightened to
   require human approval later.
 
-## Required slice record
+## Required implementation issue record
 
 Each implementation ticket links:
 
@@ -477,21 +512,24 @@ Each implementation ticket links:
 - Related ADR, or an explicit no-ADR rationale.
 - Validation results and review outcome.
 - Focused validation command, expected pass signal, and telemetry artifact path.
-- Feature IDs advanced or created, duplicate-check result, and the governing
-   GitHub issue plus Project #2 item fields.
+- Milestone and slice-group mapping (or a reason neither applies), applicable
+   parent/debt links, duplicate-check result, governing issue and Project fields.
 - GitHub Issue number or URL, plus the closing or reference keyword expected in
    the pull request (`Fixes #N`, `Closes #N`, `Resolves #N`, or `Refs #N`).
 - Telemetry events, failure states, and stop signals, or an explicit rationale
-	for why the slice has no observable runtime telemetry.
+   for why the issue has no observable runtime telemetry.
 
 ## GitHub delivery synchronization gate
 
-Whenever a slice is started, in progress, or completed, update the governing
+Whenever work is started, in progress, or completed, update the governing
 GitHub issue and its Project #2 item before implementation or status changes
 are reported. The issue carries the problem, outcome, parent link, acceptance
-evidence, and resolution. Project #2 carries the visible Outcome, Phase,
-Milestone, Status, Evidence, Blocked, owner, and Parent fields. Milestones are
-delivery commitments only; they do not replace Phase or Status.
+evidence, and resolution. Project #2 carries Outcome, Milestone, Status,
+Evidence, Blocked, owner, and applicable parent relationships. Slice membership
+comes from the milestone description's mapping and the included issues, not a
+new required Project field. Milestones carry committed outcomes; Status records
+work state and explicit dependencies determine ordering. Legacy Phase metadata
+has no role in this gate.
 
 The Markdown tracker, feature list, debt tracker, and slice archive are frozen
 historical context. Do not update them as a second active status system.
@@ -515,7 +553,7 @@ The loop:
 3. **Return evidence** — the implementer reports files changed, exact commands
    and exit codes, behavior observed, limitations, and any scope deviation.
 4. **Review** — Copilot checks scope, safety, specification compliance, and
-   synchronization, opening a `TECHNICAL-DEBT-TRACKER.md` liability for any gap
+   synchronization, recording a linked Technical Debt issue for any unresolved gap
    rather than accepting it.
 
 Delivery is **traceable** only when the governing GitHub issue and Project item
@@ -525,5 +563,15 @@ artifact with its exit code), and the review outcome. An edit outside the
 declared scope is an unscoped edit; a session limit, timeout, or validation
 failure leaves the slice `blocked`/`awaiting evidence`. Completion is never
 inferred from files appearing in the tree.
-## Canonical TBP lifecycle gate
-TBP status is recursive across Hoshin → Theme → Feature → Epic → Experiment. A refined item with no active implementation is `READY_TO_PULL`; `IN_PROGRESS` descendants make the parent `IN_PROGRESS`, and any `NEEDS_GRILLING` descendant blocks readiness. `DONE` requires satisfied explicit outcomes and every required descendant done. New/current records must contain a `## Outcomes` section with checklist items (`- [ ]`/`- [x]`) and validation evidence; all must be checked. For compatibility, only closed records created before 2025-01-01 may omit the section. Closed Experiments additionally require a checked `Pass` outcome.
+
+## Outcome completion gate
+
+Issue types and strategic TBP parent links remain useful, but are not a second
+mandatory delivery ladder. Readiness requires resolved decisions and dependencies;
+completion requires explicit outcomes and all required work with evidence. A
+blocked issue propagates a blocker to affected slice and milestone acceptance,
+not an automatic rewrite of unrelated issue status. New/current issue records
+contain a `## Outcomes` checklist and validation evidence; completed outcomes
+must be checked. Closed Experiments additionally require a checked `Pass`
+outcome. Preserve the existing pre-2025 compatibility rule for historical closed
+records without Outcomes; it is not an exemption for new work.

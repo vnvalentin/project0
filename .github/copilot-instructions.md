@@ -48,14 +48,17 @@ historical or explanatory context only:
   Technical Debt, including status, parent links, acceptance evidence, and
   resolution.
 - GitHub Project `Project0 Delivery` (#2) owns the visible operational fields:
-  Outcome, Phase, Milestone, Status, Evidence, Blocked, owner, and parent.
+  Outcome, Milestone, Status, Evidence, Blocked, owner, and applicable parent
+  relationships. Phases are retired; legacy Phase fields are not required.
 - [Feature List](../docs/FEATURE-LIST.md) is a **frozen historical archive**
   (as of 2026-09-20) of capabilities delivered before Features moved to GitHub
   issues. A Feature is now a GitHub issue labeled `Feature`, with
   `Parent goal: #N` in its body when it advances a Goal issue. Likewise
-  `docs/slices/*.md` and `SLICE-REGISTRY.md` are frozen; a Slice is now a
-  GitHub issue labeled `Slice`, with `Parent feature: #N` in its body when it
-  advances a Feature issue. See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
+  `docs/slices/*.md` and `SLICE-REGISTRY.md` are frozen. Milestones own named
+  slice groups with Included issues; issue labels (including `Slice`) do not
+  define those groups. Preserve applicable strategic parent links. Technical
+  Debt remains a linked GitHub liability, not a delivery hierarchy level.
+  See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
 - [Project Tracker](../docs/PROJECT-TRACKER.md) and [Technical Debt Tracker](../docs/TECHNICAL-DEBT-TRACKER.md) are frozen archives and must not be updated for new active work. Do not use them as status, phase, track, or queue authorities.
 
 ## Implementation ownership
@@ -84,10 +87,13 @@ If the implementing agent reaches a session limit, timeout, or validation failur
 in the workspace. A follow-up attempt may repair only the missing checkpoint,
 but must re-read current user-edited tracker files before changing them.
 
-Before implementation, identify the primary outcome, phase, parent issue, and
-slice. Update the governing GitHub issue and Project fields whenever scope or
-status changes. Assign a milestone only when the work is a committed delivery
-outcome; do not use milestones as a substitute for phase or status fields.
+Before implementation, follow the
+[delivery hierarchy](../docs/DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues):
+identify the outcome, committed milestone, named slice group, governing issue and
+applicable parents, or state why the work is cross-cutting/uncommitted. Update
+the issue and Project whenever scope or status changes. Milestones commit
+outcomes; Status shows work state and explicit dependencies determine ordering.
+Assign Technical Debt to a milestone only when its remediation is committed.
 
 Foundation gate: before implementation, read `../docs/PROJECT-SETUP-CHECKLIST.md`.
 If `../.foundation-incomplete` exists or any active record still contains a

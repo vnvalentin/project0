@@ -6,18 +6,26 @@ Status: **accepted**. GitHub is the single active source of truth.
 **frozen historical archive** — the record of everything delivered before this
 date. Do not add new entries to them. Going forward:
 
-- A **Feature** is a GitHub issue labeled `Feature`, with a `Parent goal: #N`
-  line in its body when it advances a Goal issue.
-- A **Slice** is a GitHub issue labeled `Slice`, with a `Parent feature: #N`
-  line in its body when it advances a Feature issue.
+- Delivery is **Milestone -> named slice groups -> linked GitHub issues**.
+   The milestone description's `## Slice Mapping` owns each group's Outcome,
+   Included issues, Complete when and Dependency. Its linked issues carry work,
+   acceptance evidence, owner, blockers and resolution.
+- Issue types/labels describe the work, not automatic delivery levels. Preserve
+   strategic Feature/Goal and existing Slice/Feature parent links where applicable;
+   an issue labeled `Slice` is distinct from a milestone's named slice group.
+- Technical Debt is a GitHub issue with classification, impact, owner, root cause
+   or unresolved hypotheses, remediation and validation criteria. Link affected
+   issues/groups; assign a milestone only when remediation is committed.
 - `docs/PROJECT-TRACKER.md`, `docs/TECHNICAL-DEBT-TRACKER.md`, and the other
    Markdown records are frozen historical or explanatory archives.
 - GitHub Project `Project0 Delivery` (#2) owns the visible operational fields:
-   Outcome, Phase, Milestone, Status, Evidence, Blocked, owner, and parent.
+   Outcome, Milestone, Status, Evidence, Blocked, owner, and applicable parent
+   relationships. Phases are retired; existing Phase fields are legacy metadata,
+   not prerequisites or sequencing authorities. Their removal is separate work.
 
-See [Vision, Goal, Feature, and Slice semantics](DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
-for what a Feature and a Slice issue must each state (the gap they close and
-the root cause they resolve) before creating one.
+See [Milestones, slice groups, and linked issues](DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues)
+for the current grouping, issue and Technical Debt contracts. Strategic issue
+relationships remain reference context, not a replacement delivery ladder.
 
 ## Why this exists
 
@@ -31,22 +39,27 @@ context only.
 
 1. **Issue first.** Create or identify the governing GitHub issue before code.
    Put the current condition, target outcome, exit criteria, non-goals,
-   evidence, and parent link in the issue body.
+   evidence, applicable parent links and milestone/slice mapping in the issue
+   body, or explain why the work is cross-cutting or uncommitted.
 2. **Project visible.** Add active issues to Project #2 and populate Outcome,
-   Phase, Status, Evidence, Blocked, owner, and Parent. Assign a Milestone only
-   for committed delivery work.
-3. **Link parent before you create.** When opening a new Slice issue, add
-   `Parent feature: #N` in its body; when opening a new Feature issue, add
-   `Parent goal: #N` in its body. Never renumber or relabel a shipped issue's
-   identity — status lives in the issue's state/labels, not a renamed title.
+   Status, Evidence, Blocked, owner, and applicable parent relationships. Assign
+   a Milestone only for committed delivery work; keep its slice mapping consistent
+   with included issue membership. Do not require a new Slice Project field.
+3. **Preserve relationships.** Record applicable native parent/child links and
+   body references; retain `Parent goal: #N` and `Parent feature: #N` where they
+   express an actual relationship. Do not create wrapper issues or reparent
+   existing records solely to make their labels resemble the delivery hierarchy.
+4. **Keep stable identifiers.** GitHub assigns new issue numbers. Preserve
+   milestone IDs, issue IDs and slice-group identifiers; do not allocate new work
+   in frozen archives or rename records merely to encode their status.
 5. **Validate the active system.** Run focused tests and the full validation
    suite. `scripts/check_record_sync.sh` checks historical links and issue
    traceability; it does not require tracker status parity.
 
 ## One-line summary
 
-GitHub Issues and Project #2 are the single active delivery system. Milestones
-state when a committed outcome is due; Outcome and Phase state why and in what
-dependency order; parent links state hierarchy; Evidence and linked PRs prove
-completion. Repository records remain frozen context and are never a second
-status system.
+GitHub milestones commit outcomes, their named slice groups organize delivery,
+and linked issues own work and evidence. Project #2 shows operational state;
+explicit dependencies determine ordering. Issue closure alone does not prove a
+slice or milestone complete. Repository trackers remain frozen context, never
+a second status system.
