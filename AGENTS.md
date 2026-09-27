@@ -72,6 +72,25 @@ Any server-side, container, or Linux-only command MUST execute on
 for server work. If SSH access to `192.168.1.254` is unavailable, stop and
 report the blocker rather than running the command locally.
 
+### Windows shell and SSH quoting
+
+On Windows, agent terminals run PowerShell 7 (`pwsh`). Do not hand-build
+`ssh host "..."` command strings: each layer (PowerShell, ssh, the remote shell)
+re-parses quotes, which strips Docker/Go template braces, `$` variables and
+embedded quotes. Send the remote work through stdin with the helper instead:
+
+```powershell
+scripts/remote.ps1 'cd /data/code/project0 && docker inspect --format "{{.Name}}" project0-game-server'
+Get-Content job.sh -Raw | scripts/remote.ps1
+```
+
+Write the script exactly as in a bash terminal and wrap it in single quotes; the
+remote exit code becomes `$LASTEXITCODE`. It uses `BatchMode`, so missing key
+access fails fast (exit 255) instead of waiting at a password prompt. From Git
+Bash, use a quoted heredoc: `ssh -T vic@192.168.1.254 bash -s <<'EOF'`.
+`bash` in PowerShell must resolve to Git Bash, not `C:\Windows\System32\bash.exe`
+(the WSL launcher); WSL is not a supported shell for this repository.
+
 ## Project boundaries
 
 - Primary product boundary: This repository owns the Godot 4 client and

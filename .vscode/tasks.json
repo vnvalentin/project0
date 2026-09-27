@@ -50,8 +50,9 @@
 			"command": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
 			"args": [
 				"-NoProfile",
-				"-Command",
-				"ssh vic@192.168.1.254 \"cd /data/code/project0 && printf 'remote checkout: ' && pwd && git status --short --branch\""
+				"-File",
+				"${workspaceFolder}\\scripts\\remote.ps1",
+				"cd /data/code/project0 && printf 'remote checkout: ' && pwd && git status --short --branch"
 			],
 			"problemMatcher": [],
 			"presentation": {
