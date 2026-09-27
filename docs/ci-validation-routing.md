@@ -62,9 +62,11 @@ CLI failures emit `routing/report.json`; original job artifacts upload on failur
 
 ## Windows Handoff
 
-#1244 owns native test execution and its result producer. It must preserve the
-exact `windows_ref` and publish artifact
-`result-launcher-<run_id>-<run_attempt>` containing `result.json` plus its proofs:
+#1244 owns native test execution and its result producer. The existing Windows
+runner script must write `build/validation/windows_launcher/result.json` plus
+its proofs in that directory, preserving the exact `windows_ref`. This workflow
+uploads them as `result-launcher-<run_id>-<run_attempt>` without another workflow
+edit. The result schema is:
 
 ```json
 {

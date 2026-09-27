@@ -258,6 +258,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload source-bound Windows result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-launcher-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/validation/windows_launcher/
+          if-no-files-found: error
+          retention-days: 14
+
   aggregate:
     name: Platform-owned validation acceptance
     if: always()
