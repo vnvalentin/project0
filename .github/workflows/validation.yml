@@ -41,9 +41,13 @@ jobs:
   ownership:
     name: Validation ownership and client boundary
     needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 10
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -84,9 +88,13 @@ jobs:
   godot:
     name: Godot GUT suite
     needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 25
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -125,9 +133,13 @@ jobs:
   records:
     name: Delivery record sync
     needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 10
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -164,9 +176,13 @@ jobs:
   python:
     name: Python service tests
     needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 10
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -196,11 +212,15 @@ jobs:
   launcher:
     name: Windows launcher tests
     needs: route
+    if: always()
     # Every file in native/windows_launcher is `//go:build windows`, so these
     # tests can only be compiled and executed on a Windows runner.
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.windows_ref == '' }}
+        run: exit 1
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}

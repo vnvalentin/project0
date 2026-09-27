@@ -136,6 +136,8 @@ class RoutingTests(unittest.TestCase):
         for job in ("ownership", "godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
             self.assertIn("needs: route", block)
+            self.assertIn("if: always()", block)
+            self.assertLess(block.index("run: exit 1"), block.index("uses: actions/checkout@v4"))
             self.assertIn("runs-on: [self-hosted, Linux, X64, okami]", block)
             self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", block)
             self.assertIn("verify-source", block)
