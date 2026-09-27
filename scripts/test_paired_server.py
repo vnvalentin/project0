@@ -15,6 +15,16 @@ from scripts import paired_server as harness
 
 
 class PairedServerTests(unittest.TestCase):
+    def test_shutdown_requires_verified_normal_termination(self):
+        state = {"Running": False, "OOMKilled": False, "Error": "", "ExitCode": 143}
+        self.assertTrue(harness.valid_shutdown(state, 0))
+        self.assertTrue(harness.valid_shutdown(state | {"ExitCode": 0}, 0))
+        self.assertFalse(harness.valid_shutdown(state, 1))
+        for change in ({"Running": True}, {"OOMKilled": True}, {"Error": "daemon error"},
+                       {"ExitCode": 137}, {"ExitCode": 1}):
+            with self.subTest(change=change):
+                self.assertFalse(harness.valid_shutdown(state | change, 0))
+
     def test_cleanup_requires_successful_absence_observation(self):
         for kind in ("container", "network"):
             with self.subTest(kind=kind):

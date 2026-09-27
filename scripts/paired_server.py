@@ -114,6 +114,12 @@ def valid_admission(admission, sequence, since, now):
             and since <= admission.get("observed_at", 0) <= now)
 
 
+def valid_shutdown(state, stop_code):
+    return (stop_code == 0 and state.get("Running") is False
+            and state.get("OOMKilled") is False and state.get("Error") == ""
+            and type(state.get("ExitCode")) is int and state["ExitCode"] in (0, 143))
+
+
 def owned_resource(kind, name, run_id):
     field = "{{json .Config.Labels}}" if kind == "container" else "{{json .Labels}}"
     result = command("docker", kind, "inspect", "--format", field, name, check=False)
@@ -367,7 +373,15 @@ def supervise(run):
             try:
                 if not owned_resource("container", name, report["run_id"]):
                     raise ValueError("container_ownership_unverified")
-                command("docker", "stop", "--time", "3", name, check=False)
+                stopped = command("docker", "stop", "--time", "3", name, check=False)
+                exit_state = json.loads(command("docker", "container", "inspect", "--format", "{{json .State}}", name).stdout)
+                report["shutdown"] = {"stop_exit_code": stopped.returncode,
+                                      "running": exit_state.get("Running"), "exit_code": exit_state.get("ExitCode"),
+                                      "oom_killed": exit_state.get("OOMKilled"), "error": redact(str(exit_state.get("Error", "")), []),
+                                      "passed": valid_shutdown(exit_state, stopped.returncode)}
+                if report["status"] == "server_passed" and not report["shutdown"]["passed"]:
+                    report.update(status="failed", reason="runtime_shutdown_failed")
+                report["runtime_logs_complete"] = exit_state.get("Running") is False
                 raw = command("docker", "logs", name).stdout
                 token = (state / "assertion").read_text() if (state / "assertion").exists() else ""
                 if (state / "import.log").exists():
