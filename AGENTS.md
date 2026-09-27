@@ -177,9 +177,15 @@ Do not create implementation slices or product code while this gate is open.
   suitable issue exists. Link it from the branch/PR, slice record, tracker
   records, and any local `.scratch` planning ticket references. Local planning
   tickets do not replace the GitHub Issue.
+- For every task, follow [goal-first execution and discovery handling](docs/DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling):
+  name the issue's goal, acceptance criteria and non-goals; capture discoveries
+  first; resolve goal blockers through Jidoka; record non-blockers and return
+  immediately to the original goal. Factual capture is pre-authorized, not
+  permission to expand scope.
 - Test at the public seam and run the narrowest relevant validation first.
-- Stop on unexpected failure, degraded health, missing evidence, or unclear
-  security boundaries.
+- Stop affected work for goal-blocking failures, failed mandatory gates, or
+  unclear safety/security boundaries; classify other discoveries using the
+  goal-first rule.
 - Completion persistence rule: do not stop an implementation, experiment, or
   delivery path while its governing GitHub issue remains open. Continue until
   the issue is closed with acceptance evidence, or explicitly mark it blocked
@@ -194,22 +200,14 @@ Do not create implementation slices or product code while this gate is open.
   symptom, public seam, falsifiable hypothesis, discriminating check,
   confirmed root cause, why existing tests missed it, countermeasure,
   regression evidence, and any remaining limitation or debt link. A chat or
-  terminal log alone is not durable evidence.
-- Jidoka blocker protocol: when a blocker is found, stop the affected
-  experiment or delivery path immediately. Create or update a GitHub problem
-  issue before resuming work, recording the symptom, public seam, evidence,
-  falsifiable hypotheses, confirmed root cause, acceptance criteria, and
-  rollback boundary. Resume only after the owning seam has a focused fix and
-  the discriminating check passes; do not report the parent experiment as
-  complete while the problem remains open.
-- Blocker closure rule: after stopping, identify the blocker, define and
-  evidence its root cause, and create a GitHub Technical Debt issue recording
-  the root cause, impact, remediation performed, validation evidence, and
-  remaining limitation. Close the blocker only after its focused
-  discriminating check passes. If the blocker cannot be closed with the
-  available authority or access, leave it explicitly blocked and request
-  guidance with the unresolved hypotheses, required decision, and next owner;
-  never silently work around it or report completion.
+  terminal log alone is not durable evidence. For non-blocking discoveries,
+  link the deferred issue and mark uninvestigated fields unknown; this gate
+  does not require unrelated diagnosis before completing the current goal.
+- Jidoka and blocker closure follow the canonical goal-first rule linked above:
+  record the problem and Technical Debt, establish root cause, apply a focused
+  fix, validate and close with evidence before resuming the affected goal.
+  Missing authority or access leaves an explicit blocker and next owner/action,
+  never a bypass or completion claim.
 - Never claim runtime behavior without runtime evidence.
 - Do not add dependencies, migrations, permissions, or external side effects
   without documenting their safety and rollback implications.

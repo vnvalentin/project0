@@ -122,11 +122,14 @@ Every implementation slice follows `docs/DEVELOPMENT-WORKFLOW.md`:
 
 ## 5. Jidoka and Genchi Genbutsu
 
-Stop automatically on an unexpected test or build failure, degraded health,
-contradictory behavior, missing or ambiguous evidence, suspicious persisted data,
-external dependency drift, or an unclear security boundary.
+Anchor every task to its governing issue's goal and acceptance criteria. Follow
+[goal-first execution and discovery handling](DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling):
+capture each discovery first, classify whether it blocks the goal or a mandatory
+gate, and keep non-blocking problems visible as deferred work. Stop affected
+work automatically for goal blockers, failed required tests/builds, or unclear
+safety/security boundaries; preserve immediate containment when safety is unclear.
 
-Go and see the actual evidence: inspect requests, responses, logs, configuration,
+For blockers, go and see the actual evidence: inspect requests, responses, logs, configuration,
 environment, persisted state, and failing versus working paths. Reproduce the
 smallest discriminating check and verify every link in the root-cause chain.
 Never call a workaround a root-cause fix without evidence that it prevents
