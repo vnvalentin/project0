@@ -130,6 +130,13 @@ def read_json(path):
     return json.loads(path.read_text())
 
 
+def read_health(path, previous):
+    try:
+        return read_json(path)
+    except json.JSONDecodeError:
+        return previous
+
+
 def prepare(root, output):
     check_host()
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -241,6 +248,7 @@ def supervise(run):
         write_json(run / "report.json", report)
         ready_deadline = min(report["deadline_at"], time.time() + request["readiness_seconds"])
         previous_tick = -1
+        health = {}
         while True:
             now = time.time()
             if interrupted:
@@ -269,10 +277,7 @@ def supervise(run):
                 raise ValueError("runtime_exited")
             health_path = state / "health.json"
             if health_path.exists():
-                try:
-                    health = read_json(health_path)
-                except json.JSONDecodeError:
-                    health = {}
+                health = read_health(health_path, health)
                 if report["status"] == "starting" and healthy(health, now, previous_tick) and previous_tick >= 0:
                     engine = (state / "engine.txt").read_text().strip()
                     if engine != manifest["server_engine"]:
@@ -403,6 +408,9 @@ def main():
         return
     elif args.action == "status":
         result = read_json(args.run / "report.json")
+        admission_path = args.run / "private/admission.json"
+        if result["status"] == "ready" and admission_path.exists():
+            result["admission"] = read_json(admission_path)
     else:
         report = read_json(args.run / "report.json")
         if "finished_at" in report:

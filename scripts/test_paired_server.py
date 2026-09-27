@@ -82,6 +82,18 @@ class PairedServerTests(unittest.TestCase):
         self.assertFalse(harness.healthy(health | {"status": "starting"}, now, 29))
         self.assertFalse(harness.healthy(health | {"timestamp": 0}, now, 29))
 
+    def test_partial_health_retains_snapshot_only_until_stale(self):
+        now = time.time()
+        previous = {"status": "healthy", "server_tick": 30, "timestamp": int(now)}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "health.json"
+            path.write_text("{")
+            observed = harness.read_health(path, previous)
+            self.assertTrue(harness.healthy(observed, now, -1))
+            self.assertFalse(harness.healthy(observed, now + 6, -1))
+            path.write_text(json.dumps(previous | {"server_tick": 60}))
+            self.assertEqual(harness.read_health(path, previous)["server_tick"], 60)
+
 
 if os.environ.get("PAIRED_LIVE") == "1":
     class LiveLifecycleTests(unittest.TestCase):
@@ -133,6 +145,8 @@ if os.environ.get("PAIRED_LIVE") == "1":
             self.assertEqual(ready["status"], "ready", ready)
             self.assertGreater(ready["readiness"]["storage"]["canon.db"]["rows"], 0)
             self.assertTrue(ready["readiness"]["auth"]["tampered_rejected"])
+            status = harness.command(sys.executable, self.script, "status", "--run", str(run))
+            self.assertFalse(json.loads(status.stdout)["admission"]["authenticated"])
             routes = harness.command("docker", "exec", ready["resources"]["container"], "cat", "/proc/net/route").stdout
             self.assertTrue(any(line.split()[1] == "00000000" for line in routes.splitlines()[1:]),
                             "Private server requires a return route to the Windows LAN client")

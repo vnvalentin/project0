@@ -67,6 +67,10 @@ Server build includes manifest hash, source commit, image, engine and RPC hash.
 Different engine versions are explicitly recorded, never assumed compatible.
 The client must pass the normal version handshake, session assertion, world
 entry, and input ACK before any compatible paired result can be claimed.
+While ready, `status` also returns the server's current `admission` observation.
+Before `finish`, poll until `admission.authenticated` is true and
+`admission.input_ack_sequence` covers the client's observed ACK, within the same
+deadline. Keep the client connected throughout; do not race the observer timer.
 
 ## Private Handoff
 
