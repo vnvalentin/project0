@@ -1,0 +1,92 @@
+# CI Validation Routing
+
+Governing issue: [#1259](https://github.com/vnvalentin/project0/issues/1259).
+Parent: [#1244](https://github.com/vnvalentin/project0/issues/1244).
+
+## Source Contract
+
+Schema version 1. `route` is a Windows **metadata** job, not native acceptance.
+It acquires the exact event candidate on Windows and reads live PR metadata
+with the read-only GitHub token. An open same-repository PR must target main,
+match the event SHA and current main base, and contain that base as an ancestor.
+A main push must identify exactly one merged PR and one merge commit whose
+first parent is the event's previous main SHA. Missing, ambiguous, stale, foreign
+or unsupported identities fail before any Linux job starts.
+
+Every Linux job depends on `route`, checks out only `linux_ref`, and verifies
+the committed Git blob manifest SHA-256 before running tests. No unclassified
+candidate branch is fetched by Linux. The exact candidate remains `windows_ref`.
+
+Linux-only changes use the candidate SHA. A `platform:windows-required` change
+may use the approved main baseline only when all tracked inputs except direct
+`scripts/*.ps1` files and `docs/validation-ownership.md` are byte-identical.
+The sorted path/blob map binds additions and deletions as well as modifications.
+This narrow exclusion is for Windows tooling, not game/client/native changes.
+Changed client/native/export inputs, unknown paths, mixed Linux inputs, symlinks,
+submodules and missing Windows labels fail closed. The ownership manifest and
+workflow are Linux inputs: changing them cannot be hidden by baseline reuse.
+
+## Execution And Evidence
+
+All four Linux jobs require runner labels `self-hosted, Linux, X64, okami`,
+assigned to `192.168.1.254`. The generic hosted Linux alias is not permission to
+move server/Canon execution. Runner prerequisites must already exist; no
+dependency installation or fallback host is performed.
+
+Host tools: Python 3, Git, gh for metadata on Windows, Bash, existing service
+requirements/pytest, and Docker on okami. GUT uses existing image
+`sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602`
+only for runtime execution; it does not contain Python/Git. Its container has
+no network, no capabilities, read-only root, private tmpfs/HOME and no shared
+database or dashboard paths. A bounded timeout and exit trap remove only its
+uniquely named container. CI checkout state belongs to the runner job.
+
+`routing/plan.json` records candidate, baseline, Linux/Windows refs, input digest,
+changed paths, required jobs, expected test files and the evidence limitation.
+The artifact name binds the GitHub run ID and attempt. Commands:
+
+```text
+python scripts/ci_validation_routing.py plan
+python3 scripts/ci_validation_routing.py verify-source --plan <plan.json>
+python3 scripts/ci_validation_routing.py seal --job <linux-job> --plan <plan.json>
+python scripts/ci_validation_routing.py aggregate --results <download-directory>
+```
+
+Required jobs remain ownership, godot, records, python and launcher. Coverage
+units are the existing required test **files/scripts**, not a claim of atomic
+test-case inventory. XML failures/errors/skips and omitted files reject sealing.
+Ownership uses its real JSON reports; record checks use successful command logs.
+The unconditional acceptance job additionally rejects any failed/skipped job.
+Artifact hashes are recomputed from downloaded bytes, not accepted on assertion.
+CLI failures emit `routing/report.json`; original job artifacts upload on failure.
+
+## Windows Handoff
+
+#1244 owns native test execution and its result producer. It must preserve the
+exact `windows_ref` and publish artifact
+`result-launcher-<run_id>-<run_attempt>` containing `result.json` plus its proofs:
+
+```json
+{
+  "schema_version": 1,
+  "candidate": "<plan.candidate>",
+  "source_ref": "<plan.windows_ref>",
+  "input_digest": "<plan.input_digest>",
+  "status": "success",
+  "skipped": 0,
+  "tests": ["<every actually executed plan.expected_tests.launcher entry>"],
+  "artifacts": {"proof.json": "<SHA-256 of the uploaded bytes>"}
+}
+```
+
+The producer must derive coverage from executed tests, never copy the expected
+list into a success record. Additional Windows client/paired gates require a
+coordinated extension to the required job contract; they are not supplied here.
+Existing launcher summary JSON lacks executed-test coverage, so aggregate
+acceptance intentionally remains blocked until this adapter is integrated.
+Do not merge this change as a complete delivery while that blocker remains.
+
+Full GUT is supporting Linux evidence, never Windows or paired acceptance.
+Retain accepted diagnostic fingerprints and debts #1189/#1190; no global clean
+claim. Rollback only #1259's four routing files, never runtime state. Rollback
+restores the unsafe checkout route, so Windows publication must stop first.
