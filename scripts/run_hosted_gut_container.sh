@@ -13,7 +13,7 @@ fi
 
 root="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 image="ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
-install -d -m 2775 "$root/build/validation/runtime" "$root/.godot"
+install -d -m 2775 "$root/build/validation/runtime" "$root/.godot" "$root/logs/experiments"
 container="project0-hosted-gut-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}"
 label="${PROJECT0_HOSTED_GUT_TEST_ID:-$container}"
 if docker container inspect "$container" >/dev/null 2>&1; then
@@ -27,7 +27,7 @@ trap cleanup EXIT
 
 container_command=(bash -c 'umask 0002; exec bash scripts/run_gut_validation.sh')
 if [[ "$mode" == "--probe" ]]; then
-  container_command=(bash -c 'umask 0002; printf "container evidence\n" > build/validation/container-probe.txt')
+  container_command=(bash -c 'if printf "unexpected write\n" > scripts/.hosted-write-probe 2>/dev/null; then exit 42; fi; umask 0002; printf "container evidence\n" > build/validation/container-probe.txt')
   if [[ "${PROJECT0_HOSTED_GUT_PROBE_FAIL:-0}" == "1" ]]; then
     container_command=(bash -c 'umask 0002; printf "failed container evidence\n" > build/validation/container-probe.txt; exit 23')
   fi
@@ -40,6 +40,7 @@ docker run --rm --name "$container" --label "project0.hosted-gut=$label" \
   --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev \
   -v "$root:/app:ro" -v "$root/.godot:/app/.godot" \
   -v "$root/build/validation:/app/build/validation" \
+  -v "$root/logs/experiments:/app/logs/experiments" \
   -w /app --entrypoint /usr/bin/env "$image" \
   -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home \
   XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache \
