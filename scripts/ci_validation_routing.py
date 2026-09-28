@@ -13,6 +13,9 @@ REQUIRED_JOBS = ["ownership", "godot", "records", "python", "launcher"]
 SHA = re.compile(r"[0-9a-f]{40}")
 WINDOWS_ASSETS = {"docs/validation-ownership.md", "scripts/client_package_inventory.gd",
                   "scripts/windows_paired_client.gd", "tests/fixtures/windows_client_packages.gd"}
+ARTIFACT_CONTRACT_PATH = ".github/artifact-contract.json"
+SHA256 = re.compile(r"[0-9a-f]{64}")
+RUNTIME_IMAGE = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def windows_tooling(path):
@@ -22,6 +25,36 @@ def windows_tooling(path):
 
 def digest(tree):
     return hashlib.sha256(json.dumps(tree, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def validate_artifact_contract(contract):
+    if not isinstance(contract, dict) or contract.get("schema_version") != 1:
+        raise ValueError("missing or invalid artifact contract")
+    if not isinstance(contract.get("name"), str) or not contract["name"]:
+        raise ValueError("artifact contract name missing")
+    if not isinstance(contract.get("application_source_commit"), str) or not SHA.fullmatch(contract["application_source_commit"]):
+        raise ValueError("artifact contract application source identity missing")
+    client = contract.get("client")
+    linux = contract.get("linux_artifact")
+    if not isinstance(client, dict) or not isinstance(linux, dict):
+        raise ValueError("artifact contract package identities missing")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", str(client.get("version", ""))):
+        raise ValueError("artifact contract client version invalid")
+    for field in ("manifest_sha256", "archive_sha256", "pck_sha256"):
+        if not isinstance(client.get(field), str) or not SHA256.fullmatch(client[field]):
+            raise ValueError(f"artifact contract client {field} invalid")
+    if not isinstance(linux.get("manifest_sha256"), str) or not SHA256.fullmatch(linux["manifest_sha256"]):
+        raise ValueError("artifact contract Linux manifest hash invalid")
+    if not isinstance(linux.get("source_commit"), str) or not SHA.fullmatch(linux["source_commit"]):
+        raise ValueError("artifact contract Linux source identity missing")
+    if not isinstance(linux.get("image"), str) or not RUNTIME_IMAGE.fullmatch(linux["image"]):
+        raise ValueError("artifact contract runtime image invalid")
+    allowlist = contract.get("source_allowlist")
+    if not isinstance(allowlist, list) or not allowlist or any(
+            not isinstance(path, str) or not path or path.startswith("/") or "\\" in path
+            or ".." in PurePosixPath(path).parts for path in allowlist):
+        raise ValueError("artifact contract source allowlist missing or invalid")
+    return contract
 
 
 def route(metadata):
@@ -45,26 +78,40 @@ def route(metadata):
     changed = sorted(path for path in candidate_tree.keys() | baseline_tree.keys()
                      if candidate_tree.get(path) != baseline_tree.get(path))
     windows = "platform:windows-required" in labels
+    client_changed = any(path.startswith(("client/", "native/")) or path == "export_presets.cfg"
+                         for path in changed)
+    contract = metadata.get("artifact_contract")
+    if client_changed or (windows and any(candidate_tree.get(path) != baseline_tree.get(path)
+                                          for path in candidate_tree.keys() | baseline_tree.keys()
+                                          if not windows_tooling(path))):
+        if not windows:
+            raise ValueError("artifact contract requires platform:windows-required")
+        validate_artifact_contract(contract)
     linux_roots = {"server", "shared", "tests", "scripts", "infra", "deploy", "dashboard",
                    "operator_console", "docs", ".github", ".agents", "addons"}
     linux_files = {"AGENTS.md", "CLAUDE.md", "CONTEXT.md", "HOSHIN.MD", "project.godot",
                    ".gutconfig.json", ".gitignore", ".gitattributes", "skills-lock.json"}
     for path in changed:
         if path.startswith(("client/", "native/")) or path == "export_presets.cfg":
-            raise ValueError("native/client changes require an explicit artifact contract")
+            if not contract:
+                raise ValueError("native/client changes require an explicit artifact contract")
+            continue
         if not windows_tooling(path) and path.split("/")[0] not in linux_roots and path not in linux_files:
             raise ValueError(f"unknown ownership: {path}")
         if windows_tooling(path) and not windows:
             raise ValueError("Windows tooling requires platform:windows-required")
     linux_inputs = {path: blob for path, blob in candidate_tree.items() if not windows_tooling(path)}
+    routed_inputs = linux_inputs
     if windows:
         baseline_inputs = {path: blob for path, blob in baseline_tree.items() if not windows_tooling(path)}
-        if linux_inputs != baseline_inputs:
+        if linux_inputs != baseline_inputs and not contract:
             raise ValueError("mixed Windows/Linux inputs: source hash mismatch")
+        routed_inputs = baseline_inputs
     return {"schema_version": 1, "candidate": metadata["candidate"],
             "baseline": metadata["baseline"], "linux_ref": metadata["baseline"] if windows else metadata["candidate"],
             "windows_ref": metadata["candidate"], "windows_required": windows,
-            "input_digest": digest(linux_inputs), "changed_paths": changed,
+            "artifact_contract": contract.get("name") if contract else None,
+            "input_digest": digest(routed_inputs), "changed_paths": changed,
             "required_jobs": REQUIRED_JOBS.copy(), "linux_host": "192.168.1.254",
             "runtime_acceptance": "supporting-only; not Windows or paired acceptance"}
 
@@ -112,6 +159,8 @@ def metadata_from_event():
     if sys.platform != "win32":
         raise ValueError("candidate acquisition/classification requires Windows metadata host")
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+    contract_path = Path(ARTIFACT_CONTRACT_PATH)
+    artifact_contract = json.loads(contract_path.read_text(encoding="utf-8")) if contract_path.is_file() else None
     repository = os.environ["GITHUB_REPOSITORY"]
     candidate = event.get("pull_request", {}).get("head", {}).get("sha", os.environ["GITHUB_SHA"])
     if command("git", "rev-parse", "HEAD") != candidate:
@@ -124,7 +173,8 @@ def metadata_from_event():
               and os.environ["GITHUB_REF"].startswith("refs/tags/"))):
         command("git", "merge-base", "--is-ancestor", candidate, approved)
         return {"candidate": candidate, "baseline": candidate, "approved_baseline": candidate,
-                "labels": [], "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(candidate)}
+            "labels": [], "artifact_contract": artifact_contract,
+            "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(candidate)}
     elif os.environ["GITHUB_EVENT_NAME"] == "push" and os.environ["GITHUB_REF"] != "refs/heads/main":
         pulls = json.loads(command("gh", "api", f"repos/{repository}/commits/{candidate}/pulls"))
         matches = [pull for pull in pulls if pull["state"] == "open" and pull["head"]["sha"] == candidate
@@ -144,8 +194,9 @@ def metadata_from_event():
         if command("git", "rev-parse", f"{candidate}^1") != baseline:
             raise ValueError("main push must contain one merge commit")
         return {"candidate": candidate, "baseline": baseline, "approved_baseline": baseline,
-                "labels": [label["name"] for label in matches[0]["labels"]],
-                "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(baseline)}
+            "labels": [label["name"] for label in matches[0]["labels"]],
+            "artifact_contract": artifact_contract,
+            "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(baseline)}
     else:
         raise ValueError("unsupported event")
     pull = json.loads(command("gh", "pr", "view", str(number), "--repo", repository,
@@ -156,6 +207,7 @@ def metadata_from_event():
     command("git", "merge-base", "--is-ancestor", approved, candidate)
     return {"candidate": candidate, "baseline": approved, "approved_baseline": approved,
             "labels": [label["name"] for label in pull["labels"]],
+            "artifact_contract": artifact_contract,
             "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(approved)}
 
 
@@ -325,7 +377,9 @@ def main():
         if args.action == "plan":
             metadata = metadata_from_event()
             plan = route(metadata)
-            plan["expected_tests"] = expected_tests(metadata["candidate_tree"], plan["windows_required"])
+            expected_tree = (metadata["baseline_tree"] if plan["windows_required"]
+                             else metadata["candidate_tree"])
+            plan["expected_tests"] = expected_tests(expected_tree, plan["windows_required"])
             args.plan.parent.mkdir(parents=True, exist_ok=True)
             args.plan.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
             if os.environ.get("GITHUB_OUTPUT"):

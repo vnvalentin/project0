@@ -181,6 +181,86 @@ deterministic helpers that both processes must interpret identically. Shared
 code MUST NOT imply shared authority. Secrets, database handles, Ollama access,
 authoritative clocks, and mutable progression repositories remain server-only.
 
+### Deployment And Interaction Boundary
+
+The Windows client and Linux server are separate processes with different
+dependencies. This boundary applies to validation as well as deployment; a test
+that combines their code does not move server dependencies into the client.
+
+| Process | Owns | Does not own |
+| --- | --- | --- |
+| Windows client | Input intents, prediction, presentation, geometry assembly, navigation readiness and presentation acknowledgements (ACKs) | SQLite, Canon writes, Ollama requests or authoritative admission |
+| Linux game-server container on `192.168.1.254` | Authentication/session enforcement, simulation, collision, generation orchestration, Canon persistence and admission | Windows rendering or proof of player-approved feel |
+| Server-side SQLite and Ollama | Durable Canon storage and untrusted generation proposals, respectively, accessed through server-owned code | Direct client access or authority to grant client readiness |
+| Shared contracts | Pure schema, identity and spatial conversion rules interpreted consistently by both processes | Database handles, generation services or mutable gameplay authority |
+
+The town-exit interaction crosses these boundaries in this order:
+
+**1. Windows -> server:** the authenticated client sends movement intent. The
+server computes the collision-resolved candidate and detects a frontier that
+needs content/readiness; requesting content does not admit movement.
+
+**2. Server -> generator -> Canon:** the server obtains and validates a proposal
+or fallback, then commits it through the Canon repository. Only accepted
+canonical content is eligible for presentation; a model response is not a
+persistence or readiness acknowledgement.
+
+**3. Server -> Windows:** the server sends the canonical blueprint, ingress and
+presentation trace/binding. The client assembles geometry and evaluates real
+navigation readiness for that presentation.
+
+**4. Windows -> server:** successful navigation readiness earns the bound
+presentation ACK. Rejected geometry or failed navigation MUST NOT emit a
+successful ACK. The ACK reports presentation readiness, not permission to
+write Canon or choose an authoritative position.
+
+**5. Server -> Windows:** the server checks readiness against the current peer
+and presentation binding and retains movement authority and collision checks.
+Accepted authoritative positions are replicated for client reconciliation.
+
+The flow is owned by [server orchestration](../server/server_main.gd), the
+[Canon coordinator](../server/canon_generation_coordinator.gd),
+[Canon repository](../server/canon_repository.gd),
+[client presentation](../client/network_client.gd), and
+[navigation readiness](../client/sector_navigation_readiness.gd).
+
+This describes ownership, not proof that every spatial condition is satisfied.
+Issue [#1242](https://github.com/vnvalentin/project0/issues/1242) governs the
+pending versioned detail-placement correction and connected-detail admission
+checks. Its coordinate contract requires a separate ADR and regression evidence;
+this section does not claim that correction is implemented.
+
+### Host-Specific Validation
+
+**Windows:** run client geometry/navigation and pure shared-contract tests without
+SQLite or Ollama dependencies. Do not add server-native libraries to a client
+package to satisfy an all-in-one diagnostic harness.
+
+**Linux:** server persistence, generation, authoritative simulation and container
+tests run on `192.168.1.254` through SSH. A test that opens real Canon storage is
+a server-side or combined integration test, even if stored under `tests/unit/`.
+
+**Execution approval:** a `platform:windows-required` branch MUST NOT be pulled
+or executed on Linux. Paired validation needs an explicitly approved, separately
+bounded server-only artifact/scope; the host split is not permission to run the
+Windows branch remotely. Record exact source and artifact identities for both sides.
+
+**Replay evidence:** a Windows replay of a retained server presentation proves only
+client behavior for that captured input. It does not prove a fresh Canon commit,
+server admission, transport binding or complete end-to-end acceptance. Preserve
+the original host and provenance of retained evidence.
+
+**Paired acceptance:** connect the actual Windows client to an isolated Linux
+backend with owned storage. Correlate intent, collision-resolved candidate,
+canonical blueprint/revision, world/detail coordinates, navigation result,
+actual bound ACK and admitted position. Preserve failure evidence and verify
+owned process/container/data cleanup. Player confirmation remains necessary
+for visual grounding and normal feel.
+
+**Missing gates:** report unavailable host-specific gates as awaiting evidence.
+Neither a mock persistence layer nor synthetic positive ACKs replace the required
+real-Canon and real-navigation checks.
+
 ## Six-Node Biological Vessel
 
 The persistent vessel is a six-axis spider/radar graph with a fixed total area

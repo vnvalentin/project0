@@ -11,6 +11,7 @@ const TelemetryRateLimiterScript: Script = preload("res://server/telemetry_rate_
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
+const SectorDetailGenerationScript: Script = preload("res://server/sector_detail_generation.gd")
 var _network_client: Node
 
 
@@ -110,13 +111,17 @@ class FakeMutationRepository extends RefCounted:
 		return {"outcome": outcome, "mutations": [] if revision == 0 else [{"applied_revision": revision, "mutation_kind": "loot"}]}
 
 
-func _frontier_server() -> FrontierServer:
+func _frontier_server(town: Dictionary = {}) -> FrontierServer:
 	var server: FrontierServer = FrontierServer.new()
+	server._starting_town_hub_blueprint = town if not town.is_empty() else {
+		"schema_version": 1, "sector_id": "starting_town_hub", "origin": {"x": 0, "y": 0},
+		"tiles": [{"x": 0, "y": 0, "kind": "floor"}],
+	}
 	var generator: FakeGenerator = FakeGenerator.new()
 	server.root.add_child(generator)
 	server._provisional_sector_generator = generator
 	var repository: FakeCanonRepository = FakeCanonRepository.new()
-	repository.blueprint = {"sector_id": "sector-0-0"}
+	repository.blueprint = _frontier_blueprint("sector-0-0")
 	server._canon_repository = repository
 	var detector: SectorBoundaryDetector = SectorBoundaryDetectorScript.new()
 	detector.set_canon_lookup(func(sector_id: String) -> bool: return sector_id == "sector-0-0")
@@ -125,6 +130,19 @@ func _frontier_server() -> FrontierServer:
 	server._sector_boundary_detector = detector
 	_add_frontier_peer(server, 7)
 	return server
+
+
+func _frontier_blueprint(sector_id: String) -> Dictionary:
+	var source: bool = sector_id == "sector-0-0"
+	var tiles: Array[Dictionary] = []
+	for horizontal: int in range(2 if source else 5):
+		for vertical: int in range(-1, 5):
+			tiles.append({"x": horizontal, "y": vertical, "kind": "floor"})
+	return {
+		"schema_version": 5, "sector_id": sector_id,
+		"detail_origin": {"x": 439 if source else 0, "y": 10},
+		"origin": {"x": 1 if source else 0, "y": 0}, "tiles": tiles,
+	}
 
 
 func _add_frontier_peer(server: FrontierServer, peer_id: int) -> Node:
@@ -148,7 +166,7 @@ func _add_frontier_peer(server: FrontierServer, peer_id: int) -> Node:
 func _destination_trace(server: FrontierServer) -> Dictionary:
 	server._resolve_frontier_movement(7, Vector3(439.99, 1, 10), Vector3(440.1, 1, 10))
 	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(JitTraceContextScript.root(7, "sector-1-0"), "canon_db_commit")
-	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
+	server._on_canonical_sector_ready("sector-1-0", _frontier_blueprint("sector-1-0"))
 	return server.presentations.back()["trace"]
 
 
@@ -171,7 +189,7 @@ func test_live_frontier_prepares_once_holds_then_releases_without_telemetry() ->
 	assert_gt(state.position.z, 10.5, "ready adjacent motion continues")
 	assert_eq(server._provisional_sector_generator.requests.size(), 1, "held frames prepare destination exactly once")
 	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(JitTraceContextScript.root(7, "sector-1-0"), "canon_db_commit")
-	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
+	server._on_canonical_sector_ready("sector-1-0", _frontier_blueprint("sector-1-0"))
 	assert_eq(server.presentations.size(), 2, "source reentry and destination each have a presentation")
 	if server.presentations.size() == 2:
 		var destination: Dictionary = server.presentations.back()["trace"]
@@ -184,12 +202,12 @@ func test_live_frontier_prepares_once_holds_then_releases_without_telemetry() ->
 
 
 func test_current_town_ack_allows_origin_crossing_without_granting_neighbor_sector() -> void:
-	var server: FrontierServer = _frontier_server()
-	server._starting_town_hub_blueprint = {"sector_id": "starting_town_hub", "tiles": [
+	var town: Dictionary = {"schema_version": 1, "sector_id": "starting_town_hub", "origin": {"x": 0, "y": 0}, "tiles": [
 		{"x": -1, "y": 0, "kind": "floor"},
 		{"x": 0, "y": 0, "kind": "floor"},
 		{"x": 1, "y": 0, "kind": "floor"},
 	]}
+	var server: FrontierServer = _frontier_server(town)
 	var state: Node = server._player_states[7]
 	state.position = Vector3(0.01, 1, 0)
 	server._on_player_state_character_bound(7, "Tester", {})
@@ -243,7 +261,7 @@ func test_two_waiters_receive_distinct_tokens_and_release_independently() -> voi
 	assert_eq(server._provisional_sector_generator.requests.size(), 1, "second waiter must not reinvoke generation")
 	assert_eq(server._jit_peer_by_sector["sector-1-0"], 7, "generation owner is unchanged")
 	server._jit_commit_trace_by_sector["sector-1-0"] = JitTraceContextScript.child(JitTraceContextScript.root(7, "sector-1-0"), "canon_db_commit")
-	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
+	server._on_canonical_sector_ready("sector-1-0", _frontier_blueprint("sector-1-0"))
 	assert_eq(server.presentations.size(), 2)
 	var first: Dictionary = server.presentations[0]["trace"]
 	var second: Dictionary = server.presentations[1]["trace"]
@@ -325,7 +343,7 @@ func test_changed_revision_reentry_rejects_old_token_and_accepts_new_child() -> 
 	server._canon_mutation_service = FakeMutationService.new()
 	server._on_canon_mutation_intent(7, {"sector_id": "sector-1-0"})
 	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)), "mutation clears already granted readiness")
-	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
+	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
 	var reentry: Dictionary = JitTraceContextScript.child(old_trace, "canon_reentry")
 	server._reload_sector_from_boundary(7, "sector-1-0", Vector3(440.1, 1, 10), reentry)
 	var fresh: Dictionary = server.presentations.back()["trace"]
@@ -349,7 +367,7 @@ func test_revision_read_failure_revokes_old_readiness_without_zero_revision_fall
 	var mutations: FakeMutationRepository = FakeMutationRepository.new()
 	mutations.outcome = "query_failed"
 	server._canon_mutation_repository = mutations
-	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
+	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
 	server._reload_sector_from_boundary(7, "sector-1-0", Vector3(440.1, 1, 10), JitTraceContextScript.root(7, "sector-1-0"))
 	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
 	assert_eq(server.presentations.size(), 1, "failed revision read sends no trusted presentation")
@@ -381,7 +399,7 @@ func test_character_change_drops_inflight_waiter_and_previous_ready_grants() -> 
 	state.bind_character("new-character", "New", {})
 	var before_ready: int = server.presentations.size()
 	server._jit_commit_trace_by_sector["sector-2-0"] = JitTraceContextScript.root(7, "sector-2-0")
-	server._on_canonical_sector_ready("sector-2-0", {"sector_id": "sector-2-0"})
+	server._on_canonical_sector_ready("sector-2-0", _frontier_blueprint("sector-2-0"))
 	assert_eq(server.presentations.size(), before_ready, "old character waiter cannot receive a new grant")
 	server._on_client_telemetry_batch_received(7, [_ack_event(old_trace)], 2)
 	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)))
@@ -389,9 +407,8 @@ func test_character_change_drops_inflight_waiter_and_previous_ready_grants() -> 
 
 
 func test_town_revision_refresh_prepares_hub_not_grid_neighbor() -> void:
-	var server: FrontierServer = _frontier_server()
-	var town: Dictionary = {"sector_id": "starting_town_hub", "tiles": [{"x": 0, "y": 0, "kind": "floor"}]}
-	server._starting_town_hub_blueprint = town
+	var town: Dictionary = {"schema_version": 1, "sector_id": "starting_town_hub", "origin": {"x": 0, "y": 0}, "tiles": [{"x": 0, "y": 0, "kind": "floor"}]}
+	var server: FrontierServer = _frontier_server(town)
 	server._canon_repository.blueprint = town
 	server._sector_boundary_detector.set_canon_lookup(func(sector_id: String) -> bool: return sector_id == "starting_town_hub")
 	var state: Node = server._player_states[7]
@@ -410,7 +427,7 @@ func test_town_revision_refresh_prepares_hub_not_grid_neighbor() -> void:
 
 func test_unavailable_revision_read_stays_held_without_per_frame_queries() -> void:
 	var server: FrontierServer = _frontier_server()
-	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
+	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
 	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
 	var mutations: FakeMutationRepository = FakeMutationRepository.new()
 	mutations.outcome = "query_failed"
@@ -428,7 +445,7 @@ func test_unavailable_revision_read_stays_held_without_per_frame_queries() -> vo
 func test_lost_ack_retries_presentation_without_rotating_pending_token() -> void:
 	var server: FrontierServer = _frontier_server()
 	var trace: Dictionary = _destination_trace(server)
-	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
+	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
 	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
 	var current: Vector3 = Vector3(439.99, 1, 10)
 	var destination: Vector3 = Vector3(440.1, 1, 10)
@@ -451,7 +468,7 @@ func test_evicted_readiness_can_reprepare_despite_different_ack_order() -> void:
 	var first_traces: Array[Dictionary] = []
 	for sector: int in range(1, 18):
 		var destination: Vector3 = Vector3(440 * sector + 0.1, 1, 10)
-		server._canon_repository.blueprint = {"sector_id": "sector-%d-0" % sector}
+		server._canon_repository.blueprint = _frontier_blueprint("sector-%d-0" % sector)
 		server._resolve_frontier_movement(7, Vector3(439.99, 1, 10), destination)
 		var trace: Dictionary = server.presentations.back()["trace"]
 		if sector < 3:
@@ -462,7 +479,7 @@ func test_evicted_readiness_can_reprepare_despite_different_ack_order() -> void:
 			server._on_client_telemetry_batch_received(7, [_ack_event(trace)], sector)
 	var revisit: Vector3 = Vector3(880.1, 1, 10)
 	assert_false(server._frontier_position_ready(7, revisit), "ACK-order eviction removed sector two")
-	server._canon_repository.blueprint = {"sector_id": "sector-2-0"}
+	server._canon_repository.blueprint = _frontier_blueprint("sector-2-0")
 	server.frontier_now = 1000
 	var before_retry: int = server.presentations.size()
 	server._resolve_frontier_movement(7, Vector3(439.99, 1, 10), revisit)
@@ -474,7 +491,7 @@ func test_evicted_readiness_can_reprepare_despite_different_ack_order() -> void:
 
 func test_failed_revision_lookup_recovers_after_bounded_retry() -> void:
 	var server: FrontierServer = _frontier_server()
-	server._canon_repository.blueprint = {"sector_id": "sector-1-0"}
+	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
 	server._sector_boundary_detector.set_canon_lookup(func(_sector_id: String) -> bool: return true)
 	var mutations: FakeMutationRepository = FakeMutationRepository.new()
 	mutations.outcome = "query_failed"
@@ -555,7 +572,7 @@ func test_initial_canon_write_failure_recovers_without_regeneration() -> void:
 	assert_lt(state.position.x, 440.0, "commit alone does not authorize movement")
 	if server.presentations.size() == 1:
 		var presentation: Dictionary = server.presentations[0]
-		assert_eq(presentation["blueprint"], repository.get_canonical_sector("sector-1-0")["sector"]["blueprint"])
+		assert_eq(JSON.parse_string(JSON.stringify(presentation["blueprint"])), repository.get_canonical_sector("sector-1-0")["sector"]["blueprint"])
 		server._on_client_telemetry_batch_received(8, [_ack_event(presentation["trace"])], 2)
 		state._physics_process(1.0 / 60.0)
 		assert_lt(state.position.x, 440.0, "wrong-peer ACK cannot release committed Canon")
@@ -636,12 +653,13 @@ func test_timeout_fallback_commits_canon_and_holds_until_matching_ack() -> void:
 		server._on_client_telemetry_batch_received(7, [_ack_event(presentation["trace"])], 2)
 		state._physics_process(1.0 / 60.0)
 		assert_gt(state.position.x, 440.0, "correct ACK releases durable fallback")
-		assert_eq(coordinator.accept_generation_result("sector-1-0", "WILDERNESS", generated)["outcome"], "idempotent")
+		var placed: Dictionary = SectorDetailGenerationScript.prepare(generated, server._sector_detail_requests["sector-1-0"], server._starting_town_hub_blueprint)
+		assert_eq(coordinator.accept_generation_result("sector-1-0", "WILDERNESS", placed)["outcome"], "idempotent")
 		server._reload_sector_from_boundary(7, "sector-1-0", state.position, presentation["trace"])
 		assert_eq(server.presentations.back()["blueprint"], stored["sector"]["blueprint"])
 		assert_eq(server.presentations.back()["trace"]["spatial_guid"], presentation["trace"]["spatial_guid"])
 		assert_eq(repository.get_canonical_sector("sector-1-0")["sector"], stored["sector"])
-		var conflicting: Dictionary = generated.duplicate(true)
+		var conflicting: Dictionary = placed.duplicate(true)
 		conflicting["blueprint"]["tiles"][0]["kind"] = "wall"
 		assert_eq(coordinator.accept_generation_result("sector-1-0", "WILDERNESS", conflicting)["outcome"], "conflict")
 		assert_eq(repository.get_canonical_sector("sector-1-0")["sector"], stored["sector"], "fallback cannot replace immutable Canon")
@@ -751,7 +769,7 @@ func test_presentation_context_is_retained_before_telemetry_persistence() -> voi
 		"canon_db_commit",
 	)
 
-	server._on_canonical_sector_ready("sector-1-0", {"sector_id": "sector-1-0"})
+	server._on_canonical_sector_ready("sector-1-0", _frontier_blueprint("sector-1-0"))
 
 	assert_true(detector._trace_by_sector.has("sector-1-0"), "send-time server context survives telemetry outage")
 	assert_eq(
@@ -765,7 +783,7 @@ func test_presentation_context_is_retained_before_telemetry_persistence() -> voi
 func test_canon_reentry_is_emitted_by_server_before_client_presentation() -> void:
 	var server: SceneTree = ServerMainScript.new()
 	var repository: FakeCanonRepository = FakeCanonRepository.new()
-	repository.blueprint = {"sector_id": "sector-1-0"}
+	repository.blueprint = _frontier_blueprint("sector-1-0")
 	var sink: FakeTelemetrySink = FakeTelemetrySink.new()
 	server._canon_repository = repository
 	server._telemetry_sink = sink

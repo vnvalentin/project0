@@ -16,8 +16,10 @@ class_name VersionHandshake
 ## `docs/adr/0008-windows-client-delivery-trust-and-rollback.md`.
 
 const ClientBuildVersionScript: Script = preload("res://shared/client_build_version.gd")
+const DetailPlacementScript: Script = preload("res://shared/sector_detail_placement.gd")
 
-const SCHEMA_VERSION: int = 1
+const SCHEMA_VERSION: int = 2
+const REQUIRED_BLUEPRINT_SCHEMA_VERSION: int = DetailPlacementScript.SCHEMA_VERSION
 
 ## Server-owned build version this server will serve. Defaults to the server
 ## build's own client version, so a stock server accepts its matching client.
@@ -37,8 +39,7 @@ const OUTCOME_MALFORMED: String = "MALFORMED"
 ## The operator's required-version configuration is unusable. Distinct from
 ## CLIENT_OUTDATED so an operator fault is never reported as the player's fault.
 const OUTCOME_SERVER_MISCONFIGURED: String = "SERVER_MISCONFIGURED"
-## Reserved for future handshake-protocol negotiation; unreachable today, since a
-## structurally wrong request is MALFORMED. Named by the accepted contract.
+## The client cannot interpret the server's required spatial blueprint contract.
 const OUTCOME_UNSUPPORTED: String = "UNSUPPORTED"
 
 const _HTTPS_PREFIX: String = "https://"
@@ -49,6 +50,7 @@ static func request() -> Dictionary:
 	return {
 		"schema_version": SCHEMA_VERSION,
 		"client_build_version": ClientBuildVersionScript.current(),
+		"blueprint_schema_version": REQUIRED_BLUEPRINT_SCHEMA_VERSION,
 	}
 
 
@@ -85,11 +87,15 @@ static func evaluate(client_request: Variant, required_version: String, manifest
 	if not (client_request is Dictionary):
 		return _result(OUTCOME_MALFORMED, "handshake is not a Dictionary", "", "")
 	var data: Dictionary = client_request
-	if int(data.get("schema_version", -1)) != SCHEMA_VERSION:
+	var protocol: Variant = data.get("schema_version")
+	if not (protocol is int or protocol is float) or not is_finite(float(protocol)) or float(protocol) != SCHEMA_VERSION:
 		return _result(OUTCOME_MALFORMED, "unsupported handshake schema_version", "", "")
 	var declared: Variant = data.get("client_build_version")
 	if not ClientBuildVersionScript.is_valid(declared):
 		return _result(OUTCOME_MALFORMED, "client_build_version is missing or malformed", "", "")
+	var blueprint_version: Variant = data.get("blueprint_schema_version")
+	if not (blueprint_version is int or blueprint_version is float) or not is_finite(float(blueprint_version)) or float(blueprint_version) != REQUIRED_BLUEPRINT_SCHEMA_VERSION:
+		return _result(OUTCOME_UNSUPPORTED, "client does not support the required blueprint placement schema", required_version, "")
 	if String(declared) != required_version:
 		return _result(
 			OUTCOME_CLIENT_OUTDATED,

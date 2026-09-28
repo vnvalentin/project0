@@ -20,6 +20,7 @@ class_name SectorGeometryTranslator
 ## SectorBlueprintSchema.validate().
 
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
+const Placement: Script = preload("res://shared/sector_detail_placement.gd")
 
 ## Names of the container nodes the pass produces, so callers/tests can find
 ## the merged geometry deterministically.
@@ -44,8 +45,8 @@ static var _ground_base_arrays_cache: Dictionary = {}
 ## untrusted input — the caller already passed schema validation).
 static func translate(blueprint: Dictionary, parent: Node3D) -> void:
 	var tiles: Array = blueprint.get("tiles", [])
-	_translate_ground_tiles(tiles, parent)
-	_translate_wall_tiles(tiles, parent)
+	_translate_ground_tiles(tiles, parent, blueprint)
+	_translate_wall_tiles(tiles, parent, blueprint)
 
 	var structures: Array = blueprint.get("structures", [])
 	for structure: Dictionary in structures:
@@ -55,7 +56,7 @@ static func translate(blueprint: Dictionary, parent: Node3D) -> void:
 ## Renders every non-solid tile as one merged ArrayMesh MeshInstance3D per kind
 ## (all tiles of a kind combined into a single mesh — one draw call, no physics
 ## bodies).
-static func _translate_ground_tiles(tiles: Array, parent: Node3D) -> void:
+static func _translate_ground_tiles(tiles: Array, parent: Node3D, blueprint: Dictionary = {}) -> void:
 	var placements_by_kind: Dictionary = {}
 	for tile: Dictionary in tiles:
 		var kind: String = tile.get("kind", "")
@@ -64,6 +65,8 @@ static func _translate_ground_tiles(tiles: Array, parent: Node3D) -> void:
 			push_warning("SectorGeometryTranslator: skipping tile with unsupported kind '%s'." % kind)
 			continue
 		if SectorGeometryLookupScript.tile_is_solid(kind):
+			continue
+		if not Placement.clip_rectangle(blueprint, Rect2(Vector2(float(tile.get("x", 0)), float(tile.get("y", 0))) - Vector2(dimensions.x, dimensions.z) * 0.5, Vector2(dimensions.x, dimensions.z))).has_area():
 			continue
 		if not placements_by_kind.has(kind):
 			placements_by_kind[kind] = []
@@ -74,14 +77,14 @@ static func _translate_ground_tiles(tiles: Array, parent: Node3D) -> void:
 		var placements: Array = placements_by_kind[kind]
 
 		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-		mesh_instance.mesh = _merged_ground_mesh(kind, dimensions, placements)
+		mesh_instance.mesh = _merged_ground_mesh(kind, dimensions, placements, blueprint)
 		mesh_instance.name = "%s%s" % [GROUND_NODE_PREFIX, kind]
 		parent.add_child(mesh_instance)
 
 
 ## Builds one ArrayMesh combining a unit box at every placement of `kind`, so a
 ## whole kind of ground renders as a single mesh (one draw call).
-static func _merged_ground_mesh(kind: String, dimensions: Vector3, placements: Array) -> ArrayMesh:
+static func _merged_ground_mesh(kind: String, dimensions: Vector3, placements: Array, blueprint: Dictionary = {}) -> ArrayMesh:
 	var base: Array = _ground_base_arrays(kind, dimensions)
 	var base_verts: PackedVector3Array = base[Mesh.ARRAY_VERTEX]
 	var base_normals: PackedVector3Array = base[Mesh.ARRAY_NORMAL]
@@ -92,9 +95,10 @@ static func _merged_ground_mesh(kind: String, dimensions: Vector3, placements: A
 	var indices: PackedInt32Array = PackedInt32Array()
 	var vertex_offset: int = 0
 	for placement: Vector2 in placements:
-		var center: Vector3 = Vector3(placement.x, dimensions.y * 0.5, placement.y)
+		var rectangle: Rect2 = Placement.clip_rectangle(blueprint, Rect2(placement - Vector2(dimensions.x, dimensions.z) * 0.5, Vector2(dimensions.x, dimensions.z)))
+		var center: Vector3 = Vector3(rectangle.get_center().x, dimensions.y * 0.5, rectangle.get_center().y)
 		for v: Vector3 in base_verts:
-			verts.append(v + center)
+			verts.append(Vector3(v.x * rectangle.size.x / dimensions.x, v.y, v.z * rectangle.size.y / dimensions.z) + center)
 		for n: Vector3 in base_normals:
 			normals.append(n)
 		for index: int in base_indices:
@@ -125,7 +129,7 @@ static func _ground_base_arrays(kind: String, dimensions: Vector3) -> Array:
 ## Greedy-merges contiguous horizontal runs of solid (wall) tiles into box
 ## colliders + meshes under a single shared "Walls" StaticBody3D, so a wall of
 ## N tiles becomes a handful of colliders instead of N physics bodies.
-static func _translate_wall_tiles(tiles: Array, parent: Node3D) -> void:
+static func _translate_wall_tiles(tiles: Array, parent: Node3D, blueprint: Dictionary = {}) -> void:
 	var rows: Dictionary = {}
 	for tile: Dictionary in tiles:
 		var kind: String = tile.get("kind", "")
@@ -156,11 +160,11 @@ static func _translate_wall_tiles(tiles: Array, parent: Node3D) -> void:
 			if cx == prev + 1:
 				prev = cx
 				continue
-			_add_wall_segment(walls_body, run_start, prev, y, wall_dimensions, segment_index)
+			_add_wall_segment(walls_body, run_start, prev, y, wall_dimensions, segment_index, blueprint)
 			segment_index += 1
 			run_start = cx
 			prev = cx
-		_add_wall_segment(walls_body, run_start, prev, y, wall_dimensions, segment_index)
+		_add_wall_segment(walls_body, run_start, prev, y, wall_dimensions, segment_index, blueprint)
 		segment_index += 1
 
 	parent.add_child(walls_body)
@@ -168,10 +172,13 @@ static func _translate_wall_tiles(tiles: Array, parent: Node3D) -> void:
 
 ## Adds one merged wall run [x_start, x_end] at row `y` to `body` as a
 ## MeshInstance3D + CollisionShape3D pair sharing the run's box size/center.
-static func _add_wall_segment(body: StaticBody3D, x_start: int, x_end: int, y: int, wall_dimensions: Vector3, index: int) -> void:
+static func _add_wall_segment(body: StaticBody3D, x_start: int, x_end: int, y: int, wall_dimensions: Vector3, index: int, blueprint: Dictionary = {}) -> void:
 	var run_length: int = x_end - x_start + 1
-	var size: Vector3 = Vector3(wall_dimensions.x * float(run_length), wall_dimensions.y, wall_dimensions.z)
-	var center: Vector3 = Vector3((float(x_start) + float(x_end)) * 0.5, wall_dimensions.y * 0.5, float(y))
+	var rectangle: Rect2 = Placement.clip_rectangle(blueprint, Rect2(Vector2(x_start - wall_dimensions.x * 0.5, y - wall_dimensions.z * 0.5), Vector2(wall_dimensions.x * run_length, wall_dimensions.z)))
+	if not rectangle.has_area():
+		return
+	var size: Vector3 = Vector3(rectangle.size.x, wall_dimensions.y, rectangle.size.y)
+	var center: Vector3 = Vector3(rectangle.get_center().x, wall_dimensions.y * 0.5, rectangle.get_center().y)
 
 	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
 	var box_mesh: BoxMesh = BoxMesh.new()

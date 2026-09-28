@@ -18,7 +18,30 @@ func after_each() -> void:
 
 
 func _request(version: Variant) -> Dictionary:
-	return {"schema_version": VersionHandshakeScript.SCHEMA_VERSION, "client_build_version": version}
+	return {"schema_version": VersionHandshakeScript.SCHEMA_VERSION, "client_build_version": version, "blueprint_schema_version": 5}
+
+
+func test_handshake_explicitly_declares_version_five_blueprint_support() -> void:
+	var request: Dictionary = VersionHandshakeScript.request()
+	assert_eq(request["schema_version"], 2)
+	assert_eq(request.get("blueprint_schema_version"), 5)
+
+
+func test_legacy_matching_build_cannot_enter_version_five_runtime() -> void:
+	var legacy: Dictionary = {"schema_version": 1, "client_build_version": "1.2.3"}
+	assert_ne(VersionHandshakeScript.evaluate(legacy, "1.2.3", MANIFEST_URL)["outcome"], "ACCEPTED")
+
+
+func test_missing_or_incompatible_blueprint_capability_is_rejected() -> void:
+	for capability: Variant in [null, 4, 6, "5", NAN, INF]:
+		var request: Dictionary = _request("1.2.3")
+		request["blueprint_schema_version"] = capability
+		assert_ne(VersionHandshakeScript.evaluate(request, "1.2.3", MANIFEST_URL)["outcome"], "ACCEPTED")
+
+
+func test_json_integer_representation_remains_supported() -> void:
+	var request: Dictionary = JSON.parse_string(JSON.stringify(_request("1.2.3")))
+	assert_eq(VersionHandshakeScript.evaluate(request, "1.2.3", MANIFEST_URL)["outcome"], "ACCEPTED")
 
 
 func test_request_declares_this_builds_version() -> void:
