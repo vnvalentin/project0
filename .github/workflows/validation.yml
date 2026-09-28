@@ -6,19 +6,54 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  route:
+    name: Approve platform-owned source
+    runs-on: windows-latest
+    timeout-minutes: 10
+    outputs:
+      linux_ref: ${{ steps.plan.outputs.linux_ref }}
+      windows_ref: ${{ steps.plan.outputs.windows_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify metadata before Linux acquisition
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/ci_validation_routing.py plan
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: routing/
+          if-no-files-found: error
+
   ownership:
     name: Validation ownership and client boundary
+    needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 10
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - name: Require independent source admission
         run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
+      - uses: actions/download-artifact@v4
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/routing
       - name: Check out repository
         uses: actions/checkout@v4
         with:
@@ -26,6 +61,11 @@ jobs:
           persist-credentials: false
       - name: Verify approved source identity
         run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
+      - name: Verify approved input identity
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
+
+      - name: Test CI routing
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/test_ci_validation_routing.py --report build/validation/routing-tests.json
       - name: Test independent admission
         run: /data/code/project0/.venv-enrollment/bin/python scripts/test_ci_runner_admission.py --report build/validation/runner-admission-tests.json
 
@@ -39,24 +79,34 @@ jobs:
         if: always()
         run: /data/code/project0/.venv-enrollment/bin/python scripts/check_validation_ownership.py --output build/validation/ownership.json
 
+      - name: Bind ownership evidence
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job ownership --plan "$RUNNER_TEMP/routing/plan.json"
+
       - name: Upload ownership report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: project0-ownership-${{ github.run_id }}
-          path: |
-            build/validation/ownership*
-            build/validation/runner-admission-tests.json
+          name: result-ownership-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/validation/
           if-no-files-found: error
           retention-days: 14
 
   godot:
     name: Godot GUT suite
+    needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 25
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - name: Require independent source admission
         run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
+      - uses: actions/download-artifact@v4
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/routing
       - name: Check out repository
         uses: actions/checkout@v4
         with:
@@ -64,6 +114,8 @@ jobs:
           persist-credentials: false
       - name: Verify approved source identity
         run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
+      - name: Verify approved input identity
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Run validation suite
         shell: bash
@@ -73,24 +125,36 @@ jobs:
           docker image inspect "$image" >/dev/null
           if docker container inspect "$container" >/dev/null 2>&1; then exit 1; fi
           trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
-          timeout --kill-after=15s 1100 docker run --rm --name "$container" --label project0.validation=1265 --network none --no-healthcheck --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev --user "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/app" -w /app --entrypoint /usr/bin/env "$image" -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard bash scripts/run_gut_validation.sh
+          timeout --kill-after=15s 1100 docker run --rm --name "$container" --label project0.validation=1259 --network none --no-healthcheck --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev --user "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/app" -w /app --entrypoint /usr/bin/env "$image" -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard bash scripts/run_gut_validation.sh
+
+      - name: Bind GUT evidence
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job godot --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Upload validation telemetry
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: project0-validation-${{ github.run_id }}
+          name: result-godot-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/validation/
           if-no-files-found: error
           retention-days: 14
 
   records:
     name: Delivery record sync
+    needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 10
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - name: Require independent source admission
         run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
+      - uses: actions/download-artifact@v4
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/routing
       - name: Check out repository
         uses: actions/checkout@v4
         with:
@@ -98,20 +162,45 @@ jobs:
           persist-credentials: false
       - name: Verify approved source identity
         run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
+      - name: Verify approved input identity
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Check delivery record sync
-        run: bash scripts/check_record_sync.sh
+        shell: bash
+        run: |
+          mkdir -p build/validation
+          bash scripts/check_record_sync.sh 2>&1 | tee build/validation/records.log
 
       - name: Check container deployment contract
-        run: bash scripts/test_deploy_containers.sh
+        shell: bash
+        run: bash scripts/test_deploy_containers.sh 2>&1 | tee build/validation/deploy.log
+
+      - name: Bind record evidence
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job records --plan "$RUNNER_TEMP/routing/plan.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-records-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/validation/
+          if-no-files-found: error
 
   python:
     name: Python service tests
+    needs: route
+    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 10
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        run: exit 1
       - name: Require independent source admission
         run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
+      - uses: actions/download-artifact@v4
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/routing
       - name: Check out repository
         uses: actions/checkout@v4
         with:
@@ -119,18 +208,43 @@ jobs:
           persist-credentials: false
       - name: Verify approved source identity
         run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
+      - name: Verify approved input identity
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Run enrollment and operator tests
         run: /data/code/project0/.venv-enrollment/bin/python -m pytest infra/enrollment/tests infra/operator/tests -q --junitxml=build/validation/python.xml -o junit_family=xunit1
 
+      - name: Bind service evidence
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job python --plan "$RUNNER_TEMP/routing/plan.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-python-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/validation/
+          if-no-files-found: error
+
   launcher:
     name: Windows launcher tests
+    needs: route
+    if: always()
     # Every file in native/windows_launcher is `//go:build windows`, so these
     # tests can only be compiled and executed on a Windows runner.
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
+      - name: Reject missing source approval
+        if: ${{ needs.route.result != 'success' || needs.route.outputs.windows_ref == '' }}
+        run: exit 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/routing
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.windows_ref }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -142,11 +256,88 @@ jobs:
         shell: bash
         run: scripts/stage_launcher_payload_placeholders.sh
 
+      - name: Record native test collection
+        shell: pwsh
+        run: |
+          $directory = Join-Path $PWD 'build/validation/windows_launcher'
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $selectedNames = @()
+          $selections = @(
+            @{ path = 'native/windows_launcher'; arguments = @('.'); output = 'native-package.json' },
+            @{ path = 'scripts'; arguments = @('generate_1100_fixture.go', 'generate_1100_fixture_test.go'); output = 'fixture-package.json' }
+          )
+          foreach ($selection in $selections) {
+            Push-Location $selection.path
+            try {
+              $arguments = $selection.arguments
+              $text = & go list -json @arguments
+              if ($LASTEXITCODE -ne 0) { throw 'Go source inventory failed' }
+              $metadata = $text | ConvertFrom-Json
+              $names = & go test -list '^(Test|Example|Fuzz)' @arguments
+              if ($LASTEXITCODE -ne 0) { throw 'Go test collection failed' }
+              $collected = @($names | Where-Object { $_ -match '^(Test|Example|Fuzz)\S*$' })
+              $optIn = @($collected | Where-Object { $metadata.ImportPath -eq 'project0/windows-launcher' -and $_ -eq 'TestExperiment1100RealEngine' })
+              $selected = @($collected | Where-Object { $_ -notin $optIn })
+              if ($selected.Count -eq 0) { throw 'No default CI tests selected' }
+              $selectedNames += $selected
+              @{
+                ImportPath = $metadata.ImportPath
+                TestGoFiles = $metadata.TestGoFiles
+                XTestGoFiles = $metadata.XTestGoFiles
+                CollectedTests = $collected
+                SelectedTests = $selected
+                OptInTests = $optIn
+              } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $directory $selection.output) -Encoding utf8
+            } finally { Pop-Location }
+          }
+          $pattern = '^(' + (($selectedNames | Sort-Object -Unique) -join '|') + ')$'
+          "GOFLAGS=-json -run=$pattern" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+
       - name: Run launcher validation
         env:
           PROJECT0_EXPERIMENT_EVIDENCE_DIR: ${{ github.workspace }}/logs/experiments
         shell: pwsh
-        run: ./scripts/run_windows_launcher_validation.ps1
+        run: |
+          $directory = Join-Path $PWD 'build/validation/windows_launcher'
+          ./scripts/run_windows_launcher_validation.ps1 *>&1 | Tee-Object -FilePath (Join-Path $directory 'execution.log')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run required Windows client package checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $plan = Get-Content "$env:RUNNER_TEMP/routing/plan.json" -Raw | ConvertFrom-Json
+          if (-not $plan.windows_required) { Write-Output 'Client package checks are not required for this Linux-only candidate.'; return }
+          foreach ($script in @('scripts/test_windows_client_validation.ps1', 'scripts/test_build_current_deployment.ps1')) {
+            if (-not (Test-Path -LiteralPath $script)) { throw "Required Windows check is missing: $script" }
+          }
+          $tools = Join-Path $env:RUNNER_TEMP ('project0-godot-' + [Guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $tools | Out-Null
+          try {
+            gh release download 4.7.2-stable --repo godotengine/godot-builds --pattern Godot_v4.7.2-stable_win64.exe.zip --dir $tools
+            if ($LASTEXITCODE -ne 0) { throw 'Qualified Windows editor is unavailable' }
+            $archive = Join-Path $tools 'Godot_v4.7.2-stable_win64.exe.zip'
+            $expected = '83decd58fdf67b9d657958a1ae6bf1929c20785315a81effe245874cdc57acb709bf868e00778a96984338c1b29dafdb453c6847747694621c6ecf5da2259993'
+            if ((Get-FileHash $archive -Algorithm SHA512).Hash.ToLowerInvariant() -ne $expected) { throw 'Windows editor checksum mismatch' }
+            Expand-Archive -LiteralPath $archive -DestinationPath $tools
+            $editor = Join-Path $tools 'Godot_v4.7.2-stable_win64.exe'
+            & pwsh -NoProfile -File scripts/test_windows_client_validation.ps1 -GodotPath $editor
+            if ($LASTEXITCODE -ne 0) { throw 'Native package controls failed' }
+            & pwsh -NoProfile -File scripts/test_build_current_deployment.ps1 -GodotPath $editor
+            if ($LASTEXITCODE -ne 0) { throw 'Native builder controls failed' }
+            $controls = @(Get-ChildItem 'build/validation/windows-client/*/result.json' -File)
+            $build = @(Get-ChildItem 'build/validation/standalone-packaging-tests-*.json' -File)
+            if ($controls.Count -ne 1 -or $build.Count -ne 1) { throw 'Missing or ambiguous Windows evidence' }
+            $destination = Join-Path $PWD 'build/validation/windows_launcher/client'
+            New-Item -ItemType Directory -Path $destination | Out-Null
+            Copy-Item $controls[0].Directory.FullName (Join-Path $destination 'package-controls') -Recurse
+            Copy-Item $build[0].FullName (Join-Path $destination 'build.json')
+          } finally { Remove-Item -LiteralPath $tools -Recurse -Force }
+
+      - name: Bind actual Windows execution evidence
+        shell: pwsh
+        run: python scripts/ci_validation_routing.py seal --job launcher --plan "$env:RUNNER_TEMP/routing/plan.json"
 
       - name: Upload launcher validation evidence
         if: always()
@@ -158,3 +349,49 @@ jobs:
             logs/experiments/exp_1099_hash_mismatch_*.json
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload source-bound Windows result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-launcher-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/validation/windows_launcher/
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: Platform-owned validation acceptance
+    if: always()
+    needs: [route, ownership, godot, records, python, launcher]
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require every existing gate
+        env:
+          JOB_RESULTS: ${{ toJSON(needs) }}
+        shell: pwsh
+        run: |
+          $jobs = $env:JOB_RESULTS | ConvertFrom-Json -AsHashtable
+          foreach ($job in $jobs.Keys) {
+            if ($jobs[$job].result -ne 'success') { throw "$job did not succeed" }
+          }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.route.outputs.windows_ref }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: routing
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: result-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: results
+      - name: Reconcile source identity and executed coverage
+        run: python scripts/ci_validation_routing.py aggregate --results results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: routing/report.json
+          if-no-files-found: error

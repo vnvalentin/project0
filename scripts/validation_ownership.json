@@ -13,7 +13,7 @@
       "owner": "linux-server",
       "dependencies": ["godot", "sqlite"],
       "runner": "scripts/run_gut_validation.sh",
-      "tests": ["tests/unit/test_*.gd", "tests/integration/test_*.gd", "scripts/test_*.gd"],
+      "tests": ["tests/unit/test_*.gd", "tests/integration/test_*.gd", "scripts/test_*.gd", "scripts/paired_server_fixture.gd"],
       "evidence": "supporting-headless"
     },
     "linux-services": {
@@ -40,9 +40,9 @@
       "tests": ["scripts/test_*.sh"],
       "evidence": "supporting-component"
     },
-    "linux-fixture": {
-      "platform": "linux",
-      "owner": "linux-tooling",
+    "windows-fixture": {
+      "platform": "windows",
+      "owner": "windows-tooling",
       "dependencies": ["go"],
       "runner": "go test scripts/generate_1100_fixture.go scripts/generate_1100_fixture_test.go",
       "tests": ["scripts/*_test.go"],
@@ -53,7 +53,7 @@
       "owner": "windows-client",
       "dependencies": ["godot-client", "powershell"],
       "runner": "Windows owner selects an approved standalone package or client-only harness",
-      "tests": ["scripts/test_*.ps1"],
+      "tests": ["scripts/test_*.ps1", "scripts/check_windows_client_package.ps1", "scripts/verify_standalone_package.ps1", "scripts/run_paired_validation.ps1", "scripts/windows_paired_client.gd", "scripts/client_package_inventory.gd", "tests/fixtures/windows_client_packages.gd"],
       "evidence": "client-only-not-server-proof"
     },
     "windows-launcher": {
