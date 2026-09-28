@@ -70,6 +70,21 @@ reviewed grant outside the candidate context; an unknown candidate is denied
 even if its own classifier reports success. Keep Windows publication blocked
 until #1259's source/report integration is delivered and validated.
 
+## Pull Request Trigger Contract
+
+Feature-branch pushes and pull-request creation or synchronization do not start
+protected CI. The exact pull-request merge and candidate identities must exist
+before an authorized maintainer can install the validation and image grants.
+After installing both grants, the maintainer applies the
+`ci:admission-approved` label to trigger the pull-request workflows.
+
+A new candidate commit invalidates the previous execution identity. Remove the
+label, review and install grants for the new merge and candidate identities,
+then reapply the label. The label is an orchestration signal, not authority: an
+ungranted, stale, expired or mismatched execution remains denied by the
+root-owned job-start hook. Other label events may start a denied run, but cannot
+authorize candidate code or bypass required checks.
+
 ## Evidence And Rollback
 
 Retain policy/gate SHA256, runner binary pins, before/after configuration, source

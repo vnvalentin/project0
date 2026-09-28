@@ -277,6 +277,9 @@ class RoutingTests(unittest.TestCase):
         import re
         text = (ROOT / ".github/workflows/validation.yml").read_text()
         self.assertNotIn("<<<<<<<", text)
+        self.assertIn('  push:\n    branches: [main]\n    tags: ["v*"]', text)
+        self.assertIn("  pull_request:\n    types: [labeled]", text)
+        self.assertIn("  workflow_dispatch:", text)
         for job in ("ownership", "godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
             self.assertIn("needs: route", block)
@@ -294,6 +297,7 @@ class RoutingTests(unittest.TestCase):
     def test_image_workflow_requires_independent_admission(self):
         images = (ROOT / ".github/workflows/images.yml").read_text()
         self.assertIn("  packages: write", images)
+        self.assertIn("  pull_request:\n    types: [labeled]", images)
         build = images.split("  build:\n", 1)[1]
         self.assertNotIn("needs.route.outputs", images)
         self.assertNotIn("<<<<<<<", images)
