@@ -68,7 +68,7 @@ func test_windup_emits_versioned_attack_state_with_locked_facing_and_target_tick
 	assert_eq(snapshot.phase, MonsterContractsScript.PHASE_WINDUP)
 	assert_eq(snapshot.target_tick, 2 + MonsterContractsScript.WINDUP_TICKS)
 	assert_eq(snapshot.duration_ticks, MonsterContractsScript.WINDUP_TICKS)
-	assert_eq(snapshot.facing, Vector3.LEFT)
+	assert_eq(snapshot.facing, Vector3.RIGHT)
 
 
 func test_windup_telegraph_is_at_least_as_long_as_the_player_attack() -> void:
