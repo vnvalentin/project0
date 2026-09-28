@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "issue": 1218,
+  "scenario": "standalone-authenticated-entry",
+  "observed_at": "2026-09-28",
+  "access_path": "genuine-external-wan",
+  "status": "passed-by-player-observation",
+  "host": {
+    "machine_name": "SuGo",
+    "public_ip": "172.59.80.236",
+    "network": "external-machine, outside LAN"
+  },
+  "client": {
+    "version": "0.14.15",
+    "engine": "4.7.2.stable.official.ed1daf0bf",
+    "archive_sha256": "e40e5b6457025603cdffa55cad8ca2d6f9243389cba65ddb4148e22eb2fd5cd0",
+    "pck_sha256": "f9afb43f2a14e70fa8855e20ac751b5361baba651585e689a74548ef88273a19",
+    "download_url": "https://enroll.valentin.vip/patches/downloads/0.14.15/Project0-client-windows-x64-0.14.15.zip",
+    "launcher_used": false
+  },
+  "server": {
+    "endpoint": "project0.valentin.vip:9999",
+    "artifact_manifest_sha256": "1668a7d3a83b7c5ba9baf8a40b5951aabca0df6ff7f16ce8155dc5737e56291c",
+    "source_commit": "3f3a76979073bbb3e66572c36df92b12659b8ee7"
+  },
+  "actions": [
+    "Downloaded the preserved standalone client package",
+    "Started Project0.exe directly",
+    "Logged in through the normal WAN HTTPS flow",
+    "Selected a character",
+    "Entered the authoritative game server",
+    "Tested in-game fixes"
+  ],
+  "observed_result": {
+    "login": "passed",
+    "world_entry": "passed",
+    "gameplay": "behaved like LAN",
+    "authoritative_capture": "blue capture lagged behind red prediction at approximately twice the LAN rate",
+    "responsiveness": "approved; lag was not a noticeable concern",
+    "credentials_or_tokens_recorded": false
+  },
+  "lan_reference": {
+    "correlation_id": "e959e373949b45ac80081fd9f20c81d1",
+    "server_run_id": "19692244a87f43039a7039d5ade045f7",
+    "result": "build/validation/paired-windows-e959e373949b45ac80081fd9f20c81d1/result.json",
+    "result_sha256": "dcfb5f94df30fabff71cd8c41d36fb05b539c365a564e1913052699d41df6f04",
+    "paired_acceptance": true,
+    "local_cleanup": true,
+    "remote_cleanup": true,
+    "canon_rows_before": 1,
+    "canon_rows_after": 1
+  },
+  "evidence_gaps": [
+    "WAN client log or screenshot was not supplied"
+  ]
+}
