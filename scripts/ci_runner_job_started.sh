@@ -9,8 +9,11 @@ if [[ -z "$worker_executable" || "$worker_executable" != "$expected_executable" 
   exit 78
 fi
 
-decision=$(/usr/bin/timeout --kill-after=2s 20s /usr/bin/python3 -I -S /etc/project0-ci/gate/ci_runner_admission.py --policy /etc/project0-ci/admission.json)
-status=$?
+if decision=$(/usr/bin/timeout --kill-after=2s 20s /usr/bin/python3 -I -S /etc/project0-ci/gate/ci_runner_admission.py --policy /etc/project0-ci/admission.json); then
+  status=0
+else
+  status=$?
+fi
 printf '%s\n' "$decision"
 /usr/bin/logger -t project0-ci-admission -p authpriv.notice -- "$decision"
 if [[ "$status" == 0 ]]; then
