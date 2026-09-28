@@ -101,15 +101,17 @@ def route(metadata):
         if windows_tooling(path) and not windows:
             raise ValueError("Windows tooling requires platform:windows-required")
     linux_inputs = {path: blob for path, blob in candidate_tree.items() if not windows_tooling(path)}
+    routed_inputs = linux_inputs
     if windows:
         baseline_inputs = {path: blob for path, blob in baseline_tree.items() if not windows_tooling(path)}
         if linux_inputs != baseline_inputs and not contract:
             raise ValueError("mixed Windows/Linux inputs: source hash mismatch")
+        routed_inputs = baseline_inputs
     return {"schema_version": 1, "candidate": metadata["candidate"],
             "baseline": metadata["baseline"], "linux_ref": metadata["baseline"] if windows else metadata["candidate"],
             "windows_ref": metadata["candidate"], "windows_required": windows,
             "artifact_contract": contract.get("name") if contract else None,
-            "input_digest": digest(linux_inputs), "changed_paths": changed,
+            "input_digest": digest(routed_inputs), "changed_paths": changed,
             "required_jobs": REQUIRED_JOBS.copy(), "linux_host": "192.168.1.254",
             "runtime_acceptance": "supporting-only; not Windows or paired acceptance"}
 

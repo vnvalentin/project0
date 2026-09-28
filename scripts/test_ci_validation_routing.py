@@ -73,6 +73,8 @@ class RoutingTests(unittest.TestCase):
         }
         plan = self.routing.route(metadata)
         self.assertEqual(plan["artifact_contract"], "reviewed")
+        self.assertEqual(plan["linux_ref"], metadata["baseline"])
+        self.assertEqual(plan["input_digest"], self.routing.digest({"server/main.gd": "2" * 40}))
 
     def test_client_change_rejects_missing_artifact_contract(self):
         metadata = copy.deepcopy(self.metadata)
