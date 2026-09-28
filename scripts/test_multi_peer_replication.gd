@@ -38,6 +38,7 @@ var _state_file_a: String = ""
 var _state_file_b: String = ""
 var _client_startup_gate: String = ""
 var _movement_gate: String = ""
+var _client_harness_script: String = "scripts/multi_peer_client_harness.gd"
 
 
 func _initialize() -> void:
@@ -80,6 +81,12 @@ func _cleanup_processes() -> void:
 func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	var godot_executable: String = OS.get_executable_path()
 	var project_path: String = ProjectSettings.globalize_path("res://")
+	var state_directory: String = OS.get_environment("PROJECT0_TEST_STATE_DIR")
+	if state_directory.is_empty():
+		state_directory = project_path
+	elif not state_directory.is_absolute_path():
+		state_directory = project_path.path_join(state_directory)
+	DirAccess.make_dir_recursive_absolute(state_directory)
 	_movement_gate = ProjectSettings.globalize_path("user://peer_movement_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
 	_assert(not FileAccess.file_exists(_movement_gate), "owned movement gate starts absent")
 	if FileAccess.file_exists(_movement_gate):
@@ -97,8 +104,8 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		startup_wait_ticks += 1
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
 
-	_state_file_a = project_path.path_join(".test_multi_peer_state_a.json")
-	_state_file_b = project_path.path_join(".test_multi_peer_state_b.json")
+	_state_file_a = state_directory.path_join(".test_multi_peer_state_a.json")
+	_state_file_b = state_directory.path_join(".test_multi_peer_state_b.json")
 	for path: String in [_state_file_a, _state_file_b]:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
@@ -108,7 +115,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	# other peer's RemotePlayer representation.
 	_client_a_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
-		"-s", "scripts/multi_peer_client_harness.gd",
+		"-s", _client_harness_script,
 		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_a, "--hold-input=move_back",
 		"--startup-gate=%s" % _client_startup_gate,
 		"--movement-gate=%s" % _movement_gate,
@@ -118,7 +125,7 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	GameplayTestSessionScript.refresh_identity()
 	_client_b_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", project_path,
-		"-s", "scripts/multi_peer_client_harness.gd",
+		"-s", _client_harness_script,
 		"--", "--server-host=127.0.0.1", "--state-file=%s" % _state_file_b, "--hold-input=move_right",
 		"--movement-gate=%s" % _movement_gate,
 	])
@@ -154,6 +161,8 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	# coordinate) stays correct regardless of which peer claims which slot.
 	var b_seen_from_a_baseline: Vector3 = _array_to_vector3(remote_players_on_a.values()[0])
 	var a_seen_from_b_baseline: Vector3 = _array_to_vector3(remote_players_on_b.values()[0])
+	var peer_b_name: String = str(remote_players_on_a.keys()[0])
+	var peer_a_name: String = str(remote_players_on_b.keys()[0])
 	var movement_gate: FileAccess = FileAccess.open(_movement_gate, FileAccess.WRITE)
 	_assert(movement_gate != null, "held input is released only after ready baselines")
 	if movement_gate == null:
@@ -168,8 +177,20 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		await physics_frame
 		settle_ticks += 1
 
-	state_a = _read_state(_state_file_a)
-	state_b = _read_state(_state_file_b)
+	state_a = await _wait_for_state_with_deadline(_state_file_a, func(state: Dictionary) -> bool:
+		return _observes_remote_movement(state, peer_b_name, b_seen_from_a_baseline)
+	, 20000, _client_a_process_id)
+	_assert(not state_a.is_empty(), "client A observes authoritative movement within the deadline")
+	if state_a.is_empty():
+		print("MOVEMENT_STAGE_FAILED ", JSON.stringify({"observer": "A", "expected_peer": peer_b_name}))
+		return
+	state_b = await _wait_for_state_with_deadline(_state_file_b, func(state: Dictionary) -> bool:
+		return _observes_remote_movement(state, peer_a_name, a_seen_from_b_baseline)
+	, 20000, _client_b_process_id)
+	_assert(not state_b.is_empty(), "client B observes authoritative movement within the deadline")
+	if state_b.is_empty():
+		print("MOVEMENT_STAGE_FAILED ", JSON.stringify({"observer": "B", "expected_peer": peer_a_name}))
+		return
 	remote_players_on_a = state_a.get("remote_players", {})
 	remote_players_on_b = state_b.get("remote_players", {})
 
@@ -206,6 +227,25 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	_assert(state_b_after_disconnect.has("remote_players") and state_b_after_disconnect["remote_players"].size() == 0, "disconnecting client A removes its RemotePlayer representation from client B")
 	_assert(OS.is_process_running(_client_b_process_id), "client B's process is still running (no crash) after client A disconnects")
 	_assert(_client_b_process_id != -1 and OS.is_process_running(_client_b_process_id), "client B remains connected and usable after the other peer's disconnect")
+
+
+func _observes_remote_movement(state: Dictionary, peer_name: String, baseline: Vector3) -> bool:
+	if state.get("status", "") != "connected: player spawned":
+		return false
+	var remotes: Variant = state.get("remote_players", {})
+	if not remotes is Dictionary or remotes.size() != 1 or not remotes.has(peer_name):
+		return false
+	var position: Variant = remotes[peer_name]
+	if not position is Array or position.size() != 3:
+		return false
+	for coordinate: Variant in position:
+		if not (coordinate is int or coordinate is float) or not is_finite(float(coordinate)):
+			return false
+	var observed_position: Vector3 = _array_to_vector3(position)
+	if not observed_position.is_finite() or not baseline.is_finite():
+		return false
+	var distance: float = observed_position.distance_to(baseline)
+	return is_finite(distance) and distance > 0.5
 
 
 func _array_to_vector3(value: Variant) -> Vector3:

@@ -30,7 +30,7 @@ it as authoritative.
   [docs/SYSTEMS-SPECIFICATION.md](docs/SYSTEMS-SPECIFICATION.md)), not a
   standalone tool.
 - Lint: Not applicable. No GDScript linter is installed.
-- Build: Not applicable during this phase. No export presets or packaged builds
+- Build: Not applicable. No export presets or packaged builds
   exist yet; the project runs from source via the Godot 4.3 editor/headless
   binary.
 - Runtime or integration validation: `godot --headless --path . <scene.tscn>`
@@ -72,6 +72,25 @@ Any server-side, container, or Linux-only command MUST execute on
 for server work. If SSH access to `192.168.1.254` is unavailable, stop and
 report the blocker rather than running the command locally.
 
+### Windows shell and SSH quoting
+
+On Windows, agent terminals run PowerShell 7 (`pwsh`). Do not hand-build
+`ssh host "..."` command strings: each layer (PowerShell, ssh, the remote shell)
+re-parses quotes, which strips Docker/Go template braces, `$` variables and
+embedded quotes. Send the remote work through stdin with the helper instead:
+
+```powershell
+scripts/remote.ps1 'cd /data/code/project0 && docker inspect --format "{{.Name}}" project0-game-server'
+Get-Content job.sh -Raw | scripts/remote.ps1
+```
+
+Write the script exactly as in a bash terminal and wrap it in single quotes; the
+remote exit code becomes `$LASTEXITCODE`. It uses `BatchMode`, so missing key
+access fails fast (exit 255) instead of waiting at a password prompt. From Git
+Bash, use a quoted heredoc: `ssh -T vic@192.168.1.254 bash -s <<'EOF'`.
+`bash` in PowerShell must resolve to Git Bash, not `C:\Windows\System32\bash.exe`
+(the WSL launcher); WSL is not a supported shell for this repository.
+
 ## Project boundaries
 
 - Primary product boundary: This repository owns the Godot 4 client and
@@ -108,6 +127,10 @@ Do not create implementation slices or product code while this gate is open.
 ## Agent requirements
 
 - Preserve unrelated user changes.
+- Before planning or running validation, or recommending a missing dependency,
+  follow [validation ownership](docs/validation-ownership.md) and pass its plan
+  preflight. Match the dependency to its owning runtime first: SQLite and Canon
+  persistence execute on the Linux server; Windows validates client behavior.
 - Experiment lifecycle rule: every experiment harness owns setup, execution,
   evidence capture, and teardown in one non-interactive path. It must create
   isolated temporary state, enforce clean-target preconditions, emit
@@ -154,9 +177,15 @@ Do not create implementation slices or product code while this gate is open.
   suitable issue exists. Link it from the branch/PR, slice record, tracker
   records, and any local `.scratch` planning ticket references. Local planning
   tickets do not replace the GitHub Issue.
+- For every task, follow [goal-first execution and discovery handling](docs/DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling):
+  name the issue's goal, acceptance criteria and non-goals; capture discoveries
+  first; resolve goal blockers through Jidoka; record non-blockers and return
+  immediately to the original goal. Factual capture is pre-authorized, not
+  permission to expand scope.
 - Test at the public seam and run the narrowest relevant validation first.
-- Stop on unexpected failure, degraded health, missing evidence, or unclear
-  security boundaries.
+- Stop affected work for goal-blocking failures, failed mandatory gates, or
+  unclear safety/security boundaries; classify other discoveries using the
+  goal-first rule.
 - Completion persistence rule: do not stop an implementation, experiment, or
   delivery path while its governing GitHub issue remains open. Continue until
   the issue is closed with acceptance evidence, or explicitly mark it blocked
@@ -171,22 +200,14 @@ Do not create implementation slices or product code while this gate is open.
   symptom, public seam, falsifiable hypothesis, discriminating check,
   confirmed root cause, why existing tests missed it, countermeasure,
   regression evidence, and any remaining limitation or debt link. A chat or
-  terminal log alone is not durable evidence.
-- Jidoka blocker protocol: when a blocker is found, stop the affected
-  experiment or delivery path immediately. Create or update a GitHub problem
-  issue before resuming work, recording the symptom, public seam, evidence,
-  falsifiable hypotheses, confirmed root cause, acceptance criteria, and
-  rollback boundary. Resume only after the owning seam has a focused fix and
-  the discriminating check passes; do not report the parent experiment as
-  complete while the problem remains open.
-- Blocker closure rule: after stopping, identify the blocker, define and
-  evidence its root cause, and create a GitHub Technical Debt issue recording
-  the root cause, impact, remediation performed, validation evidence, and
-  remaining limitation. Close the blocker only after its focused
-  discriminating check passes. If the blocker cannot be closed with the
-  available authority or access, leave it explicitly blocked and request
-  guidance with the unresolved hypotheses, required decision, and next owner;
-  never silently work around it or report completion.
+  terminal log alone is not durable evidence. For non-blocking discoveries,
+  link the deferred issue and mark uninvestigated fields unknown; this gate
+  does not require unrelated diagnosis before completing the current goal.
+- Jidoka and blocker closure follow the canonical goal-first rule linked above:
+  record the problem and Technical Debt, establish root cause, apply a focused
+  fix, validate and close with evidence before resuming the affected goal.
+  Missing authority or access leaves an explicit blocker and next owner/action,
+  never a bypass or completion claim.
 - Never claim runtime behavior without runtime evidence.
 - Do not add dependencies, migrations, permissions, or external side effects
   without documenting their safety and rollback implications.
@@ -194,31 +215,31 @@ Do not create implementation slices or product code while this gate is open.
   instructions and use the governing GitHub issue, Project fields, labels,
   milestones, and linked evidence as the active delivery record.
 - Before the first edit, confirm the foundation gate is closed and record the
-  primary outcome, phase, parent issue, milestone commitment, and
-  implementation slice in GitHub.
-- Allocate slice and feature numbers only via
-  [docs/slices/SLICE-REGISTRY.md](docs/slices/SLICE-REGISTRY.md): reserve the
-  next free number there before creating a slice. A single integrator owns
-  number allocation and the delivery trackers; any parallel autonomous worker
-  MUST use its reserved block (100–199) and disjoint files so concurrent work
-  never collides on a slice/feature number.
+  outcome, applicable milestone and named slice group, governing issue and
+  parent links in GitHub. Cross-cutting/uncommitted work records why a milestone
+  does not apply. Follow the [delivery hierarchy](docs/DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues);
+  phases are retired and existing Phase fields are legacy metadata.
+- GitHub assigns new issue numbers. Preserve milestone IDs, slice-group
+  identifiers and existing issue relationships; frozen archives do not allocate
+  new work. Parallel workers use disjoint implementation scopes and explicit
+  issue ownership, not reserved archive-number blocks.
 
-## Features and Slices are tracked as GitHub issues (2026-09-20)
+## Milestone delivery and GitHub record ownership
 
 `docs/FEATURE-LIST.md` and `docs/slices/*.md` (including `SLICE-REGISTRY.md`)
 are a **frozen historical archive** of everything delivered before this date —
-do not add new entries to them. A new **Feature** is a GitHub issue labeled
-`Feature`, with `Parent goal: #N` in its body when it advances a Goal issue. A
-new **Slice** is a GitHub issue labeled `Slice`, with `Parent feature: #N` in
-its body when it advances a Feature issue. This removes the file-based
-number-allocation race for those two record types; GitHub issue numbers are
-assigned by GitHub itself. `docs/PROJECT-TRACKER.md`,
+do not add new entries to them. Milestone descriptions own named slice groups
+and their Included issues; GitHub issues own bounded work, evidence and resolution.
+An issue labeled `Slice` is not automatically a milestone slice group. Preserve
+applicable Feature/Goal and Slice/Feature parent links without inventing a second
+required hierarchy. Technical Debt is a linked GitHub liability with impact,
+owner and remediation evidence, assigned a milestone only when committed.
+`docs/PROJECT-TRACKER.md`,
 `docs/TECHNICAL-DEBT-TRACKER.md`, `docs/FEATURE-LIST.md`, and `docs/slices/`
 are frozen historical or explanatory archives. GitHub Issues and Project #2
 are the active records, per [docs/RECORD-OWNERSHIP.md](docs/RECORD-OWNERSHIP.md).
 
-A Feature issue states the gap between the current condition and its parent
-Goal's ideal condition, resolved only by measurable proof the gap closed; a
-Slice issue names the root cause one step resolves toward that proof. See
-[Vision, Goal, Feature, and Slice semantics](docs/DEVELOPMENT-WORKFLOW.md#vision-goal-feature-and-slice-semantics-2026-09-20)
-for the full definitions before opening either.
+Before creating or completing work, read
+[Milestones, slice groups, and linked issues](docs/DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues).
+Issue closure does not prove slice or milestone acceptance; each outcome needs
+its own evidence and resolved blocking work.

@@ -10,14 +10,24 @@ memory from it; keep it in sync when a convention changes.
 Canonical, authoritative rules live in the documents linked below. This file is a
 quick-reference and seed, not a replacement for them.
 
+## Validation ownership (#1243)
+
+- Before validation planning/execution or a dependency recommendation, follow
+  [validation ownership](../docs/validation-ownership.md) and run its JSON plan
+  preflight. Canon/SQLite evidence is Linux-server-only; Windows owns client
+  presentation/input/readiness. A combined fixture does not move server ownership.
+- The former #1242 Windows SQLite prerequisite is superseded by the user's
+  2026-09-27 correction. Correct test placement, not Windows dependencies. Static
+  CI checks and valid plans never substitute for paired native runtime evidence.
+
 ## Canonical rule sources (read these first)
 
 - Delivery + safety: [AGENTS.md](../AGENTS.md), [docs/SYSTEMS-SPECIFICATION.md](../docs/SYSTEMS-SPECIFICATION.md),
   [docs/ENGINEERING-CONSTITUTION.md](../docs/ENGINEERING-CONSTITUTION.md),
   [docs/DEVELOPMENT-WORKFLOW.md](../docs/DEVELOPMENT-WORKFLOW.md).
-- Delivery records: [docs/PROJECT-TRACKER.md](../docs/PROJECT-TRACKER.md),
-  [docs/FEATURE-LIST.md](../docs/FEATURE-LIST.md),
-  [docs/TECHNICAL-DEBT-TRACKER.md](../docs/TECHNICAL-DEBT-TRACKER.md).
+- Active delivery records: GitHub Issues and Project #2, per
+  [docs/RECORD-OWNERSHIP.md](../docs/RECORD-OWNERSHIP.md). Markdown trackers are
+  frozen history, not active status or allocation authorities.
 
 ## Branching + PR rule (mandatory; canonical in AGENTS.md + DEVELOPMENT-WORKFLOW.md)
 
@@ -52,6 +62,10 @@ quick-reference and seed, not a replacement for them.
 
 ## Validation / build quick-reference
 
+- Every task follows [goal-first execution and discovery handling](../docs/DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling):
+  anchor the issue goal, capture discoveries first, resolve blockers through
+  Jidoka, and defer non-blockers without expanding the current task.
+
 - Full suite: `scripts/run_gut_validation.sh` — writes `build/validation/gut.xml`
   and `build/validation/validation-summary.json` (expect `scripts_expected ==
   scripts_ran`, `exit_code: 0`).
@@ -60,6 +74,11 @@ quick-reference and seed, not a replacement for them.
 - Focused GUT: `godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gexit`
   (or `-gdir=res://tests/integration`).
 - Per-script parse check: `godot --headless --check-only -s <script.gd>`.
+- Remote (Linux host) commands from Windows: `scripts/remote.ps1 '<bash script>'`
+  sends the script over SSH stdin, so braces, `$vars` and quotes survive; never
+  hand-quote `ssh host "..."` (see AGENTS.md "Windows shell and SSH quoting").
+  Validate the helper with `scripts/test_remote.ps1` under both `pwsh` and
+  `powershell.exe`.
 
 ## Headless server boot (gotchas)
 
@@ -74,12 +93,18 @@ quick-reference and seed, not a replacement for them.
   generate a valid town within a practical timeout, so the boot falls back to
   the validated fixture by design (the fallback guarantees a usable town).
 
-## Slice / feature numbering
+## Delivery hierarchy and identifiers
 
-- Reserve the number in [docs/slices/SLICE-REGISTRY.md](../docs/slices/SLICE-REGISTRY.md)
-  **before** creating `docs/slices/NNN-*.md`.
-- The registry's own "Next free slice" line is the single source of truth; this
-  file does not duplicate it (a stale copy here caused a near-collision).
+- Approved #1217 / #1257: Milestone -> named slice groups -> linked GitHub issues.
+  See [the workflow](../docs/DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues)
+  for mapping, evidence and Technical Debt contracts. A `Slice` issue label is
+  not a milestone group; preserve applicable strategic parent links.
+- Phases are retired. Do not require or populate legacy Phase fields. Dependencies
+  determine ordering; Status, Evidence and Blocked describe operational state.
+- GitHub assigns issue numbers; preserve milestone IDs and slice-group identifiers.
+  No new work or number allocation belongs in frozen tracker/slice archives.
+- Technical Debt retains its owner, impact and closure evidence; assign a
+  milestone only when remediation is committed. Scoped exceptions do not fix debt.
 
 ## Milestone outcomes
 

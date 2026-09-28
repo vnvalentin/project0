@@ -66,19 +66,20 @@ learning improve both.
 
 ## 4. Required development loop
 
-### Phases and implementation slices
+### Milestones, slice groups, and implementation issues
 
-A **phase** defines a product-level desired outcome and exit gate. An
-**implementation slice** is the smallest observable, reversible increment that
-tests a stated hypothesis and delivers a bounded capability toward that phase.
-It is not a general bundle of tasks or an experiment without a delivery seam.
+Use the delivery hierarchy and contracts in
+[the development workflow](DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues):
+Milestone -> named slice groups -> linked GitHub issues. Milestones commit
+observable outcomes; groups define bounded acceptance and dependencies; issues
+own work and evidence. Phases are retired and are not delivery prerequisites.
 
-Each slice must identify its primary phase, user/system outcome, hypothesis or
-risk, public seam, acceptance evidence, and explicit non-goals. A slice can
-advance tracker items in other phases when a capability crosses a boundary, but
-it has one primary phase for delivery ownership. Slice completion measures the
-slice's own evidence; phase completion measures progress toward the phase exit
-gate and is not reduced to a count of completed slices.
+Before work, identify the outcome, applicable milestone/group and parent links,
+governing issue, hypothesis, public seam, acceptance evidence and non-goals.
+Cross-cutting or uncommitted work records why no milestone applies. Implement
+the smallest observable, reversible increment; closing its issue does not prove
+the containing slice or milestone outcome. Technical Debt remains an explicit
+linked liability with an owner and its own remediation/closure evidence.
 
 Every work item must be traceable to a GitHub Issue before work starts. Local
 planning tickets under `.scratch/` may refine the design, but they do not
@@ -95,7 +96,7 @@ unresearched, and its target coverage is zero until its criteria are written.
 
 Apply TPSA as small-lot, frequent delivery: prefer the smallest independently
 observable, reversible slice that tests one hypothesis and produces evidence.
-Feature groups and phases must not become excuses for bundled implementation.
+Milestones and slice groups must not become excuses for bundled implementation.
 Every slice includes SDD, BDD, and TDD thinking from intake onward, with
 telemetry designed at the public seam so quality and observability are built in
 from the beginning.
@@ -114,18 +115,21 @@ Every implementation slice follows `docs/DEVELOPMENT-WORKFLOW.md`:
 6. Validate the cheapest focused check first, then relevant type, lint, build,
    integration, and full-suite checks.
 7. Record the design, scenarios, tests, ADR or no-ADR rationale, validation, and
-   review outcome. Name the GitHub Issue, feature IDs advanced, check for
-   duplicates, update `FEATURE-LIST.md` and `PROJECT-TRACKER.md`, and record
+   review outcome. Name the governing GitHub issue, milestone/slice mapping and
+   applicable parents, check for duplicates, synchronize GitHub/Project, and record
    telemetry and stop signals. Update documentation when behavior or operations
    change.
 
 ## 5. Jidoka and Genchi Genbutsu
 
-Stop automatically on an unexpected test or build failure, degraded health,
-contradictory behavior, missing or ambiguous evidence, suspicious persisted data,
-external dependency drift, or an unclear security boundary.
+Anchor every task to its governing issue's goal and acceptance criteria. Follow
+[goal-first execution and discovery handling](DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling):
+capture each discovery first, classify whether it blocks the goal or a mandatory
+gate, and keep non-blocking problems visible as deferred work. Stop affected
+work automatically for goal blockers, failed required tests/builds, or unclear
+safety/security boundaries; preserve immediate containment when safety is unclear.
 
-Go and see the actual evidence: inspect requests, responses, logs, configuration,
+For blockers, go and see the actual evidence: inspect requests, responses, logs, configuration,
 environment, persisted state, and failing versus working paths. Reproduce the
 smallest discriminating check and verify every link in the root-cause chain.
 Never call a workaround a root-cause fix without evidence that it prevents
@@ -178,5 +182,12 @@ Before acting, ask:
 4. Only then, can it be made more efficient?
 
 If any answer before efficiency is unknown, stop and gather evidence.
+
 ## Recursive parent/child outcome gate
-No parent may be marked complete or ready while a required child needs grilling; an in-progress child propagates in progress. Completion requires checked explicit outcomes and recursively completed descendants. The dashboard applies the documented pre-2025 legacy exception for closed records missing the Outcomes section.
+
+Unresolved required decisions or dependencies prevent readiness. Completion
+requires explicit outcome evidence and resolved required work, not child-issue
+counts. Apply this to strategic parent links and milestone slice acceptance;
+issue types do not create another mandatory delivery ladder. Keep blockers
+visible on affected work. The documented pre-2025 compatibility exception for
+historical closed records missing Outcomes does not exempt new work.

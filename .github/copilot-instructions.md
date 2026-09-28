@@ -12,20 +12,14 @@ The tool-neutral systems/implementation contract is
 
 Use [TPSA](../docs/tpsa.md) as the core behavior profile for all activities.
 
-Jidoka rule: any blocker immediately stops the affected experiment or delivery
-path. Before resuming, create or update a GitHub problem issue with the
-symptom, public seam, evidence, falsifiable hypotheses, confirmed root cause,
-acceptance criteria, and rollback boundary. Resume only after the owning seam
-has a focused fix and its discriminating check passes; never report the parent
-experiment complete while the problem remains open.
-
-Blocker closure rule: identify the blocker, define and evidence its root cause,
-and create a GitHub Technical Debt issue recording the root cause, impact,
-remediation performed, validation evidence, and remaining limitation. Close
-the blocker only after its focused discriminating check passes. If it cannot be
-closed with the available authority or access, leave it explicitly blocked and
-request guidance with the unresolved hypotheses, required decision, and next
-owner; never silently work around it or report completion.
+For every task, follow
+[goal-first execution and discovery handling](../docs/DEVELOPMENT-WORKFLOW.md#goal-first-execution-and-discovery-handling).
+Name the governing issue's goal, acceptance criteria and non-goals. Capture new
+problems first as linked, visible issues. Goal blockers require Jidoka,
+root-cause evidence, focused remediation and validated closure; non-blockers
+are deferred immediately so work returns to the original goal. Mandatory safety
+and validation gates remain binding. Factual capture is pre-authorized, not
+permission to expand scope.
 
 Completion persistence rule: do not stop an implementation, experiment, or
 delivery path while its governing GitHub issue remains open. Continue until the
@@ -48,14 +42,17 @@ historical or explanatory context only:
   Technical Debt, including status, parent links, acceptance evidence, and
   resolution.
 - GitHub Project `Project0 Delivery` (#2) owns the visible operational fields:
-  Outcome, Phase, Milestone, Status, Evidence, Blocked, owner, and parent.
+  Outcome, Milestone, Status, Evidence, Blocked, owner, and applicable parent
+  relationships. Phases are retired; legacy Phase fields are not required.
 - [Feature List](../docs/FEATURE-LIST.md) is a **frozen historical archive**
   (as of 2026-09-20) of capabilities delivered before Features moved to GitHub
   issues. A Feature is now a GitHub issue labeled `Feature`, with
   `Parent goal: #N` in its body when it advances a Goal issue. Likewise
-  `docs/slices/*.md` and `SLICE-REGISTRY.md` are frozen; a Slice is now a
-  GitHub issue labeled `Slice`, with `Parent feature: #N` in its body when it
-  advances a Feature issue. See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
+  `docs/slices/*.md` and `SLICE-REGISTRY.md` are frozen. Milestones own named
+  slice groups with Included issues; issue labels (including `Slice`) do not
+  define those groups. Preserve applicable strategic parent links. Technical
+  Debt remains a linked GitHub liability, not a delivery hierarchy level.
+  See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
 - [Project Tracker](../docs/PROJECT-TRACKER.md) and [Technical Debt Tracker](../docs/TECHNICAL-DEBT-TRACKER.md) are frozen archives and must not be updated for new active work. Do not use them as status, phase, track, or queue authorities.
 
 ## Implementation ownership
@@ -84,10 +81,13 @@ If the implementing agent reaches a session limit, timeout, or validation failur
 in the workspace. A follow-up attempt may repair only the missing checkpoint,
 but must re-read current user-edited tracker files before changing them.
 
-Before implementation, identify the primary outcome, phase, parent issue, and
-slice. Update the governing GitHub issue and Project fields whenever scope or
-status changes. Assign a milestone only when the work is a committed delivery
-outcome; do not use milestones as a substitute for phase or status fields.
+Before implementation, follow the
+[delivery hierarchy](../docs/DEVELOPMENT-WORKFLOW.md#milestones-slice-groups-and-linked-issues):
+identify the outcome, committed milestone, named slice group, governing issue and
+applicable parents, or state why the work is cross-cutting/uncommitted. Update
+the issue and Project whenever scope or status changes. Milestones commit
+outcomes; Status shows work state and explicit dependencies determine ordering.
+Assign Technical Debt to a milestone only when its remediation is committed.
 
 Foundation gate: before implementation, read `../docs/PROJECT-SETUP-CHECKLIST.md`.
 If `../.foundation-incomplete` exists or any active record still contains a
@@ -96,7 +96,11 @@ first. Remove the marker only after the checklist validation passes.
 
 ## Mandatory Grilling Protocol (Default Behavior)
 
-You are a strict Toyota Business Practice (TBP) gatekeeper. Your default behavior is to GRILL the user to eliminate the fog of war. NEVER generate or update a GitHub issue until all required fields for the targeted TBP level are explicitly defined.
+You are a strict Toyota Business Practice (TBP) gatekeeper. For proposed work or
+scope changes, clarify the required fields for the targeted TBP level before
+creating or updating the proposal issue. Factual discovery capture under the
+goal-first rule is an explicit exception: record evidence immediately and mark
+unknowns as unknown. Capture alone does not approve a new delivery commitment.
 
 When the user proposes a new item or you transition to the next TBP level, you MUST execute this strict state machine:
 

@@ -1,9 +1,5 @@
 name: Container images
 
-# Builds and publishes every deployable service image to GHCR (Slice 105).
-#
-# This workflow only publishes; it deploys nothing. Images are addressed by
-# immutable tags so a deploy can pin an exact build and roll back by tag.
 on:
   push:
     branches: [main]
@@ -23,13 +19,11 @@ jobs:
   build:
     name: ${{ matrix.image }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          # One image serves the game and login servers, and will serve a future
-          # zone server, because they are the same codebase differing only by
-          # entrypoint. Recorded as DT-012.
           - image: project0-godot
             dockerfile: deploy/game-server/Dockerfile
             context: .
@@ -42,12 +36,16 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # Pull requests build to validate the Dockerfile but must not publish:
-      # a fork PR has no business pushing to the registry.
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify publish source is in main history
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main'
+        shell: bash
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - uses: docker/setup-buildx-action@v3
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -55,7 +53,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
+          logout: false
       - name: Derive image tags
         id: meta
         uses: docker/metadata-action@v5
@@ -63,13 +61,10 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
             type=ref,event=branch
-            # The raw tag (v1.2.3) so a deploy can pull by GITHUB_REF_NAME directly;
-            # the semver forms below strip the leading v.
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -78,7 +73,5 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # GitHub Actions layer cache keeps the expensive Godot download and
-          # import step off the critical path for unchanged layers.
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}

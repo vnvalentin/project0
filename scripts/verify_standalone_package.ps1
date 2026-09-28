@@ -4,6 +4,7 @@ param(
     [ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')]
     [string]$Version,
     [string]$PackageRoot,
+    [string]$GodotPath,
     [switch]$Windowed,
     [ValidateRange(10, 120)]
     [int]$TimeoutSeconds = 60,
@@ -51,6 +52,7 @@ $result = [ordered]@{
     client_launched = $false
     client = $null
     probe = $null
+    package_boundary = $null
     runtime_error_lines = $null
     runtime_warning_lines = $null
     isolated_user_files = @()
@@ -108,6 +110,13 @@ try {
         $result.archive_contents += [ordered]@{ name = $entry.name; expected_bytes = $entry.bytes; expected_sha256 = $entry.sha256; actual_bytes = $actual.bytes; actual_sha256 = $actual.sha256 }
         if ($actual.bytes -le 0 -or $actual.bytes -ne $entry.bytes -or $actual.sha256 -ne $entry.sha256) { throw "Extracted $($entry.name) hash mismatch." }
     }
+
+    $result.stage = "package-boundary"
+    $boundaryEvidence = Join-Path $evidence "package-boundary.json"
+    & pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot "check_windows_client_package.ps1") -PackPath (Join-Path $package "Project0.pck") -GodotPath $GodotPath -OutputPath $boundaryEvidence
+    if ($LASTEXITCODE -ne 0) { throw "Standalone package dependency boundary failed: $boundaryEvidence" }
+    $result.package_boundary = Get-Content -LiteralPath $boundaryEvidence -Raw | ConvertFrom-Json
+    if (-not $result.package_boundary.passed -or -not $result.package_boundary.cleanup) { throw "Package boundary evidence is incomplete." }
 
     $result.stage = "launch"
     $roaming = Join-Path $root "appdata\roaming"
