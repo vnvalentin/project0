@@ -37,7 +37,15 @@
       "owner": "linux-tooling",
       "dependencies": ["bash"],
       "runner": "bash <selected shell test>",
-      "tests": ["scripts/test_*.sh"],
+      "tests": ["scripts/test_runner_admission.sh", "scripts/test_deploy_containers.sh", "scripts/test_check_record_sync.sh"],
+      "evidence": "supporting-component"
+    },
+    "linux-container-tooling": {
+      "platform": "linux",
+      "owner": "linux-tooling",
+      "dependencies": ["bash", "docker", "python"],
+      "runner": "bash scripts/test_hosted_gut_container.sh",
+      "tests": ["scripts/test_hosted_gut_container.sh"],
       "evidence": "supporting-component"
     },
     "windows-fixture": {

@@ -1,8 +1,15 @@
 ---
-status: accepted
+status: superseded
 ---
 
 # Independent CI source admission
+
+> Superseded by the targeted rollback in #1269. The exact-grant design denied
+> unreviewed source correctly, but its per-run administrator ceremony caused
+> deterministic failures for ordinary PR and label activity. Hosted Linux and
+> image jobs now consume the metadata route directly; branch protection and the
+> eight required checks remain in force. The implementation and evidence below
+> are retained as historical security context.
 
 Under [#1265](https://github.com/vnvalentin/project0/issues/1265), CI acquisition
 authority lives outside the candidate checkout. Protected-main policy code is
