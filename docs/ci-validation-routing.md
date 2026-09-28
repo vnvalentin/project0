@@ -11,11 +11,17 @@ with the read-only GitHub token. An open same-repository PR must target main,
 match the event SHA and current main base, and contain that base as an ancestor.
 A main push must identify exactly one merged PR and one merge commit whose
 first parent is the event's previous main SHA. Missing, ambiguous, stale, foreign
-or unsupported identities fail before any Linux job starts.
+or unsupported identities fail the metadata route.
 
-Every Linux job depends on `route`, checks out only `linux_ref`, and verifies
-the committed Git blob manifest SHA-256 before running tests. No unclassified
-candidate branch is fetched by Linux. The exact candidate remains `windows_ref`.
+Independent administrator-owned runner admission, delivered by
+[#1265](https://github.com/vnvalentin/project0/issues/1265), authorizes Linux
+acquisition before workflow steps. See [the admission contract](ci-runner-admission.md).
+The candidate's metadata route is not an authorization authority. Every Linux
+validation job depends on `route`, checks out the independently approved source
+ref, verifies its exact commit and tree, then requires agreement with the route's
+`linux_ref` and committed Git blob digest. The exact candidate remains `windows_ref`.
+An unknown candidate requires a separately reviewed, expiring administrator grant;
+neither a passing route nor this PR creates that grant.
 
 Linux-only changes use the candidate SHA. A `platform:windows-required` change
 may use the approved main baseline only when all tracked inputs except direct
@@ -30,16 +36,17 @@ workflow are Linux inputs: changing them cannot be hidden by baseline reuse.
 
 ## Container Image Routing
 
-`images.yml` uses the same Windows metadata approval before any Linux checkout.
-The three image check names remain on the assigned okami runner. Denied or
-missing approval fails each job before acquisition. The approved ref and input
-digest are checked before Docker credentials or builds. Manual and tag requests
-must identify an exact commit in approved main history; an unmerged branch
-cannot authorize an image build through these event types.
+`images.yml` uses independent runner admission before any Linux checkout, not
+the candidate-owned metadata route. The three image check names remain on the
+assigned okami runner. Denied or missing approval prevents acquisition. The
+approved ref and tree are checked before Docker credentials or builds. Manual
+and tag grants bind independent approved-main identity and Windows classification;
+the candidate cannot reset that classification through an empty label list.
 
 The existing `default` Docker builder is used without creating a builder service.
-Credentials live in job-private `DOCKER_CONFIG` under runner temp and are removed
-by unconditional cleanup. No GitHub cache exporter is requested from the default
+Credentials live in job-private `DOCKER_CONFIG` under runner temp, initialized
+at step scope, and are removed by always-run cleanup only when that job created
+the directory. No GitHub cache exporter is requested from the default
 Docker driver. Images carry the approved source revision and SHA tag. PRs never
 publish. Windows-only candidates build identical approved Linux inputs as
 supporting evidence but never publish server images. Linux main/tag/manual
@@ -74,7 +81,10 @@ python scripts/ci_validation_routing.py aggregate --results <download-directory>
 Required jobs remain ownership, godot, records, python and launcher. Coverage
 units are the existing required test **files/scripts**, not a claim of atomic
 test-case inventory. XML failures/errors/skips and omitted files reject sealing.
-Ownership uses its real JSON reports; record checks use successful command logs.
+Ownership uses its real JSON reports, including independent admission tests, and
+requires positive execution counts with no failures, errors or skips. Its static
+inventory report is supporting evidence, not test execution. Record checks use
+successful command logs; zero errors with retained warnings remains success.
 The unconditional acceptance job additionally rejects any failed/skipped job.
 Artifact hashes are recomputed from downloaded bytes, not accepted on assertion.
 CLI failures emit `routing/report.json`; original job artifacts upload on failure.
@@ -108,7 +118,8 @@ of packages whose selected test set actually ran and passed. Only the existing
 `TestExperiment1100RealEngine` opt-in may be unselected; it is reported as
 unevaluated, not passed. Every other collected test must be selected, and every
 skipped selected test rejects the report. The
-summary alone is insufficient. Additional Windows client/paired gates require
+aggregate verifies omission disclosure against the hashed native inventory.
+The summary alone is insufficient. Additional Windows client/paired gates require
 their own evidence; this report does not claim gameplay acceptance.
 
 Full GUT is supporting Linux evidence, never Windows or paired acceptance.

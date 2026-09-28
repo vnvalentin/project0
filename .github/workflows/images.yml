@@ -1,9 +1,5 @@
 name: Container images
 
-# Builds and publishes every deployable service image to GHCR (Slice 105).
-#
-# This workflow only publishes; it deploys nothing. Images are addressed by
-# immutable tags so a deploy can pin an exact build and roll back by tag.
 on:
   push:
     branches: [main]
@@ -13,56 +9,21 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  packages: write
 
 concurrency:
   group: images-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  route:
-    name: Approve image source
-    runs-on: windows-latest
-    timeout-minutes: 10
-    outputs:
-      linux_ref: ${{ steps.plan.outputs.linux_ref }}
-      windows_required: ${{ steps.plan.outputs.windows_required }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Classify metadata before Linux acquisition
-        id: plan
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python scripts/ci_validation_routing.py plan
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: image-routing-${{ github.run_id }}-${{ github.run_attempt }}
-          path: routing/
-          if-no-files-found: error
-
   build:
     name: ${{ matrix.image }}
-    needs: route
-    if: always()
     runs-on: [self-hosted, Linux, X64, okami]
     timeout-minutes: 45
-    permissions:
-      contents: read
-      packages: write
-    env:
-      DOCKER_CONFIG: ${{ runner.temp }}/project0-image-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.image }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # One image serves the game and login servers, and will serve a future
-          # zone server, because they are the same codebase differing only by
-          # entrypoint. Recorded as DT-012.
           - image: project0-godot
             dockerfile: deploy/game-server/Dockerfile
             context: .
@@ -73,68 +34,64 @@ jobs:
             dockerfile: dashboard/Dockerfile
             context: dashboard
     steps:
-      - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' || (needs.route.outputs.windows_required != 'true' && needs.route.outputs.windows_required != 'false') }}
-        run: exit 1
-      - uses: actions/download-artifact@v4
-        with:
-          name: image-routing-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/image-routing
-      - name: Check out repository
+      - name: Require independent source admission
+        shell: bash
+        run: |
+          [[ -n "${PROJECT0_APPROVED_SOURCE_REF:-}" && -n "${PROJECT0_APPROVED_SOURCE_TREE:-}" ]]
+          [[ "${PROJECT0_SOURCE_WINDOWS_REQUIRED:-}" == true || "${PROJECT0_SOURCE_WINDOWS_REQUIRED:-}" == false ]]
+      - name: Check out approved source
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.linux_ref }}
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
           persist-credentials: false
-
-      - name: Verify approved input identity
-        run: python3 scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/image-routing/plan.json"
-
-      - name: Prepare private Docker credentials and existing builder
+      - name: Verify approved source identity
         shell: bash
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$PROJECT0_APPROVED_SOURCE_REF" ]]
+          [[ "$(git rev-parse 'HEAD^{tree}')" == "$PROJECT0_APPROVED_SOURCE_TREE" ]]
+      - name: Prepare private Docker configuration
+        id: docker-config
+        shell: bash
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/project0-image-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.image }}
         run: |
           if [[ -e "$DOCKER_CONFIG" ]]; then exit 1; fi
           install -d -m 700 "$DOCKER_CONFIG"
+          printf 'DOCKER_CONFIG=%s\n' "$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          printf 'owned=true\n' >> "$GITHUB_OUTPUT"
           docker buildx inspect default
-
-      # Pull requests build to validate the Dockerfile but must not publish:
-      # a fork PR has no business pushing to the registry.
       - name: Log in to GHCR
-        if: github.event_name != 'pull_request' && needs.route.outputs.windows_required == 'false'
+        if: github.event_name != 'pull_request' && env.PROJECT0_SOURCE_WINDOWS_REQUIRED == 'false'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           logout: false
-
       - name: Derive image tags
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           labels: |
-            org.opencontainers.image.revision=${{ needs.route.outputs.linux_ref }}
+            org.opencontainers.image.revision=${{ env.PROJECT0_APPROVED_SOURCE_REF }}
           tags: |
             type=ref,event=branch
-            # The raw tag (v1.2.3) so a deploy can pull by GITHUB_REF_NAME directly;
-            # the semver forms below strip the leading v.
             type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=sha-${{ needs.route.outputs.linux_ref }}
-
+            type=raw,value=sha-${{ env.PROJECT0_APPROVED_SOURCE_REF }}
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           builder: default
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          push: ${{ github.event_name != 'pull_request' && needs.route.outputs.windows_required == 'false' }}
+          push: ${{ github.event_name != 'pull_request' && env.PROJECT0_SOURCE_WINDOWS_REQUIRED == 'false' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Remove private Docker credentials
-        if: always()
+      - name: Remove private Docker configuration
+        if: always() && steps.docker-config.outputs.owned == 'true'
         shell: bash
         run: |
           case "$DOCKER_CONFIG" in

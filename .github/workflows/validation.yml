@@ -48,6 +48,8 @@ jobs:
       - name: Reject missing source approval
         if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -55,26 +57,30 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.linux_ref }}
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
           persist-credentials: false
-
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Verify approved input identity
-        run: python3 scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Test CI routing
-        run: python3 scripts/test_ci_validation_routing.py --report build/validation/routing-tests.json
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/test_ci_validation_routing.py --report build/validation/routing-tests.json
+      - name: Test independent admission
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/test_ci_runner_admission.py --report build/validation/runner-admission-tests.json
 
       - name: Test ownership preflight
         shell: bash
         run: |
           mkdir -p build/validation
-          python3 scripts/test_validation_ownership.py --report build/validation/ownership-tests.json 2>&1 | tee build/validation/ownership-tests.log
+          /data/code/project0/.venv-enrollment/bin/python scripts/test_validation_ownership.py --report build/validation/ownership-tests.json 2>&1 | tee build/validation/ownership-tests.log
 
       - name: Check test ownership and static client dependencies
-        run: python3 scripts/check_validation_ownership.py --output build/validation/ownership.json
+        if: always()
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/check_validation_ownership.py --output build/validation/ownership.json
 
       - name: Bind ownership evidence
-        run: python3 scripts/ci_validation_routing.py seal --job ownership --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job ownership --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Upload ownership report
         if: always()
@@ -95,6 +101,8 @@ jobs:
       - name: Reject missing source approval
         if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -102,16 +110,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.linux_ref }}
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
           persist-credentials: false
-
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Verify approved input identity
-        run: python3 scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Run validation suite
         shell: bash
         run: |
-          container="project0-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          container="project0-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
           image=sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602
           docker image inspect "$image" >/dev/null
           if docker container inspect "$container" >/dev/null 2>&1; then exit 1; fi
@@ -119,7 +128,7 @@ jobs:
           timeout --kill-after=15s 1100 docker run --rm --name "$container" --label project0.validation=1259 --network none --no-healthcheck --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev --user "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE:/app" -w /app --entrypoint /usr/bin/env "$image" -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard bash scripts/run_gut_validation.sh
 
       - name: Bind GUT evidence
-        run: python3 scripts/ci_validation_routing.py seal --job godot --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job godot --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Upload validation telemetry
         if: always()
@@ -140,6 +149,8 @@ jobs:
       - name: Reject missing source approval
         if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -147,11 +158,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.linux_ref }}
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
           persist-credentials: false
-
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Verify approved input identity
-        run: python3 scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Check delivery record sync
         shell: bash
@@ -164,7 +176,7 @@ jobs:
         run: bash scripts/test_deploy_containers.sh 2>&1 | tee build/validation/deploy.log
 
       - name: Bind record evidence
-        run: python3 scripts/ci_validation_routing.py seal --job records --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job records --plan "$RUNNER_TEMP/routing/plan.json"
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -183,6 +195,8 @@ jobs:
       - name: Reject missing source approval
         if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
+      - name: Require independent source admission
+        run: test -n "$PROJECT0_APPROVED_SOURCE_REF" && test -n "$PROJECT0_APPROVED_SOURCE_TREE"
       - uses: actions/download-artifact@v4
         with:
           name: routing-${{ github.run_id }}-${{ github.run_attempt }}
@@ -190,17 +204,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.route.outputs.linux_ref }}
+          ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}
           persist-credentials: false
-
+      - name: Verify approved source identity
+        run: test "$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF" && test "$(git rev-parse 'HEAD^{tree}')" = "$PROJECT0_APPROVED_SOURCE_TREE"
       - name: Verify approved input identity
-        run: python3 scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py verify-source --plan "$RUNNER_TEMP/routing/plan.json"
 
       - name: Run enrollment and operator tests
-        run: python3 -m pytest infra/enrollment/tests infra/operator/tests -q -o junit_family=legacy --junitxml=build/validation/python.xml
+        run: /data/code/project0/.venv-enrollment/bin/python -m pytest infra/enrollment/tests infra/operator/tests -q --junitxml=build/validation/python.xml -o junit_family=xunit1
 
       - name: Bind service evidence
-        run: python3 scripts/ci_validation_routing.py seal --job python --plan "$RUNNER_TEMP/routing/plan.json"
+        run: /data/code/project0/.venv-enrollment/bin/python scripts/ci_validation_routing.py seal --job python --plan "$RUNNER_TEMP/routing/plan.json"
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -102,8 +102,9 @@ class RoutingTests(unittest.TestCase):
         plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for name in ("ownership-tests.json", "routing-tests.json", "ownership.json"):
-                (directory / name).write_text(json.dumps({"passed": True, "skipped": []}))
+            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+                (directory / name).write_text(json.dumps({"passed": True, "skipped": [],
+                    "tests_run": 1, "tests": 1, "failures": [], "errors": []}))
             with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
                 result = self.routing.seal(plan, "ownership", directory)
                 self.assertEqual(result["tests"], plan["expected_tests"]["ownership"])
@@ -117,8 +118,9 @@ class RoutingTests(unittest.TestCase):
         plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for name in ("ownership-tests.json", "routing-tests.json", "ownership.json"):
-                (directory / name).write_text(json.dumps({"passed": True, "skipped": []}))
+            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+                (directory / name).write_text(json.dumps({"passed": True, "skipped": [],
+                    "tests_run": 1, "tests": 1, "failures": [], "errors": []}))
             nested = directory / "client/package-controls/result.json"
             nested.parent.mkdir(parents=True)
             nested.write_bytes(b'{"passed":true}')
@@ -128,6 +130,35 @@ class RoutingTests(unittest.TestCase):
             self.assertEqual(result["artifacts"].get("client/package-controls/result.json"),
                              hashlib.sha256(nested.read_bytes()).hexdigest())
             self.assertNotIn("result.json", result["artifacts"])
+
+    def test_ownership_seal_rejects_missing_or_zero_execution(self):
+        plan = self.routing.route(self.metadata)
+        plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+                (directory / name).write_text(json.dumps({"passed": True, "skipped": []}))
+            with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
+                with self.assertRaises(ValueError):
+                    self.routing.seal(plan, "ownership", directory)
+                for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json"):
+                    (directory / name).write_text(json.dumps({"passed": True, "skipped": 0,
+                        "tests": 0, "tests_run": 0, "failures": 0, "errors": 0}))
+                with self.assertRaises(ValueError):
+                    self.routing.seal(plan, "ownership", directory)
+
+    def test_record_seal_preserves_warning_only_success(self):
+        plan = self.routing.route(self.metadata)
+        plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "records.log").write_text("record-sync: 0 error(s), 2 warning(s)\n")
+            (directory / "deploy.log").write_text("deploy containers: durable artifact, targeted service, and recovery verified\n")
+            with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
+                self.assertEqual(self.routing.seal(plan, "records", directory)["status"], "success")
+                (directory / "records.log").write_text("record-sync: 1 error(s), 0 warning(s)\n")
+                with self.assertRaises(ValueError):
+                    self.routing.seal(plan, "records", directory)
 
     def test_cli_failure_retains_report(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -206,10 +237,24 @@ class RoutingTests(unittest.TestCase):
                           "source_ref": plan["windows_ref"] if job == "launcher" else plan["linux_ref"],
                           "input_digest": plan["input_digest"], "status": "success", "skipped": 0,
                           "tests": ["known-test"], "artifacts": {"proof.txt": hashlib.sha256(b"test evidence").hexdigest()}}
+                if job == "launcher":
+                    metadata = directory / "native-package.json"
+                    metadata.write_text(json.dumps({"OptInTests": ["TestExperiment1100RealEngine"]}))
+                    result["artifacts"][metadata.name] = hashlib.sha256(metadata.read_bytes()).hexdigest()
+                    result["not_evaluated"] = [{"test": "TestExperiment1100RealEngine",
+                        "reason": "explicit opt-in via scripts/run_windows_experiment_1100.ps1"}]
                 (directory / "result.json").write_text(json.dumps(result))
             command = [sys.executable, str(ROOT / "scripts/ci_validation_routing.py"), "aggregate",
                        "--plan", str(root / "plan.json"), "--results", str(root), "--output", str(root / "report.json")]
             self.assertEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 0)
+            launcher_result = root / "launcher/result.json"
+            original = launcher_result.read_text()
+            undisclosed = json.loads(original)
+            del undisclosed["not_evaluated"]
+            launcher_result.write_text(json.dumps(undisclosed))
+            self.assertEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 1)
+            self.assertIn("opt-in", json.loads((root / "report.json").read_text())["errors"][0])
+            launcher_result.write_text(original)
             (root / "godot/proof.txt").write_bytes(b"changed")
             self.assertEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 1)
             self.assertIn("hash mismatch", json.loads((root / "report.json").read_text())["errors"][0])
@@ -231,27 +276,38 @@ class RoutingTests(unittest.TestCase):
     def test_workflow_guards_all_linux_acquisition_and_retains_required_gates(self):
         import re
         text = (ROOT / ".github/workflows/validation.yml").read_text()
+        self.assertNotIn("<<<<<<<", text)
         for job in ("ownership", "godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
             self.assertIn("needs: route", block)
             self.assertIn("if: always()", block)
             self.assertLess(block.index("run: exit 1"), block.index("uses: actions/checkout@v4"))
             self.assertIn("runs-on: [self-hosted, Linux, X64, okami]", block)
-            self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", block)
+            self.assertLess(block.index("name: Require independent source admission"),
+                            block.index("uses: actions/checkout@v4"))
+            self.assertIn("ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}", block)
+            self.assertIn('$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF', block)
+            self.assertIn('$(git rev-parse \'HEAD^{tree}\')" = "$PROJECT0_APPROVED_SOURCE_TREE', block)
             self.assertIn("verify-source", block)
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
+
+    def test_image_workflow_requires_independent_admission(self):
         images = (ROOT / ".github/workflows/images.yml").read_text()
+        self.assertIn("  packages: write", images)
         build = images.split("  build:\n", 1)[1]
-        self.assertIn("needs: route", build)
+        self.assertNotIn("needs.route.outputs", images)
+        self.assertNotIn("<<<<<<<", images)
         self.assertIn("runs-on: [self-hosted, Linux, X64, okami]", build)
-        self.assertLess(build.index("run: exit 1"), build.index("uses: actions/checkout@v4"))
-        self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", build)
-        self.assertIn("verify-source", build)
+        self.assertLess(build.index("name: Require independent source admission"),
+                        build.index("uses: actions/checkout@v4"))
+        self.assertIn("ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}", build)
+        self.assertIn('$(git rev-parse HEAD)" == "$PROJECT0_APPROVED_SOURCE_REF', build)
+        self.assertIn('$(git rev-parse \'HEAD^{tree}\')" == "$PROJECT0_APPROVED_SOURCE_TREE', build)
         self.assertNotIn("docker/setup-buildx-action", images)
         self.assertIn("builder: default", build)
-        self.assertIn("needs.route.outputs.windows_required == 'false'", build)
-        self.assertIn("DOCKER_CONFIG: ${{ runner.temp }}/project0-image-", build)
-        self.assertIn("name: Remove private Docker credentials\n        if: always()", build)
+        self.assertIn("env.PROJECT0_SOURCE_WINDOWS_REQUIRED == 'false'", build)
+        self.assertIn("        env:\n          DOCKER_CONFIG: ${{ runner.temp }}/project0-image-", build)
+        self.assertIn("if: always() && steps.docker-config.outputs.owned == 'true'", build)
 
     def test_manual_image_source_requires_main_ancestry(self):
         with tempfile.TemporaryDirectory() as temporary:

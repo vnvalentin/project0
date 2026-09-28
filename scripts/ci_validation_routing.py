@@ -162,6 +162,7 @@ def metadata_from_event():
 def expected_tests(tree, windows_required=False):
     return {
         "ownership": ["scripts/test_validation_ownership.py", "scripts/test_ci_validation_routing.py",
+                      "scripts/test_ci_runner_admission.py",
                       "scripts/check_validation_ownership.py"],
         "godot": sorted(path for path in tree if re.fullmatch(r"tests/(unit|integration)/test_[^/]+\.gd", path)),
         "records": ["scripts/check_record_sync.sh", "scripts/test_deploy_containers.sh"],
@@ -233,6 +234,16 @@ def client_tests(directory):
     return ["scripts/test_build_current_deployment.ps1", "scripts/test_windows_client_validation.ps1"]
 
 
+def native_omissions(directory):
+    metadata = json.loads((directory / "native-package.json").read_text(encoding="utf-8-sig"))
+    opt_in = metadata.get("OptInTests", [])
+    if (not isinstance(opt_in, list) or len(opt_in) != len(set(opt_in))
+            or any(name != "TestExperiment1100RealEngine" for name in opt_in)):
+        raise ValueError("invalid native opt-in inventory")
+    return [{"test": name, "reason": "explicit opt-in via scripts/run_windows_experiment_1100.ps1"}
+            for name in opt_in]
+
+
 def seal(plan, job, directory):
     source_ref = plan["windows_ref"] if job == "launcher" else plan["linux_ref"]
     if command("git", "rev-parse", "HEAD") != source_ref:
@@ -252,14 +263,23 @@ def seal(plan, job, directory):
             raise ValueError("empty, failed, or skipped test result")
         tests = sorted({suite.attrib["name"] for suite in root.iter("testsuite") if suite.findall("testcase")}) if job == "godot" else sorted({case.attrib["file"] for case in cases})
     elif job == "ownership":
-        for name in ("ownership-tests.json", "routing-tests.json", "ownership.json"):
+        for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
             report = json.loads((directory / name).read_text(encoding="utf-8"))
             if report.get("passed") is not True or report.get("skipped", 0) not in (0, []):
                 raise ValueError(f"failed ownership evidence: {name}")
+            if name != "ownership.json":
+                count = report.get("tests_run" if name == "ownership-tests.json" else "tests")
+                if (type(count) is not int or count <= 0
+                        or report.get("failures") not in (0, [])
+                        or report.get("errors") not in (0, [])
+                        or report.get("skipped") not in (0, [])):
+                    raise ValueError(f"missing or failed ownership execution: {name}")
         tests = ["scripts/test_validation_ownership.py", "scripts/test_ci_validation_routing.py",
+                 "scripts/test_ci_runner_admission.py",
                  "scripts/check_validation_ownership.py"]
     elif job == "records":
-        if "record-sync: 0 error(s), 0 warning(s)" not in (directory / "records.log").read_text():
+        if not re.search(r"^record-sync: 0 error\(s\), \d+ warning\(s\)$",
+                         (directory / "records.log").read_text(), re.MULTILINE):
             raise ValueError("record-sync evidence missing")
         if "deploy containers: durable artifact, targeted service, and recovery verified" not in (directory / "deploy.log").read_text():
             raise ValueError("deployment contract evidence missing")
@@ -274,9 +294,7 @@ def seal(plan, job, directory):
               "input_digest": plan["input_digest"], "status": "success", "skipped": 0,
               "tests": tests, "artifacts": artifacts}
     if job == "launcher":
-        metadata = json.loads((directory / "native-package.json").read_text(encoding="utf-8-sig"))
-        result["not_evaluated"] = [{"test": name, "reason": "explicit opt-in via scripts/run_windows_experiment_1100.ps1"}
-                                   for name in metadata.get("OptInTests", [])]
+        result["not_evaluated"] = native_omissions(directory)
     return result
 
 
@@ -334,6 +352,10 @@ def main():
                                 raise ValueError(f"{job}: missing artifact {name}")
                             if hashlib.sha256(artifact.read_bytes()).hexdigest() != expected_hash:
                                 raise ValueError(f"{job}: artifact hash mismatch {name}")
+                        if job == "launcher":
+                            if ("native-package.json" not in result.get("artifacts", {})
+                                    or result.get("not_evaluated") != native_omissions(result_path.parent)):
+                                raise ValueError("launcher: missing or inconsistent native opt-in disclosure")
                         results[job] = result
                 report["errors"] = reconcile(plan, results)
         report["passed"] = not report["errors"]
