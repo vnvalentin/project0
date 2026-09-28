@@ -289,6 +289,10 @@ class RoutingTests(unittest.TestCase):
             self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", block)
             self.assertIn('$(git rev-parse HEAD)" = "${{ needs.route.outputs.linux_ref }}', block)
             self.assertIn("verify-source", block)
+        godot = re.search(r"^  godot:\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
+        self.assertIn('--user "$(id -u):$(id -g)"', godot)
+        self.assertIn("HOME=/tmp/home", godot)
+        self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", godot)
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
 
     def test_image_workflow_uses_hosted_ephemeral_builder(self):
@@ -304,6 +308,8 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("uses: docker/setup-buildx-action@v3", build)
         self.assertIn("push: ${{ github.event_name != 'pull_request' }}", build)
         self.assertIn("cache-from: type=gha", build)
+        self.assertIn('git merge-base --is-ancestor "$GITHUB_SHA" origin/main', build)
+        self.assertLess(build.index("git merge-base --is-ancestor"), build.index("docker/login-action@v3"))
 
     def test_manual_image_source_requires_main_ancestry(self):
         with tempfile.TemporaryDirectory() as temporary:
