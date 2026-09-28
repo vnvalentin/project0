@@ -102,7 +102,8 @@ class RoutingTests(unittest.TestCase):
         plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
+                         "hosted-container-tests.json", "ownership.json"):
                 (directory / name).write_text(json.dumps({"passed": True, "skipped": [],
                     "tests_run": 1, "tests": 1, "failures": [], "errors": []}))
             with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
@@ -118,7 +119,8 @@ class RoutingTests(unittest.TestCase):
         plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
+                         "hosted-container-tests.json", "ownership.json"):
                 (directory / name).write_text(json.dumps({"passed": True, "skipped": [],
                     "tests_run": 1, "tests": 1, "failures": [], "errors": []}))
             nested = directory / "client/package-controls/result.json"
@@ -136,12 +138,14 @@ class RoutingTests(unittest.TestCase):
         plan["expected_tests"] = self.routing.expected_tests(self.metadata["candidate_tree"])
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+            for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
+                         "hosted-container-tests.json", "ownership.json"):
                 (directory / name).write_text(json.dumps({"passed": True, "skipped": []}))
             with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
                 with self.assertRaises(ValueError):
                     self.routing.seal(plan, "ownership", directory)
-                for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json"):
+                for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
+                             "hosted-container-tests.json"):
                     (directory / name).write_text(json.dumps({"passed": True, "skipped": 0,
                         "tests": 0, "tests_run": 0, "failures": 0, "errors": 0}))
                 with self.assertRaises(ValueError):
@@ -291,14 +295,18 @@ class RoutingTests(unittest.TestCase):
             self.assertIn('$(git rev-parse HEAD)" = "${{ needs.route.outputs.linux_ref }}', block)
             self.assertIn("verify-source", block)
         godot = re.search(r"^  godot:\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
-        self.assertIn('--user "$(id -u):$(id -g)"', godot)
-        self.assertIn("HOME=/tmp/home", godot)
-        self.assertIn("umask 0002", godot)
-        self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", godot)
-        self.assertNotIn('chmod g+w "$GITHUB_WORKSPACE"', godot)
-        self.assertIn("install -d -m 2775 build/validation .godot", godot)
-        self.assertIn("--network none --no-healthcheck --read-only --cap-drop ALL", godot)
-        self.assertIn("--security-opt no-new-privileges", godot)
+        self.assertIn("bash scripts/run_hosted_gut_container.sh", godot)
+        container = (ROOT / "scripts/run_hosted_gut_container.sh").read_text()
+        self.assertIn('--user "$(id -u):$(id -g)"', container)
+        self.assertIn("HOME=/tmp/home", container)
+        self.assertIn("umask 0002", container)
+        self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", container)
+        self.assertNotIn('chmod g+w "$GITHUB_WORKSPACE"', container)
+        self.assertIn('install -d -m 2775 "$root/build/validation" "$root/.godot"', container)
+        self.assertIn("--network none --no-healthcheck --read-only --cap-drop ALL", container)
+        self.assertIn("--security-opt no-new-privileges", container)
+        for unsafe in ("--privileged", "--network host", "--cap-add"):
+            self.assertNotIn(unsafe, container)
         for job in ("godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
             self.assertIn("needs.ownership.result != 'success'", block)
