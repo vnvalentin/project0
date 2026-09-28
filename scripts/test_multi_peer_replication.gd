@@ -81,6 +81,12 @@ func _cleanup_processes() -> void:
 func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	var godot_executable: String = OS.get_executable_path()
 	var project_path: String = ProjectSettings.globalize_path("res://")
+	var state_directory: String = OS.get_environment("PROJECT0_TEST_STATE_DIR")
+	if state_directory.is_empty():
+		state_directory = project_path
+	elif not state_directory.is_absolute_path():
+		state_directory = project_path.path_join(state_directory)
+	DirAccess.make_dir_recursive_absolute(state_directory)
 	_movement_gate = ProjectSettings.globalize_path("user://peer_movement_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
 	_assert(not FileAccess.file_exists(_movement_gate), "owned movement gate starts absent")
 	if FileAccess.file_exists(_movement_gate):
@@ -98,8 +104,8 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		startup_wait_ticks += 1
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
 
-	_state_file_a = project_path.path_join(".test_multi_peer_state_a.json")
-	_state_file_b = project_path.path_join(".test_multi_peer_state_b.json")
+	_state_file_a = state_directory.path_join(".test_multi_peer_state_a.json")
+	_state_file_b = state_directory.path_join(".test_multi_peer_state_b.json")
 	for path: String in [_state_file_a, _state_file_b]:
 		if FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)

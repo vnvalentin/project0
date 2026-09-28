@@ -302,9 +302,14 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("umask 0002", container)
         self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", container)
         self.assertNotIn('chmod g+w "$GITHUB_WORKSPACE"', container)
-        self.assertIn('install -d -m 2775 "$root/build/validation" "$root/.godot"', container)
+        self.assertIn('install -d -m 2775 "$root/build/validation/runtime" "$root/.godot"', container)
+        self.assertIn('-v "$root:/app:ro"', container)
+        self.assertIn('-v "$root/.godot:/app/.godot"', container)
+        self.assertIn('-v "$root/build/validation:/app/build/validation"', container)
         self.assertIn("--network none --no-healthcheck --read-only --cap-drop ALL", container)
         self.assertIn("--security-opt no-new-privileges", container)
+        self.assertIn("PROJECT0_TEST_STATE_DIR=build/validation/runtime", container)
+        self.assertIn('stat -c %g "$artifact"', container)
         for unsafe in ("--privileged", "--network host", "--cap-add"):
             self.assertNotIn(unsafe, container)
         for job in ("godot", "records", "python"):
