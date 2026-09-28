@@ -36,6 +36,7 @@ const TOWN_EXCLUSION_MARGIN_YARDS: float = 2.0
 ## (they exist from construction); use monster_count() for that.
 signal monster_died(spawn_id: String, server_tick: int)
 signal monster_respawned(spawn_id: String, position: Vector3, server_tick: int)
+signal attack_state_changed(spawn_id: String, snapshot: Object)
 
 ## Slice 094: emitted when a monster's landed, telegraph-fair attack should
 ## damage a Player. Carries the victim peer id (the nearest player the monster
@@ -80,6 +81,7 @@ func _init(spawn_points: Array, rng_seed: int = 0, respawn_cooldown_ticks: int =
 ## damage players too.
 func _spawn_monster(spawn_id: String, position: Vector3) -> Object:
 	var monster: Object = ServerMonsterStateScript.new(spawn_id, position)
+	monster.attack_state_changed.connect(_on_monster_attack_state_changed)
 	monster.attack_resolved.connect(_on_monster_attack_resolved)
 	return monster
 
@@ -182,6 +184,10 @@ func _on_monster_attack_resolved(target_id: String, landed: bool, server_tick: i
 		if victim_peer_id >= 0:
 			player_hit.emit(victim_peer_id, target_id, server_tick)
 		return
+
+
+func _on_monster_attack_state_changed(target_id: String, snapshot: Object) -> void:
+	attack_state_changed.emit(target_id, snapshot)
 
 
 func _nearest_player(player_positions: Array, monster_position: Vector3) -> Vector3:

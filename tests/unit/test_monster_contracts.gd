@@ -9,6 +9,24 @@ extends GutTest
 ## docs/slices/126-phase14-monster-health-integration.md.
 
 const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
+
+
+func test_attack_state_snapshot_round_trips_versioned_windup_contract() -> void:
+	var snapshot: Object = MonsterContractsScript.AttackStateSnapshot.new(
+		MonsterContractsScript.PHASE_WINDUP, 42, 10, Vector3.LEFT
+	)
+	var parsed: Object = MonsterContractsScript.AttackStateSnapshot.from_wire(snapshot.to_wire())
+	assert_not_null(parsed, "the current attack-state schema parses its wire form")
+	assert_eq(parsed.schema_version, MonsterContractsScript.ATTACK_STATE_SCHEMA_VERSION)
+	assert_eq(parsed.phase, MonsterContractsScript.PHASE_WINDUP)
+	assert_eq(parsed.target_tick, 42)
+	assert_eq(parsed.duration_ticks, 10)
+	assert_eq(parsed.facing, Vector3.LEFT)
+
+
+func test_attack_state_snapshot_rejects_unknown_schema() -> void:
+	var parsed: Object = MonsterContractsScript.AttackStateSnapshot.from_wire({"schema_version": 999})
+	assert_null(parsed, "an unknown attack-state schema fails closed")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
 

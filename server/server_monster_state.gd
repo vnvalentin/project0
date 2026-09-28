@@ -31,6 +31,7 @@ const CHARACTER_KIND: String = "monster"
 ## Telemetry: emitted on every phase transition, every attack resolution, and
 ## on death. The server runtime forwards these to its telemetry sink/logs.
 signal phase_changed(target_id: String, from_phase: String, to_phase: String, server_tick: int)
+signal attack_state_changed(target_id: String, snapshot: Object)
 signal attack_resolved(target_id: String, landed: bool, server_tick: int)
 signal died(target_id: String, killer_peer_id: int, position: Vector3, server_tick: int)
 
@@ -119,6 +120,15 @@ func _advance_chase(player_position: Vector3, delta: float, server_tick: int) ->
 	if _within_attack(player_position):
 		# Facing is now locked for the telegraph; do not re-track during WINDUP.
 		_set_phase(MonsterContractsScript.PHASE_WINDUP, server_tick)
+		attack_state_changed.emit(
+			target_id,
+			MonsterContractsScript.AttackStateSnapshot.new(
+				MonsterContractsScript.PHASE_WINDUP,
+				server_tick + MonsterContractsScript.WINDUP_TICKS,
+				MonsterContractsScript.WINDUP_TICKS,
+				facing
+			)
+		)
 	else:
 		_move_toward(player_position, delta)
 

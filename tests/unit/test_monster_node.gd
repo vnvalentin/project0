@@ -7,6 +7,7 @@ extends GutTest
 ## already relayed. See docs/slices/033-client-monster-replication-and-rendering.md.
 
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
+const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
 const MonsterSceneScript: PackedScene = preload("res://client/monster.tscn")
 
 
@@ -24,6 +25,30 @@ func test_hit_event_for_its_own_target_id_starts_a_reaction() -> void:
 	NetworkClient.combat_event_received.emit(CombatContractsScript.COMBAT_EVENT_HIT, 1, "m0", Vector3.ZERO, 10)
 
 	assert_gt(monster.get("_hit_reaction_time_remaining"), 0.0, "a HIT for this monster's own target_id starts the cosmetic reaction")
+
+
+func test_windup_snapshot_starts_a_facing_aligned_telegraph() -> void:
+	var monster: Node3D = _make_monster("m0")
+	await wait_physics_frames(1)
+	var snapshot: Object = MonsterContractsScript.AttackStateSnapshot.new(
+		MonsterContractsScript.PHASE_WINDUP, 20, 10, Vector3.LEFT
+	)
+
+	monster.set_attack_state(snapshot.to_wire())
+
+	assert_eq(monster.get("_telegraph_target_tick"), 20, "the client retains the server target timestamp")
+	assert_eq(monster.get("_telegraph_facing"), Vector3.LEFT, "the client retains the server locked facing")
+	assert_gt(monster.get("_telegraph_time_remaining"), 0.0, "WINDUP starts a visible bounded telegraph")
+	assert_almost_eq(monster.rotation.y, PI / 2.0, 0.001, "the telegraph faces the server-approved direction")
+
+
+func test_unknown_attack_state_schema_is_ignored() -> void:
+	var monster: Node3D = _make_monster("m0")
+	await wait_physics_frames(1)
+
+	monster.set_attack_state({"schema_version": 999, "phase": "WINDUP", "target_tick": 20, "duration_ticks": 10, "facing": Vector3.LEFT})
+
+	assert_eq(monster.get("_telegraph_time_remaining"), 0.0, "unknown attack-state schemas fail closed")
 
 
 func test_hit_event_for_a_different_target_id_is_ignored() -> void:

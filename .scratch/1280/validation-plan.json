@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "paired-runtime",
+  "issue": 1280,
+  "scenario_id": "m0.3-monster-attack-telegraph",
+  "client_build": "source-branch-1280",
+  "server_build": "source-branch-1280",
+  "correlation_id": "assigned-at-runtime",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gselect=test_server_monster_state -gexit",
+      "dependencies": ["godot", "sqlite"],
+      "tests": ["tests/unit/test_server_monster_state.gd"],
+      "artifacts": ["build/validation/gut.xml"]
+    },
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/integration -gselect=test_monster_damages_player -gexit",
+      "dependencies": ["godot", "sqlite"],
+      "tests": ["tests/integration/test_monster_damages_player.gd"],
+      "artifacts": ["build/validation/gut.xml"]
+    },
+    {
+      "suite": "windows-client",
+      "platform": "windows",
+      "host": "SETSUJOKU",
+      "command": "pwsh -File scripts/run_paired_validation.ps1",
+      "dependencies": ["godot-client", "powershell"],
+      "tests": ["scripts/run_paired_validation.ps1"],
+      "artifacts": ["build/validation/paired-runtime-1280"]
+    }
+  ],
+  "setup": "Use the approved development server and immutable Windows client candidate; record identities before the encounter.",
+  "cleanup": "Terminate only owned client/server processes and remove only the temporary validation state created by this run.",
+  "rollback": "Revert the issue-1280 branch/PR; no persistent schema or account data changes are authorized."
+}
