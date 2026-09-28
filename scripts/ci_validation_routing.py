@@ -88,7 +88,7 @@ def route(metadata):
             raise ValueError("artifact contract requires platform:windows-required")
         validate_artifact_contract(contract)
     linux_roots = {"server", "shared", "tests", "scripts", "infra", "deploy", "dashboard",
-                   "operator_console", "docs", ".github", ".agents", "addons"}
+                   "operator_console", "docs", ".github", ".agents", ".scratch", "addons"}
     linux_files = {"AGENTS.md", "CLAUDE.md", "CONTEXT.md", "HOSHIN.MD", "project.godot",
                    ".gutconfig.json", ".gitignore", ".gitattributes", "skills-lock.json"}
     for path in changed:

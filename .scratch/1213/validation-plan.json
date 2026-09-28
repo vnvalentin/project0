@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "paired-runtime",
+  "scenario_id": "m0.2-starting-area-movement-readiness",
+  "client_build": "qualified-standalone-windows-build",
+  "server_build": "isolated-authoritative-development-server",
+  "correlation_id": "assigned-at-run-start",
+  "setup": "Prepare an isolated authoritative server instance from the recorded compatible revision; obtain the qualified Windows standalone EXE/PCK on SETSUJOKU; record client and server fingerprints; create only owned temporary state.",
+  "cleanup": "Stop only the owned server/client processes, remove owned temporary state, retain redacted machine-readable client/server reports, and verify no shared development service or Canon data was changed.",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "python3 scripts/paired_server.py --help",
+      "dependencies": ["godot", "sqlite"],
+      "tests": ["scripts/paired_server_fixture.gd"],
+      "artifacts": ["build/validation/1213/server-report.json", "build/validation/1213/server.log"]
+    },
+    {
+      "suite": "windows-client",
+      "platform": "windows",
+      "host": "SETSUJOKU",
+      "command": "scripts/run_paired_validation.ps1",
+      "dependencies": ["godot-client", "powershell"],
+      "tests": ["scripts/run_paired_validation.ps1", "scripts/windows_paired_client.gd"],
+      "artifacts": ["build/validation/1213/client-report.json", "build/validation/1213/client.log"]
+    }
+  ]
+}
