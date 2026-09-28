@@ -13,15 +13,12 @@ A main push must identify exactly one merged PR and one merge commit whose
 first parent is the event's previous main SHA. Missing, ambiguous, stale, foreign
 or unsupported identities fail the metadata route.
 
-Independent administrator-owned runner admission, delivered by
-[#1265](https://github.com/vnvalentin/project0/issues/1265), authorizes Linux
-acquisition before workflow steps. See [the admission contract](ci-runner-admission.md).
-The candidate's metadata route is not an authorization authority. Every Linux
-validation job depends on `route`, checks out the independently approved source
-ref, verifies its exact commit and tree, then requires agreement with the route's
-`linux_ref` and committed Git blob digest. The exact candidate remains `windows_ref`.
-An unknown candidate requires a separately reviewed, expiring administrator grant;
-neither a passing route nor this PR creates that grant.
+Every hosted Linux validation job depends on `route`, checks out its `linux_ref`,
+verifies the exact commit, then requires agreement with the route's committed
+Git blob digest. The exact candidate remains `windows_ref`. Branch protection,
+review and the eight required checks remain the merge authority; the superseded
+root-owned exact-grant mechanism is retained only as historical context in
+[the admission runbook](ci-runner-admission.md).
 
 Linux-only changes use the candidate SHA. A `platform:windows-required` change
 may use the approved main baseline only when all tracked inputs except direct
@@ -36,36 +33,19 @@ workflow are Linux inputs: changing them cannot be hidden by baseline reuse.
 
 ## Container Image Routing
 
-`images.yml` uses independent runner admission before any Linux checkout, not
-the candidate-owned metadata route. The three image check names remain on the
-assigned okami runner. Denied or missing approval prevents acquisition. The
-approved ref and tree are checked before Docker credentials or builds. Manual
-and tag grants bind independent approved-main identity and Windows classification;
-the candidate cannot reset that classification through an empty label list.
-
-The existing `default` Docker builder is used without creating a builder service.
-Credentials live in job-private `DOCKER_CONFIG` under runner temp, initialized
-at step scope, and are removed by always-run cleanup only when that job created
-the directory. No GitHub cache exporter is requested from the default
-Docker driver. Images carry the approved source revision and SHA tag. PRs never
-publish. Windows-only candidates build identical approved Linux inputs as
-supporting evidence but never publish server images. Linux main/tag/manual
-publishing remains; publishing is not deployment.
+`images.yml` runs its three existing checks on ephemeral hosted Ubuntu runners.
+Buildx uses GitHub Actions cache scopes per image. Pull requests build but never
+authenticate to GHCR or publish; main, tag and explicit manual runs retain image
+publication. Publishing remains distinct from deployment.
 
 ## Execution And Evidence
 
-All four Linux jobs require runner labels `self-hosted, Linux, X64, okami`,
-assigned to `192.168.1.254`. The generic hosted Linux alias is not permission to
-move server/Canon execution. Runner prerequisites must already exist; no
-dependency installation or fallback host is performed.
-
-Host tools: Python 3, Git, gh for metadata on Windows, Bash, existing service
-requirements/pytest, and Docker on okami. GUT uses existing image
-`sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602`
-only for runtime execution; it does not contain Python/Git. Its container has
-no network, no capabilities, read-only root, private tmpfs/HOME and no shared
-database or dashboard paths. A bounded timeout and exit trap remove only its
-uniquely named container. CI checkout state belongs to the runner job.
+The four Linux checks run on ephemeral `ubuntu-latest` workers. Python 3.12 and
+service dependencies are installed in the job. GUT executes in the established
+`project0-godot` image pinned by immutable registry digest and mounted only to
+the hosted workspace. These
+CI checks do not substitute for server/runtime acceptance that is explicitly
+owned by `192.168.1.254`; they validate repository behavior and evidence only.
 
 `routing/plan.json` records candidate, baseline, Linux/Windows refs, input digest,
 changed paths, required jobs, expected test files and the evidence limitation.

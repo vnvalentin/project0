@@ -273,45 +273,44 @@ class RoutingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "skipped"):
                     self.routing.seal(plan, "godot", directory)
 
-    def test_workflow_guards_all_linux_acquisition_and_retains_required_gates(self):
+    def test_workflow_routes_hosted_linux_and_retains_required_gates(self):
         import re
         text = (ROOT / ".github/workflows/validation.yml").read_text()
         self.assertNotIn("<<<<<<<", text)
-        self.assertIn('  push:\n    branches: [main]\n    tags: ["v*"]', text)
-        self.assertIn("  pull_request:\n    types: [labeled]", text)
-        self.assertIn("  workflow_dispatch:", text)
+        self.assertIn("  push:\n  pull_request:", text)
+        self.assertNotIn("types: [labeled]", text)
         for job in ("ownership", "godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
             self.assertIn("needs: route", block)
             self.assertIn("if: always()", block)
             self.assertLess(block.index("run: exit 1"), block.index("uses: actions/checkout@v4"))
-            self.assertIn("runs-on: [self-hosted, Linux, X64, okami]", block)
-            self.assertLess(block.index("name: Require independent source admission"),
-                            block.index("uses: actions/checkout@v4"))
-            self.assertIn("ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}", block)
-            self.assertIn('$(git rev-parse HEAD)" = "$PROJECT0_APPROVED_SOURCE_REF', block)
-            self.assertIn('$(git rev-parse \'HEAD^{tree}\')" = "$PROJECT0_APPROVED_SOURCE_TREE', block)
+            self.assertIn("runs-on: ubuntu-latest", block)
+            self.assertNotIn("PROJECT0_APPROVED_SOURCE", block)
+            self.assertIn("ref: ${{ needs.route.outputs.linux_ref }}", block)
+            self.assertIn('$(git rev-parse HEAD)" = "${{ needs.route.outputs.linux_ref }}', block)
             self.assertIn("verify-source", block)
+        godot = re.search(r"^  godot:\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
+        self.assertIn('--user "0:$(id -g)"', godot)
+        self.assertIn("HOME=/tmp/home", godot)
+        self.assertIn("umask 0002", godot)
+        self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", godot)
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
 
-    def test_image_workflow_requires_independent_admission(self):
+    def test_image_workflow_uses_hosted_ephemeral_builder(self):
         images = (ROOT / ".github/workflows/images.yml").read_text()
         self.assertIn("  packages: write", images)
-        self.assertIn("  pull_request:\n    types: [labeled]", images)
+        self.assertIn("  pull_request:\n", images)
+        self.assertNotIn("types: [labeled]", images)
         build = images.split("  build:\n", 1)[1]
         self.assertNotIn("needs.route.outputs", images)
         self.assertNotIn("<<<<<<<", images)
-        self.assertIn("runs-on: [self-hosted, Linux, X64, okami]", build)
-        self.assertLess(build.index("name: Require independent source admission"),
-                        build.index("uses: actions/checkout@v4"))
-        self.assertIn("ref: ${{ env.PROJECT0_APPROVED_SOURCE_REF }}", build)
-        self.assertIn('$(git rev-parse HEAD)" == "$PROJECT0_APPROVED_SOURCE_REF', build)
-        self.assertIn('$(git rev-parse \'HEAD^{tree}\')" == "$PROJECT0_APPROVED_SOURCE_TREE', build)
-        self.assertNotIn("docker/setup-buildx-action", images)
-        self.assertIn("builder: default", build)
-        self.assertIn("env.PROJECT0_SOURCE_WINDOWS_REQUIRED == 'false'", build)
-        self.assertIn("        env:\n          DOCKER_CONFIG: ${{ runner.temp }}/project0-image-", build)
-        self.assertIn("if: always() && steps.docker-config.outputs.owned == 'true'", build)
+        self.assertIn("runs-on: ubuntu-latest", build)
+        self.assertNotIn("PROJECT0_APPROVED_SOURCE", build)
+        self.assertIn("uses: docker/setup-buildx-action@v3", build)
+        self.assertIn("push: ${{ github.event_name != 'pull_request' }}", build)
+        self.assertIn("cache-from: type=gha", build)
+        self.assertIn('git merge-base --is-ancestor "$GITHUB_SHA" origin/main', build)
+        self.assertLess(build.index("git merge-base --is-ancestor"), build.index("docker/login-action@v3"))
 
     def test_manual_image_source_requires_main_ancestry(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -1,5 +1,10 @@
 # CI Runner Admission
 
+> **Inactive historical runbook.** Issue #1269 rolled protected CI back to
+> GitHub-hosted Linux and image jobs after the exact-grant workflow caused
+> repeated failures for normal PR activity. The root-owned files and backups are
+> retained for audit, but the runner hook is disabled after rollback activation.
+
 Owner: [#1265](https://github.com/vnvalentin/project0/issues/1265), prerequisite
 to [#1259](https://github.com/vnvalentin/project0/issues/1259).
 Decision: [ADR 0012](adr/0012-independent-ci-admission.md).
