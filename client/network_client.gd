@@ -229,7 +229,6 @@ var _pending_monster_spawns: Dictionary = {}
 var _pending_monster_positions: Dictionary = {}
 var _latest_monster_spawns: Dictionary = {}
 var _latest_monster_positions: Dictionary = {}
-var _latest_monster_attack_states: Dictionary = {}
 ## Slice 131: town NPC replication state, mirroring the monster dictionaries.
 var _pending_town_npc_spawns: Dictionary = {}
 var _pending_town_npc_positions: Dictionary = {}
@@ -548,18 +547,6 @@ func receive_monster_position(target_id: String, position: Vector3) -> void:
 	apply_monster_position(target_id, position, container)
 
 
-@rpc("authority", "call_remote", "reliable")
-func receive_monster_attack_state(target_id: String, snapshot: Dictionary) -> void:
-	_latest_monster_attack_states[target_id] = snapshot
-	var gameplay_root: Node = get_tree().current_scene
-	if not gameplay_root is Node3D:
-		return
-	var container: Node = gameplay_root.get_node_or_null(MONSTERS_CONTAINER_NAME)
-	if container == null:
-		return
-	apply_monster_attack_state(target_id, snapshot, container)
-
-
 func render_pending_monsters() -> void:
 	var gameplay_root: Node = get_tree().current_scene
 	if not gameplay_root is Node3D:
@@ -569,8 +556,6 @@ func render_pending_monsters() -> void:
 		spawn_monster_representation(target_id, _latest_monster_spawns[target_id], container)
 	for target_id: String in _latest_monster_positions:
 		apply_monster_position(target_id, _latest_monster_positions[target_id], container)
-	for target_id: String in _latest_monster_attack_states:
-		apply_monster_attack_state(target_id, _latest_monster_attack_states[target_id], container)
 	_pending_monster_spawns.clear()
 	_pending_monster_positions.clear()
 
@@ -659,13 +644,6 @@ static func apply_monster_position(target_id: String, position: Vector3, parent:
 	if monster == null:
 		return
 	monster.call("set_target_position", position)
-
-
-static func apply_monster_attack_state(target_id: String, snapshot: Dictionary, parent: Node3D) -> void:
-	var monster: Node = parent.get_node_or_null(monster_node_name(target_id))
-	if monster == null:
-		return
-	monster.call("set_attack_state", snapshot)
 
 
 ## Public seam (static, testable): removes target_id's representation node

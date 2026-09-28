@@ -134,7 +134,15 @@ func _advance_death_reaction(delta: float) -> void:
 func _on_combat_event_received(kind: String, _attacker_peer_id: int, event_target_id: String, _impact_position: Vector3, _server_tick: int) -> void:
 	if event_target_id != target_id:
 		return
-	if kind == CombatContractsScript.COMBAT_EVENT_HIT:
+	if kind == CombatContractsScript.COMBAT_EVENT_MONSTER_WINDUP:
+		set_attack_state({
+			"schema_version": MonsterContractsScript.ATTACK_STATE_SCHEMA_VERSION,
+			"phase": MonsterContractsScript.PHASE_WINDUP,
+			"target_tick": _server_tick,
+			"duration_ticks": MonsterContractsScript.WINDUP_TICKS,
+			"facing": _impact_position,
+		})
+	elif kind == CombatContractsScript.COMBAT_EVENT_HIT:
 		_hit_reaction_time_remaining = HIT_REACTION_DURATION_SEC
 	elif kind == CombatContractsScript.COMBAT_EVENT_DEATH:
 		_dying = true

@@ -1473,16 +1473,16 @@ func _on_monster_respawned(spawn_id: String, position: Vector3, server_tick: int
 
 
 func _on_monster_attack_state_changed(spawn_id: String, snapshot: Object) -> void:
-	var network_client: Node = root.get_node_or_null("NetworkClient")
-	if network_client == null:
-		return
-	for receiving_peer_id: int in _player_states.keys():
-		network_client.rpc_id(
-			receiving_peer_id,
-			"receive_monster_attack_state",
-			spawn_id,
-			snapshot.to_wire()
-		)
+	# Reuse the established CombatEvent RPC so the pinned 4.3 server and
+	# Windows 4.7 client do not need a new NetworkClient checksum entry.
+	var event: Object = CombatContractsScript.CombatEvent.new(
+		CombatContractsScript.COMBAT_EVENT_MONSTER_WINDUP,
+		-1,
+		spawn_id,
+		snapshot.facing,
+		snapshot.target_tick
+	)
+	_broadcast_combat_event(event)
 
 
 ## Relays one peer's authoritative ActionResolution back to that same peer

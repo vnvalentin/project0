@@ -30,11 +30,13 @@ func test_hit_event_for_its_own_target_id_starts_a_reaction() -> void:
 func test_windup_snapshot_starts_a_facing_aligned_telegraph() -> void:
 	var monster: Node3D = _make_monster("m0")
 	await wait_physics_frames(1)
-	var snapshot: Object = MonsterContractsScript.AttackStateSnapshot.new(
-		MonsterContractsScript.PHASE_WINDUP, 20, 10, Vector3.LEFT
+	NetworkClient.combat_event_received.emit(
+		CombatContractsScript.COMBAT_EVENT_MONSTER_WINDUP,
+		-1,
+		"m0",
+		Vector3.LEFT,
+		20
 	)
-
-	monster.set_attack_state(snapshot.to_wire())
 
 	assert_eq(monster.get("_telegraph_target_tick"), 20, "the client retains the server target timestamp")
 	assert_eq(monster.get("_telegraph_facing"), Vector3.LEFT, "the client retains the server locked facing")
