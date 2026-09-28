@@ -97,6 +97,97 @@ packaged contents require native artifact/startup checks on Windows. Do not clai
 those checks passed from this report, and do not install Windows SQLite to make a
 source-tree harness run. Fix client isolation under its Windows-owned issue.
 
+## Windows Package Boundary
+
+Run the Windows-only package controls on an assigned Windows host with a qualified
+Godot 4.7.2 editor; the older `godot` on PATH may not read the current PCK format:
+
+```powershell
+pwsh -File scripts/test_windows_client_validation.ps1 -GodotPath $GodotPath
+pwsh -File scripts/verify_standalone_package.ps1 -Version $Version -PackageRoot $PackageRoot -GodotPath $GodotPath -Windowed
+```
+
+The first command creates native PCK fixtures and records positive and negative
+controls under `build/validation/windows-client/<run-id>/`. It proves the package
+gate, not gameplay. The second verifies an existing immutable standalone archive,
+audits its actual PCK, then runs its compiled native client probe. It records
+evidence under `build/validation/standalone-package-<version>-<run-id>/` and proves
+only the client/package behaviors asserted by that probe.
+
+Both require Windows PowerShell 7 and the Windows Godot editor, not SQLite,
+Canon, Ollama or a local server. The audit mounts the pack in an isolated project
+without running its scripts. It rejects server resources outside the manifest's
+exact data exceptions, SQLite, and unapproved native libraries/extensions,
+including unreferenced files and compiled-script remaps. Native dependencies
+require a reviewed ownership change; renaming a library is not an exemption.
+The standalone builder performs this audit before publishing its output.
+
+For a PCK-only check, use `scripts/check_windows_client_package.ps1` with
+`-PackPath`, `-GodotPath` and a new `-OutputPath`. Each result records host,
+command, ownership/engine/inspector/package hashes, native inventory, failure
+reason and cleanup. Evidence paths are not overwritten. Setup failures retain
+JSON when an output location is available. Only owned processes/temp state are
+removed; existing packages and development services are unchanged.
+
+Package inventory, synthetic negative controls, and the compiled offline probe
+are not paired-runtime evidence. Preserve the package's original source identity;
+running a new validator against it does not rebuild or re-identify that client.
+The package controls do not replace the other inventoried Windows or Linux tests.
+The builder lifecycle regression is `scripts/test_build_current_deployment.ps1
+-GodotPath <qualified-editor.exe>`: its exporter/EXE remain lifecycle fixtures,
+while PCK creation and dependency inspection use the real editor. The builder's
+optional `-PackageInspectorPath` supports that separation; ordinarily it defaults
+to the same qualified editor supplied as `-GodotPath`.
+
+The builder regression retains twelve named case results, exact commands and
+allowlisted fixture inputs, source/tool hashes, generated tools and native audit
+logs outside its temporary fixture. It verifies retained hashes after cleanup.
+Run both `-BuildShell powershell` and `-BuildShell pwsh` for the supported caller
+paths. Reports are `build/validation/standalone-packaging-tests-<run-id>.json`,
+with retained artifacts in the matching directory. Interrupted or unexecuted
+cases do not count as passes.
+
+## Windows Transport Containment
+
+`scripts/run_paired_validation.ps1` runs each SSH/SCP operation inside a Windows
+Job Object. The worker waits for its request until job assignment succeeds;
+termination checks that the job has no active processes. Closing the job when
+the coordinator exits also terminates its contained descendants. Local client
+and private-file cleanup precedes remote cleanup; an unreachable remote remains
+unverified, never an inferred successful teardown.
+
+The transport worker is the built-in unpackaged
+`System32/WindowsPowerShell/v1.0/powershell.exe`, not the coordinator's executable
+and not a PATH-selected `pwsh`. In #1244's controlled Windows probe, Store/MSIX
+PowerShell belonged to the job but its unpackaged native descendants did not.
+The built-in host contained the same native child and grandchild with unchanged
+job flags and security settings. The SSH helper therefore executes as a script
+inside that worker, not through a nested Store PowerShell process. Do not remove
+compatibility/security settings or weaken host-key checks to make containment pass.
+
+`-TransportTimeoutSeconds` defaults to 15 seconds per operation, followed by
+bounded teardown. SCP is noninteractive with strict host-key checking. An ASCII
+base64 request preserves Unicode arguments across PowerShell versions; scripts
+receive named parameters and native executables receive argument arrays.
+Results retain worker path/hash, PID, job assignment/empty state and timeout status.
+
+Run `pwsh -NoProfile -File scripts/test_windows_paired_transport.ps1` on Windows.
+Its six local-only controls cover success, transfer/status/cleanup stalls,
+parent-first exit and coordinator termination with a live native descendant.
+They assert pinned worker identity, private-state deletion and no surviving
+fixture processes, including paths containing spaces and Unicode. The fixture
+uses substituted transport/engine processes: it neither contacts Linux nor proves
+paired gameplay. Evidence is retained under
+`build/validation/windows-transport-<run-id>/`.
+
+Two optional mutation controls deliberately alter only the temporary coordinator
+copy: `-PackagedWorkerNegativeControl` restores the caller-selected host, and
+`-DisableKillOnCloseNegativeControl` removes the job's kill-on-close flag. Each
+must exit nonzero and retain a failed verdict with successful independent cleanup.
+The coordinator-death control kills only the coordinator and observes descendant
+exit before any fallback cleanup. Fallback termination never turns a failure into
+a pass. Production files and host security settings are unchanged by these controls.
+
 ## Blocker Handling
 
 Classify a failed check as product behavior, test placement, host setup, missing
