@@ -44,6 +44,12 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(plan["linux_ref"], "a" * 40)
         self.assertEqual(plan["linux_host"], "192.168.1.254")
 
+    def test_scratch_validation_plan_is_linux_owned(self):
+        metadata = copy.deepcopy(self.metadata)
+        metadata["candidate_tree"][".scratch/1213/validation-plan.json"] = "3" * 40
+        plan = self.routing.route(metadata)
+        self.assertEqual(plan["linux_ref"], metadata["candidate"])
+
     def test_named_windows_probes_preserve_linux_identity(self):
         metadata = copy.deepcopy(self.metadata)
         metadata["labels"] = ["platform:windows-required"]
