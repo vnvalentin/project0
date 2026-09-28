@@ -42,7 +42,8 @@ publication. Publishing remains distinct from deployment.
 
 The four Linux checks run on ephemeral `ubuntu-latest` workers. Python 3.12 and
 service dependencies are installed in the job. GUT executes in the established
-`barichello/godot-ci:4.3` container mounted only to the hosted workspace. These
+`project0-godot` image pinned by immutable registry digest and mounted only to
+the hosted workspace. These
 CI checks do not substitute for server/runtime acceptance that is explicitly
 owned by `192.168.1.254`; they validate repository behavior and evidence only.
 
