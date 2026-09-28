@@ -69,9 +69,6 @@ jobs:
         run: python scripts/test_ci_validation_routing.py --report build/validation/routing-tests.json
       - name: Test independent admission
         run: python scripts/test_ci_runner_admission.py --report build/validation/runner-admission-tests.json
-      - name: Test hosted GUT container boundary
-        shell: bash
-        run: bash scripts/test_hosted_gut_container.sh 2>&1 | tee build/validation/hosted-container-tests.log
 
       - name: Test ownership preflight
         shell: bash
@@ -82,6 +79,9 @@ jobs:
       - name: Check test ownership and static client dependencies
         if: always()
         run: python scripts/check_validation_ownership.py --output build/validation/ownership.json
+      - name: Test hosted GUT container boundary
+        shell: bash
+        run: bash scripts/test_hosted_gut_container.sh 2>&1 | tee build/validation/hosted-container-tests.log
 
       - name: Bind ownership evidence
         run: python scripts/ci_validation_routing.py seal --job ownership --plan "$RUNNER_TEMP/routing/plan.json"

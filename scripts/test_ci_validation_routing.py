@@ -13,6 +13,21 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def passing_ownership_report(name):
+    if name == "hosted-container-tests.json":
+        return {
+            "passed": True, "tests": 5, "failures": 0, "errors": 0, "skipped": 0,
+            "cases": [
+                {"name": "reject_privileged", "passed": True, "exit_code": 2},
+                {"name": "reject_network_host", "passed": True, "exit_code": 2},
+                {"name": "reject_cap_add", "passed": True, "exit_code": 2},
+                {"name": "induced_failure_cleanup", "passed": True, "exit_code": 23, "surviving_containers": 0},
+                {"name": "host_sealer_success", "passed": True, "exit_code": 0, "surviving_containers": 0},
+            ],
+        }
+    return {"passed": True, "skipped": [], "tests_run": 1, "tests": 1, "failures": [], "errors": []}
+
+
 class RoutingTests(unittest.TestCase):
     def setUp(self):
         spec = importlib.util.spec_from_file_location("routing", ROOT / "scripts/ci_validation_routing.py")
@@ -104,11 +119,17 @@ class RoutingTests(unittest.TestCase):
             directory = Path(temporary)
             for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
                          "hosted-container-tests.json", "ownership.json"):
-                (directory / name).write_text(json.dumps({"passed": True, "skipped": [],
-                    "tests_run": 1, "tests": 1, "failures": [], "errors": []}))
+                (directory / name).write_text(json.dumps(passing_ownership_report(name)))
             with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
                 result = self.routing.seal(plan, "ownership", directory)
                 self.assertEqual(result["tests"], plan["expected_tests"]["ownership"])
+                hosted_path = directory / "hosted-container-tests.json"
+                hosted_report = json.loads(hosted_path.read_text())
+                hosted_report["cases"].pop()
+                hosted_path.write_text(json.dumps(hosted_report))
+                with self.assertRaisesRegex(ValueError, "container control evidence"):
+                    self.routing.seal(plan, "ownership", directory)
+                hosted_path.write_text(json.dumps(passing_ownership_report(hosted_path.name)))
                 (directory / "ownership-tests.json").write_text(json.dumps({"passed": True, "skipped": ["test"]}))
                 with self.assertRaises(ValueError):
                     self.routing.seal(plan, "ownership", directory)
@@ -121,8 +142,7 @@ class RoutingTests(unittest.TestCase):
             directory = Path(temporary)
             for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
                          "hosted-container-tests.json", "ownership.json"):
-                (directory / name).write_text(json.dumps({"passed": True, "skipped": [],
-                    "tests_run": 1, "tests": 1, "failures": [], "errors": []}))
+                (directory / name).write_text(json.dumps(passing_ownership_report(name)))
             nested = directory / "client/package-controls/result.json"
             nested.parent.mkdir(parents=True)
             nested.write_bytes(b'{"passed":true}')
@@ -140,7 +160,10 @@ class RoutingTests(unittest.TestCase):
             directory = Path(temporary)
             for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
                          "hosted-container-tests.json", "ownership.json"):
-                (directory / name).write_text(json.dumps({"passed": True, "skipped": []}))
+                report = passing_ownership_report(name)
+                report.pop("tests", None)
+                report.pop("tests_run", None)
+                (directory / name).write_text(json.dumps(report))
             with patch.object(self.routing, "command", return_value=plan["linux_ref"]):
                 with self.assertRaises(ValueError):
                     self.routing.seal(plan, "ownership", directory)
@@ -315,6 +338,11 @@ class RoutingTests(unittest.TestCase):
         for job in ("godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
             self.assertIn("needs.ownership.result != 'success'", block)
+        ownership = re.search(r"^  ownership:\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
+        self.assertLess(ownership.index("Check test ownership and static client dependencies"),
+                        ownership.index("Test hosted GUT container boundary"))
+        self.assertLess(ownership.index("Test hosted GUT container boundary"),
+                        ownership.index("Bind ownership evidence"))
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
 
     def test_image_workflow_uses_hosted_ephemeral_builder(self):
