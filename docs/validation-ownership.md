@@ -139,6 +139,55 @@ while PCK creation and dependency inspection use the real editor. The builder's
 optional `-PackageInspectorPath` supports that separation; ordinarily it defaults
 to the same qualified editor supplied as `-GodotPath`.
 
+The builder regression retains twelve named case results, exact commands and
+allowlisted fixture inputs, source/tool hashes, generated tools and native audit
+logs outside its temporary fixture. It verifies retained hashes after cleanup.
+Run both `-BuildShell powershell` and `-BuildShell pwsh` for the supported caller
+paths. Reports are `build/validation/standalone-packaging-tests-<run-id>.json`,
+with retained artifacts in the matching directory. Interrupted or unexecuted
+cases do not count as passes.
+
+## Windows Transport Containment
+
+`scripts/run_paired_validation.ps1` runs each SSH/SCP operation inside a Windows
+Job Object. The worker waits for its request until job assignment succeeds;
+termination checks that the job has no active processes. Closing the job when
+the coordinator exits also terminates its contained descendants. Local client
+and private-file cleanup precedes remote cleanup; an unreachable remote remains
+unverified, never an inferred successful teardown.
+
+The transport worker is the built-in unpackaged
+`System32/WindowsPowerShell/v1.0/powershell.exe`, not the coordinator's executable
+and not a PATH-selected `pwsh`. In #1244's controlled Windows probe, Store/MSIX
+PowerShell belonged to the job but its unpackaged native descendants did not.
+The built-in host contained the same native child and grandchild with unchanged
+job flags and security settings. The SSH helper therefore executes as a script
+inside that worker, not through a nested Store PowerShell process. Do not remove
+compatibility/security settings or weaken host-key checks to make containment pass.
+
+`-TransportTimeoutSeconds` defaults to 15 seconds per operation, followed by
+bounded teardown. SCP is noninteractive with strict host-key checking. An ASCII
+base64 request preserves Unicode arguments across PowerShell versions; scripts
+receive named parameters and native executables receive argument arrays.
+Results retain worker path/hash, PID, job assignment/empty state and timeout status.
+
+Run `pwsh -NoProfile -File scripts/test_windows_paired_transport.ps1` on Windows.
+Its six local-only controls cover success, transfer/status/cleanup stalls,
+parent-first exit and coordinator termination with a live native descendant.
+They assert pinned worker identity, private-state deletion and no surviving
+fixture processes, including paths containing spaces and Unicode. The fixture
+uses substituted transport/engine processes: it neither contacts Linux nor proves
+paired gameplay. Evidence is retained under
+`build/validation/windows-transport-<run-id>/`.
+
+Two optional mutation controls deliberately alter only the temporary coordinator
+copy: `-PackagedWorkerNegativeControl` restores the caller-selected host, and
+`-DisableKillOnCloseNegativeControl` removes the job's kill-on-close flag. Each
+must exit nonzero and retain a failed verdict with successful independent cleanup.
+The coordinator-death control kills only the coordinator and observes descendant
+exit before any fallback cleanup. Fallback termination never turns a failure into
+a pass. Production files and host security settings are unchanged by these controls.
+
 ## Blocker Handling
 
 Classify a failed check as product behavior, test placement, host setup, missing

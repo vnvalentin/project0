@@ -7,6 +7,7 @@ param(
     [ValidatePattern('^/data/[A-Za-z0-9_./-]+$')][string]$Artifact,
     [ValidatePattern('^[a-f0-9]{64}$')][string]$ArtifactSha,
     [string]$PythonPath = 'python',
+    [ValidateRange(1, 60)][int]$TransportTimeoutSeconds = 15,
     [switch]$DisconnectBeforeFinish
 )
 
@@ -29,23 +30,153 @@ $result = [ordered]@{
     issue = 1244; scenario = 'authenticated-input-ack-v1'; correlation_id = $runId
     host = [Environment]::MachineName; command_sha256 = (Get-FileHash $PSCommandPath).Hash
     client_mode = 'Windows editor hosting immutable compiled client PCK'
-    dependencies = @('powershell-7', 'godot-client-4.7.2', 'python', 'ssh', 'scp', 'approved-linux-server-artifact')
+    dependencies = @('powershell-7', 'windows-powershell-5.1', 'godot-client-4.7.2', 'python', 'ssh', 'scp', 'approved-linux-server-artifact')
     status = 'failed'; paired_acceptance = $false; player_acceptance = $false
     expected_outcome = $(if ($DisconnectBeforeFinish) { 'reject-disconnected-client' } else { 'paired-pass' })
     failure = $null; client_exit_code = $null; local_cleanup = $false; remote_cleanup = $false
-    remote_run = $remoteRun; client = $null; server = $null
+    remote_run = $remoteRun; client = $null; server = $null; transport = @()
 }
 New-Item -ItemType Directory -Path $evidence | Out-Null
 
+function Initialize-TransportJob {
+    if ('WindowsValidationJob' -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
+public sealed class WindowsValidationJob : IDisposable {
+    [StructLayout(LayoutKind.Sequential)] struct BasicLimits {
+        public long ProcessTime, JobTime;
+        public uint Flags;
+        public UIntPtr MinimumWorkingSet, MaximumWorkingSet;
+        public uint ActiveProcessLimit;
+        public UIntPtr Affinity;
+        public uint Priority, Scheduling;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct IoCounters {
+        public ulong ReadOperations, WriteOperations, OtherOperations, ReadBytes, WriteBytes, OtherBytes;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct ExtendedLimits {
+        public BasicLimits Basic;
+        public IoCounters Io;
+        public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct Accounting {
+        public long UserTime, KernelTime, PeriodUserTime, PeriodKernelTime;
+        public uint PageFaults, TotalProcesses, ActiveProcesses, TerminatedProcesses;
+    }
+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateJobObject(IntPtr attributes, string name);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr job, int info, ref ExtendedLimits limits, uint size);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool TerminateJobObject(IntPtr job, uint code);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool QueryInformationJobObject(IntPtr job, int info, out Accounting accounting, uint size, IntPtr returned);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+    IntPtr handle;
+    static void Require(bool success) { if (!success) throw new Win32Exception(Marshal.GetLastWin32Error()); }
+    public WindowsValidationJob() {
+        handle = CreateJobObject(IntPtr.Zero, null);
+        if (handle == IntPtr.Zero) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try {
+            ExtendedLimits limits = new ExtendedLimits();
+            limits.Basic.Flags = 0x2000;
+            Require(SetInformationJobObject(handle, 9, ref limits, (uint)Marshal.SizeOf(typeof(ExtendedLimits))));
+        } catch { CloseHandle(handle); handle = IntPtr.Zero; throw; }
+    }
+    public void Attach(Process process) { Require(AssignProcessToJobObject(handle, process.Handle)); }
+    public void Stop() {
+        Require(TerminateJobObject(handle, 1));
+        Stopwatch clock = Stopwatch.StartNew();
+        using (ManualResetEvent pause = new ManualResetEvent(false)) {
+            do {
+                Accounting accounting;
+                Require(QueryInformationJobObject(handle, 1, out accounting, (uint)Marshal.SizeOf(typeof(Accounting)), IntPtr.Zero));
+                if (accounting.ActiveProcesses == 0) return;
+                pause.WaitOne(10);
+            } while (clock.ElapsedMilliseconds < 5000);
+        }
+        throw new TimeoutException("Transport job descendants did not stop");
+    }
+    public void Dispose() {
+        if (handle != IntPtr.Zero) { CloseHandle(handle); handle = IntPtr.Zero; }
+    }
+}
+'@
+}
+
+function Invoke-Transport([string]$Executable, [string[]]$Arguments, [string]$Operation, [hashtable]$Parameters) {
+    $bootstrap = '$ErrorActionPreference = "Stop"; $request = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadLine())) | ConvertFrom-Json; if ($request.parameters) { $parameters = @{}; foreach ($property in $request.parameters.PSObject.Properties) { $parameters[$property.Name] = $property.Value }; & $request.executable @parameters } else { $arguments = @($request.arguments); & $request.executable @arguments }; exit $LASTEXITCODE'
+    $workerPath = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    $start = [Diagnostics.ProcessStartInfo]::new($workerPath)
+    [void]$start.Environment.Remove('PSModulePath')
+    $start.UseShellExecute = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    foreach ($argument in @('-NoProfile', '-NonInteractive', '-EncodedCommand', [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($bootstrap)))) { $start.ArgumentList.Add($argument) }
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $start
+    $job = $null
+    $started = $false
+    $output = $null
+    $errors = $null
+    $failure = $null
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $record = [ordered]@{ operation = $Operation; worker_path = $workerPath; worker_sha256 = $null; worker_pid = $null; job_assigned = $false; job_empty = $false; timeout_seconds = $TransportTimeoutSeconds; exit_code = $null; timed_out = $false; stopped = $false; failure = $null }
+    try {
+        $record.worker_sha256 = (Get-FileHash -LiteralPath $workerPath).Hash
+        Initialize-TransportJob
+        $job = [WindowsValidationJob]::new()
+        $started = $process.Start()
+        $record.worker_pid = $process.Id
+        $output = $process.StandardOutput.ReadToEndAsync()
+        $errors = $process.StandardError.ReadToEndAsync()
+        $job.Attach($process)
+        $record.job_assigned = $true
+        $request = @{ executable = $Executable; arguments = $Arguments; parameters = $Parameters } | ConvertTo-Json -Compress
+        $process.StandardInput.WriteLine([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($request)))
+        $process.StandardInput.Close()
+        if (-not $process.WaitForExit($TransportTimeoutSeconds * 1000)) {
+            $record.timed_out = $true
+            throw "$Operation timed out after $TransportTimeoutSeconds seconds"
+        }
+        $record.exit_code = $process.ExitCode
+        if (-not $output.Wait(1000) -or -not $errors.Wait(1000)) { throw "$Operation output capture timed out" }
+        if ($process.ExitCode -ne 0) { throw "$Operation failed with exit code $($process.ExitCode)" }
+    }
+    catch { $failure = $_.Exception.Message }
+    finally {
+        try {
+            if ($job) { $job.Stop(); $record.job_empty = $true }
+            if ($started -and -not $process.HasExited) {
+                $process.Kill($true)
+                if (-not $process.WaitForExit(5000)) { throw "$Operation owned process did not stop" }
+            }
+            $record.stopped = -not $started -or $process.HasExited
+            if ($started) { $record.exit_code = $process.ExitCode }
+        }
+        catch { $failure += "; $($_.Exception.Message)" }
+        finally {
+            if ($job) { $job.Dispose() }
+            $process.Dispose()
+            $record.failure = $failure
+            $record.elapsed_seconds = $clock.Elapsed.TotalSeconds
+            $result.transport += $record
+        }
+    }
+    if ($failure) { throw $failure }
+    return $output.GetAwaiter().GetResult()
+}
+
 function Invoke-Server([string]$Arguments) {
-    $response = & $remoteHelper -Target okami "cd '$ServerRoot' && python3 scripts/paired_server.py $Arguments" | Out-String
-    if ($LASTEXITCODE -ne 0) { throw "Linux lifecycle command failed: $response" }
+    $response = Invoke-Transport $remoteHelper @() 'server-lifecycle' @{ Target = 'okami'; ConnectTimeout = 5; Script = "cd '$ServerRoot' && python3 scripts/paired_server.py $Arguments" }
     return ($response | ConvertFrom-Json -AsHashtable)
 }
 
 function Copy-Remote([string]$Source, [string]$Destination) {
-    & scp -q $Source $Destination
-    if ($LASTEXITCODE -ne 0) { throw 'Private/artifact transfer failed' }
+    $executable = (Get-Command scp -CommandType Application | Select-Object -First 1).Source
+    $null = Invoke-Transport $executable @('-B', '-q', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', $Source, $Destination) 'artifact-transfer'
 }
 
 function Read-Client([string]$Path) {
@@ -78,7 +209,7 @@ try {
     $packSha = (Get-FileHash $pack).Hash.ToLowerInvariant()
     $result.package_manifest = $manifest
     $result.engine_sha256 = (Get-FileHash $GodotPath).Hash
-    $result.command = @('pwsh', '-NoProfile', '-File', $PSCommandPath, '-GodotPath', $GodotPath, '-PackageRoot', $PackageRoot, '-ServerRoot', $ServerRoot, '-Artifact', $Artifact, '-ArtifactSha', $ArtifactSha, '-PythonPath', $PythonPath)
+    $result.command = @('pwsh', '-NoProfile', '-File', $PSCommandPath, '-GodotPath', $GodotPath, '-PackageRoot', $PackageRoot, '-ServerRoot', $ServerRoot, '-Artifact', $Artifact, '-ArtifactSha', $ArtifactSha, '-PythonPath', $PythonPath, '-TransportTimeoutSeconds', [string]$TransportTimeoutSeconds)
     if ($DisconnectBeforeFinish) { $result.command += '-DisconnectBeforeFinish' }
     $plan = @{
         schema_version = 1; kind = 'paired-runtime'; scenario_id = 'authenticated-input-ack-v1'
@@ -89,7 +220,7 @@ try {
             @{ suite = 'godot-server'; platform = 'linux'; host = '192.168.1.254'; dependencies = @('godot', 'sqlite', 'python', 'docker')
                command = "python3 $ServerRoot/scripts/paired_server.py start --artifact $Artifact --artifact-sha256 $ArtifactSha --run $remoteRun --correlation-id $runId --client-sha256 $packSha --client-version $($manifest.version) --client-engine 4.7.2-editor --deadline-seconds 180 --readiness-seconds 45"
                tests = @('scripts/paired_server_fixture.gd'); artifacts = @("$remoteRun/report.json", "$remoteRun/runtime.log") },
-            @{ suite = 'windows-client'; platform = 'windows'; host = [Environment]::MachineName; dependencies = @('powershell', 'godot-client', 'python', 'ssh', 'scp')
+            @{ suite = 'windows-client'; platform = 'windows'; host = [Environment]::MachineName; dependencies = @('powershell', 'windows-powershell-5.1', 'godot-client', 'python', 'ssh', 'scp')
                command = ($result.command | ConvertTo-Json -Compress); tests = @('scripts/windows_paired_client.gd')
                artifacts = @((Join-Path $evidence 'client.json'), (Join-Path $evidence 'result.json')) }
         )
@@ -179,21 +310,6 @@ try {
 catch { $result.failure = $_.Exception.Message }
 finally {
     $cleanupFailures = @()
-    if ($remoteRequested) {
-        try {
-            $server = Invoke-Server "status --run '$remoteRun'"
-            if (-not $server.ContainsKey('finished_at')) {
-                try { $null = Invoke-Server "abort --run '$remoteRun'" } catch { $result.abort_request_error = $_.Exception.Message }
-                $cleanupClock = [Diagnostics.Stopwatch]::StartNew()
-                do { $server = Invoke-Server "status --run '$remoteRun'" } while (-not $server.ContainsKey('finished_at') -and $cleanupClock.Elapsed.TotalSeconds -lt 30)
-            }
-            $result.remote_cleanup = $server.ContainsKey('finished_at') -and $server.cleanup.passed
-            $result.server = $server
-            if (-not $result.remote_cleanup) { throw 'Linux cleanup not verified' }
-        }
-        catch { $cleanupFailures += $_.Exception.Message }
-    }
-    else { $result.remote_cleanup = $true }
     try {
         if ($clientStarted -and -not $client.HasExited) {
             [IO.File]::WriteAllText($stopFile, 'stop')
@@ -226,6 +342,21 @@ finally {
         $result.local_cleanup = -not (Test-Path -LiteralPath $root)
     }
     catch { $cleanupFailures += $_.Exception.Message }
+    if ($remoteRequested) {
+        try {
+            $server = Invoke-Server "status --run '$remoteRun'"
+            if (-not $server.ContainsKey('finished_at')) {
+                try { $null = Invoke-Server "abort --run '$remoteRun'" } catch { $result.abort_request_error = $_.Exception.Message }
+                $cleanupClock = [Diagnostics.Stopwatch]::StartNew()
+                do { $server = Invoke-Server "status --run '$remoteRun'" } while (-not $server.ContainsKey('finished_at') -and $cleanupClock.Elapsed.TotalSeconds -lt 30)
+            }
+            $result.remote_cleanup = $server.ContainsKey('finished_at') -and $server.cleanup.passed
+            $result.server = $server
+            if (-not $result.remote_cleanup) { throw 'Linux cleanup not verified' }
+        }
+        catch { $cleanupFailures += $_.Exception.Message }
+    }
+    else { $result.remote_cleanup = $true }
     if ($cleanupFailures.Count -ne 0) { $result.cleanup_failures = $cleanupFailures; $result.status = 'failed' }
     $result.paired_acceptance = $result.status -eq 'passed' -and $result.local_cleanup -and $result.remote_cleanup
     $result.rejection_control_passed = $result.status -eq 'rejection_proved' -and $result.local_cleanup -and $result.remote_cleanup
