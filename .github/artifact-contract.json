@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "name": "project0-0.14.15-authenticated-paired-artifact",
+  "application_source_commit": "3f3a76979073bbb3e66572c36df92b12659b8ee7",
+  "client": {
+    "version": "0.14.15",
+    "manifest_sha256": "33e12206e7b548342c4e88b8e73b1c68d87cc934160a221f36982e4e51637229",
+    "archive_sha256": "e40e5b6457025603cdffa55cad8ca2d6f9243389cba65ddb4148e22eb2fd5cd0",
+    "pck_sha256": "f9afb43f2a14e70fa8855e20ac751b5361baba651585e689a74548ef88273a19"
+  },
+  "linux_artifact": {
+    "manifest_sha256": "1668a7d3a83b7c5ba9baf8a40b5951aabca0df6ff7f16ce8155dc5737e56291c",
+    "source_commit": "3f3a76979073bbb3e66572c36df92b12659b8ee7",
+    "image": "sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
+  },
+  "source_allowlist": [
+    "client/network_client.gd",
+    "client/sector_geometry_translator.gd",
+    "client/sector_navigation_readiness.gd",
+    "server/sector_detail_generation.gd",
+    "shared/sector_blueprint_schema.gd",
+    "shared/sector_detail_placement.gd",
+    "shared/version_handshake.gd"
+  ]
+}

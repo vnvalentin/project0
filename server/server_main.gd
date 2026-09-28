@@ -51,6 +51,8 @@ const ProvisionalSectorGeneratorScript: Script = preload("res://server/provision
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
+const SectorDetailPlacementScript: Script = preload("res://shared/sector_detail_placement.gd")
+const SectorDetailGenerationScript: Script = preload("res://server/sector_detail_generation.gd")
 const LoginRuntimeScript: Script = preload("res://server/login_runtime.gd")
 const NakamaSessionValidatorScript: Script = preload("res://server/nakama_session_validator.gd")
 const WorldEntryTicketServiceScript: Script = preload("res://server/world_entry_ticket_service.gd")
@@ -207,11 +209,14 @@ var _provisional_sector_generator: Node = null
 var _sector_boundary_detector: Object = null
 var _canon_generation_coordinator: Object = null
 var _sector_ingress_positions: Dictionary = {}
+var _sector_detail_requests: Dictionary = {}
 var _jit_peer_by_sector: Dictionary = {}
 var _jit_root_trace_by_sector: Dictionary = {}
 var _jit_commit_trace_by_sector: Dictionary = {}
 var _jit_presentation_ack_tracker: Object = JitPresentationAckTrackerScript.new()
 var _frontier_versions: Dictionary = {}
+var _frontier_details: Dictionary = {}
+var _frontier_town_detail: RefCounted
 var _frontier_bindings: Dictionary = {}
 var _frontier_town_tiles: Dictionary = {}
 const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
@@ -806,6 +811,11 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	var generation_started_usec: int = int(trace.get("generation_started_usec", Time.get_ticks_usec()))
 	if _provisional_sector_generator == null:
 		return
+	if not _sector_detail_requests.has(sector_id):
+		var placement: Dictionary = SectorDetailPlacementScript.select(sector_id, position)
+		if placement.is_empty():
+			return
+		_sector_detail_requests[sector_id] = {"sector_id": sector_id, "placement": placement, "ingress": position}
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
 	sector_ingresses[peer_id] = position
 	_sector_ingress_positions[sector_id] = sector_ingresses
@@ -828,6 +838,8 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	var initiating_trace: Dictionary = _jit_root_trace_by_sector.get(sector_id, trace)
 	initiating_trace["generation_started_usec"] = generation_started_usec
 	var prompt: String = _sector_generation_prompt(sector_id)
+	var placement_context: Dictionary = _sector_detail_requests[sector_id]
+	prompt += "\nServer-owned placement: %s. Return local geometry only; do not override this placement. Connect the entry tile to traversable terrain extending at least two yards. Required local ingress: %s." % [JSON.stringify(placement_context["placement"]), str(position - SectorDetailPlacementScript.grid_offset(sector_id) - Vector3(placement_context["placement"]["detail_origin"]["x"], 0, placement_context["placement"]["detail_origin"]["y"]))]
 	var selected_profile: String = _select_sector_profile(sector_id)
 	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, selected_profile, initiating_trace)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
@@ -870,6 +882,8 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void:
 	if _canon_generation_coordinator == null:
 		return
+	if _sector_detail_requests.has(sector_id):
+		result = SectorDetailGenerationScript.prepare(result, _sector_detail_requests[sector_id], _starting_town_hub_blueprint)
 	var peer_id: int = int(_jit_peer_by_sector.get(sector_id, 0))
 	for span: Dictionary in result.get("trace_spans", []):
 		_emit_jit_trace(span, peer_id)
@@ -907,6 +921,8 @@ func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> voi
 
 func _configure_player_frontier(peer_id: int, player_state: Node) -> void:
 	_jit_presentation_ack_tracker.forget_peer(peer_id)
+	if _frontier_town_detail == null and not _starting_town_hub_blueprint.is_empty():
+		_frontier_town_detail = SectorDetailPlacementScript.new(_starting_town_hub_blueprint)
 	_frontier_prepared_at_by_peer.erase(peer_id)
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
@@ -976,6 +992,7 @@ func _frontier_journey_id(peer_id: int, character_id: String) -> String:
 
 func _invalidate_frontier_sector(sector_id: String, clear_preparation: bool = true) -> void:
 	_frontier_versions.erase(sector_id)
+	_frontier_details.erase(sector_id)
 	for peer_id: int in _player_states.keys():
 		_jit_presentation_ack_tracker.forget_presentation(peer_id, sector_id)
 		if clear_preparation:
@@ -993,18 +1010,36 @@ func _frontier_sector_at(position: Vector3) -> String:
 
 func _frontier_position_ready(peer_id: int, position: Vector3) -> bool:
 	var sector_id: String = _frontier_sector_at(position)
-	return _jit_presentation_ack_tracker.is_ready(peer_id, sector_id, _frontier_binding(peer_id, sector_id))
+	if not _jit_presentation_ack_tracker.is_ready(peer_id, sector_id, _frontier_binding(peer_id, sector_id)):
+		return false
+	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
+		return true
+	var detail: RefCounted = _frontier_details.get(sector_id)
+	return detail != null and detail.contains_world(position) and (_frontier_town_detail == null or _frontier_town_detail.has_clearance(position))
+
+
+func _frontier_move_ready(peer_id: int, current: Vector3, candidate: Vector3) -> bool:
+	if not _frontier_position_ready(peer_id, candidate):
+		return false
+	var distance: float = current.distance_to(candidate)
+	if not is_finite(distance) or distance > 440.0:
+		return false
+	var steps: int = maxi(1, ceili(distance / 0.2))
+	for step: int in range(1, steps):
+		if not _frontier_position_ready(peer_id, current.lerp(candidate, float(step) / steps)):
+			return false
+	return true
 
 
 func _resolve_frontier_movement(peer_id: int, current: Vector3, candidate: Vector3) -> Vector3:
-	if _frontier_position_ready(peer_id, candidate):
+	if _frontier_move_ready(peer_id, current, candidate):
 		return candidate
 	_prepare_frontier_position(peer_id, candidate)
 	var along_x: Vector3 = Vector3(candidate.x, candidate.y, current.z)
 	var along_z: Vector3 = Vector3(current.x, candidate.y, candidate.z)
-	if _frontier_position_ready(peer_id, along_x):
+	if _frontier_move_ready(peer_id, current, along_x):
 		return along_x
-	if _frontier_position_ready(peer_id, along_z):
+	if _frontier_move_ready(peer_id, current, along_z):
 		return along_z
 	return Vector3(current.x, candidate.y, current.z)
 
@@ -1027,6 +1062,13 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, mutations)
 		if not mutations.is_empty():
 			revision = int(mutations.back()["applied_revision"])
+	var detail: RefCounted = SectorDetailPlacementScript.new(effective)
+	if sector_id != String(_starting_town_hub_blueprint.get("sector_id", "")) and not detail.contains_world(ingress):
+		print("SECTOR_INGRESS_REJECTED sector_id=%s peer_id=%d reason=outside_connected_detail" % [sector_id, peer_id])
+		return
+	_frontier_details[sector_id] = detail
+	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
+		_frontier_town_detail = detail
 	_frontier_versions[sector_id] = "%d:%s" % [revision, JSON.stringify(effective).sha256_text()]
 	var binding: Dictionary = _frontier_binding(peer_id, sector_id)
 	if binding.is_empty():

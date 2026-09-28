@@ -62,6 +62,33 @@ class RoutingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.routing.route(metadata)
 
+    def test_reviewed_artifact_contract_admits_mixed_client_server_candidate(self):
+        metadata = copy.deepcopy(self.metadata)
+        metadata["labels"] = ["platform:windows-required"]
+        metadata["candidate_tree"]["client/network_client.gd"] = "3" * 40
+        metadata["candidate_tree"]["server/detail.gd"] = "4" * 40
+        metadata["artifact_contract"] = {
+            "schema_version": 1,
+            "name": "reviewed",
+            "application_source_commit": "a" * 40,
+            "client": {"version": "0.14.15", "manifest_sha256": "b" * 64,
+                        "archive_sha256": "c" * 64, "pck_sha256": "d" * 64},
+            "linux_artifact": {"manifest_sha256": "e" * 64, "source_commit": "f" * 40,
+                                "image": "sha256:" + "1" * 64},
+            "source_allowlist": ["client/network_client.gd", "server/detail.gd"],
+        }
+        plan = self.routing.route(metadata)
+        self.assertEqual(plan["artifact_contract"], "reviewed")
+        self.assertEqual(plan["linux_ref"], metadata["baseline"])
+        self.assertEqual(plan["input_digest"], self.routing.digest({"server/main.gd": "2" * 40}))
+
+    def test_client_change_rejects_missing_artifact_contract(self):
+        metadata = copy.deepcopy(self.metadata)
+        metadata["labels"] = ["platform:windows-required"]
+        metadata["candidate_tree"]["client/network_client.gd"] = "3" * 40
+        with self.assertRaisesRegex(ValueError, "artifact contract"):
+            self.routing.route(metadata)
+
     def test_client_reports_require_execution_and_cleanup(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

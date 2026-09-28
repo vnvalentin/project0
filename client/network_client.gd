@@ -171,6 +171,7 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const SectorIdentityScript: Script = preload("res://shared/sector_identity.gd")
+const SectorDetailPlacementScript: Script = preload("res://shared/sector_detail_placement.gd")
 const SectorGeometryTranslatorScript: Script = preload("res://client/sector_geometry_translator.gd")
 const SectorNavigationReadinessScript: Script = preload("res://client/sector_navigation_readiness.gd")
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
@@ -1062,6 +1063,9 @@ static func render_sector_blueprint(blueprint: Dictionary, parent: Node3D, ingre
 	var walkable: Dictionary = _walkable_tiles(validated)
 	var ingress_tile: Vector2 = Vector2(roundf(ingress.x), roundf(ingress.z))
 	var target_tile: Vector2 = Vector2(roundf(target.x), roundf(target.z))
+	if int(validated.get("schema_version", 0)) == SectorDetailPlacementScript.SCHEMA_VERSION:
+		ingress_tile = Vector2(floorf(ingress.x + 0.5), floorf(ingress.z + 0.5))
+		target_tile = Vector2(floorf(target.x + 0.5), floorf(target.z + 0.5))
 	if not walkable.has(ingress_tile) or not walkable.has(target_tile):
 		push_warning("NetworkClient: rejecting spatially unsafe sector ingress; selecting deterministic fallback.")
 		var fallback_fixture: Script = load("res://server/starting_town_hub_fixture.gd") as Script
@@ -1092,11 +1096,11 @@ static func present_sector_blueprint(blueprint: Dictionary, registry: Node3D, in
 		push_error("NetworkClient: rejecting malformed sector identity %s; rendering nothing." % sector_id)
 		return _assembly_result("invalid_sector_id", 0, 0)
 	var coordinate: Vector2i = coordinate_result["coordinate"]
-	var offset: Vector3 = Vector3(
-		coordinate.x * WorldScaleScript.SECTOR_EDGE_UNITS,
-		0.0,
-		coordinate.y * WorldScaleScript.SECTOR_EDGE_UNITS
-	)
+	var offset: Vector3 = SectorDetailPlacementScript.world_offset(blueprint)
+	if int(blueprint.get("schema_version", 0)) == SectorDetailPlacementScript.SCHEMA_VERSION:
+		var detail: RefCounted = SectorDetailPlacementScript.new(blueprint)
+		if not detail.contains_world(ingress):
+			return _assembly_result("unsupported_ingress", 0, 0)
 	var local_ingress: Vector3 = ingress - offset
 	var root: Node3D = Node3D.new()
 	root.name = "%s_pending" % sector_id
@@ -1126,18 +1130,25 @@ static func _render_validated_blueprint(blueprint: Dictionary, parent: Node3D, i
 	var initial_child_count: int = parent.get_child_count()
 	SectorGeometryTranslatorScript.translate(blueprint, parent)
 	var walkable: Dictionary = _walkable_tiles(blueprint)
-	var navigation_region: NavigationRegion3D = _navigation_region(walkable, parent)
+	var navigation_region: NavigationRegion3D = _navigation_region(walkable, parent, blueprint)
 	parent.add_child(navigation_region)
 	var result: Dictionary = _assembly_result(
 		SectorBlueprintSchemaScript.OUTCOME_VALID,
 		(blueprint.get("tiles", []) as Array).size(),
 		(blueprint.get("structures", []) as Array).size()
 	)
-	result["readiness_node"] = _readiness_node(result, navigation_region, ingress, target, parent, initial_child_count)
+	var coverage: RefCounted = null
+	if int(blueprint.get("schema_version", 0)) == SectorDetailPlacementScript.SCHEMA_VERSION:
+		coverage = SectorDetailPlacementScript.new(blueprint)
+	result["readiness_node"] = _readiness_node(result, navigation_region, ingress, target, parent, initial_child_count, coverage)
 	return result
 
 
 static func _navigation_target(blueprint: Dictionary, ingress: Vector3) -> Vector3:
+	if int(blueprint.get("schema_version", 0)) == SectorDetailPlacementScript.SCHEMA_VERSION:
+		var detail: RefCounted = SectorDetailPlacementScript.new(blueprint)
+		var target: Vector3 = detail.navigation_target(SectorDetailPlacementScript.to_world(blueprint, ingress))
+		return SectorDetailPlacementScript.to_detail(blueprint, target)
 	var walkable: Dictionary = _walkable_tiles(blueprint)
 	var ingress_tile: Vector2 = Vector2(roundf(ingress.x), roundf(ingress.z))
 	if walkable.has(ingress_tile):
@@ -1167,6 +1178,8 @@ static func _assembly_result(outcome: String, tile_count: int, structure_count: 
 
 
 static func _walkable_tiles(blueprint: Dictionary) -> Dictionary:
+	if int(blueprint.get("schema_version", 0)) == SectorDetailPlacementScript.SCHEMA_VERSION:
+		return SectorDetailPlacementScript.new(blueprint).connected_tiles()
 	var walkable: Dictionary = {}
 	for tile: Dictionary in blueprint.get("tiles", []):
 		var kind: String = String(tile.get("kind", ""))
@@ -1175,17 +1188,32 @@ static func _walkable_tiles(blueprint: Dictionary) -> Dictionary:
 	return walkable
 
 
-static func _navigation_region(walkable: Dictionary, parent: Node3D) -> NavigationRegion3D:
+static func _navigation_region(walkable: Dictionary, parent: Node3D, blueprint: Dictionary = {}) -> NavigationRegion3D:
 	var navigation_mesh: NavigationMesh = NavigationMesh.new()
 	navigation_mesh.cell_size = 0.001
 	var vertices: PackedVector3Array = PackedVector3Array()
 	var polygons: Array[PackedInt32Array] = []
-	for rectangle: Rect2i in _walkable_rectangles(walkable):
+	var rectangles: Array[Rect2i] = []
+	if int(blueprint.get("schema_version", 0)) == SectorDetailPlacementScript.SCHEMA_VERSION:
+		var detail: RefCounted = SectorDetailPlacementScript.new(blueprint)
+		for outline: PackedVector2Array in detail.navigation_polygons():
+			var offset: int = vertices.size()
+			for point: Vector2 in outline:
+				vertices.append(Vector3(point.x, 0.05, point.y))
+			var indices: PackedInt32Array = Geometry2D.triangulate_polygon(outline)
+			for index: int in range(0, indices.size(), 3):
+				polygons.append(PackedInt32Array([offset + indices[index], offset + indices[index + 1], offset + indices[index + 2]]))
+	else:
+		rectangles = _walkable_rectangles(walkable)
+	for rectangle: Rect2i in rectangles:
+		var bounds: Rect2 = SectorDetailPlacementScript.clip_rectangle(blueprint, Rect2(Vector2(rectangle.position) - Vector2(0.5, 0.5), Vector2(rectangle.size)))
+		if not bounds.has_area():
+			continue
 		var offset: int = vertices.size()
-		vertices.append(Vector3(rectangle.position.x - 0.5, 0.05, rectangle.position.y - 0.5))
-		vertices.append(Vector3(rectangle.position.x - 0.5, 0.05, rectangle.end.y + 0.5))
-		vertices.append(Vector3(rectangle.end.x + 0.5, 0.05, rectangle.end.y + 0.5))
-		vertices.append(Vector3(rectangle.end.x + 0.5, 0.05, rectangle.position.y - 0.5))
+		vertices.append(Vector3(bounds.position.x, 0.05, bounds.position.y))
+		vertices.append(Vector3(bounds.position.x, 0.05, bounds.end.y))
+		vertices.append(Vector3(bounds.end.x, 0.05, bounds.end.y))
+		vertices.append(Vector3(bounds.end.x, 0.05, bounds.position.y))
 		polygons.append(PackedInt32Array([offset, offset + 3, offset + 2, offset + 1]))
 	navigation_mesh.vertices = vertices
 	for polygon: PackedInt32Array in polygons:
@@ -1244,9 +1272,9 @@ static func _walkable_rectangles(walkable: Dictionary) -> Array[Rect2i]:
 	return rectangles
 
 
-static func _readiness_node(result: Dictionary, region: NavigationRegion3D, ingress: Vector3, target: Vector3, parent: Node3D, initial_child_count: int) -> Node:
+static func _readiness_node(result: Dictionary, region: NavigationRegion3D, ingress: Vector3, target: Vector3, parent: Node3D, initial_child_count: int, coverage: RefCounted = null) -> Node:
 	var readiness: Node = SectorNavigationReadinessScript.new()
-	readiness.configure(result, region, ingress, target, parent, initial_child_count)
+	readiness.configure(result, region, parent.to_global(ingress), parent.to_global(target), parent, initial_child_count, coverage)
 	parent.add_child(readiness)
 	return readiness
 

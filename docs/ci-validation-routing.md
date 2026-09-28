@@ -27,9 +27,13 @@ assets `scripts/client_package_inventory.gd`, `scripts/windows_paired_client.gd`
 and `tests/fixtures/windows_client_packages.gd` are byte-identical.
 The sorted path/blob map binds additions and deletions as well as modifications.
 This narrow exclusion is for Windows tooling, not game/client/native changes.
-Changed client/native/export inputs, unknown paths, mixed Linux inputs, symlinks,
-submodules and missing Windows labels fail closed. The ownership manifest and
-workflow are Linux inputs: changing them cannot be hidden by baseline reuse.
+Changed client/native/export inputs require the committed
+`.github/artifact-contract.json` and the `platform:windows-required` label. The
+contract binds the reviewed client package, Linux artifact manifest, runtime
+image, application source identity and source allowlist. Without it, unknown
+paths, mixed Linux inputs, symlinks, submodules and missing Windows labels fail
+closed. The ownership manifest and workflow are Linux inputs: changing them
+cannot be hidden by baseline reuse.
 
 ## Container Image Routing
 
