@@ -123,9 +123,8 @@ jobs:
         shell: bash
         run: |
           image=ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602
-          chmod g+w "$GITHUB_WORKSPACE"
           install -d -m 2775 build/validation .godot
-          docker run --rm --user "0:$(id -g)" \
+          docker run --rm --user "$(id -u):$(id -g)" \
             --network none --no-healthcheck --read-only --cap-drop ALL \
             --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev \
             -v "$GITHUB_WORKSPACE:/app" -w /app \
