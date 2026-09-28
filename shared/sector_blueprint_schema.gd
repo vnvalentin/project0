@@ -22,10 +22,12 @@ class_name SectorBlueprintSchema
 ## additionally allows the optional "structures" and "spawn_points" arrays
 ## (Slice 014); version 3 adds the organic tile/structure vocabulary
 ## (Slice 025); version 4 adds required parametric geometry fields on
-## `house`-kind structures (Feature #710). All versions remain supported
+## `house`-kind structures (Feature #710); version 5 adds server-pinned detail
+## placement without changing legacy coordinates. All versions remain supported
 ## going forward — newer versions are not hard replacements, since ordinary
 ## non-town sectors keep generating tiles-only v1 payloads.
-const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3, 4]
+const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1, 2, 3, 4, 5]
+const DetailPlacement: Script = preload("res://shared/sector_detail_placement.gd")
 const SPATIAL_SCHEMA_PATH: String = "res://shared/spatial_schema_v1.json"
 const SPATIAL_SCHEMA_ID: String = "project0://schemas/spatial_schema_v1.json"
 
@@ -114,7 +116,7 @@ static func validate(parsed_data: Variant) -> Dictionary:
 		return _result(OUTCOME_INCOMPLETE, "Missing required field: schema_version.")
 	if not (data["schema_version"] is int) and not (data["schema_version"] is float):
 		return _result(OUTCOME_INCOMPLETE, "schema_version must be a number.")
-	if data["schema_version"] is float and not is_equal_approx(data["schema_version"], roundf(data["schema_version"])):
+	if data["schema_version"] is float and (not is_finite(data["schema_version"]) or data["schema_version"] != floorf(data["schema_version"])):
 		return _result(OUTCOME_WRONG_SCHEMA_VERSION, "schema_version must be an integer.")
 	var schema_version: int = int(data["schema_version"])
 	if not SUPPORTED_SCHEMA_VERSIONS.has(schema_version):
@@ -130,6 +132,9 @@ static func validate(parsed_data: Variant) -> Dictionary:
 	var origin_check: Dictionary = _validate_coordinate(data["origin"], "origin")
 	if origin_check["outcome"] != OUTCOME_VALID:
 		return origin_check
+	var placement_error: String = DetailPlacement.validate_metadata(data)
+	if not placement_error.is_empty():
+		return _result(OUTCOME_INCOMPLETE, placement_error)
 
 	if not (data["tiles"] is Array):
 		return _result(OUTCOME_INCOMPLETE, "tiles must be an array.")
@@ -139,10 +144,19 @@ static func validate(parsed_data: Variant) -> Dictionary:
 	if tiles.size() > MAX_TILE_COUNT:
 		return _result(OUTCOME_INCOMPLETE, "tiles exceeds the maximum of %d entries." % MAX_TILE_COUNT)
 
+	var detail_cells: Dictionary = {}
 	for index in tiles.size():
 		var tile_check: Dictionary = _validate_tile(tiles[index], index, schema_version)
 		if tile_check["outcome"] != OUTCOME_VALID:
 			return tile_check
+		if schema_version == DetailPlacement.SCHEMA_VERSION:
+			var tile: Dictionary = tiles[index]
+			if not DetailPlacement._integer(tile["x"]) or not DetailPlacement._integer(tile["y"]):
+				return _result(OUTCOME_INCOMPLETE, "Version 5 tile cells must be finite integers.")
+			var cell: Vector2i = Vector2i(int(tile["x"]), int(tile["y"]))
+			if detail_cells.has(cell):
+				return _result(OUTCOME_INCOMPLETE, "Version 5 tile cells must be unique.")
+			detail_cells[cell] = true
 
 	if data.has("structures"):
 		var structures_check: Dictionary = _validate_structures(data["structures"], schema_version)

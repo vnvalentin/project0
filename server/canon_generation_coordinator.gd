@@ -8,6 +8,7 @@ const OUTCOME_CANONICALIZED: String = "canonicalized"
 const OUTCOME_IDEMPOTENT: String = "idempotent"
 const OUTCOME_IGNORED: String = "ignored"
 const OUTCOME_CONFLICT: String = "conflict"
+const OUTCOME_ADMISSIBLE: String = "admissible"
 
 const SectorArchetypeAdmissionScript: Script = preload("res://server/sector_archetype_admission.gd")
 
@@ -27,33 +28,9 @@ func accept_generation_result(sector_id: String, selected_profile_or_result: Var
 		result = selected_profile_or_result
 	else:
 		selected_profile = String(selected_profile_or_result)
-	if not (result is Dictionary):
-		return _result(OUTCOME_IGNORED, "Generation result is not a Dictionary.")
-	var generation: Dictionary = result
-	if generation.get("source", "") == "fallback" or generation.get("fallback_selected", false) != false:
-		if generation.get("source", "") != "fallback" or not (generation.get("fallback_selected") is bool) or generation["fallback_selected"] != true:
-			return _result(OUTCOME_IGNORED, "Fallback provenance is inconsistent.")
-		if generation.get("candidate_validation_outcome", "") != "valid":
-			return _result(OUTCOME_IGNORED, "Fallback candidate failed schema validation.")
-	else:
-		if generation.get("request_outcome", "") != "validated":
-			return _result(OUTCOME_IGNORED, "Generation did not reach validation.")
-		if generation.get("validation_outcome", "") != "valid":
-			return _result(OUTCOME_IGNORED, "Generation blueprint failed schema validation.")
-	if not (generation.get("blueprint") is Dictionary):
-		return _result(OUTCOME_IGNORED, "Validated generation result has no blueprint.")
-	if String(generation["blueprint"].get("sector_id", "")) != sector_id:
-		return _result(OUTCOME_IGNORED, "Generation sector_id does not match the requested sector.")
-	var admission: Dictionary = SectorArchetypeAdmissionScript.admit(selected_profile, generation["blueprint"])
-	if admission["outcome"] != SectorArchetypeAdmissionScript.OUTCOME_ACCEPTED:
-		return {
-			"outcome": OUTCOME_IGNORED,
-			"detail": admission["detail"],
-			"admission_reason": admission["reason"],
-			"profile": selected_profile,
-			"canon_write_count": 0,
-			"replication_dispatch_count": 0,
-		}
+	var admission: Dictionary = validate_generation_input(sector_id, selected_profile, result)
+	if admission["outcome"] != OUTCOME_ADMISSIBLE:
+		return admission
 	if not _canonicalize.is_valid():
 		return _result(OUTCOME_IGNORED, "Canon callback is not configured.")
 
@@ -82,5 +59,36 @@ func accept_generation_result(sector_id: String, selected_profile_or_result: Var
 	}
 
 
-func _result(outcome: String, detail: String) -> Dictionary:
+static func validate_generation_input(sector_id: String, selected_profile: String, result: Variant) -> Dictionary:
+	if not (result is Dictionary):
+		return _result(OUTCOME_IGNORED, "Generation result is not a Dictionary.")
+	var generation: Dictionary = result
+	if generation.get("source", "") == "fallback" or generation.get("fallback_selected", false) != false:
+		if generation.get("source", "") != "fallback" or not (generation.get("fallback_selected") is bool) or generation["fallback_selected"] != true:
+			return _result(OUTCOME_IGNORED, "Fallback provenance is inconsistent.")
+		if generation.get("candidate_validation_outcome", "") != "valid":
+			return _result(OUTCOME_IGNORED, "Fallback candidate failed schema validation.")
+	else:
+		if generation.get("request_outcome", "") != "validated":
+			return _result(OUTCOME_IGNORED, "Generation did not reach validation.")
+		if generation.get("validation_outcome", "") != "valid":
+			return _result(OUTCOME_IGNORED, "Generation blueprint failed schema validation.")
+	if not (generation.get("blueprint") is Dictionary):
+		return _result(OUTCOME_IGNORED, "Validated generation result has no blueprint.")
+	if String(generation["blueprint"].get("sector_id", "")) != sector_id:
+		return _result(OUTCOME_IGNORED, "Generation sector_id does not match the requested sector.")
+	var admission: Dictionary = SectorArchetypeAdmissionScript.admit(selected_profile, generation["blueprint"])
+	if admission["outcome"] != SectorArchetypeAdmissionScript.OUTCOME_ACCEPTED:
+		return {
+			"outcome": OUTCOME_IGNORED,
+			"detail": admission["detail"],
+			"admission_reason": admission["reason"],
+			"profile": selected_profile,
+			"canon_write_count": 0,
+			"replication_dispatch_count": 0,
+		}
+	return {"outcome": OUTCOME_ADMISSIBLE, "blueprint": admission["blueprint"]}
+
+
+static func _result(outcome: String, detail: String) -> Dictionary:
 	return {"outcome": outcome, "detail": detail}
