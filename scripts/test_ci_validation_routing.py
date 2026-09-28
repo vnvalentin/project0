@@ -124,11 +124,20 @@ class RoutingTests(unittest.TestCase):
                 result = self.routing.seal(plan, "ownership", directory)
                 self.assertEqual(result["tests"], plan["expected_tests"]["ownership"])
                 hosted_path = directory / "hosted-container-tests.json"
-                hosted_report = json.loads(hosted_path.read_text())
-                hosted_report["cases"].pop()
-                hosted_path.write_text(json.dumps(hosted_report))
-                with self.assertRaisesRegex(ValueError, "container control evidence"):
-                    self.routing.seal(plan, "ownership", directory)
+                valid_hosted_report = passing_ownership_report(hosted_path.name)
+                cases = valid_hosted_report["cases"]
+                invalid_case_lists = [
+                    cases[:-1],
+                    cases + [cases[0]],
+                    cases + [{"name": "extra", "passed": False, "exit_code": 1}],
+                    [{**cases[0], "passed": False}] + cases[1:],
+                    [{**cases[0], "exit_code": 0}] + cases[1:],
+                ]
+                for invalid_cases in invalid_case_lists:
+                    with self.subTest(invalid_cases=invalid_cases):
+                        hosted_path.write_text(json.dumps({**valid_hosted_report, "cases": invalid_cases}))
+                        with self.assertRaisesRegex(ValueError, "container control evidence"):
+                            self.routing.seal(plan, "ownership", directory)
                 hosted_path.write_text(json.dumps(passing_ownership_report(hosted_path.name)))
                 (directory / "ownership-tests.json").write_text(json.dumps({"passed": True, "skipped": ["test"]}))
                 with self.assertRaises(ValueError):

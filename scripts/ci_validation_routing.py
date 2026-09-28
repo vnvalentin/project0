@@ -278,16 +278,14 @@ def seal(plan, job, directory):
                     raise ValueError(f"missing or failed ownership execution: {name}")
             if name == "hosted-container-tests.json":
                 cases = report.get("cases")
-                expected_cases = {
-                    "reject_privileged": (2, None),
-                    "reject_network_host": (2, None),
-                    "reject_cap_add": (2, None),
-                    "induced_failure_cleanup": (23, 0),
-                    "host_sealer_success": (0, 0),
-                }
-                actual_cases = {case.get("name"): (case.get("exit_code"), case.get("surviving_containers"))
-                                for case in cases or [] if isinstance(case, dict) and case.get("passed") is True}
-                if report.get("tests") != len(expected_cases) or actual_cases != expected_cases:
+                expected_cases = [
+                    {"name": "reject_privileged", "passed": True, "exit_code": 2},
+                    {"name": "reject_network_host", "passed": True, "exit_code": 2},
+                    {"name": "reject_cap_add", "passed": True, "exit_code": 2},
+                    {"name": "induced_failure_cleanup", "passed": True, "exit_code": 23, "surviving_containers": 0},
+                    {"name": "host_sealer_success", "passed": True, "exit_code": 0, "surviving_containers": 0},
+                ]
+                if report.get("tests") != len(expected_cases) or cases != expected_cases:
                     raise ValueError("hosted container control evidence is incomplete")
         tests = ["scripts/test_validation_ownership.py", "scripts/test_ci_validation_routing.py",
                  "scripts/test_ci_runner_admission.py",
