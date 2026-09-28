@@ -512,11 +512,8 @@ func _remote_player_node_name(peer_id: int) -> String:
 ## multiplayer peer or current_scene.
 @rpc("authority", "call_remote", "reliable")
 func receive_monster_spawn(target_id: String, start_position: Vector3) -> void:
-	var is_existing_spawn: bool = _latest_monster_spawns.has(target_id)
 	_latest_monster_spawns[target_id] = start_position
 	_latest_monster_positions[target_id] = start_position
-	if not is_existing_spawn:
-		_latest_monster_attack_states.erase(target_id)
 	var gameplay_root: Node = get_tree().current_scene
 	if not gameplay_root is Node3D:
 		_pending_monster_spawns[target_id] = start_position
