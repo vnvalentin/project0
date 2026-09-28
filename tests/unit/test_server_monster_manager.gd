@@ -180,6 +180,21 @@ func test_missed_attack_during_windup_emits_no_player_hit() -> void:
 	assert_eq(hits.size(), 0, "a missed attack routes no player_hit (the dodge window is preserved)")
 
 
+func test_windup_attack_state_is_forwarded_with_snapshot_identity() -> void:
+	var manager: Object = ServerMonsterManagerScript.new([{"spawn_id": "s0", "x": 10, "y": 0}], 1, 999)
+	var snapshots: Array = []
+	manager.attack_state_changed.connect(func(spawn_id: String, snapshot: Object) -> void:
+		snapshots.append([spawn_id, snapshot])
+	)
+	var player_pos: Vector3 = Vector3(9, 1, 0)
+	manager.advance_all([player_pos], 1.0, 0, [42])
+	manager.advance_all([player_pos], 1.0, 1, [42])
+
+	assert_eq(snapshots.size(), 1, "the manager forwards one state snapshot when the monster enters WINDUP")
+	assert_eq(snapshots[0][0], "s0", "the snapshot keeps the monster identity")
+	assert_eq(snapshots[0][1].phase, MonsterContractsScript.PHASE_WINDUP)
+
+
 func test_landed_attack_without_peer_ids_emits_no_player_hit() -> void:
 	# Backward compatibility: the older advance_all(positions, delta, tick)
 	# signature (no peer ids) still resolves attacks but routes no player_hit.

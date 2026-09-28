@@ -73,6 +73,40 @@ const PHASE_ATTACK: String = "ATTACK"
 const PHASE_RECOVERY: String = "RECOVERY"
 const PHASE_DEAD: String = "DEAD"
 
+const ATTACK_STATE_SCHEMA_VERSION: int = 1
+
+class AttackStateSnapshot:
+	var schema_version: int = ATTACK_STATE_SCHEMA_VERSION
+	var phase: String
+	var target_tick: int
+	var duration_ticks: int
+	var facing: Vector3
+
+	func _init(p_phase: String, p_target_tick: int, p_duration_ticks: int, p_facing: Vector3) -> void:
+		phase = p_phase
+		target_tick = p_target_tick
+		duration_ticks = p_duration_ticks
+		facing = p_facing
+
+	func to_wire() -> Dictionary:
+		return {
+			"schema_version": schema_version,
+			"phase": phase,
+			"target_tick": target_tick,
+			"duration_ticks": duration_ticks,
+			"facing": facing,
+		}
+
+	static func from_wire(wire: Dictionary) -> Object:
+		if int(wire.get("schema_version", -1)) != ATTACK_STATE_SCHEMA_VERSION:
+			return null
+		return AttackStateSnapshot.new(
+			String(wire.get("phase", "")),
+			int(wire.get("target_tick", -1)),
+			int(wire.get("duration_ticks", 0)),
+			wire.get("facing", Vector3.ZERO)
+		)
+
 
 ## A monster's flat, server-owned health is now the shared CombatHealth contract
 ## (Slice 126 retired the provisional MonsterCombatState inner class; its
