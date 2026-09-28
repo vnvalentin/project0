@@ -46,7 +46,10 @@ an issue labeled `tbp:epic` containing:
 - `Parent feature: #<feature>`
 - **Problem Seam:** The bounded occurrence or problem this Epic owns, including
 	enough context to distinguish it from sibling Epics.
-- **Measurable Metric:** The data point to determine if the root cause is resolved.
+- **Success Criteria:** A clear, observable condition that determines whether the Epic succeeds.
+- **Measurement:** How the Epic's success criteria will be measured, including the evidence or metric.
+- **Root Cause:** The underlying cause this Epic is intended to resolve.
+- **Measurable Metric:** The data point used by the measurement.
 - **Experiments:** A markdown task list `- [ ]` linking to child Experiment issues.
 
 An Epic may reference the relevant Feature-level 4W cluster or local cause when
@@ -61,7 +64,10 @@ Update the child Epic set to match the evidence.
 ## Level 5: Experiment (Execution & Learning)
 Experiments test the solution for the root cause. This level is optimized for the shortest time to learning. Create an issue labeled `tbp:experiment` containing:
 - `Parent epic: #<epic>`
+- **Root Cause Target:** The parent Epic root cause this Experiment attempts to solve.
 - **Test Definition:** The solution being tested against the root cause.
+- **Success Criteria:** A clear, observable condition that determines whether the experiment succeeds.
+- **Measurement:** How the success criteria will be measured, including the evidence or metric.
 - **Status:** [ ] Pass / [ ] Fail
 - **Learning Outputs:** Evidence captured from the execution.
 - **Next Action:** If Pass -> Inspect the parent Epic's measurable metric. If Fail -> Adjust the experiment and try again.

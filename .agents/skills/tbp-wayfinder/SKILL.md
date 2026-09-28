@@ -132,9 +132,21 @@ it under a Feature with `tbp:epic`:
 <the bounded occurrence or problem this Epic owns, distinguished from sibling
 Epics by the Feature's 4W partition>
 
+## Success Criteria
+
+<clear, observable condition that determines whether the Epic succeeds>
+
+## Measurement
+
+<how the Epic's success criteria will be measured, including the evidence or metric>
+
+## Root Cause
+
+<the underlying cause this Epic is intended to resolve>
+
 ## Measurable Metric
 
-<data point proving the root cause is resolved>
+<the data point used by the measurement>
 
 ## Experiments
 
@@ -142,7 +154,7 @@ Epics by the Feature's 4W partition>
 
 ```
 
-Mandatory fields: problem seam, measurable metric, and child Experiment links.
+Mandatory fields: problem seam, root cause, success criteria, measurement, measurable metric, and child Experiment links.
 An Epic may reference the relevant Feature-level 4W cluster or local cause when
 useful, but it does not need to repeat all four Ws or restate the Feature's
 sequencing root cause.
@@ -155,6 +167,18 @@ An Experiment tests a solution for an Epic. Create it under an Epic with `tbp:ex
 ## Test Definition
 
 <solution being tested>
+
+## Root Cause Target
+
+<the parent Epic root cause this Experiment attempts to solve>
+
+## Success Criteria
+
+<clear, observable condition that determines whether the experiment succeeds>
+
+## Measurement
+
+<how the success criteria will be measured, including the evidence or metric>
 
 ## Status
 
@@ -171,7 +195,7 @@ An Experiment tests a solution for an Epic. Create it under an Epic with `tbp:ex
 
 ```
 
-Mandatory fields: test definition, status, learning outputs, and next action.
+Mandatory fields: test definition, root cause target, success criteria, measurement, status, learning outputs, and next action. Every Experiment must be an attempt to solve its parent Epic's root cause.
 
 ## The Breadth-First Grilling Workflow
 
@@ -200,23 +224,24 @@ You operate in one of four distinct phases depending on the user's prompt.
 	changes in those dimensions to partition the Feature into distinct problem
 	occurrences or seams. A single Who may produce several Epics when they do
 	different things; a When may expose another Epic at a different process
-	point. Identify the Feature-level root cause or dependency that determines
-	the first Epic to start. Ensure each Epic has a distinct boundary and a
-	measurable metric.
+	point. For each Epic, identify the root cause, define a clear success
+	criterion, and explain how it will be measured. Identify the Feature-level
+	root cause or dependency that determines the first Epic to start.
 3. **Execution:** After confirmation, create the Epic issues via `gh`, add `Parent feature: #<feature>` to each Epic, set each Epic's native parent with `gh issue edit <epic> --parent <feature>`, link them to the parent Feature body, re-read every changed issue, and verify labels, sections, textual parent markers, native parent links, child links, problem seams, metrics, and gap markers. Keep the 4W partition and root-cause ordering on the parent Feature.
 4. **Transition:** Stop and explicitly ask: *"Should we grill another Feature, or drill down into one of these new Epics?"*
-5. **Completion criterion:** Every currently approved Epic has a verified problem seam,
-   measurable metric, child links, textual parent marker, native parent link,
-   and the correct parent Feature body link; the parent Feature has the 4W
-	partition and root-cause ordering recorded. After evidence, obsolete Epics are
-	retired or merged and newly revealed seams are added before the Feature closes.
+4. **Completion criterion:** Every currently approved Epic has a verified problem seam,
+	root cause, clear success criteria, measurement method, measurable metric,
+	child links, textual parent marker, native parent link, and the correct parent
+	Feature body link; the parent Feature has the 4W partition and root-cause
+	ordering recorded. After evidence, obsolete Epics are retired or merged and
+	newly revealed seams are added before the Feature closes.
 
 ### Phase 4: Epic Execution
 
 1. **Goal:** Break an Epic down into Experiments.
-2. **Grilling:** Ask how to test the solution for the Root Cause to achieve the shortest time to learning. Define pass/fail criteria and learning outputs.
+2. **Grilling:** Ask how to test the solution for the parent Epic's Root Cause to achieve the shortest time to learning. Define the root cause target, clear success criteria, explain how they will be measured, and define learning outputs.
 3. **Execution:** After confirmation, create the Experiment issues via `gh`, add `Parent epic: #<epic>` to each Experiment, set each Experiment's native parent with `gh issue edit <experiment> --parent <epic>`, link them to the parent Epic body, re-read every changed issue, and verify labels, sections, textual parent markers, native parent links, child links, status, learning outputs, and gap markers.
-4. **Completion criterion:** Every approved Experiment has a verified test definition, pass/fail status, learning outputs, next action, textual parent marker, native parent link, and parent Epic body link.
+4. **Completion criterion:** Every approved Experiment has a verified test definition, root cause target, clear success criteria, measurement method, pass/fail status, learning outputs, next action, textual parent marker, native parent link, and parent Epic body link.
 
 ### Continue an existing map
 
