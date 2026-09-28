@@ -290,8 +290,9 @@ class RoutingTests(unittest.TestCase):
             self.assertIn('$(git rev-parse HEAD)" = "${{ needs.route.outputs.linux_ref }}', block)
             self.assertIn("verify-source", block)
         godot = re.search(r"^  godot:\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
-        self.assertIn('--user "$(id -u):$(id -g)"', godot)
+        self.assertIn('--user "0:$(id -g)"', godot)
         self.assertIn("HOME=/tmp/home", godot)
+        self.assertIn("umask 0002", godot)
         self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", godot)
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
 
