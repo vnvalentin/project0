@@ -377,7 +377,9 @@ def main():
         if args.action == "plan":
             metadata = metadata_from_event()
             plan = route(metadata)
-            plan["expected_tests"] = expected_tests(metadata["candidate_tree"], plan["windows_required"])
+            expected_tree = (metadata["baseline_tree"] if plan["windows_required"]
+                             else metadata["candidate_tree"])
+            plan["expected_tests"] = expected_tests(expected_tree, plan["windows_required"])
             args.plan.parent.mkdir(parents=True, exist_ok=True)
             args.plan.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
             if os.environ.get("GITHUB_OUTPUT"):
