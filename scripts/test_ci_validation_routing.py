@@ -281,7 +281,8 @@ class RoutingTests(unittest.TestCase):
         self.assertNotIn("types: [labeled]", text)
         for job in ("ownership", "godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
-            self.assertIn("needs: route", block)
+            expected_needs = "needs: route" if job == "ownership" else "needs: [route, ownership]"
+            self.assertIn(expected_needs, block)
             self.assertIn("if: always()", block)
             self.assertLess(block.index("run: exit 1"), block.index("uses: actions/checkout@v4"))
             self.assertIn("runs-on: ubuntu-latest", block)
@@ -294,6 +295,13 @@ class RoutingTests(unittest.TestCase):
         self.assertIn("HOME=/tmp/home", godot)
         self.assertIn("umask 0002", godot)
         self.assertIn("ghcr.io/vnvalentin/project0-godot@sha256:801341", godot)
+        self.assertIn('chmod g+w "$GITHUB_WORKSPACE"', godot)
+        self.assertIn("install -d -m 2775 build/validation .godot", godot)
+        self.assertIn("--network none --no-healthcheck --read-only --cap-drop ALL", godot)
+        self.assertIn("--security-opt no-new-privileges", godot)
+        for job in ("godot", "records", "python"):
+            block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)
+            self.assertIn("needs.ownership.result != 'success'", block)
         self.assertIn("if: always()\n    needs: [route, ownership, godot, records, python, launcher]", text)
 
     def test_image_workflow_uses_hosted_ephemeral_builder(self):

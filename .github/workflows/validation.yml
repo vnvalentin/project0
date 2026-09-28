@@ -94,13 +94,13 @@ jobs:
 
   godot:
     name: Godot GUT suite
-    needs: route
+    needs: [route, ownership]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        if: ${{ needs.route.result != 'success' || needs.ownership.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
       - uses: actions/download-artifact@v4
         with:
@@ -123,8 +123,11 @@ jobs:
         shell: bash
         run: |
           image=ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602
+          chmod g+w "$GITHUB_WORKSPACE"
+          install -d -m 2775 build/validation .godot
           docker run --rm --user "0:$(id -g)" \
-            --tmpfs /tmp:rw,nosuid,nodev \
+            --network none --no-healthcheck --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev \
             -v "$GITHUB_WORKSPACE:/app" -w /app \
             --entrypoint /usr/bin/env "$image" \
             -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home \
@@ -146,13 +149,13 @@ jobs:
 
   records:
     name: Delivery record sync
-    needs: route
+    needs: [route, ownership]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        if: ${{ needs.route.result != 'success' || needs.ownership.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
       - uses: actions/download-artifact@v4
         with:
@@ -193,13 +196,13 @@ jobs:
 
   python:
     name: Python service tests
-    needs: route
+    needs: [route, ownership]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        if: ${{ needs.route.result != 'success' || needs.ownership.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
       - uses: actions/download-artifact@v4
         with:
