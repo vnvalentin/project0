@@ -163,6 +163,7 @@ def expected_tests(tree, windows_required=False):
     return {
         "ownership": ["scripts/test_validation_ownership.py", "scripts/test_ci_validation_routing.py",
                       "scripts/test_ci_runner_admission.py",
+                  "scripts/test_hosted_gut_container.sh",
                       "scripts/check_validation_ownership.py"],
         "godot": sorted(path for path in tree if re.fullmatch(r"tests/(unit|integration)/test_[^/]+\.gd", path)),
         "records": ["scripts/check_record_sync.sh", "scripts/test_deploy_containers.sh"],
@@ -263,7 +264,8 @@ def seal(plan, job, directory):
             raise ValueError("empty, failed, or skipped test result")
         tests = sorted({suite.attrib["name"] for suite in root.iter("testsuite") if suite.findall("testcase")}) if job == "godot" else sorted({case.attrib["file"] for case in cases})
     elif job == "ownership":
-        for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json", "ownership.json"):
+        for name in ("ownership-tests.json", "routing-tests.json", "runner-admission-tests.json",
+                 "hosted-container-tests.json", "ownership.json"):
             report = json.loads((directory / name).read_text(encoding="utf-8"))
             if report.get("passed") is not True or report.get("skipped", 0) not in (0, []):
                 raise ValueError(f"failed ownership evidence: {name}")
@@ -274,8 +276,20 @@ def seal(plan, job, directory):
                         or report.get("errors") not in (0, [])
                         or report.get("skipped") not in (0, [])):
                     raise ValueError(f"missing or failed ownership execution: {name}")
+            if name == "hosted-container-tests.json":
+                cases = report.get("cases")
+                expected_cases = [
+                    {"name": "reject_privileged", "passed": True, "exit_code": 2},
+                    {"name": "reject_network_host", "passed": True, "exit_code": 2},
+                    {"name": "reject_cap_add", "passed": True, "exit_code": 2},
+                    {"name": "induced_failure_cleanup", "passed": True, "exit_code": 23, "surviving_containers": 0},
+                    {"name": "host_sealer_success", "passed": True, "exit_code": 0, "surviving_containers": 0},
+                ]
+                if report.get("tests") != len(expected_cases) or cases != expected_cases:
+                    raise ValueError("hosted container control evidence is incomplete")
         tests = ["scripts/test_validation_ownership.py", "scripts/test_ci_validation_routing.py",
                  "scripts/test_ci_runner_admission.py",
+                 "scripts/test_hosted_gut_container.sh",
                  "scripts/check_validation_ownership.py"]
     elif job == "records":
         if not re.search(r"^record-sync: 0 error\(s\), \d+ warning\(s\)$",

@@ -79,6 +79,9 @@ jobs:
       - name: Check test ownership and static client dependencies
         if: always()
         run: python scripts/check_validation_ownership.py --output build/validation/ownership.json
+      - name: Test hosted GUT container boundary
+        shell: bash
+        run: bash scripts/test_hosted_gut_container.sh 2>&1 | tee build/validation/hosted-container-tests.log
 
       - name: Bind ownership evidence
         run: python scripts/ci_validation_routing.py seal --job ownership --plan "$RUNNER_TEMP/routing/plan.json"
@@ -94,13 +97,13 @@ jobs:
 
   godot:
     name: Godot GUT suite
-    needs: route
+    needs: [route, ownership]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        if: ${{ needs.route.result != 'success' || needs.ownership.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
       - uses: actions/download-artifact@v4
         with:
@@ -121,16 +124,7 @@ jobs:
 
       - name: Run validation suite
         shell: bash
-        run: |
-          image=ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602
-          docker run --rm --user "0:$(id -g)" \
-            --tmpfs /tmp:rw,nosuid,nodev \
-            -v "$GITHUB_WORKSPACE:/app" -w /app \
-            --entrypoint /usr/bin/env "$image" \
-            -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home \
-            XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache \
-            TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard \
-            bash -c 'umask 0002; exec bash scripts/run_gut_validation.sh'
+        run: bash scripts/run_hosted_gut_container.sh
 
       - name: Bind GUT evidence
         run: python scripts/ci_validation_routing.py seal --job godot --plan "$RUNNER_TEMP/routing/plan.json"
@@ -146,13 +140,13 @@ jobs:
 
   records:
     name: Delivery record sync
-    needs: route
+    needs: [route, ownership]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        if: ${{ needs.route.result != 'success' || needs.ownership.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
       - uses: actions/download-artifact@v4
         with:
@@ -193,13 +187,13 @@ jobs:
 
   python:
     name: Python service tests
-    needs: route
+    needs: [route, ownership]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Reject missing source approval
-        if: ${{ needs.route.result != 'success' || needs.route.outputs.linux_ref == '' }}
+        if: ${{ needs.route.result != 'success' || needs.ownership.result != 'success' || needs.route.outputs.linux_ref == '' }}
         run: exit 1
       - uses: actions/download-artifact@v4
         with:
