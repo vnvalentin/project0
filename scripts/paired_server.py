@@ -19,6 +19,7 @@ from pathlib import Path
 IMAGE = "sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
 HOST = "192.168.1.254"
 SCENARIO = "authenticated-input-ack-v1"
+SHARED_SCENARIO = "shared-exploration-v1"
 IDENTITY_KEYS = ("schema_version", "run_id", "scenario_id", "correlation_id", "client_build", "server_build")
 RPC_FILES = ("network_client.gd", "player_identity.gd", "nakama_gameplay_bridge_client.gd",
              "sector_geometry_translator.gd", "sector_navigation_readiness.gd", "telemetry_batch_queue.gd")
@@ -160,6 +161,53 @@ def check_client(report, evidence):
         raise ValueError("client_evidence_failed")
 
 
+def check_shared_client(report, evidence):
+    if report["scenario_id"] != SHARED_SCENARIO or evidence.get("scenario_id") != SHARED_SCENARIO:
+        raise ValueError("shared_scenario_identity")
+    if evidence.get("correlation_id") != report["correlation_id"]:
+        raise ValueError("shared_correlation_identity")
+    clients = evidence.get("clients", {})
+    if set(clients) != {"a", "b"} or clients["a"].get("character_id") == clients["b"].get("character_id"):
+        raise ValueError("shared_character_identity")
+    for client_id in ("a", "b"):
+        client = clients[client_id]
+        if (client.get("status") != "passed" or client.get("scenario_id") != SHARED_SCENARIO
+                or client.get("correlation_id") != report["correlation_id"]
+                or client.get("client_id") != client_id
+                or client.get("authenticated") is not True or client.get("world_entered") is not True):
+            raise ValueError("shared_client_evidence_failed")
+        if client.get("client_build") != report["client_build"] or client.get("server_build") != report["server_build"]:
+            raise ValueError("shared_build_identity")
+        remotes = client.get("remote_players", {})
+        if set(remotes) != {"a" if client_id == "b" else "b"}:
+            raise ValueError("shared_remote_presence")
+        remote = remotes["a" if client_id == "b" else "b"]
+        if isinstance(remote, dict):
+            if remote.get("character_id") != clients["a" if client_id == "b" else "b"].get("character_id"):
+                raise ValueError("shared_remote_character")
+        elif not isinstance(remote, str):
+            raise ValueError("shared_remote_shape")
+    initial = evidence.get("phases", {}).get("initial", {})
+    if evidence.get("phases", {}).get("movement", {}).get("verified") is True:
+        initial = {}
+    for client_id in ("a", "b") if initial else ():
+        remote_id = "a" if client_id == "b" else "b"
+        baseline = initial.get(client_id, {}).get("remote_players", {}).get(remote_id, {}).get("position")
+        observed = clients[client_id].get("remote_players", {}).get(remote_id, {}).get("position")
+        if not isinstance(baseline, list) or not isinstance(observed, list) or len(baseline) != 3 or len(observed) != 3:
+            raise ValueError("shared_movement_shape")
+        if sum((float(left) - float(right)) ** 2 for left, right in zip(baseline, observed)) ** 0.5 <= 0.5:
+            raise ValueError("shared_authoritative_movement")
+    phases = evidence.get("phases", {})
+    if not {"initial", "disconnect", "reconnect"}.issubset(phases):
+        raise ValueError("shared_lifecycle_phases")
+    if phases["disconnect"].get("remote_players") != {}:
+        raise ValueError("shared_disconnect_presence")
+    if set(phases["reconnect"].get("remote_players", {})) != {"b"}:
+        raise ValueError("shared_reconnect_presence")
+    return True
+
+
 def write_json(path, value):
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2) + "\n")
@@ -279,6 +327,7 @@ def supervise(run):
                 "--volume", f"{artifact}:/app:ro", "--volume", f"{state}:/state",
                 "--volume", f"{state / 'cache'}:/app/.godot", "--entrypoint", "/usr/bin/timeout"]
         environment = {"HOME": "/state", "XDG_DATA_HOME": "/state/data", "PAIRED_RUN_ID": report["run_id"],
+                   "PAIRED_SCENARIO": report["scenario_id"], "PAIRED_CORRELATION_ID": report["correlation_id"],
                        "PROJECT0_ACCOUNTS_DB_PATH": "accounts.db", "PROJECT0_CANON_DB_PATH": "canon.db",
                        "PROJECT0_HEALTH_FILE": "/state/health.json", "PROJECT0_SERVER_BIND_ADDRESS": "0.0.0.0",
                        "PROJECT0_SERVER_PORT": "9999", "PROJECT0_OPERATOR_CONTROL_PORT": "8097",
@@ -330,13 +379,22 @@ def supervise(run):
                 previous_tick = health.get("server_tick", previous_tick)
                 if report["status"] == "ready" and not healthy(health, now, -1):
                     raise ValueError("runtime_unhealthy")
-                if report["status"] == "ready" and (state / "admission.json").exists():
+                if report["status"] == "ready" and report["scenario_id"] == SCENARIO and (state / "admission.json").exists():
                     admission = read_json(state / "admission.json")
                     report["admission"] = admission
                     client_was_authenticated = client_was_authenticated or admission.get("authenticated") is True
                     if client_was_authenticated and admission.get("authenticated") is not True:
                         raise ValueError("client_disconnected")
             if control:
+                if report["scenario_id"] == SHARED_SCENARIO:
+                    check_shared_client(report, control["evidence"])
+                    shared_observation = read_json(state / "shared-observation.json")
+                    history_counts = [entry.get("authenticated_world_peers") for entry in shared_observation.get("history", [])]
+                    if not {1, 2}.issubset(history_counts) or history_counts[-1] != 2:
+                        raise ValueError("shared_server_lifecycle_missing")
+                    report.update(status="server_passed", shared_observation=shared_observation,
+                                  client_evidence_sha256=digest(control_path))
+                    break
                 check_client(report, control["evidence"])
                 admission = read_json(state / "admission.json")
                 now = time.time()
@@ -383,13 +441,14 @@ def supervise(run):
                     report.update(status="failed", reason="runtime_shutdown_failed")
                 report["runtime_logs_complete"] = exit_state.get("Running") is False
                 raw = command("docker", "logs", name).stdout
-                token = (state / "assertion").read_text() if (state / "assertion").exists() else ""
+                tokens = [(state / name).read_text() for name in ("assertion", "assertion-a", "assertion-b")
+                          if (state / name).exists()]
                 if (state / "import.log").exists():
-                    imported = redact((state / "import.log").read_text(), [token])
+                    imported = redact((state / "import.log").read_text(), tokens)
                     (run / "import.log").write_text(imported)
                     report["import_log_sha256"] = digest(run / "import.log")
                     report["import_error_lines"] = sum("ERROR:" in line for line in imported.splitlines())
-                sanitized = redact(raw, [token])
+                sanitized = redact(raw, tokens)
                 (run / "runtime.log").write_text(sanitized)
                 report["log_sha256"] = digest(run / "runtime.log")
                 report["runtime_error_lines"] = sum("ERROR:" in line or "SCRIPT ERROR:" in line for line in sanitized.splitlines())
@@ -429,20 +488,22 @@ def start(args):
     check_host()
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", args.correlation_id):
         raise ValueError("correlation_id")
+    if args.scenario not in (SCENARIO, SHARED_SCENARIO):
+        raise ValueError("scenario")
     if not re.fullmatch(r"[a-f0-9]{64}", args.client_sha256) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.client_version):
         raise ValueError("client_build")
     if not 5 <= args.deadline_seconds <= 180 or not 1 <= args.readiness_seconds <= args.deadline_seconds:
         raise ValueError("deadline")
     args.run.mkdir(mode=0o700, parents=True, exist_ok=False)
     now = time.time()
-    report = {"schema_version": 1, "scenario_id": SCENARIO, "correlation_id": args.correlation_id,
+    report = {"schema_version": 1, "scenario_id": args.scenario, "correlation_id": args.correlation_id,
               "run_id": uuid.uuid4().hex, "client_build": {"sha256": args.client_sha256,
               "version": args.client_version, "engine": args.client_engine},
               "server_build": {"sha256": args.artifact_sha256, "image": IMAGE},
               "started_at": now, "deadline_at": now + args.deadline_seconds, "status": "accepted",
               "paired_acceptance": False}
     write_json(args.run / "request.json", {"artifact": str(args.artifact.resolve()),
-               "artifact_sha256": args.artifact_sha256, "port": args.port,
+               "artifact_sha256": args.artifact_sha256, "port": args.port, "scenario": args.scenario,
                "deadline_seconds": args.deadline_seconds, "readiness_seconds": args.readiness_seconds})
     write_json(args.run / "report.json", report)
     with (args.run / "supervisor.log").open("w") as output:
@@ -463,6 +524,7 @@ def main():
     launch.add_argument("--artifact", type=Path, required=True)
     launch.add_argument("--artifact-sha256", required=True)
     launch.add_argument("--correlation-id", required=True)
+    launch.add_argument("--scenario", default=SCENARIO)
     launch.add_argument("--client-sha256", required=True)
     launch.add_argument("--client-version", required=True)
     launch.add_argument("--client-engine", required=True)
@@ -498,11 +560,15 @@ def main():
         if args.action == "finish":
             try:
                 evidence = read_json(args.evidence)
-                check_client(report, evidence)
+                if report["scenario_id"] == SHARED_SCENARIO:
+                    check_shared_client(report, evidence)
+                else:
+                    check_client(report, evidence)
             except (ValueError, OSError, TypeError):
                 write_json(args.run / "control.json", {"action": "reject"})
                 raise ValueError("client_evidence_rejected")
-            control["evidence"] = {key: evidence[key] for key in (*IDENTITY_KEYS, "status", "observed_at", "authenticated", "world_entered", "input_ack_sequence")}
+            control["evidence"] = (evidence if report["scenario_id"] == SHARED_SCENARIO else
+                                    {key: evidence[key] for key in (*IDENTITY_KEYS, "status", "observed_at", "authenticated", "world_entered", "input_ack_sequence")})
         write_json(args.run / "control.json", control)
         result = {"action": args.action, "status": "requested", "run_id": report["run_id"]}
     print(json.dumps(result, indent=2))
