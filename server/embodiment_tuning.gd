@@ -58,6 +58,14 @@ const _KINETIC_CONTROL_COEFFICIENT: float = 1.0
 const _KINETIC_OUTPUT_COEFFICIENT: float = 1.0
 const _KINETIC_SLOSH_PENALTY: float = 1.0
 
+## Base-pool namespace (Experiment 1, Epic #1291): additive Option 3 tuning.
+const _HP_BASE: float = 100.0
+const _HP_PER_CON: float = 10.0
+const _HP_PER_VOLUME: float = 2.0
+const _STAMINA_BASE: float = 100.0
+const _STAMINA_PER_CON: float = 5.0
+const _STAMINA_PER_CONTROL: float = 5.0
+
 ## Meridian namespace (Slice 137, P-016-D): the deduplicated cross-training
 ## evidence a pathway must accumulate before it permanently unlocks. One frozen
 ## threshold for the baseline set; per-pathway thresholds are a later revision.
@@ -150,6 +158,18 @@ func kinetic() -> Dictionary:
 		"control_coefficient": _KINETIC_CONTROL_COEFFICIENT,
 		"output_coefficient": _KINETIC_OUTPUT_COEFFICIENT,
 		"slosh_penalty": _KINETIC_SLOSH_PENALTY,
+	}
+
+
+## The server-owned additive Option 3 base-pool tuning.
+func stats() -> Dictionary:
+	return {
+		"hp_base": _HP_BASE,
+		"hp_per_con": _HP_PER_CON,
+		"hp_per_volume": _HP_PER_VOLUME,
+		"stamina_base": _STAMINA_BASE,
+		"stamina_per_con": _STAMINA_PER_CON,
+		"stamina_per_control": _STAMINA_PER_CONTROL,
 	}
 
 
