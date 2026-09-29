@@ -52,6 +52,26 @@ func test_enters_windup_when_player_is_in_reach() -> void:
 	assert_eq(monster.phase, MonsterContractsScript.PHASE_WINDUP, "a player in reach triggers the attack windup")
 
 
+func test_windup_snapshot_exposes_presentation_state_without_authority() -> void:
+	var monster: Object = _monster()
+	var player: Vector3 = Vector3(1.5, 1, 0)
+	monster.advance(player, 1.0, 10)  # IDLE -> CHASE
+	monster.advance(player, 1.0, 11)  # CHASE -> WINDUP
+	var snapshot: Dictionary = monster.attack_state_snapshot(11)
+	assert_eq(snapshot["schema_version"], MonsterContractsScript.ATTACK_STATE_SNAPSHOT_SCHEMA_VERSION)
+	assert_eq(snapshot["active_state_flags"], MonsterContractsScript.ATTACK_WINDUP_ACTIVE)
+	assert_eq(snapshot["phase"], MonsterContractsScript.PHASE_WINDUP)
+	assert_eq(snapshot["phase_started_tick"], 11)
+	assert_eq(snapshot["target_tick"], 11 + MonsterContractsScript.WINDUP_TICKS)
+	assert_eq(snapshot["duration_ticks"], MonsterContractsScript.WINDUP_TICKS)
+	assert_eq(snapshot["server_tick"], 11)
+
+	_advance_n(monster, player, MonsterContractsScript.WINDUP_TICKS)
+	var resolved: Dictionary = monster.attack_state_snapshot(21)
+	assert_eq(resolved["active_state_flags"], 0, "the telegraph flag clears when WINDUP ends")
+	assert_eq(resolved["phase"], MonsterContractsScript.PHASE_ATTACK)
+
+
 func test_windup_telegraph_is_at_least_as_long_as_the_player_attack() -> void:
 	# Binding fairness invariant (CLAUDE.md Combat Reading): the monster's
 	# telegraph must be at least as readable as the player's own attack.

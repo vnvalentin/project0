@@ -73,6 +73,31 @@ func test_receive_position_for_an_unknown_target_id_is_a_no_op() -> void:
 	assert_eq(container.get_child_count(), 0, "an update for an unknown target_id creates nothing")
 
 
+func test_attack_state_controls_only_the_cosmetic_windup_telegraph() -> void:
+	var container: Node3D = add_child_autofree(Node3D.new())
+	NetworkClientScript.spawn_monster_representation("m0", Vector3.ZERO, container)
+	await wait_physics_frames(1)
+
+	var windup: Dictionary = {
+		"schema_version": 1,
+		"active_state_flags": 1,
+		"facing": Vector3.FORWARD,
+		"phase_started_tick": 10,
+		"target_tick": 20,
+		"duration_ticks": 10,
+		"server_tick": 10,
+	}
+	NetworkClientScript.apply_monster_attack_state("m0", windup, container)
+	var monster_node: Node3D = container.get_node_or_null(NetworkClientScript.monster_node_name("m0")) as Node3D
+	var telegraph: Node3D = monster_node.get_node("AttackTelegraph") as Node3D
+	assert_true(telegraph.visible, "the server windup flag shows the local telegraph")
+
+	var inactive: Dictionary = windup.duplicate()
+	inactive["active_state_flags"] = 0
+	NetworkClientScript.apply_monster_attack_state("m0", inactive, container)
+	assert_false(telegraph.visible, "clearing the server windup flag hides the telegraph")
+
+
 func test_despawn_removes_the_nodes_representation() -> void:
 	var container: Node3D = add_child_autofree(Node3D.new())
 	NetworkClientScript.spawn_monster_representation("m0", Vector3.ZERO, container)
