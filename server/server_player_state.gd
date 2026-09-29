@@ -41,6 +41,7 @@ const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd"
 const PlayerCombatContractsScript: Script = preload("res://shared/player_combat_contracts.gd")
 const CombatHealthScript: Script = preload("res://shared/combat_health.gd")
 const CharacterFoundationScript: Script = preload("res://shared/character_foundation.gd")
+const GameStateScript: Script = preload("res://shared/game_state.gd")
 const EmbodimentProgressionServiceScript: Script = preload("res://server/embodiment_progression_service.gd")
 const EmbodimentTuningScript: Script = preload("res://server/embodiment_tuning.gd")
 const LocomotionContractScript: Script = preload("res://shared/locomotion_contract.gd")
@@ -106,6 +107,10 @@ signal character_snapshot_ready(peer_id: int, snapshot: Dictionary)
 ## the same peer-scoped channel proven for the Character snapshot in Phase 14.
 signal effective_mechanics_ready(peer_id: int, snapshot: Dictionary)
 
+## Slice 1302: the server-owned raw stat aggregate is replicated only at
+## admission and after an accepted authoritative stat change.
+signal authoritative_stats_ready(peer_id: int, snapshot: Dictionary)
+
 var owning_peer_id: int = -1
 var position: Vector3 = Vector3.ZERO
 ## Slice 094: the spawn anchor this Player is returned to on the provisional
@@ -133,6 +138,7 @@ var _character: Object
 ## crosses to the client. Created at world entry alongside _character.
 var _embodiment: Object = null
 var _embodiment_tuning: Object = null
+var _stats_state: Object = null
 ## Forward-facing direction used for the melee arc check; defaults to -Z
 ## (Godot's forward) and is updated from non-zero movement input, since this
 ## slice has no independent look/aim input.
@@ -225,6 +231,12 @@ func start_for_peer(peer_id: int, start_position: Vector3) -> void:
 	)["character"]
 	character_snapshot_ready.emit(owning_peer_id, character_snapshot())
 	_embodiment_tuning = _resolve_default_tuning()
+	var stat_result: Dictionary = GameStateScript.create_stat_aggregate(
+		{"STR": 10.0, "DEX": 10.0, "CON": 10.0, "INT": 10.0, "WIS": 10.0, "CHA": 10.0},
+		_embodiment_tuning
+	)
+	_stats_state = stat_result["state"]
+	authoritative_stats_ready.emit(owning_peer_id, authoritative_stats_snapshot())
 	_embodiment = EmbodimentProgressionServiceScript.new()
 	_embodiment.create_character(MECHANICS_CHARACTER_KEY, _embodiment_tuning)
 	effective_mechanics_ready.emit(owning_peer_id, effective_mechanics_snapshot())
@@ -297,6 +309,26 @@ func effective_mechanics_snapshot() -> Dictionary:
 	if snapshot == null:
 		return {}
 	return snapshot.to_presentation_snapshot()
+
+
+## Server-only readout for the peer-scoped snapshot relay.
+func authoritative_stats_snapshot() -> Dictionary:
+	if _stats_state == null or _embodiment_tuning == null:
+		return {}
+	return _stats_state.to_snapshot(String(_embodiment_tuning.tuning_version))
+
+
+## Server-only change seam. A future progression/equipment service calls this
+## after validating a mutation; clients have no route to this method.
+func update_authoritative_stats(initial_nodes: Dictionary) -> Dictionary:
+	if _embodiment_tuning == null:
+		return {"outcome": GameStateScript.OUTCOME_MALFORMED, "detail": "player has not started"}
+	var result: Dictionary = GameStateScript.create_stat_aggregate(initial_nodes, _embodiment_tuning)
+	if result["outcome"] != GameStateScript.OUTCOME_OK:
+		return {"outcome": result["outcome"], "detail": result["detail"]}
+	_stats_state = result["state"]
+	authoritative_stats_ready.emit(owning_peer_id, authoritative_stats_snapshot())
+	return {"outcome": GameStateScript.OUTCOME_OK, "detail": ""}
 
 
 ## Server-only physical outputs used by environmental execution. Raw values do
