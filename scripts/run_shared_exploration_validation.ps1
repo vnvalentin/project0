@@ -113,10 +113,11 @@ try {
         Start-Sleep -Milliseconds 100
     } while ($true)
     $baselineA = $a.remote_players.b.position; $baselineB = $b.remote_players.a.position
+    $result.phases.initial = @{ a = $a; b = $b; baseline_a = $baselineA; baseline_b = $baselineB }
     Start-Sleep -Milliseconds 1200
     $a = Read-Json (Join-Path $root a.json); $b = Read-Json (Join-Path $root b.json)
+    $result.phases.movement = @{ a = $a; b = $b }
     if (-not $a -or -not $b -or -not $a.remote_players.b.position -or -not $b.remote_players.a.position) { throw 'movement evidence missing' }
-    $result.phases.initial = @{ a = $a; b = $b; baseline_a = $baselineA; baseline_b = $baselineB }
     Stop-Client 'a' (Join-Path $root stop-a)
     $clock.Restart()
     do { $b = Read-Json (Join-Path $root b.json); if ($b -and $b.remote_players.Count -eq 0) { break }; if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'disconnect removal timed out' }; Start-Sleep -Milliseconds 100 } while ($true)
