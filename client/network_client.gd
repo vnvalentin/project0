@@ -339,12 +339,14 @@ func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER
 	var target_host: String = host.strip_edges()
 	if target_host.is_empty():
 		target_host = NetworkConfigScript.resolve_client_target_host()
+	print("NetworkClient: connecting host=%s port=%d" % [target_host, port])
 
 	_peer = ENetMultiplayerPeer.new()
 	_server_admitted = false
 	var connect_error: Error = _peer.create_client(target_host, port)
 	_last_connect_error = connect_error
 	if connect_error != OK:
+		print("NetworkClient: ENet create_client failed error=%d" % int(connect_error))
 		_set_status("failed: could not start client (%s)" % connect_error)
 		return
 
@@ -362,6 +364,7 @@ func disconnect_from_server() -> void:
 
 
 func _on_connected_to_server() -> void:
+	print("NetworkClient: connected; sending version handshake")
 	_set_status("connected")
 	# Slice 146: the version handshake is the FIRST thing a client says. The server
 	# admits nothing until it accepts this, so it must precede every other RPC.
@@ -369,10 +372,12 @@ func _on_connected_to_server() -> void:
 
 
 func _on_connection_failed() -> void:
+	print("NetworkClient: connection_failed")
 	_set_status("failed: connection refused")
 
 
 func _on_server_disconnected() -> void:
+	print("NetworkClient: server_disconnected")
 	_set_status("disconnected")
 
 
@@ -1824,8 +1829,10 @@ const HANDOFF_STEP_TIMEOUT_MS: int = 20000
 ## world, emitting login_to_game_handoff_finished(outcome, character). Poll-based
 ## and bounded; drives only public seams, and the server owns every outcome.
 func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
+	print("NetworkClient: handoff start game_host=%s game_port=%d" % [game_host, game_port])
 	var token: String = await _handoff_request_assertion()
 	if token.is_empty():
+		print("NetworkClient: handoff assertion request failed")
 		login_to_game_handoff_finished.emit("assertion_failed", {})
 		return
 
@@ -1840,15 +1847,18 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 	# peer on this persistent NetworkClient node.
 	await get_tree().process_frame
 	if not await _handoff_await_connected(false):
+		print("NetworkClient: handoff login disconnect timed out")
 		login_to_game_handoff_finished.emit("login_disconnect_timeout", {})
 		return
 
 	connect_to_server(game_host, game_port)
 	if not await _handoff_await_connected(true):
 		var outcome: String = "game_connect_error_%d" % int(_last_connect_error) if _last_connect_error != OK else "game_connect_timeout"
+		print("NetworkClient: handoff game connection failed outcome=%s status=%s" % [outcome, status])
 		login_to_game_handoff_finished.emit(outcome, {})
 		return
 	if not await _handoff_await_server_admission():
+		print("NetworkClient: handoff admission timed out status=%s" % status)
 		login_to_game_handoff_finished.emit("server_admission_timeout", {})
 		return
 
@@ -2002,6 +2012,7 @@ func _handoff_await_connected(want_connected: bool) -> bool:
 
 func _handoff_await_server_admission() -> bool:
 	if _server_admitted:
+		print("NetworkClient: server admission already ready")
 		return true
 	var reached: Dictionary = {"done": false}
 	var callback: Callable = func() -> void:
@@ -2010,4 +2021,5 @@ func _handoff_await_server_admission() -> bool:
 	var completed: bool = await _handoff_poll(reached)
 	if server_admission_ready.is_connected(callback):
 		server_admission_ready.disconnect(callback)
+	print("NetworkClient: server admission poll completed=%s admitted=%s status=%s" % [completed, _server_admitted, status])
 	return completed
