@@ -42,6 +42,8 @@ func test_windup_snapshot_starts_a_facing_aligned_telegraph() -> void:
 	assert_eq(monster.get("_telegraph_facing"), Vector3.LEFT, "the client retains the server locked facing")
 	assert_gt(monster.get("_telegraph_time_remaining"), 0.0, "WINDUP starts a visible bounded telegraph")
 	assert_almost_eq(monster.rotation.y, PI / 2.0, 0.001, "the telegraph faces the server-approved direction")
+	assert_true(monster.get_node("TelegraphArrow").visible, "the telegraph shows a visible facing cue")
+	assert_true(monster.get_node("TelegraphRange").visible, "the telegraph shows the authoritative reach")
 
 
 func test_unknown_attack_state_schema_is_ignored() -> void:
