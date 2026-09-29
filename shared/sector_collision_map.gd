@@ -51,6 +51,22 @@ func is_blocked(cell: Vector2i) -> bool:
 	return _blocked.has(cell)
 
 
+## Server-owned grid line of sight. Intermediate solid cells block the ray; the
+## target cell is excluded so an interaction can see the structure it targets.
+func has_line_of_sight(from_position: Vector3, target_position: Vector3) -> bool:
+	var delta: Vector3 = target_position - from_position
+	var distance: float = Vector2(delta.x, delta.z).length()
+	if distance <= 0.001:
+		return true
+	var steps: int = maxi(1, ceili(distance / 0.25))
+	for step: int in range(1, steps):
+		var progress: float = float(step) / float(steps)
+		var sample: Vector3 = from_position.lerp(target_position, progress)
+		if is_blocked(_cell(sample)):
+			return false
+	return true
+
+
 func blocked_count() -> int:
 	return _blocked.size()
 

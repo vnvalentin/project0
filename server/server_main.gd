@@ -1150,16 +1150,9 @@ func _on_environmental_interaction_intent(sender_peer_id: int, intent: Dictionar
 
 
 func _has_environmental_line_of_sight(from_position: Vector3, target_position: Vector3) -> bool:
-	var direction: Vector3 = target_position - from_position
-	if direction.length_squared() <= 0.0001:
-		return true
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
-		from_position,
-		target_position - direction.normalized() * 0.1
-	)
-	query.collide_with_areas = true
-	query.collide_with_bodies = true
-	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+	if _town_collision == null:
+		return false
+	return _town_collision.has_line_of_sight(from_position, target_position)
 
 
 ## Server-owned monotonic tick used as the mutation event clock (Slice 097).
