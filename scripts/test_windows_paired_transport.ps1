@@ -108,19 +108,21 @@ $reply | ConvertTo-Json -Depth 5 -Compress
         $scripts = Join-Path $caseRoot 'scripts'
         New-Item -ItemType Directory -Path $scripts | Out-Null
         Copy-Item (Join-Path $PSScriptRoot 'run_paired_validation.ps1') $scripts
+        Copy-Item (Join-Path $PSScriptRoot 'windows_validation_transport.ps1') $scripts
         $coordinator = Join-Path $scripts 'run_paired_validation.ps1'
+        $transportSource = Join-Path $scripts 'windows_validation_transport.ps1'
         if ($PackagedWorkerNegativeControl) {
-            $original = Get-Content $coordinator -Raw
+            $original = Get-Content $transportSource -Raw
             $workerLine = '$workerPath = Join-Path $env:WINDIR ''System32/WindowsPowerShell/v1.0/powershell.exe'''
             if (-not $original.Contains($workerLine)) { throw 'Negative control cannot locate the pinned worker' }
-            [IO.File]::WriteAllText($coordinator, $original.Replace($workerLine, '$workerPath = (Get-Process -Id $PID).Path'))
+            [IO.File]::WriteAllText($transportSource, $original.Replace($workerLine, '$workerPath = (Get-Process -Id $PID).Path'))
         }
         if ($DisableKillOnCloseNegativeControl) {
-            $original = Get-Content $coordinator -Raw
+            $original = Get-Content $transportSource -Raw
             if (-not $original.Contains('limits.Basic.Flags = 0x2000;')) { throw 'Negative control cannot locate kill-on-close' }
-            [IO.File]::WriteAllText($coordinator, $original.Replace('limits.Basic.Flags = 0x2000;', 'limits.Basic.Flags = 0;'))
+            [IO.File]::WriteAllText($transportSource, $original.Replace('limits.Basic.Flags = 0x2000;', 'limits.Basic.Flags = 0;'))
         }
-        $report.tested_source_sha256 = (Get-FileHash $coordinator).Hash
+        $report.tested_source_sha256 = (Get-FileHash $transportSource).Hash
         Copy-Item (Join-Path $root 'fixture.exe') (Join-Path $caseRoot 'scp.exe')
         Copy-Item (Join-Path $root 'fixture.exe') (Join-Path $caseRoot 'engine.exe')
         [IO.File]::WriteAllText((Join-Path $caseRoot 'mode'), $mode)

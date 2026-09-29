@@ -133,6 +133,34 @@ class PairedServerTests(unittest.TestCase):
         self.assertNotIn(secret, sanitized)
         self.assertEqual(sanitized, "token=[REDACTED] secret=[REDACTED]")
 
+    def test_shared_evidence_requires_movement_and_lifecycle(self):
+        report = {"scenario_id": harness.SHARED_SCENARIO, "correlation_id": "run-1"}
+        client_a = {"status": "passed", "scenario_id": harness.SHARED_SCENARIO,
+                    "correlation_id": "run-1", "client_id": "a", "authenticated": True,
+                    "world_entered": True, "character_id": "shared-run-1-a",
+                    "client_build": {"sha256": "client"}, "server_build": {"sha256": "server"},
+                    "remote_players": {"b": {"character_id": "shared-run-1-b", "position": [0.0, 1.0, 0.0]}},
+                    "own_position": [0.0, 1.0, 1.0]}
+        client_b = client_a | {"client_id": "b", "character_id": "shared-run-1-b",
+                               "remote_players": {"a": {"character_id": "shared-run-1-a", "position": [0.0, 1.0, 0.0]}},
+                               "own_position": [0.0, 1.0, -1.0]}
+        observed_a = client_a | {"remote_players": {"b": {"character_id": "shared-run-1-b", "position": [0.0, 1.0, 1.0]}}}
+        observed_b = client_b | {"remote_players": {"a": {"character_id": "shared-run-1-a", "position": [1.0, 1.0, 0.0]}}}
+        report["client_build"] = {"sha256": "client"}
+        report["server_build"] = {"sha256": "server"}
+        evidence = {"scenario_id": harness.SHARED_SCENARIO, "correlation_id": "run-1",
+                "clients": {"a": observed_a, "b": observed_b},
+                    "phases": {"initial": {"a": client_a, "b": client_b,
+                                               "baseline_a": [0.0, 1.0, 0.0],
+                                               "baseline_b": [0.0, 1.0, 0.0]},
+                                "disconnect": {"remote_players": {}},
+                                "reconnect": client_a}}
+        harness.check_shared_client(report, evidence)
+        with self.assertRaisesRegex(ValueError, "shared_authoritative_movement"):
+            harness.check_shared_client(report, evidence | {
+                "clients": evidence["clients"] | {"a": observed_a | {"remote_players": {"b": {
+                    "character_id": "shared-run-1-b", "position": [0.0, 1.0, 0.1]}}}}})
+
     def test_health_requires_progress_and_freshness(self):
         now = time.time()
         health = {"status": "healthy", "server_tick": 30, "timestamp": int(now)}
