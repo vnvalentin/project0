@@ -68,3 +68,12 @@ func test_real_hub_wall_is_solid_but_gate_is_passable() -> void:
 	assert_false(map.is_blocked(Vector2i(0, -30)), "the southern gate opening is passable")
 	# The northern perimeter is wall, so it must be solid.
 	assert_true(map.is_blocked(Vector2i(0, 30)), "the northern perimeter wall is solid")
+
+
+func test_line_of_sight_ignores_target_cell_but_rejects_intermediate_wall() -> void:
+	var map: Object = SectorCollisionMapScript.new({
+		"tiles": [{"x": 0, "y": 0, "kind": "wall"}],
+		"structures": [],
+	})
+	assert_true(map.has_line_of_sight(Vector3(-2.0, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)), "the target cell itself does not block interaction")
+	assert_false(map.has_line_of_sight(Vector3(-2.0, 0.0, 0.0), Vector3(2.0, 0.0, 0.0)), "an intermediate wall blocks line of sight")
