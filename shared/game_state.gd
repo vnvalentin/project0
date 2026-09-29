@@ -17,6 +17,8 @@ const MAX_ATTRIBUTE_VALUE: float = 1.0e9
 const OUTCOME_OK: String = "ok"
 const OUTCOME_MALFORMED: String = "malformed"
 const OUTCOME_OUT_OF_BOUNDS: String = "out_of_bounds"
+const OUTCOME_UNSUPPORTED_VERSION: String = "unsupported_version"
+const OUTCOME_SNAPSHOT_REJECTED_INVALID: String = "snapshot_rejected_invalid"
 const OUTCOME_CLIENT_MUTATION_REJECTED: String = "client_mutation_rejected"
 const CLIENT_MUTATION_HTTP_STATUS: int = 422
 
@@ -59,6 +61,40 @@ static func create_stat_aggregate(initial_nodes: Dictionary, tuning: Object) -> 
 	return {"outcome": OUTCOME_OK, "detail": "", "state": new(aggregate)}
 
 
+## Server-side parser for a persisted snapshot. Re-derives all computed fields
+## from the six authoritative attributes so a forged or stale derived value is
+## rejected instead of resurrected.
+static func from_snapshot(snapshot: Variant, tuning: Object) -> Dictionary:
+	if not (snapshot is Dictionary):
+		return _snapshot_fail(OUTCOME_MALFORMED, "snapshot is not a Dictionary")
+	var data: Dictionary = snapshot
+	if int(data.get("schema_version", -1)) != SCHEMA_VERSION:
+		return _snapshot_fail(OUTCOME_UNSUPPORTED_VERSION, "unsupported schema_version")
+	var raw_stats: Variant = data.get("stats")
+	if not (raw_stats is Dictionary):
+		return _snapshot_fail(OUTCOME_MALFORMED, "stats is not a Dictionary")
+	var persisted_stats: Dictionary = raw_stats
+	if persisted_stats.size() != STAT_KEYS.size():
+		return _snapshot_fail(OUTCOME_MALFORMED, "stats must contain exactly eleven fields")
+	for key: String in STAT_KEYS:
+		if not persisted_stats.has(key):
+			return _snapshot_fail(OUTCOME_MALFORMED, "missing stat field: %s" % key)
+		var raw_value: Variant = persisted_stats[key]
+		if not (raw_value is float or raw_value is int) or not is_finite(float(raw_value)):
+			return _snapshot_fail(OUTCOME_MALFORMED, "invalid stat field: %s" % key)
+	var nodes: Dictionary = {}
+	for key: String in NODE_KEYS:
+		nodes[key] = float(persisted_stats[key])
+	var derived_result: Dictionary = create_stat_aggregate(nodes, tuning)
+	if derived_result["outcome"] != OUTCOME_OK:
+		return _snapshot_fail(OUTCOME_SNAPSHOT_REJECTED_INVALID, derived_result["detail"])
+	var expected: Object = derived_result["state"]
+	for key: String in STAT_KEYS:
+		if not is_equal_approx(float(persisted_stats[key]), float(expected.stats[key])):
+			return _snapshot_fail(OUTCOME_SNAPSHOT_REJECTED_INVALID, "derived stat mismatch: %s" % key)
+	return {"outcome": OUTCOME_OK, "detail": "", "state": expected}
+
+
 ## A client may request presentation or actions, but never writes this state.
 ## The server rejects the payload before it can reach the aggregate.
 func reject_client_mutation(_payload: Variant) -> Dictionary:
@@ -92,3 +128,7 @@ static func _validate_nodes(initial_nodes: Dictionary) -> Dictionary:
 
 static func _fail(outcome: String, detail: String) -> Dictionary:
 	return {"outcome": outcome, "detail": detail, "nodes": {}}
+
+
+static func _snapshot_fail(outcome: String, detail: String) -> Dictionary:
+	return {"outcome": outcome, "detail": detail, "state": null}
