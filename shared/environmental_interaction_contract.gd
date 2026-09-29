@@ -20,6 +20,7 @@ const OUTCOME_INVALID: String = "invalid"
 const _SERVER_OWNED_FIELDS: PackedStringArray = [
 	"actor_player_id",
 	"event_id",
+	"reasoning_stat",
 	"server_tick",
 	"success",
 	"execution_profile",
