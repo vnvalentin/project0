@@ -81,6 +81,11 @@ signal canon_mutation_resolution_received(resolution: Dictionary)
 ## service and the peer->Player mapping) resolves it authoritatively.
 signal canon_mutation_intent_received(sender_peer_id: int, intent: Dictionary)
 
+## M0.4: environmental solution intents use a separate server-owned resolver;
+## this relay never validates reach, visibility, profile, or outcome.
+signal environmental_interaction_resolution_received(resolution: Dictionary)
+signal environmental_interaction_intent_received(sender_peer_id: int, intent: Dictionary)
+
 ## Slice 094: emitted on the owning client when the server replicates its
 ## Player's authoritative HP (on monster damage or the provisional full-HP
 ## respawn), so a HUD element can display it. Presentation only — this autoload
@@ -894,6 +899,17 @@ func receive_canon_mutation_intent_on_server(intent: Dictionary) -> void:
 	canon_mutation_intent_received.emit(multiplayer.get_remote_sender_id(), intent)
 
 
+func submit_environmental_interaction_intent(intent: Dictionary) -> void:
+	if not status.begins_with("connected"):
+		return
+	rpc_id(1, "receive_environmental_interaction_intent_on_server", intent)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func receive_environmental_interaction_intent_on_server(intent: Dictionary) -> void:
+	environmental_interaction_intent_received.emit(multiplayer.get_remote_sender_id(), intent)
+
+
 ## RPC target: runs only on the server, called by a connected client via the
 ## `_process()` flush loop above (~250ms cadence). `events` are UNTRUSTED
 ## `{event_type, schema_version, payload}` Dictionaries; every correlation/
@@ -912,6 +928,11 @@ func receive_client_telemetry_batch_on_server(events: Array, client_sequence: in
 @rpc("authority", "call_remote", "reliable")
 func receive_canon_mutation_resolution(resolution: Dictionary) -> void:
 	canon_mutation_resolution_received.emit(resolution)
+
+
+@rpc("authority", "call_remote", "reliable")
+func receive_environmental_interaction_resolution(resolution: Dictionary) -> void:
+	environmental_interaction_resolution_received.emit(resolution)
 
 
 ## RPC target: called by the server on every connected peer for every

@@ -110,3 +110,17 @@ func effective_snapshot(character_id: String, tuning: Object, current_tick: int)
 		"burnout_active_pathways": active_burnout_pathways,
 	}
 	return SnapshotScript.new(String(tuning.tuning_version), effective_nodes, derived)
+
+
+## Server-only physical outputs for authoritative execution rules. These are
+## derived from the current vessel and never accept client-supplied values.
+func physical_execution_outputs(character_id: String, tuning: Object) -> Dictionary:
+	if not _vessels.has(character_id):
+		return {}
+	var effective_nodes: Dictionary = SnapshotScript.derive(_vessels[character_id], tuning).effective_nodes
+	var friction: Dictionary = FrictionScript.derive(effective_nodes, tuning)
+	var kinetic: Dictionary = KineticScript.derive(effective_nodes, tuning)
+	return {
+		"friction_profile": friction["profile"],
+		"kinetic_control": kinetic["control"],
+	}

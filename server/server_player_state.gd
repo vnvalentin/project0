@@ -299,6 +299,14 @@ func effective_mechanics_snapshot() -> Dictionary:
 	return snapshot.to_presentation_snapshot()
 
 
+## Server-only physical outputs used by environmental execution. Raw values do
+## not cross the network; the interaction service turns them into bounded timing.
+func environmental_physical_outputs() -> Dictionary:
+	if _embodiment == null:
+		return {}
+	return _embodiment.physical_execution_outputs(MECHANICS_CHARACTER_KEY, _embodiment_tuning)
+
+
 ## Public seam (Slice 094): applies a monster's authoritative, telegraph-fair
 ## landed attack to this Player. Only server_main.gd calls this, routing from
 ## the ServerMonsterManager.player_hit signal (the monster's own reach/arc test
