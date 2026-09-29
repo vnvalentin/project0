@@ -33,6 +33,11 @@ function Copy-Remote([string]$source, [string]$destination) {
     $null = Invoke-Transport $executable @('-B', '-q', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', $source, $destination) 'artifact-transfer'
 }
 
+function Copy-To-Remote([string]$source, [string]$destination) {
+    $executable = (Get-Command scp -CommandType Application | Select-Object -First 1).Source
+    $null = Invoke-Transport $executable @('-B', '-q', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes', '-o', 'ConnectTimeout=5', '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=1', $source, "okami:$destination") 'artifact-upload'
+}
+
 function Read-Json([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { return $null }
     try { return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable } catch { return $null }
@@ -133,7 +138,7 @@ try {
     $result.server_observation = Read-Json (Join-Path $root shared-observation.json)
     $evidencePath = Join-Path $root evidence.json
     $result | ConvertTo-Json -Depth 30 | Set-Content $evidencePath -Encoding utf8NoBOM
-    Copy-Remote $evidencePath "okami:$remoteRun/evidence.json"
+    Copy-To-Remote $evidencePath "$remoteRun/evidence.json"
     $server = Invoke-Remote "cd '$ServerRoot' && python3 scripts/paired_server.py finish --run '$remoteRun' --evidence '$remoteRun/evidence.json'"
     do { $server = Invoke-Remote "cd '$ServerRoot' && python3 scripts/paired_server.py status --run '$remoteRun'" } while (-not $server.finished_at)
     if ($server.status -ne 'server_passed' -or -not $server.cleanup.passed) { throw "server acceptance failed: $($server.reason)" }
