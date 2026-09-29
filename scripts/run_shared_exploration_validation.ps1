@@ -40,7 +40,7 @@ function Read-Json([string]$path) {
 
 function Start-Client([string]$clientId, [string]$assertion, [string]$output, [string]$stop, [string]$probe, [string]$pack, [string]$ready, [int]$port) {
     $resourceRoot = Join-Path $root "resources-$clientId"
-    New-Item -ItemType Directory -Path $resourceRoot | Out-Null
+    New-Item -ItemType Directory -Path $resourceRoot -Force | Out-Null
     $start = [Diagnostics.ProcessStartInfo]::new($GodotPath)
     $start.UseShellExecute = $false
     $start.RedirectStandardOutput = $true
