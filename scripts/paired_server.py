@@ -16,10 +16,16 @@ import time
 import uuid
 from pathlib import Path
 
+try:
+    from scripts.coop_combat_protocol import validate_pair as validate_coop_combat_pair
+except ModuleNotFoundError:
+    from coop_combat_protocol import validate_pair as validate_coop_combat_pair
+
 IMAGE = "sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
 HOST = "192.168.1.254"
 SCENARIO = "authenticated-input-ack-v1"
 SHARED_SCENARIO = "shared-exploration-v1"
+COOP_COMBAT_SCENARIO = "coop-combat-v1"
 IDENTITY_KEYS = ("schema_version", "run_id", "scenario_id", "correlation_id", "client_build", "server_build")
 RPC_FILES = ("network_client.gd", "player_identity.gd", "nakama_gameplay_bridge_client.gd",
              "sector_geometry_translator.gd", "sector_navigation_readiness.gd", "telemetry_batch_queue.gd")
@@ -205,6 +211,12 @@ def check_shared_client(report, evidence):
         raise ValueError("shared_disconnect_presence")
     if set(phases["reconnect"].get("remote_players", {})) != {"b"}:
         raise ValueError("shared_reconnect_presence")
+    return True
+
+
+def check_coop_combat_client(report, evidence):
+    validate_coop_combat_pair(evidence, report["correlation_id"],
+                               {"client": report["client_build"], "server": report["server_build"]})
     return True
 
 
@@ -395,6 +407,20 @@ def supervise(run):
                     report.update(status="server_passed", shared_observation=shared_observation,
                                   client_evidence_sha256=digest(control_path))
                     break
+                if report["scenario_id"] == COOP_COMBAT_SCENARIO:
+                    check_coop_combat_client(report, control["evidence"])
+                    combat_observation = read_json(state / "combat-observation.json")
+                    if combat_observation.get("authenticated_world_peers") != 2:
+                        raise ValueError("combat_server_peer_count")
+                    if combat_observation.get("accepted_count") != 1 or combat_observation.get("hit_count") != 1:
+                        raise ValueError("combat_server_encounter_count")
+                    if combat_observation.get("accepted_resolution", {}).get("result") != "ACCEPTED":
+                        raise ValueError("combat_server_resolution_missing")
+                    if combat_observation.get("hit_event", {}).get("target_id") != "target_dummy_0":
+                        raise ValueError("combat_server_hit_missing")
+                    report.update(status="server_passed", combat_observation=combat_observation,
+                                  client_evidence_sha256=digest(control_path))
+                    break
                 check_client(report, control["evidence"])
                 admission = read_json(state / "admission.json")
                 now = time.time()
@@ -488,7 +514,7 @@ def start(args):
     check_host()
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", args.correlation_id):
         raise ValueError("correlation_id")
-    if args.scenario not in (SCENARIO, SHARED_SCENARIO):
+    if args.scenario not in (SCENARIO, SHARED_SCENARIO, COOP_COMBAT_SCENARIO):
         raise ValueError("scenario")
     if not re.fullmatch(r"[a-f0-9]{64}", args.client_sha256) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.client_version):
         raise ValueError("client_build")
@@ -562,12 +588,14 @@ def main():
                 evidence = read_json(args.evidence)
                 if report["scenario_id"] == SHARED_SCENARIO:
                     check_shared_client(report, evidence)
+                elif report["scenario_id"] == COOP_COMBAT_SCENARIO:
+                    check_coop_combat_client(report, evidence)
                 else:
                     check_client(report, evidence)
             except (ValueError, OSError, TypeError):
                 write_json(args.run / "control.json", {"action": "reject"})
                 raise ValueError("client_evidence_rejected")
-            control["evidence"] = (evidence if report["scenario_id"] == SHARED_SCENARIO else
+            control["evidence"] = (evidence if report["scenario_id"] in (SHARED_SCENARIO, COOP_COMBAT_SCENARIO) else
                                     {key: evidence[key] for key in (*IDENTITY_KEYS, "status", "observed_at", "authenticated", "world_entered", "input_ack_sequence")})
         write_json(args.run / "control.json", control)
         result = {"action": args.action, "status": "requested", "run_id": report["run_id"]}
