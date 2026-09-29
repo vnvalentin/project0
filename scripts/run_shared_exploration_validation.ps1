@@ -52,6 +52,13 @@ function Test-Moved([object]$baseline, [object]$observed) {
     return $distance -gt 0.5
 }
 
+function Test-NoRemote([object]$observation) {
+    if (-not $observation) { return $false }
+    $remotes = $observation.remote_players
+    if ($remotes -is [System.Collections.IDictionary]) { return @($remotes.Keys).Count -eq 0 }
+    return @($remotes.PSObject.Properties).Count -eq 0
+}
+
 function Start-Client([string]$clientId, [string]$assertion, [string]$output, [string]$stop, [string]$probe, [string]$pack, [string]$ready, [int]$port) {
     $resourceRoot = Join-Path $root "resources-$clientId"
     New-Item -ItemType Directory -Path $resourceRoot -Force | Out-Null
@@ -140,7 +147,7 @@ try {
     } while ($true)
     Stop-Client 'a' (Join-Path $root stop-a)
     $clock.Restart()
-    do { $b = Read-Json (Join-Path $root b.json); if ($b -and $b.remote_players.Count -eq 0) { break }; if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'disconnect removal timed out' }; Start-Sleep -Milliseconds 100 } while ($true)
+    do { $b = Read-Json (Join-Path $root b.json); if (Test-NoRemote $b) { break }; if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'disconnect removal timed out' }; Start-Sleep -Milliseconds 100 } while ($true)
     $result.phases.disconnect = $b
     Remove-Item (Join-Path $root stop-a) -Force -ErrorAction SilentlyContinue
     Start-Client 'a' (Join-Path $root assertion-a) (Join-Path $root a-reconnect.json) (Join-Path $root stop-a-reconnect) $probe $pack $readyPath ([int]$server.port)

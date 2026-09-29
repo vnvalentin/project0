@@ -91,7 +91,8 @@ func _write_report() -> void:
 		for child: Node3D in container.get_children():
 			var peer_id: int = String(child.name).trim_prefix("RemotePlayer_").to_int()
 			if _remote_identities.has(peer_id):
-				remotes[_remote_identities[peer_id]] = {"position": [child.position.x, child.position.y, child.position.z],
+				var position: Array = [float(child.position.x), float(child.position.y), float(child.position.z)]
+				remotes[_remote_identities[peer_id]] = {"position": position,
 					"character_id": "shared-%s-%s" % [_report.get("run_id", ""), _remote_identities[peer_id]]}
 	_report["remote_players"] = remotes
 	_report["own_position"] = _own_position()
@@ -106,7 +107,7 @@ func _write_report() -> void:
 
 func _own_position() -> Array:
 	var player: Node3D = _gameplay.get_node_or_null("Player")
-	return [player.position.x, player.position.y, player.position.z] if player != null else []
+	return [float(player.position.x), float(player.position.y), float(player.position.z)] if player != null else []
 
 
 func _finish(failure: String) -> void:
