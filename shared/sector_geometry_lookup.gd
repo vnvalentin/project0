@@ -53,6 +53,7 @@ const _STRUCTURE_SCENE_PATHS: Dictionary = {
 	"well": "res://client/structures/well.tscn",
 	"npc_house": "res://client/structures/npc_house.tscn",
 	"village_hall": "res://client/structures/village_hall.tscn",
+	"locked_gate": "res://client/structures/house.tscn",
 }
 
 ## Slice 030: per-structure-kind collision footprint half-extent in grid cells,
@@ -70,6 +71,7 @@ const _STRUCTURE_FOOTPRINTS: Dictionary = {
 	"well": Vector2i(0, 0),
 	"npc_house": Vector2i(1, 1),
 	"village_hall": Vector2i(2, 3),
+	"locked_gate": Vector2i(1, 0),
 }
 
 
