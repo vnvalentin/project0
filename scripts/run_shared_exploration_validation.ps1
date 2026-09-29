@@ -21,7 +21,7 @@ $processes = @{}
 $clientLogs = @{}
 $remoteStarted = $false
 $server = $null
-$result = [ordered]@{ issue = 477; scenario = 'shared-exploration-v1'; correlation_id = $runId; status = 'failed'; paired_acceptance = $false; local_cleanup = $false; remote_cleanup = $false; clients = @{}; phases = @{}; failure = $null; transport = @() }
+$result = [ordered]@{ issue = 477; scenario = 'shared-exploration-v1'; scenario_id = 'shared-exploration-v1'; correlation_id = $runId; status = 'failed'; paired_acceptance = $false; local_cleanup = $false; remote_cleanup = $false; clients = @{}; phases = @{}; failure = $null; transport = @() }
 . (Join-Path $PSScriptRoot 'windows_validation_transport.ps1')
 
 function Invoke-Remote([string]$script) {
