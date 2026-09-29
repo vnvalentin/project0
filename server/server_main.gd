@@ -576,6 +576,7 @@ func _start_server() -> void:
 ## rejects a third concurrent connection outright, since this slice's proof
 ## is scoped to exactly two peers.
 func _on_peer_connected(peer_id: int) -> void:
+	print("Peer connected: %d; awaiting version handshake." % peer_id)
 	# Slice 146: connecting no longer admits. The peer gets no world, no Player,
 	# and no replication until it passes the server-owned version gate.
 	_emit_server_telemetry("connection.peer_connected", peer_id, {})
@@ -594,6 +595,12 @@ func _on_version_handshake_received(peer_id: int, handshake: Dictionary) -> void
 	var result: Dictionary = VersionHandshakeScript.evaluate(
 		handshake, _required_client_version, _update_manifest_base_url
 	)
+	print("Version handshake peer=%d client=%s required=%s outcome=%s" % [
+			peer_id,
+			String(handshake.get("client_build_version", "")),
+			_required_client_version,
+			String(result.get("outcome", "")),
+	])
 	_pending_version_gate.erase(peer_id)
 	if result["outcome"] != VersionHandshakeScript.OUTCOME_ACCEPTED:
 		_emit_server_telemetry("connection.version_gate_rejected", peer_id, {
