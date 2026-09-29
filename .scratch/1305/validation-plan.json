@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "kind": "paired-runtime",
+  "issue": 1305,
+  "scenario_id": "m0.4-character-sheet-stat-projection",
+  "client_build": "source-branch-1305",
+  "server_build": "source-branch-1305",
+  "correlation_id": "assigned-at-runtime",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests/unit -gselect=test_character_sheet_panel -gexit",
+      "dependencies": ["godot", "sqlite"],
+      "tests": ["tests/unit/test_character_sheet_panel.gd"],
+      "artifacts": ["build/validation/gut.xml", "build/validation/m0.4-character-sheet-stat-projection"]
+    },
+    {
+      "suite": "windows-client",
+      "platform": "windows",
+      "host": "SETSUJOKU",
+      "command": "pwsh -File scripts/run_paired_validation.ps1",
+      "dependencies": ["godot-client", "powershell"],
+      "tests": ["scripts/run_paired_validation.ps1"],
+      "artifacts": ["build/validation/m0.4-character-sheet-stat-projection"]
+    }
+  ],
+  "setup": "Use the approved development server and immutable Windows client candidate; record server/client identities and the stat snapshot correlation before opening the Character Sheet.",
+  "cleanup": "Terminate only owned client/server processes and remove only temporary validation state created by this run.",
+  "rollback": "Revert the issue-1305 branch/PR; no persistent schema or account data changes are authorized."
+}

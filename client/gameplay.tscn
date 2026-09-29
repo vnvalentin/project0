@@ -12,6 +12,8 @@
 [ext_resource type="Script" path="res://client/effective_mechanics_label.gd" id="10_mechanics"]
 [ext_resource type="Script" path="res://client/sector_boundary_overlay.gd" id="11_sector_overlay"]
 [ext_resource type="Script" path="res://client/locked_gate_interaction.gd" id="12_gate"]
+[ext_resource type="Script" path="res://client/character_sheet_panel.gd" id="13_sheet"]
+[ext_resource type="Script" path="res://client/character_sheet_toggle.gd" id="14_sheet_toggle"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_plane"]
 size = Vector3(100, 0.2, 100)
@@ -215,6 +217,23 @@ offset_right = 180.0
 offset_bottom = 184.0
 text = "Character Select"
 script = ExtResource("7_logout")
+
+[node name="CharacterSheetToggle" type="Button" parent="UI"]
+offset_left = 190.0
+offset_top = 148.0
+offset_right = 370.0
+offset_bottom = 184.0
+text = "Character Sheet"
+script = ExtResource("14_sheet_toggle")
+panel_path = NodePath("../CharacterSheetPanel")
+
+[node name="CharacterSheetPanel" type="PanelContainer" parent="UI"]
+visible = false
+offset_left = 520.0
+offset_top = 24.0
+offset_right = 820.0
+offset_bottom = 444.0
+script = ExtResource("13_sheet")
 
 [node name="HealthLabel" type="Label" parent="UI"]
 offset_left = 12.0
