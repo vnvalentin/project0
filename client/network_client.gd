@@ -39,6 +39,7 @@ extends Node
 ## this autoload never decides a hit or death.
 
 signal connection_status_changed(status: String)
+signal server_admission_ready()
 signal authoritative_position_received(position: Vector3, last_processed_sequence: int)
 signal remote_player_position_received(peer_id: int, position: Vector3)
 
@@ -217,7 +218,9 @@ const TOWN_NPCS_CONTAINER_NAME: String = "TownNpcs"
 const SECTOR_GEOMETRY_CONTAINER_NAME: String = "SectorGeometry"
 
 var status: String = "disconnected"
+var _server_admitted: bool = false
 var _peer: ENetMultiplayerPeer
+var _last_connect_error: Error = OK
 var _next_input_sequence: int = 0
 var _own_player_spawn_pending: bool = false
 var _pending_sector_blueprint: Dictionary = {}
@@ -330,7 +333,9 @@ func connect_to_server(host: String = "", port: int = NetworkConfigScript.SERVER
 		target_host = NetworkConfigScript.resolve_client_target_host()
 
 	_peer = ENetMultiplayerPeer.new()
+	_server_admitted = false
 	var connect_error: Error = _peer.create_client(target_host, port)
+	_last_connect_error = connect_error
 	if connect_error != OK:
 		_set_status("failed: could not start client (%s)" % connect_error)
 		return
@@ -389,6 +394,8 @@ func _set_status(new_status: String) -> void:
 ## per other connected peer.
 @rpc("authority", "call_remote", "reliable")
 func spawn_own_player_representation() -> void:
+	_server_admitted = true
+	server_admission_ready.emit()
 	var gameplay_root: Node = get_tree().current_scene
 	if not gameplay_root is Node3D:
 		_own_player_spawn_pending = true
@@ -1777,13 +1784,20 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 	_resume_assertion = await _handoff_request_resume_assertion()
 
 	disconnect_from_server()
+	# Let Godot finish detaching the old ENet peer before creating the game
+	# peer on this persistent NetworkClient node.
+	await get_tree().process_frame
 	if not await _handoff_await_connected(false):
 		login_to_game_handoff_finished.emit("login_disconnect_timeout", {})
 		return
 
 	connect_to_server(game_host, game_port)
 	if not await _handoff_await_connected(true):
-		login_to_game_handoff_finished.emit("game_connect_timeout", {})
+		var outcome: String = "game_connect_error_%d" % int(_last_connect_error) if _last_connect_error != OK else "game_connect_timeout"
+		login_to_game_handoff_finished.emit(outcome, {})
+		return
+	if not await _handoff_await_server_admission():
+		login_to_game_handoff_finished.emit("server_admission_timeout", {})
 		return
 
 	var session_outcome: String = await _handoff_present_assertion(token)
@@ -1811,7 +1825,11 @@ func perform_https_world_entry(game_host: String, game_port: int, character_asse
 
 	connect_to_server(game_host, game_port)
 	if not await _handoff_await_connected(true):
-		login_to_game_handoff_finished.emit("game_connect_timeout", {})
+		var outcome: String = "game_connect_error_%d" % int(_last_connect_error) if _last_connect_error != OK else "game_connect_timeout"
+		login_to_game_handoff_finished.emit(outcome, {})
+		return
+	if not await _handoff_await_server_admission():
+		login_to_game_handoff_finished.emit("server_admission_timeout", {})
 		return
 
 	var session_outcome: String = await _handoff_present_assertion(character_assertion)
@@ -1829,6 +1847,7 @@ func perform_return_to_character_select(login_host: String, login_port: int) -> 
 		return
 
 	disconnect_from_server()
+	await get_tree().process_frame
 	if not await _handoff_await_connected(false):
 		return_to_character_select_finished.emit("game_disconnect_timeout")
 		return
@@ -1927,3 +1946,16 @@ func _handoff_await_connected(want_connected: bool) -> bool:
 			return true
 		await get_tree().process_frame
 	return false
+
+
+func _handoff_await_server_admission() -> bool:
+	if _server_admitted:
+		return true
+	var reached: Dictionary = {"done": false}
+	var callback: Callable = func() -> void:
+		reached["done"] = true
+	server_admission_ready.connect(callback, CONNECT_ONE_SHOT)
+	var completed: bool = await _handoff_poll(reached)
+	if server_admission_ready.is_connected(callback):
+		server_admission_ready.disconnect(callback)
+	return completed

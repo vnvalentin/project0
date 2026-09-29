@@ -45,11 +45,15 @@ var _death_reaction_time_remaining: float = 0.0
 var _telegraph_time_remaining: float = 0.0
 var _telegraph_target_tick: int = -1
 var _telegraph_facing: Vector3 = Vector3.FORWARD
+var _telegraph_arrow: MeshInstance3D = null
+var _telegraph_range: MeshInstance3D = null
 
 
 func _ready() -> void:
 	_target_position = position
 	_mesh_instance = get_node_or_null("MeshInstance3D")
+	_telegraph_arrow = get_node_or_null("TelegraphArrow")
+	_telegraph_range = get_node_or_null("TelegraphRange")
 	if _mesh_instance != null:
 		var mat: Material = _mesh_instance.get_surface_override_material(0)
 		if mat is StandardMaterial3D:
@@ -84,6 +88,10 @@ func set_attack_state(snapshot: Dictionary) -> void:
 	_telegraph_facing = parsed.facing
 	_telegraph_time_remaining = float(parsed.duration_ticks) / 60.0
 	rotation.y = Vector3.FORWARD.signed_angle_to(_telegraph_facing, Vector3.UP)
+	if _telegraph_arrow != null:
+		_telegraph_arrow.visible = true
+	if _telegraph_range != null:
+		_telegraph_range.visible = true
 	if _base_material != null:
 		_base_material.albedo_color = Color(1.0, 0.75, 0.15, 1.0)
 
@@ -99,6 +107,11 @@ func _physics_process(delta: float) -> void:
 		_telegraph_time_remaining = maxf(0.0, _telegraph_time_remaining - delta)
 		if _telegraph_time_remaining <= 0.0 and _base_material != null:
 			_base_material.albedo_color = _original_color
+		if _telegraph_time_remaining <= 0.0:
+			if _telegraph_arrow != null:
+				_telegraph_arrow.visible = false
+			if _telegraph_range != null:
+				_telegraph_range.visible = false
 
 	if not _has_target:
 		return
