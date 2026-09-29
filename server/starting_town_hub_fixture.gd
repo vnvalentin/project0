@@ -72,6 +72,7 @@ const _STRUCTURES: Array[Dictionary] = [
 	{"structure_id": "tavern_01", "kind": "tavern", "x": 5, "y": -8, "facing_degrees": 0.0},
 	{"structure_id": "church_01", "kind": "church", "x": -5, "y": -20, "facing_degrees": 0.0},
 	{"structure_id": "well_01", "kind": "well", "x": 2, "y": 2, "facing_degrees": 0.0},
+	{"structure_id": "gate_01", "kind": "locked_gate", "x": 0, "y": -5, "facing_degrees": 0.0},
 ]
 
 ## Monster spawn markers, each placed OUTSIDE the town outline (beyond
