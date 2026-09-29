@@ -18,6 +18,7 @@ $root = Join-Path ([IO.Path]::GetTempPath()) "project0-shared-exploration-$runId
 $remoteRun = "$ServerRoot/build/validation/windows-$runId"
 $remoteHelper = Join-Path $repo 'scripts/remote.ps1'
 $processes = @{}
+$clientLogs = @{}
 $remoteStarted = $false
 $server = $null
 $result = [ordered]@{ issue = 477; scenario = 'shared-exploration-v1'; correlation_id = $runId; status = 'failed'; paired_acceptance = $false; local_cleanup = $false; remote_cleanup = $false; clients = @{}; phases = @{}; failure = $null; transport = @() }
@@ -62,8 +63,7 @@ function Start-Client([string]$clientId, [string]$assertion, [string]$output, [s
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     if (-not $process.Start()) { throw "client $clientId did not start" }
-    $process.BeginOutputReadLine()
-    $process.BeginErrorReadLine()
+    $clientLogs[$clientId] = @{ stdout = $process.StandardOutput.ReadToEndAsync(); stderr = $process.StandardError.ReadToEndAsync() }
     $processes[$clientId] = $process
 }
 
@@ -130,7 +130,13 @@ try {
     Remove-Item (Join-Path $root stop-a) -Force -ErrorAction SilentlyContinue
     Start-Client 'a' (Join-Path $root assertion-a) (Join-Path $root a-reconnect.json) (Join-Path $root stop-a-reconnect) $probe $pack $readyPath ([int]$server.port)
     $clock.Restart()
-    do { $b = Read-Json (Join-Path $root b.json); if ($b -and $b.remote_players.a) { break }; if ($clock.Elapsed.TotalSeconds -gt 30) { throw 'reconnect presence timed out' }; Start-Sleep -Milliseconds 100 } while ($true)
+    do {
+        if ($processes['a'].HasExited) { throw "reconnecting client exited $($processes['a'].ExitCode)" }
+        $b = Read-Json (Join-Path $root b.json)
+        if ($b -and $b.remote_players.a) { break }
+        if ($clock.Elapsed.TotalSeconds -gt 30) { throw 'reconnect presence timed out' }
+        Start-Sleep -Milliseconds 100
+    } while ($true)
     $aReconnect = Read-Json (Join-Path $root a-reconnect.json)
     $result.phases.reconnect = $aReconnect
     $result.clients.a = $aReconnect; $result.clients.b = $b
@@ -147,6 +153,13 @@ try {
 }
 catch { $result.failure = $_.Exception.Message }
 finally {
+    foreach ($clientId in $clientLogs.Keys) {
+        try {
+            if (-not $clientLogs[$clientId].stdout.Wait(5000) -or -not $clientLogs[$clientId].stderr.Wait(5000)) { throw "client $clientId log capture timed out" }
+            [IO.File]::WriteAllText((Join-Path $evidence "client-$clientId.stdout.log"), $clientLogs[$clientId].stdout.Result)
+            [IO.File]::WriteAllText((Join-Path $evidence "client-$clientId.stderr.log"), $clientLogs[$clientId].stderr.Result)
+        } catch { $result.cleanup_failure = $_.Exception.Message }
+    }
     foreach ($clientId in @('a', 'b')) {
         try {
             if ($processes.ContainsKey($clientId) -and -not $processes[$clientId].HasExited) { $processes[$clientId].Kill($true); $processes[$clientId].WaitForExit(5000) }
