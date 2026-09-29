@@ -36,7 +36,7 @@ const SUPPORTED_SCHEMA_VERSIONS: PackedInt32Array = [1]
 ## Bounded mutation vocabulary. Kinds outside this set are rejected so the
 ## contract stays meaningful; it grows with an explicit schema version, matching
 ## the "balance is versioned data" rule in CLAUDE.md.
-const SUPPORTED_MUTATION_KINDS: PackedStringArray = ["loot", "defeat_leader", "destroy_structure", "clear_camp"]
+const SUPPORTED_MUTATION_KINDS: PackedStringArray = ["loot", "defeat_leader", "destroy_structure", "clear_camp", "unlock_gate"]
 
 ## Bounds so a single event cannot carry unbounded identifiers or payloads.
 const MAX_ID_LENGTH: int = 128

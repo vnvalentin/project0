@@ -41,6 +41,20 @@ const VALID_WITH_STRUCTURE: String = """
 }
 """
 
+const VALID_WITH_LOCKED_GATE: String = """
+{
+  "schema_version": 3,
+  "sector_id": "sector-0-0",
+  "origin": {"x": 0, "y": 0},
+  "tiles": [
+    {"x": 0, "y": 0, "kind": "floor"}
+  ],
+  "structures": [
+    {"structure_id": "gate-1", "kind": "locked_gate", "x": 0, "y": 0, "facing_degrees": 0}
+  ]
+}
+"""
+
 const INCOMPLETE_MISSING_TILES: String = """
 {
   "schema_version": 1,

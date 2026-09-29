@@ -46,6 +46,7 @@ const AccountCharacterRepositoryScript: Script = preload("res://server/account_c
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutation_repository.gd")
 const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_service.gd")
+const EnvironmentalInteractionServiceScript: Script = preload("res://server/environmental_interaction_service.gd")
 const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_resolver.gd")
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
@@ -202,6 +203,7 @@ var _operator_control_service: Object = null
 var _canon_repository: Object = null
 var _canon_mutation_repository: Object = null
 var _canon_mutation_service: Object = null
+var _environmental_interaction_service: Object = null
 ## Slice 079: only opened when PROJECT0_CANON_DB_PATH is set; otherwise Canon
 ## reuses _accounts_store and this stays null.
 var _canon_store: SqliteStore = null
@@ -428,6 +430,12 @@ func _start_server() -> void:
 		quit(1)
 		return
 	_canon_mutation_service = CanonMutationServiceScript.new(_canon_mutation_repository, Callable(self, "_current_server_tick"))
+	_environmental_interaction_service = EnvironmentalInteractionServiceScript.new(
+		_canon_repository,
+		_canon_mutation_repository,
+		Callable(self, "_current_server_tick"),
+		Callable(self, "_has_environmental_line_of_sight")
+	)
 	# Slice 046: authoritative movement now drives non-blocking JIT requests for
 	# unexplored sectors. The detector performs only cheap sector math and the
 	# generator accepts work synchronously before awaiting Ollama in a deferred
@@ -547,6 +555,7 @@ func _start_server() -> void:
 	var mutation_network_client: Node = root.get_node_or_null("NetworkClient")
 	if mutation_network_client != null:
 		mutation_network_client.canon_mutation_intent_received.connect(_on_canon_mutation_intent)
+		mutation_network_client.environmental_interaction_intent_received.connect(_on_environmental_interaction_intent)
 		mutation_network_client.version_handshake_received.connect(_on_version_handshake_received)
 		mutation_network_client.client_telemetry_batch_received.connect(_on_client_telemetry_batch_received)
 	_spawn_target_dummies()
@@ -1120,6 +1129,37 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
 	if network_client == null:
 		return
 	network_client.rpc_id(sender_peer_id, "receive_canon_mutation_resolution", resolution)
+
+
+func _on_environmental_interaction_intent(sender_peer_id: int, intent: Dictionary) -> void:
+	if _environmental_interaction_service == null:
+		return
+	var player_state: Node = _player_states.get(sender_peer_id)
+	if player_state == null:
+		return
+	var resolution: Dictionary = _environmental_interaction_service.resolve_intent(
+		player_state.character_id,
+		player_state.position,
+		player_state.environmental_physical_outputs(),
+		intent
+	)
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(sender_peer_id, "receive_environmental_interaction_resolution", resolution)
+
+
+func _has_environmental_line_of_sight(from_position: Vector3, target_position: Vector3) -> bool:
+	var direction: Vector3 = target_position - from_position
+	if direction.length_squared() <= 0.0001:
+		return true
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+		from_position,
+		target_position - direction.normalized() * 0.1
+	)
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 ## Server-owned monotonic tick used as the mutation event clock (Slice 097).
