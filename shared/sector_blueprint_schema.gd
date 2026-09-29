@@ -52,7 +52,7 @@ const _ORGANIC_TILE_KINDS: PackedStringArray = ["path", "plaza", "gate", "water"
 ## (house/smithy/armor_shop/inn) are valid in v2+; the organic settlement kinds
 ## (church/item_shop/tavern/well plus the villager npc_house and the village_hall
 ## leader's house) are gated to schema v3+.
-const SUPPORTED_STRUCTURE_KINDS: PackedStringArray = ["house", "smithy", "armor_shop", "inn", "church", "item_shop", "tavern", "well", "npc_house", "village_hall"]
+const SUPPORTED_STRUCTURE_KINDS: PackedStringArray = ["house", "smithy", "armor_shop", "inn", "church", "item_shop", "tavern", "well", "npc_house", "village_hall", "locked_gate"]
 const _ORGANIC_STRUCTURE_KINDS: PackedStringArray = ["church", "item_shop", "tavern", "well", "npc_house", "village_hall"]
 
 ## The organic vocabulary (the new tile and structure kinds above) requires
