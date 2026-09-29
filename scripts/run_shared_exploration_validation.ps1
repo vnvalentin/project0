@@ -133,11 +133,11 @@ try {
     do {
         if ($processes['a'].HasExited) { throw "reconnecting client exited $($processes['a'].ExitCode)" }
         $b = Read-Json (Join-Path $root b.json)
-        if ($b -and $b.remote_players.a) { break }
+        $aReconnect = Read-Json (Join-Path $root a-reconnect.json)
+        if ($aReconnect -and $aReconnect.status -eq 'passed' -and $b -and $b.remote_players.a) { break }
         if ($clock.Elapsed.TotalSeconds -gt 30) { throw 'reconnect presence timed out' }
         Start-Sleep -Milliseconds 100
     } while ($true)
-    $aReconnect = Read-Json (Join-Path $root a-reconnect.json)
     $result.phases.reconnect = $aReconnect
     $result.clients.a = $aReconnect; $result.clients.b = $b
     Copy-Remote "okami:$remoteRun/private/shared-observation.json" (Join-Path $root shared-observation.json)
