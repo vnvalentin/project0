@@ -61,7 +61,7 @@
       "owner": "windows-client",
       "dependencies": ["godot-client", "powershell"],
       "runner": "Windows owner selects an approved standalone package or client-only harness",
-      "tests": ["scripts/test_*.ps1", "scripts/check_windows_client_package.ps1", "scripts/verify_standalone_package.ps1", "scripts/run_paired_validation.ps1", "scripts/run_shared_exploration_validation.ps1", "scripts/windows_paired_client.gd", "scripts/windows_shared_exploration_client.gd", "scripts/client_package_inventory.gd", "tests/fixtures/windows_client_packages.gd"],
+       "tests": ["scripts/test_*.ps1", "scripts/check_windows_client_package.ps1", "scripts/verify_standalone_package.ps1", "scripts/run_paired_validation.ps1", "scripts/run_shared_exploration_validation.ps1", "scripts/run_coop_combat_validation.ps1", "scripts/windows_shared_exploration_client.gd", "scripts/windows_coop_combat_client.gd", "scripts/client_package_inventory.gd", "tests/fixtures/windows_client_packages.gd"],
       "evidence": "client-only-not-server-proof"
     },
     "windows-launcher": {
