@@ -519,18 +519,18 @@ a slice, a fix, or a docs/chore edit — is made on its own short-lived branch c
 from the latest `origin/main` and lands back on `main` only through a merged
 pull request.
 
-- **Branch per change.** Before starting work, fetch and branch from the latest
-  `origin/main`. Name the branch `type/short-topic`, where `type` is one of
-   `slice`, `fix`, `docs`, or `chore` — e.g. `slice/<issue-number>-<topic>`
-   (using the governing GitHub issue number),
-  `fix/<topic>`, `docs/<topic>`. Keep one logical change per branch, consistent
-  with small-lot delivery.
+- **Branch per slice.** Before starting work, fetch and branch from the latest
+   `origin/main`. Every slice gets its own `slice/<issue-number>-<topic>` branch
+   and pull request. Fixes, docs, chores, and experiments likewise get their own
+   `type/short-topic` branch. Keep one logical change per branch, consistent
+   with small-lot delivery.
 - **No direct commits to `main`.** All history reaches `main` through a pull
   request; never push commits straight to `main`.
-- **Commit each completed action.** After every complete logical action, commit
-   the resulting work, push the branch, update or create the pull request, and
-   merge it when the delivery gate is green. Do not accumulate multiple completed
-   actions in one uncommitted worktree.
+- **Commit each completed edit.** After every completed logical edit, run the
+   narrowest relevant validation and commit the resulting work before starting
+   the next edit. Push each commit that is ready to share and update or create
+   the pull request. Do not accumulate completed edits in an uncommitted
+   worktree.
 - **Green before merge.** A branch may merge only after its delivery gate is
   green: the focused validation, the full `scripts/run_gut_validation.sh` suite
   (exit 0 with its `build/validation/` artifacts), and

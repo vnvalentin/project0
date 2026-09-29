@@ -138,16 +138,18 @@ Do not create implementation slices or product code while this gate is open.
   in a `finally`/cleanup path. Missing external targets or artifacts must fail
   closed with a recorded blocker; never wait for user prompts during setup,
   execution, or teardown.
-- Branch per change and merge via pull request: `main` is always releasable and
-  is never committed to directly. Cut a `type/short-topic` branch (`slice/`,
-  `fix/`, `docs/`, `chore/`) from the latest `origin/main` for every change, and
-  land it on `main` only through a `--no-ff` merged pull request once the
-  validation gate is green (full GUT suite + `check_record_sync.sh` exit 0). The
-  After every complete logical action, commit the resulting work, push the
-  branch, update or create the pull request, and merge it when the validation
-  gate is green; do not accumulate multiple completed actions in one uncommitted
-  worktree. The agent completing the change merges when green and deletes the
-  branch. See
+- Branch per slice and merge via pull request: `main` is always releasable and
+  is never committed to directly. Every slice gets its own
+  `slice/<issue-number>-<short-topic>` branch cut from the latest `origin/main`
+  and its own pull request. Fixes, docs, chores, and experiments likewise get
+  their own `type/short-topic` branch. After every completed logical edit, run
+  the narrowest relevant validation and commit the resulting work before
+  starting the next edit; do not accumulate completed edits in an uncommitted
+  worktree. Push the branch after each commit that is ready to share, update or
+  create the pull request, and land it on `main` only through a `--no-ff` merged
+  pull request once the validation gate is green (full GUT suite +
+  `check_record_sync.sh` exit 0). The agent completing the change merges when
+  green and deletes the branch. See
   [docs/DEVELOPMENT-WORKFLOW.md](docs/DEVELOPMENT-WORKFLOW.md) "Branching and
   pull requests".
 - Shared agent context: at the start of a session, consult
