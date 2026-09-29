@@ -41,23 +41,7 @@ function Copy-To-Remote([string]$source, [string]$destination) {
 
 function Read-Json([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { return $null }
-    try {
-        $parsed = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
-        if ($parsed -is [System.Collections.IDictionary] -and $parsed['remote_players'] -is [System.Collections.IDictionary]) {
-            $remotes = $parsed['remote_players']
-            foreach ($remoteId in @($remotes.Keys)) {
-                $remote = $remotes[$remoteId]
-                $position = $remote['position']
-                if ($position -is [string]) {
-                    $parts = $position -split '\s+'
-                    if ($parts.Count -eq 3) {
-                        $remote['position'] = @([double]$parts[0], [double]$parts[1], [double]$parts[2])
-                    }
-                }
-            }
-        }
-        return $parsed
-    } catch { return $null }
+    try { return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json } catch { return $null }
 }
 
 function Test-Moved([object]$baseline, [object]$observed) {
