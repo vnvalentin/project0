@@ -1777,6 +1777,9 @@ func perform_login_to_game_handoff(game_host: String, game_port: int) -> void:
 	_resume_assertion = await _handoff_request_resume_assertion()
 
 	disconnect_from_server()
+	# Let Godot finish detaching the old ENet peer before creating the game
+	# peer on this persistent NetworkClient node.
+	await get_tree().process_frame
 	if not await _handoff_await_connected(false):
 		login_to_game_handoff_finished.emit("login_disconnect_timeout", {})
 		return
@@ -1829,6 +1832,7 @@ func perform_return_to_character_select(login_host: String, login_port: int) -> 
 		return
 
 	disconnect_from_server()
+	await get_tree().process_frame
 	if not await _handoff_await_connected(false):
 		return_to_character_select_finished.emit("game_disconnect_timeout")
 		return
