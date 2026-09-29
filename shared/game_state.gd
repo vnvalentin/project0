@@ -7,6 +7,7 @@ class_name GameState
 const KineticFlowScript: Script = preload("res://shared/kinetic_flow.gd")
 
 const SCHEMA_VERSION: int = 1
+const TUNING_VERSION: String = "vessel-2026q4-baseline"
 const NODE_KEYS: PackedStringArray = ["STR", "DEX", "CON", "INT", "WIS", "CHA"]
 const STAT_KEYS: PackedStringArray = [
 	"STR", "DEX", "CON", "INT", "WIS", "CHA",
@@ -21,6 +22,10 @@ const OUTCOME_UNSUPPORTED_VERSION: String = "unsupported_version"
 const OUTCOME_SNAPSHOT_REJECTED_INVALID: String = "snapshot_rejected_invalid"
 const OUTCOME_CLIENT_MUTATION_REJECTED: String = "client_mutation_rejected"
 const CLIENT_MUTATION_HTTP_STATUS: int = 422
+const EVENT_STAT_SYNC_PARITY_VERIFIED: String = "STAT_SYNC_PARITY_VERIFIED"
+const EVENT_SNAPSHOT_REJECTED_INVALID: String = "SNAPSHOT_REJECTED_INVALID"
+const EVENT_SNAPSHOT_REJECTED_VERSION: String = "SNAPSHOT_REJECTED_VERSION"
+const EVENT_LAST_KNOWN_STATE_PRESERVED: String = "LAST_KNOWN_STATE_PRESERVED"
 
 var schema_version: int
 var stats: Dictionary
@@ -105,8 +110,43 @@ func reject_client_mutation(_payload: Variant) -> Dictionary:
 	}
 
 
-func to_snapshot() -> Dictionary:
-	return {"schema_version": schema_version, "stats": stats.duplicate()}
+func to_snapshot(p_tuning_version: String = "") -> Dictionary:
+	var snapshot: Dictionary = {"schema_version": schema_version, "stats": stats.duplicate()}
+	if not p_tuning_version.is_empty():
+		snapshot["tuning_version"] = p_tuning_version
+	return snapshot
+
+
+## Client-side wire validation. It uses the public versioned tuning contract and
+## re-derives the same fields without importing server-only tuning code.
+static func from_wire_snapshot(snapshot: Variant) -> Dictionary:
+	if not (snapshot is Dictionary):
+		return _snapshot_fail(OUTCOME_MALFORMED, "snapshot is not a Dictionary")
+	var data: Dictionary = snapshot
+	if int(data.get("schema_version", -1)) != SCHEMA_VERSION:
+		return _snapshot_fail(OUTCOME_UNSUPPORTED_VERSION, "unsupported schema_version")
+	if String(data.get("tuning_version", "")) != TUNING_VERSION:
+		return _snapshot_fail(OUTCOME_UNSUPPORTED_VERSION, "unsupported tuning_version")
+	var raw_stats: Variant = data.get("stats")
+	if not (raw_stats is Dictionary):
+		return _snapshot_fail(OUTCOME_MALFORMED, "stats is not a Dictionary")
+	var persisted_stats: Dictionary = raw_stats
+	if persisted_stats.size() != STAT_KEYS.size():
+		return _snapshot_fail(OUTCOME_MALFORMED, "stats must contain exactly eleven fields")
+	var nodes: Dictionary = {}
+	for key: String in STAT_KEYS:
+		if not persisted_stats.has(key):
+			return _snapshot_fail(OUTCOME_MALFORMED, "missing stat field: %s" % key)
+		var raw_value: Variant = persisted_stats[key]
+		if not (raw_value is float or raw_value is int) or not is_finite(float(raw_value)):
+			return _snapshot_fail(OUTCOME_MALFORMED, "invalid stat field: %s" % key)
+		if key in NODE_KEYS:
+			nodes[key] = float(raw_value)
+	var expected: Dictionary = _derive_public_stats(nodes)
+	for key: String in STAT_KEYS:
+		if not is_equal_approx(float(persisted_stats[key]), float(expected[key])):
+			return _snapshot_fail(OUTCOME_SNAPSHOT_REJECTED_INVALID, "derived stat mismatch: %s" % key)
+	return {"outcome": OUTCOME_OK, "detail": "", "snapshot": data.duplicate(true)}
 
 
 static func _validate_nodes(initial_nodes: Dictionary) -> Dictionary:
@@ -132,3 +172,22 @@ static func _fail(outcome: String, detail: String) -> Dictionary:
 
 static func _snapshot_fail(outcome: String, detail: String) -> Dictionary:
 	return {"outcome": outcome, "detail": detail, "state": null}
+
+
+static func _derive_public_stats(nodes: Dictionary) -> Dictionary:
+	var volume: float = maxf(0.0, float(nodes["CON"]))
+	var control: float = maxf(0.0, float(nodes["DEX"]))
+	var output: float = maxf(0.0, float(nodes["STR"]))
+	return {
+		"STR": float(nodes["STR"]),
+		"DEX": float(nodes["DEX"]),
+		"CON": float(nodes["CON"]),
+		"INT": float(nodes["INT"]),
+		"WIS": float(nodes["WIS"]),
+		"CHA": float(nodes["CHA"]),
+		"KineticVolume": volume,
+		"KineticControl": control,
+		"KineticOutput": output,
+		"BaseHP": maxf(0.0, 100.0 + float(nodes["CON"]) * 10.0 + volume * 2.0),
+		"BaseStamina": maxf(0.0, 100.0 + float(nodes["CON"]) * 5.0 + control * 5.0),
+	}

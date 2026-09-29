@@ -102,6 +102,9 @@ signal character_snapshot_changed(snapshot: Dictionary)
 ## element can show the mechanics readout. Presentation only — normalized graph
 ## axes + subsystem-safe derived summaries, never raw effective numbers.
 signal effective_mechanics_changed(snapshot: Dictionary)
+## Slice 1302: validated, read-only authoritative stat projection input.
+signal authoritative_stats_changed(snapshot: Dictionary)
+signal stat_sync_diagnostic(event_type: String)
 
 ## Slice 146: emitted on the SERVER when a connecting peer submits its version
 ## handshake, so server_main.gd owns the decision without this node knowing the
@@ -185,6 +188,7 @@ const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry
 const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
 signal geometry_assembly_completed(sector_id: String, result: Dictionary)
 const EffectiveMechanicsSnapshotScript: Script = preload("res://shared/effective_mechanics_snapshot.gd")
+const GameStateScript: Script = preload("res://shared/game_state.gd")
 const VersionHandshakeScript: Script = preload("res://shared/version_handshake.gd")
 const TelemetryBatchQueueScript: Script = preload("res://client/telemetry_batch_queue.gd")
 const NakamaPresenceScript: Script = preload("res://shared/nakama_presence.gd")
@@ -272,6 +276,7 @@ var latest_character_snapshot: Dictionary = {}
 ## Slice 142: latest replicated presentation-safe EffectiveMechanicsSnapshot,
 ## retained so a HUD element created after it first arrives still reads it.
 var latest_effective_mechanics: Dictionary = {}
+var latest_authoritative_stats: Dictionary = {}
 
 ## Slice 146: the server's version-gate rejection, if this client was refused.
 ## Retained so UI created after the refusal still knows why.
@@ -987,6 +992,24 @@ func receive_effective_mechanics(snapshot: Dictionary) -> void:
 		return
 	latest_effective_mechanics = validated["snapshot"]
 	effective_mechanics_changed.emit(latest_effective_mechanics)
+
+
+## RPC target (Slice 1302): reliable server-owned stat snapshot. Invalid
+## payloads are dropped and the last accepted state is preserved.
+@rpc("authority", "call_remote", "reliable")
+func receive_stat_snapshot(snapshot: Dictionary) -> void:
+	var validated: Dictionary = GameStateScript.from_wire_snapshot(snapshot)
+	if validated["outcome"] != GameStateScript.OUTCOME_OK:
+		var event_type: String = GameStateScript.EVENT_SNAPSHOT_REJECTED_VERSION \
+			if validated["outcome"] == GameStateScript.OUTCOME_UNSUPPORTED_VERSION \
+			else GameStateScript.EVENT_SNAPSHOT_REJECTED_INVALID
+		stat_sync_diagnostic.emit(event_type)
+		if not latest_authoritative_stats.is_empty():
+			stat_sync_diagnostic.emit(GameStateScript.EVENT_LAST_KNOWN_STATE_PRESERVED)
+		return
+	latest_authoritative_stats = validated["snapshot"]
+	stat_sync_diagnostic.emit(GameStateScript.EVENT_STAT_SYNC_PARITY_VERIFIED)
+	authoritative_stats_changed.emit(latest_authoritative_stats)
 
 
 ## RPC target (Slice 146): runs only on the server, called by a connecting client

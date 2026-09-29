@@ -649,6 +649,7 @@ func _admit_peer(peer_id: int) -> void:
 	player_state.health_changed.connect(_on_player_state_health_changed)
 	player_state.character_snapshot_ready.connect(_on_player_state_character_snapshot_ready)
 	player_state.effective_mechanics_ready.connect(_on_player_state_effective_mechanics_ready)
+	player_state.authoritative_stats_ready.connect(_on_player_state_authoritative_stats_ready)
 	player_state.player_defeated.connect(_on_player_state_player_defeated)
 	root.add_child(player_state)
 	player_state.start_for_peer(peer_id, start_position)
@@ -742,6 +743,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.health_changed.disconnect(_on_player_state_health_changed)
 		player_state.character_snapshot_ready.disconnect(_on_player_state_character_snapshot_ready)
 		player_state.effective_mechanics_ready.disconnect(_on_player_state_effective_mechanics_ready)
+			player_state.authoritative_stats_ready.disconnect(_on_player_state_authoritative_stats_ready)
 		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()
@@ -1580,6 +1582,15 @@ func _on_player_state_effective_mechanics_ready(peer_id: int, snapshot: Dictiona
 	if network_client == null:
 		return
 	network_client.rpc_id(peer_id, "receive_effective_mechanics", snapshot)
+
+
+## Slice 1302: sends the server-owned stat snapshot only at admission or after
+## a validated stat change; idle simulation does not rebroadcast it.
+func _on_player_state_authoritative_stats_ready(peer_id: int, snapshot: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(peer_id, "receive_stat_snapshot", snapshot)
 
 
 ## Slice 094: tells the owning client its Player was defeated (then provisionally
