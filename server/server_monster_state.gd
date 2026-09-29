@@ -44,6 +44,7 @@ var facing: Vector3 = Vector3.FORWARD
 var phase: String = MonsterContractsScript.PHASE_IDLE
 
 var _ticks_in_phase: int = 0
+var _phase_started_tick: int = 0
 var _combat: Object
 ## Slice 128: the monster's server-owned unified Character (AI baseline), the same
 ## CharacterFoundation contract the Player carries. Server-authoritative.
@@ -68,6 +69,22 @@ func current_hp() -> int:
 ## shape the Player replicates.
 func character_snapshot() -> Dictionary:
 	return _character.to_presentation_snapshot()
+
+
+## M0.3: presentation-only state for the client telegraph. The server remains
+## the authority for phase transitions, facing, and hit resolution.
+func attack_state_snapshot(server_tick: int) -> Dictionary:
+	var phase_duration_ticks: int = _phase_duration_ticks()
+	return {
+		"schema_version": MonsterContractsScript.ATTACK_STATE_SNAPSHOT_SCHEMA_VERSION,
+		"active_state_flags": MonsterContractsScript.ATTACK_WINDUP_ACTIVE if phase == MonsterContractsScript.PHASE_WINDUP else 0,
+		"phase": phase,
+		"facing": facing,
+		"phase_started_tick": _phase_started_tick,
+		"target_tick": _phase_started_tick + phase_duration_ticks,
+		"duration_ticks": phase_duration_ticks,
+		"server_tick": server_tick,
+	}
 
 
 func is_dead() -> bool:
@@ -148,7 +165,20 @@ func _set_phase(new_phase: String, server_tick: int) -> void:
 	var previous: String = phase
 	phase = new_phase
 	_ticks_in_phase = 0
+	_phase_started_tick = server_tick
 	phase_changed.emit(target_id, previous, new_phase, server_tick)
+
+
+func _phase_duration_ticks() -> int:
+	match phase:
+		MonsterContractsScript.PHASE_WINDUP:
+			return MonsterContractsScript.WINDUP_TICKS
+		MonsterContractsScript.PHASE_ATTACK:
+			return MonsterContractsScript.ATTACK_ACTIVE_TICKS
+		MonsterContractsScript.PHASE_RECOVERY:
+			return MonsterContractsScript.RECOVERY_TICKS
+		_:
+			return 0
 
 
 func _within_attack(player_position: Vector3) -> bool:

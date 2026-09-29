@@ -73,6 +73,9 @@ const PHASE_ATTACK: String = "ATTACK"
 const PHASE_RECOVERY: String = "RECOVERY"
 const PHASE_DEAD: String = "DEAD"
 
+## M0.3: versioned presentation-only attack state replicated from the server.
+const ATTACK_STATE_SNAPSHOT_SCHEMA_VERSION: int = 1
+const ATTACK_WINDUP_ACTIVE: int = 1
 const ATTACK_STATE_SCHEMA_VERSION: int = 1
 
 class AttackStateSnapshot:

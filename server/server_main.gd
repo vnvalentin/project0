@@ -1370,6 +1370,12 @@ func _broadcast_monster_positions() -> void:
 		var monster: Object = living[target_id]
 		for receiving_peer_id: int in _player_states.keys():
 			network_client.rpc_id(receiving_peer_id, "receive_monster_position", target_id, monster.position)
+			network_client.rpc_id(
+				receiving_peer_id,
+				"receive_monster_attack_state",
+				target_id,
+				monster.attack_state_snapshot(_monster_tick)
+			)
 
 
 ## Slice 131: a first-cut fixed set of in-town anchors for the live town NPCs.

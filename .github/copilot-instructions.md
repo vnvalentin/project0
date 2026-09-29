@@ -66,6 +66,13 @@ Every delivery gate below still applies in full: records-first, GitHub issue
 traceability, public-seam tests, real validation evidence, record sync, and
 branch/PR/merge.
 
+Branching and commit rule: every slice gets its own
+`slice/<issue-number>-<short-topic>` branch and pull request. Never edit or
+commit directly on `main`. After every completed logical edit, run the narrowest
+relevant validation and commit before starting the next edit; push each commit
+that is ready to share and keep the pull request current. Do not accumulate
+completed edits in an uncommitted worktree.
+
 ## Delivery gates
 
 The implementing agent must create or update the governing GitHub issue, planning ticket, and
