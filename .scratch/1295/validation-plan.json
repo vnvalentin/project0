@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "scripts/run_gut_validation.sh",
+      "dependencies": ["godot", "sqlite"],
+      "tests": ["tests/unit/test_game_state.gd"],
+      "artifacts": [
+        "build/validation/gut.xml",
+        "build/validation/validation-summary.json"
+      ]
+    }
+  ]
+}
