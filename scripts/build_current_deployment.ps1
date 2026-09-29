@@ -4,7 +4,9 @@ param(
     [string]$Version,
     [string]$GodotPath,
     [string]$PackageInspectorPath,
-    [string]$RceditPath
+    [string]$RceditPath,
+    [ValidateRange(5, 120)]
+    [int]$PackageAuditTimeoutSeconds = 120
 )
 
 # #1213: builds the standalone Windows client package only. It needs no Go,
@@ -139,7 +141,7 @@ try {
     Test-RequiredFile $clientExe "Godot client executable"
     Test-RequiredFile $clientPck "Godot client PCK"
     $boundaryEvidence = Join-Path $evidence "package-boundary.json"
-    & pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot "check_windows_client_package.ps1") -PackPath $clientPck -GodotPath $PackageInspectorPath -OutputPath $boundaryEvidence
+    & pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot "check_windows_client_package.ps1") -PackPath $clientPck -GodotPath $PackageInspectorPath -OutputPath $boundaryEvidence -TimeoutSeconds $PackageAuditTimeoutSeconds
     if ($LASTEXITCODE -ne 0) { throw "Standalone package dependency boundary failed: $boundaryEvidence" }
     $rceditVersion = "$Version.0"
     & $RceditPath $clientExe --set-file-version $rceditVersion --set-product-version $rceditVersion

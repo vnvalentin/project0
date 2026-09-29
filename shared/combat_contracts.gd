@@ -55,6 +55,7 @@ const PHASE_RECOVERY: String = "RECOVERY"
 ## separate event class. See shared/monster_contracts.gd.
 const COMBAT_EVENT_HIT: String = "HIT"
 const COMBAT_EVENT_DEATH: String = "DEATH"
+const COMBAT_EVENT_MONSTER_WINDUP: String = "MONSTER_WINDUP"
 
 
 ## A bounded client-submitted request to perform an action. Never contains

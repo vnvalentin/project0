@@ -18,7 +18,6 @@ extends Node3D
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const CombatContractsScript: Script = preload("res://shared/combat_contracts.gd")
 const MonsterContractsScript: Script = preload("res://shared/monster_contracts.gd")
-const MonsterAttackTelegraphScene: PackedScene = preload("res://client/monster_attack_telegraph.tscn")
 
 ## Bounded, non-tuning presentation constant: how long the hit-reaction
 ## flash/wobble lasts. Purely cosmetic — has no effect on server state.
@@ -43,12 +42,18 @@ var _hit_reaction_time_remaining: float = 0.0
 
 var _dying: bool = false
 var _death_reaction_time_remaining: float = 0.0
-var _attack_telegraph: Node3D = null
+var _telegraph_time_remaining: float = 0.0
+var _telegraph_target_tick: int = -1
+var _telegraph_facing: Vector3 = Vector3.FORWARD
+var _telegraph_arrow: MeshInstance3D = null
+var _telegraph_range: MeshInstance3D = null
 
 
 func _ready() -> void:
 	_target_position = position
 	_mesh_instance = get_node_or_null("MeshInstance3D")
+	_telegraph_arrow = get_node_or_null("TelegraphArrow")
+	_telegraph_range = get_node_or_null("TelegraphRange")
 	if _mesh_instance != null:
 		var mat: Material = _mesh_instance.get_surface_override_material(0)
 		if mat is StandardMaterial3D:
@@ -57,9 +62,6 @@ func _ready() -> void:
 			_mesh_instance.set_surface_override_material(0, _base_material)
 			_original_color = _base_material.albedo_color
 	NetworkClient.combat_event_received.connect(_on_combat_event_received)
-	_attack_telegraph = MonsterAttackTelegraphScene.instantiate()
-	_attack_telegraph.name = "AttackTelegraph"
-	add_child(_attack_telegraph)
 
 
 ## Public seam: binds this node to the specific monster target_id it
@@ -76,19 +78,22 @@ func set_target_position(new_position: Vector3) -> void:
 	_has_target = true
 
 
-## Public seam: renders only the server-authored WINDUP flag, timing, and
-## facing. Collision and damage remain entirely server-owned.
+## Public seam: renders only the server-approved WINDUP snapshot. It never
+## evaluates reach, collision, damage, or the attack outcome.
 func set_attack_state(snapshot: Dictionary) -> void:
-	if int(snapshot.get("schema_version", 0)) != MonsterContractsScript.ATTACK_STATE_SNAPSHOT_SCHEMA_VERSION:
+	var parsed: Object = MonsterContractsScript.AttackStateSnapshot.from_wire(snapshot)
+	if parsed == null or parsed.phase != MonsterContractsScript.PHASE_WINDUP:
 		return
-	var facing: Vector3 = snapshot.get("facing", Vector3.FORWARD)
-	if facing.length_squared() > 0.0:
-		global_transform.basis = Basis.looking_at(facing.normalized(), Vector3.UP)
-	var windup_active: bool = (int(snapshot.get("active_state_flags", 0)) & MonsterContractsScript.ATTACK_WINDUP_ACTIVE) != 0
-	if windup_active:
-		_attack_telegraph.start_telegraph()
-	else:
-		_attack_telegraph.end_telegraph()
+	_telegraph_target_tick = parsed.target_tick
+	_telegraph_facing = parsed.facing
+	_telegraph_time_remaining = float(parsed.duration_ticks) / 60.0
+	rotation.y = Vector3.FORWARD.signed_angle_to(_telegraph_facing, Vector3.UP)
+	if _telegraph_arrow != null:
+		_telegraph_arrow.visible = true
+	if _telegraph_range != null:
+		_telegraph_range.visible = true
+	if _base_material != null:
+		_base_material.albedo_color = Color(1.0, 0.75, 0.15, 1.0)
 
 
 func _physics_process(delta: float) -> void:
@@ -98,6 +103,15 @@ func _physics_process(delta: float) -> void:
 
 	if _hit_reaction_time_remaining > 0.0:
 		_advance_hit_reaction(delta)
+	if _telegraph_time_remaining > 0.0:
+		_telegraph_time_remaining = maxf(0.0, _telegraph_time_remaining - delta)
+		if _telegraph_time_remaining <= 0.0 and _base_material != null:
+			_base_material.albedo_color = _original_color
+		if _telegraph_time_remaining <= 0.0:
+			if _telegraph_arrow != null:
+				_telegraph_arrow.visible = false
+			if _telegraph_range != null:
+				_telegraph_range.visible = false
 
 	if not _has_target:
 		return
@@ -133,7 +147,15 @@ func _advance_death_reaction(delta: float) -> void:
 func _on_combat_event_received(kind: String, _attacker_peer_id: int, event_target_id: String, _impact_position: Vector3, _server_tick: int) -> void:
 	if event_target_id != target_id:
 		return
-	if kind == CombatContractsScript.COMBAT_EVENT_HIT:
+	if kind == CombatContractsScript.COMBAT_EVENT_MONSTER_WINDUP:
+		set_attack_state({
+			"schema_version": MonsterContractsScript.ATTACK_STATE_SCHEMA_VERSION,
+			"phase": MonsterContractsScript.PHASE_WINDUP,
+			"target_tick": _server_tick,
+			"duration_ticks": MonsterContractsScript.WINDUP_TICKS,
+			"facing": _impact_position,
+		})
+	elif kind == CombatContractsScript.COMBAT_EVENT_HIT:
 		_hit_reaction_time_remaining = HIT_REACTION_DURATION_SEC
 	elif kind == CombatContractsScript.COMBAT_EVENT_DEATH:
 		_dying = true

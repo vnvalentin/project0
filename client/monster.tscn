@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://d0monster0001"]
+[gd_scene load_steps=8 format=3 uid="uid://d0monster0001"]
 
 [ext_resource type="Script" path="res://client/monster.gd" id="1_monster"]
 
@@ -8,9 +8,39 @@ size = Vector3(0.9, 1.4, 0.9)
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_monster"]
 albedo_color = Color(0.75, 0.15, 0.15, 1)
 
+[sub_resource type="BoxMesh" id="BoxMesh_telegraph_arrow"]
+size = Vector3(0.22, 0.08, 1.4)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_telegraph_arrow"]
+shading_mode = 0
+albedo_color = Color(1, 0.9, 0.15, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_telegraph_range"]
+top_radius = 2.0
+bottom_radius = 2.0
+height = 0.025
+radial_segments = 48
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_telegraph_range"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(1, 0.75, 0.1, 0.2)
+
 [node name="Monster" type="Node3D"]
 script = ExtResource("1_monster")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("BoxMesh_monster")
 surface_material_override/0 = SubResource("StandardMaterial3D_monster")
+
+[node name="TelegraphArrow" type="MeshInstance3D" parent="."]
+visible = false
+position = Vector3(0, 0.76, -0.7)
+mesh = SubResource("BoxMesh_telegraph_arrow")
+surface_material_override/0 = SubResource("StandardMaterial3D_telegraph_arrow")
+
+[node name="TelegraphRange" type="MeshInstance3D" parent="."]
+visible = false
+position = Vector3(0, 0.03, 0)
+mesh = SubResource("CylinderMesh_telegraph_range")
+surface_material_override/0 = SubResource("StandardMaterial3D_telegraph_range")

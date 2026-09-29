@@ -346,7 +346,7 @@ class RoutingTests(unittest.TestCase):
         import re
         text = (ROOT / ".github/workflows/validation.yml").read_text()
         self.assertNotIn("<<<<<<<", text)
-        self.assertIn("  push:\n  pull_request:", text)
+        self.assertIn("  push:\n    branches:\n      - main\n  pull_request:", text)
         self.assertNotIn("types: [labeled]", text)
         for job in ("ownership", "godot", "records", "python"):
             block = re.search(r"^  " + job + r":\n(.*?)(?=^  [a-z]+:|\Z)", text, re.M | re.S).group(1)

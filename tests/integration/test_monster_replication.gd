@@ -80,22 +80,15 @@ func test_attack_state_controls_only_the_cosmetic_windup_telegraph() -> void:
 
 	var windup: Dictionary = {
 		"schema_version": 1,
-		"active_state_flags": 1,
+		"phase": "WINDUP",
 		"facing": Vector3.FORWARD,
-		"phase_started_tick": 10,
 		"target_tick": 20,
 		"duration_ticks": 10,
-		"server_tick": 10,
 	}
 	NetworkClientScript.apply_monster_attack_state("m0", windup, container)
 	var monster_node: Node3D = container.get_node_or_null(NetworkClientScript.monster_node_name("m0")) as Node3D
-	var telegraph: Node3D = monster_node.get_node("AttackTelegraph") as Node3D
-	assert_true(telegraph.visible, "the server windup flag shows the local telegraph")
-
-	var inactive: Dictionary = windup.duplicate()
-	inactive["active_state_flags"] = 0
-	NetworkClientScript.apply_monster_attack_state("m0", inactive, container)
-	assert_false(telegraph.visible, "clearing the server windup flag hides the telegraph")
+	assert_true((monster_node.get_node("TelegraphArrow") as Node3D).visible, "the server windup state shows the local facing telegraph")
+	assert_true((monster_node.get_node("TelegraphRange") as Node3D).visible, "the server windup state shows the local reach telegraph")
 
 
 func test_despawn_removes_the_nodes_representation() -> void:

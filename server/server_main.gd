@@ -330,6 +330,7 @@ func _start_server() -> void:
 	_monster_manager = ServerMonsterManagerScript.new(_starting_town_hub_blueprint.get("spawn_points", []), int(Time.get_ticks_usec()), ServerMonsterManagerScript.RESPAWN_COOLDOWN_TICKS, exclusion_half_extent)
 	_monster_manager.monster_died.connect(_on_monster_died)
 	_monster_manager.monster_respawned.connect(_on_monster_respawned)
+	_monster_manager.attack_state_changed.connect(_on_monster_attack_state_changed)
 	_monster_manager.player_hit.connect(_on_monster_player_hit)
 	physics_frame.connect(_on_physics_frame)
 	print("Spawned %d monsters outside the town." % _monster_manager.monster_count())
@@ -1475,6 +1476,19 @@ func _on_monster_respawned(spawn_id: String, position: Vector3, server_tick: int
 		return
 	for receiving_peer_id: int in _player_states.keys():
 		network_client.rpc_id(receiving_peer_id, "receive_monster_spawn", spawn_id, position)
+
+
+func _on_monster_attack_state_changed(spawn_id: String, snapshot: Object) -> void:
+	# Reuse the established CombatEvent RPC so the pinned 4.3 server and
+	# Windows 4.7 client do not need a new NetworkClient checksum entry.
+	var event: Object = CombatContractsScript.CombatEvent.new(
+		CombatContractsScript.COMBAT_EVENT_MONSTER_WINDUP,
+		-1,
+		spawn_id,
+		snapshot.facing,
+		snapshot.target_tick
+	)
+	_broadcast_combat_event(event)
 
 
 ## Relays one peer's authoritative ActionResolution back to that same peer

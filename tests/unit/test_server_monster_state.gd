@@ -52,24 +52,23 @@ func test_enters_windup_when_player_is_in_reach() -> void:
 	assert_eq(monster.phase, MonsterContractsScript.PHASE_WINDUP, "a player in reach triggers the attack windup")
 
 
-func test_windup_snapshot_exposes_presentation_state_without_authority() -> void:
+func test_windup_emits_versioned_attack_state_with_locked_facing_and_target_tick() -> void:
 	var monster: Object = _monster()
+	var snapshots: Array = []
+	monster.attack_state_changed.connect(func(_target_id: String, snapshot: Object) -> void:
+		snapshots.append(snapshot)
+	)
 	var player: Vector3 = Vector3(1.5, 1, 0)
-	monster.advance(player, 1.0, 10)  # IDLE -> CHASE
-	monster.advance(player, 1.0, 11)  # CHASE -> WINDUP
-	var snapshot: Dictionary = monster.attack_state_snapshot(11)
-	assert_eq(snapshot["schema_version"], MonsterContractsScript.ATTACK_STATE_SNAPSHOT_SCHEMA_VERSION)
-	assert_eq(snapshot["active_state_flags"], MonsterContractsScript.ATTACK_WINDUP_ACTIVE)
-	assert_eq(snapshot["phase"], MonsterContractsScript.PHASE_WINDUP)
-	assert_eq(snapshot["phase_started_tick"], 11)
-	assert_eq(snapshot["target_tick"], 11 + MonsterContractsScript.WINDUP_TICKS)
-	assert_eq(snapshot["duration_ticks"], MonsterContractsScript.WINDUP_TICKS)
-	assert_eq(snapshot["server_tick"], 11)
+	monster.advance(player, 1.0, 1)
+	monster.advance(player, 1.0, 2)
 
-	_advance_n(monster, player, MonsterContractsScript.WINDUP_TICKS)
-	var resolved: Dictionary = monster.attack_state_snapshot(21)
-	assert_eq(resolved["active_state_flags"], 0, "the telegraph flag clears when WINDUP ends")
-	assert_eq(resolved["phase"], MonsterContractsScript.PHASE_ATTACK)
+	assert_eq(snapshots.size(), 1, "entering WINDUP emits one attack-state snapshot")
+	var snapshot: Object = snapshots[0]
+	assert_eq(snapshot.schema_version, MonsterContractsScript.ATTACK_STATE_SCHEMA_VERSION)
+	assert_eq(snapshot.phase, MonsterContractsScript.PHASE_WINDUP)
+	assert_eq(snapshot.target_tick, 2 + MonsterContractsScript.WINDUP_TICKS)
+	assert_eq(snapshot.duration_ticks, MonsterContractsScript.WINDUP_TICKS)
+	assert_eq(snapshot.facing, Vector3.RIGHT)
 
 
 func test_windup_telegraph_is_at_least_as_long_as_the_player_attack() -> void:
