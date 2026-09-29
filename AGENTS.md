@@ -59,6 +59,12 @@ Apply the label when any changed path is under `native/windows_launcher/`, has a
 Windows-only build constraint, changes Windows packaging or installer behavior,
 or changes a client path whose acceptance depends on Windows runtime behavior.
 
+Before opening or updating a pull request for Windows-required work, verify that
+`platform:windows-required` is present on both the governing GitHub issue and the
+pull request. Add it to the pull request explicitly with
+`gh pr edit <number> --add-label platform:windows-required`; an issue label alone
+does not satisfy CI source approval.
+
   Ollama/SQLite validation are out of scope until those systems are built.
 
 ## Server and Linux execution boundary
