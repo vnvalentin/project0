@@ -38,7 +38,8 @@ func test_fixture_structure_kind_counts() -> void:
 	assert_eq(counts["item_shop"], 1, "hub fixture has exactly 1 item shop")
 	assert_eq(counts["tavern"], 1, "hub fixture has exactly 1 tavern")
 	assert_eq(counts["well"], 1, "hub fixture has exactly 1 well")
-	assert_eq(structures.size(), 28, "hub fixture has exactly 28 structures total")
+	assert_eq(counts["locked_gate"], 1, "hub fixture has exactly 1 locked gate")
+	assert_eq(structures.size(), 29, "hub fixture has exactly 29 structures including the locked gate")
 
 
 func test_fixture_uses_the_organic_v3_vocabulary() -> void:
