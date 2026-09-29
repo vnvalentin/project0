@@ -113,7 +113,7 @@ try {
 
     $result.stage = "package-boundary"
     $boundaryEvidence = Join-Path $evidence "package-boundary.json"
-    & pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot "check_windows_client_package.ps1") -PackPath (Join-Path $package "Project0.pck") -GodotPath $GodotPath -OutputPath $boundaryEvidence
+    & pwsh -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot "check_windows_client_package.ps1") -PackPath (Join-Path $package "Project0.pck") -GodotPath $GodotPath -TimeoutSeconds $TimeoutSeconds -OutputPath $boundaryEvidence
     if ($LASTEXITCODE -ne 0) { throw "Standalone package dependency boundary failed: $boundaryEvidence" }
     $result.package_boundary = Get-Content -LiteralPath $boundaryEvidence -Raw | ConvertFrom-Json
     if (-not $result.package_boundary.passed -or -not $result.package_boundary.cleanup) { throw "Package boundary evidence is incomplete." }
