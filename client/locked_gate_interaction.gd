@@ -51,11 +51,18 @@ func _on_resolution_received(resolution: Dictionary) -> void:
 		return
 	_pending_sequence = -1
 	if resolution.get("status") == "accepted":
-		_set_status("Gate: unlocked (%s execution, %d ticks)" % [resolution.get("execution_profile", "standard"), int(resolution.get("execution_ticks", 0))])
-		if _gate_mesh != null and _gate_mesh.material_override is StandardMaterial3D:
-			(_gate_mesh.material_override as StandardMaterial3D).albedo_color = Color(0.25, 0.8, 0.35, 1.0)
+		_show_unlocked("Gate: unlocked (%s execution, %d ticks)" % [resolution.get("execution_profile", "standard"), int(resolution.get("execution_ticks", 0))])
+		return
+	if resolution.get("reason") == "already_unlocked":
+		_show_unlocked("Gate: already unlocked")
 		return
 	_set_status("Gate: rejected (%s)" % String(resolution.get("reason", "unknown")))
+
+
+func _show_unlocked(message: String) -> void:
+	_set_status(message)
+	if _gate_mesh != null and _gate_mesh.material_override is StandardMaterial3D:
+		(_gate_mesh.material_override as StandardMaterial3D).albedo_color = Color(0.25, 0.8, 0.35, 1.0)
 
 
 func _set_status(message: String) -> void:
