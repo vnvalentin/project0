@@ -44,6 +44,14 @@ function Read-Json([string]$path) {
     try { return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable } catch { return $null }
 }
 
+function Test-Moved([object]$baseline, [object]$observed) {
+    if (-not $baseline -or -not $observed -or $baseline.Count -ne 3 -or $observed.Count -ne 3) { return $false }
+    $distance = [math]::Sqrt((([double]$observed[0] - [double]$baseline[0]) * ([double]$observed[0] - [double]$baseline[0])) +
+        (([double]$observed[1] - [double]$baseline[1]) * ([double]$observed[1] - [double]$baseline[1])) +
+        (([double]$observed[2] - [double]$baseline[2]) * ([double]$observed[2] - [double]$baseline[2])))
+    return $distance -gt 0.5
+}
+
 function Start-Client([string]$clientId, [string]$assertion, [string]$output, [string]$stop, [string]$probe, [string]$pack, [string]$ready, [int]$port) {
     $resourceRoot = Join-Path $root "resources-$clientId"
     New-Item -ItemType Directory -Path $resourceRoot -Force | Out-Null
@@ -119,10 +127,17 @@ try {
     } while ($true)
     $baselineA = $a.remote_players.b.position; $baselineB = $b.remote_players.a.position
     $result.phases.initial = @{ a = $a; b = $b; baseline_a = $baselineA; baseline_b = $baselineB }
-    Start-Sleep -Milliseconds 1200
-    $a = Read-Json (Join-Path $root a.json); $b = Read-Json (Join-Path $root b.json)
-    $result.phases.movement = @{ a = $a; b = $b }
-    if (-not $a -or -not $b -or -not $a.remote_players.b.position -or -not $b.remote_players.a.position) { throw 'movement evidence missing' }
+    $clock.Restart()
+    do {
+        if ($processes['a'].HasExited -or $processes['b'].HasExited) { throw 'client exited during movement observation' }
+        $a = Read-Json (Join-Path $root a.json); $b = Read-Json (Join-Path $root b.json)
+        $result.phases.movement = @{ a = $a; b = $b }
+        $aPosition = if ($a) { $a.remote_players.b.position } else { $null }
+        $bPosition = if ($b) { $b.remote_players.a.position } else { $null }
+        if (Test-Moved $baselineA $aPosition -and Test-Moved $baselineB $bPosition) { break }
+        if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'movement evidence missing' }
+        Start-Sleep -Milliseconds 100
+    } while ($true)
     Stop-Client 'a' (Join-Path $root stop-a)
     $clock.Restart()
     do { $b = Read-Json (Join-Path $root b.json); if ($b -and $b.remote_players.Count -eq 0) { break }; if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'disconnect removal timed out' }; Start-Sleep -Milliseconds 100 } while ($true)
