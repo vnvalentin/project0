@@ -138,10 +138,13 @@ try {
     do {
         if ($processes['a'].HasExited -or $processes['b'].HasExited) { throw 'client exited during movement observation' }
         $a = Read-Json (Join-Path $root a.json); $b = Read-Json (Join-Path $root b.json)
-        $result.phases.movement = @{ a = $a; b = $b }
+        $result.phases.movement = @{ a = $a; b = $b; verified = $false }
         $aPosition = if ($a) { $a.remote_players.b.position } else { $null }
         $bPosition = if ($b) { $b.remote_players.a.position } else { $null }
-        if (Test-Moved $baselineA $aPosition -and Test-Moved $baselineB $bPosition) { break }
+        if (Test-Moved $baselineA $aPosition -and Test-Moved $baselineB $bPosition) {
+            $result.phases.movement.verified = $true
+            break
+        }
         if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'movement evidence missing' }
         Start-Sleep -Milliseconds 100
     } while ($true)

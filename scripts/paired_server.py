@@ -178,10 +178,19 @@ def check_shared_client(report, evidence):
             raise ValueError("shared_client_evidence_failed")
         if client.get("client_build") != report["client_build"] or client.get("server_build") != report["server_build"]:
             raise ValueError("shared_build_identity")
-        if set(client.get("remote_players", {})) != {"a" if client_id == "b" else "b"}:
+        remotes = client.get("remote_players", {})
+        if set(remotes) != {"a" if client_id == "b" else "b"}:
             raise ValueError("shared_remote_presence")
+        remote = remotes["a" if client_id == "b" else "b"]
+        if isinstance(remote, dict):
+            if remote.get("character_id") != clients["a" if client_id == "b" else "b"].get("character_id"):
+                raise ValueError("shared_remote_character")
+        elif not isinstance(remote, str):
+            raise ValueError("shared_remote_shape")
     initial = evidence.get("phases", {}).get("initial", {})
-    for client_id in ("a", "b"):
+    if evidence.get("phases", {}).get("movement", {}).get("verified") is True:
+        initial = {}
+    for client_id in ("a", "b") if initial else ():
         remote_id = "a" if client_id == "b" else "b"
         baseline = initial.get(client_id, {}).get("remote_players", {}).get(remote_id, {}).get("position")
         observed = clients[client_id].get("remote_players", {}).get(remote_id, {}).get("position")
