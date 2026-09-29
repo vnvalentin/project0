@@ -134,7 +134,7 @@ try {
     $aReconnect = Read-Json (Join-Path $root a-reconnect.json)
     $result.phases.reconnect = $aReconnect
     $result.clients.a = $aReconnect; $result.clients.b = $b
-    Copy-Remote "$remoteRun/private/shared-observation.json" (Join-Path $root shared-observation.json)
+    Copy-Remote "okami:$remoteRun/private/shared-observation.json" (Join-Path $root shared-observation.json)
     $result.server_observation = Read-Json (Join-Path $root shared-observation.json)
     $evidencePath = Join-Path $root evidence.json
     $result | ConvertTo-Json -Depth 30 | Set-Content $evidencePath -Encoding utf8NoBOM
