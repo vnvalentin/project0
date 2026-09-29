@@ -1,0 +1,23 @@
+{
+  "experiment": "exp-1294-character-sheet",
+  "issue": 1305,
+  "date": "2026-09-29",
+  "host": "SETSUJOKU",
+  "client_version": "0.14.20",
+  "server_required_client_version": "0.14.20",
+  "scenario": "manual packaged-client Character Sheet acceptance",
+  "status": "passed",
+  "user_confirmed": true,
+  "observations": {
+    "character_sheet_open_close": true,
+    "groups_rendered": ["Vessel Attributes", "Kinetic Flow", "Biological Pools"],
+    "authoritative_fields_rendered": 11,
+    "authoritative_update_parity": true,
+    "close_reopen_retention": true,
+    "rejected_snapshot_preservation": true,
+    "client_stat_writeback_controls": 0,
+    "input_focus_preserved": true
+  },
+  "server_fix": "redeployed development game-server main image with PROJECT0_REQUIRED_CLIENT_VERSION=0.14.20 after RPC checksum mismatch diagnosis",
+  "evidence_note": "User confirmed the packaged client passed the Character Sheet acceptance after the server redeployment."
+}
