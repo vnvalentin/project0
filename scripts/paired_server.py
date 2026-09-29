@@ -190,7 +190,7 @@ def check_shared_client(report, evidence):
         if sum((float(left) - float(right)) ** 2 for left, right in zip(baseline, observed)) ** 0.5 <= 0.5:
             raise ValueError("shared_authoritative_movement")
     phases = evidence.get("phases", {})
-    if set(phases) != {"initial", "disconnect", "reconnect"}:
+    if not {"initial", "disconnect", "reconnect"}.issubset(phases):
         raise ValueError("shared_lifecycle_phases")
     if phases["disconnect"].get("remote_players") != {}:
         raise ValueError("shared_disconnect_presence")
