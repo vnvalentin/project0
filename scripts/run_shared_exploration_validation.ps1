@@ -53,7 +53,7 @@ function Start-Client([string]$clientId, [string]$assertion, [string]$output, [s
     $start.Environment['LOCALAPPDATA'] = Join-Path $root "localappdata-$clientId"
     $start.Environment['TEMP'] = Join-Path $root "temp-$clientId"
     $start.Environment['TMP'] = $start.Environment['TEMP']
-    New-Item -ItemType Directory -Path $start.Environment['TEMP'] | Out-Null
+    New-Item -ItemType Directory -Path $start.Environment['TEMP'] -Force | Out-Null
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     if (-not $process.Start()) { throw "client $clientId did not start" }
