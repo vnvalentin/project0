@@ -91,6 +91,7 @@ def github_issues() -> dict:
                     "assignees": [str(a.get("login", "")) for a in item.get("assignees", []) if a.get("login")],
                     "body": str(item.get("body", "")),
                     "updated_at": str(item.get("updated_at", "")),
+                    "closed_at": str(item.get("closed_at") or ""),
                     "milestone_number": milestone.get("number"),
                     "milestone_title": str(milestone.get("title", "")),
                 })
@@ -1237,6 +1238,23 @@ def _delivery_hybrid_summary(record: dict, issue_feed: dict) -> dict:
     return {"status": status, "label": label, "counts": counts, "total": len(plan["slices"])}
 
 
+def _delivery_hybrid_slice_schedule(record: dict, plan: dict, issue_feed: dict) -> list[tuple[dict, str]]:
+    by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
+    scheduled = []
+    unscheduled = []
+    for group in plan["slices"]:
+        members = [by_number[number] for number in dict.fromkeys(group["members"]) if number in by_number]
+        closed_dates = [member.get("closed_at", "")[:10] for member in members if member.get("closed_at")]
+        updated_dates = [member.get("updated_at", "")[:10] for member in members if member.get("updated_at")]
+        activity_date = max(closed_dates) if members and all(member.get("state", "").lower() == "closed" for member in members) and closed_dates else max(updated_dates, default="")
+        if activity_date:
+            scheduled.append((group, activity_date))
+        else:
+            unscheduled.append((group, ""))
+    scheduled.sort(key=lambda item: (item[1], item[0]["id"].lower()))
+    return scheduled + unscheduled
+
+
 def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
     rows = []
     for index, record in enumerate(records, 1):
@@ -1246,19 +1264,21 @@ def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
         activity = _delivery_activity_html(record["issues"])
         band = _delivery_mapped_band(record, issue_feed)
         plan = _milestone_slice_plan(record.get("description") or "")
+        schedule = _delivery_hybrid_slice_schedule(record, plan, issue_feed)
         bars = []
-        for slice_index, group in enumerate(plan["slices"]):
+        for slice_index, (group, activity_date) in enumerate(schedule):
             start = (slice_index * 2) % 7 + 1
             span = min(2, 8 - start)
             anchor = _slice_anchor_id(record["number"], group["id"])
             bar_class = "refine" if summary["status"] == "refine" else "done" if summary["status"] == "done" else ""
+            bar_date = activity_date[5:10] if activity_date else "No date"
             bars.append(
                 f'<a class="hybrid-slice-bar {bar_class}" '
                 f'title="Slice {esc(group["id"])}: {esc(group["title"])}" '
                 f'onclick="this.closest(\'details.hybrid-board-row\').open=true;document.getElementById(\'{anchor}\').open=true" '
                 f'href="#{anchor}" '
                 f'style="grid-column:{start} / span {span}">' 
-                f'{esc(group["id"])} · {esc(group["title"])}</a>'
+                f'{esc(group["id"])} · {esc(bar_date)}</a>'
             )
         rows.append(
             f'<details class="hybrid-board-row" data-status="{summary["status"]}">'
@@ -1269,7 +1289,7 @@ def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
             f'<div class="hybrid-board-detail"><div class="hybrid-board-activity">{activity}</div>{band}</div></details>'
         )
     axis = "".join(f'<span>Day {day}</span>' for day in range(1, 8))
-    return '<div class="hybrid-legend"><strong>Order</strong> roadmap order <strong>Bars</strong> clickable slices <strong>Status</strong> done, working, coming up, or needs refinement</div><div class="hybrid-board"><div class="hybrid-axis"><span>Milestone</span><div class="hybrid-day-axis">' + axis + '</div><span>Status</span></div>' + "".join(rows) + '</div>'
+    return '<div class="hybrid-legend"><strong>Order</strong> roadmap order <strong>Bars</strong> chronological by mapped issue activity and clickable <strong>Status</strong> done, working, coming up, or needs refinement</div><div class="hybrid-board"><div class="hybrid-axis"><span>Milestone</span><div class="hybrid-day-axis">' + axis + '</div><span>Status</span></div>' + "".join(rows) + '</div>'
 
 
 def _delivery_issue_parent(issue: dict) -> int | None:
