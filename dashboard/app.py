@@ -1256,19 +1256,27 @@ def _delivery_hybrid_slice_schedule(record: dict, plan: dict, issue_feed: dict) 
 
 
 def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
+    plans = [_milestone_slice_plan(record.get("description") or "") for record in records]
+    schedules = [
+        _delivery_hybrid_slice_schedule(record, plan, issue_feed)
+        for record, plan in zip(records, plans)
+    ]
+    timeline_dates = sorted({activity_date for schedule in schedules for _group, activity_date in schedule if activity_date})
+    if not timeline_dates:
+        timeline_dates = [""]
+    date_columns = {activity_date: index + 1 for index, activity_date in enumerate(timeline_dates)}
+    column_count = len(timeline_dates)
+    track_style = f' style="grid-template-columns:repeat({column_count},minmax(90px,1fr));min-width:{column_count * 90}px"'
     rows = []
-    for index, record in enumerate(records, 1):
+    for index, (record, schedule) in enumerate(zip(records, schedules), 1):
         summary = _delivery_hybrid_summary(record, issue_feed)
         counts = summary["counts"]
         date = str(record.get("due_on", ""))[:10] or "No target date"
         activity = _delivery_activity_html(record["issues"])
         band = _delivery_mapped_band(record, issue_feed)
-        plan = _milestone_slice_plan(record.get("description") or "")
-        schedule = _delivery_hybrid_slice_schedule(record, plan, issue_feed)
         bars = []
-        for slice_index, (group, activity_date) in enumerate(schedule):
-            start = (slice_index * 2) % 7 + 1
-            span = min(2, 8 - start)
+        for group, activity_date in schedule:
+            start = date_columns.get(activity_date, 1)
             anchor = _slice_anchor_id(record["number"], group["id"])
             bar_class = "refine" if summary["status"] == "refine" else "done" if summary["status"] == "done" else ""
             bar_date = activity_date[5:10] if activity_date else "No date"
@@ -1277,19 +1285,23 @@ def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
                 f'title="Slice {esc(group["id"])}: {esc(group["title"])}" '
                 f'onclick="this.closest(\'details.hybrid-board-row\').open=true;document.getElementById(\'{anchor}\').open=true" '
                 f'href="#{anchor}" '
-                f'style="grid-column:{start} / span {span}">' 
+                f'style="grid-column:{start} / span 1">'
                 f'{esc(group["id"])} · {esc(bar_date)}</a>'
             )
         rows.append(
             f'<details class="hybrid-board-row" data-status="{summary["status"]}">'
             f'<summary class="hybrid-board-summary"><div class="hybrid-board-label"><div class="hybrid-board-title">{index:02d} · {esc(record["title"])}</div>'
             f'<div class="hybrid-board-date">Target: {esc(date)} · Slices {counts["done"]}/{summary["total"]} done</div></div>'
-            f'<div class="hybrid-track">{"".join(bars)}</div>'
+            f'<div class="hybrid-track"{track_style}>{"".join(bars)}</div>'
             f'<span class="hybrid-board-status {summary["status"]}">{summary["label"]}</span></summary>'
             f'<div class="hybrid-board-detail"><div class="hybrid-board-activity">{activity}</div>{band}</div></details>'
         )
-    axis = "".join(f'<span>Day {day}</span>' for day in range(1, 8))
-    return '<div class="hybrid-legend"><strong>Order</strong> roadmap order <strong>Bars</strong> chronological by mapped issue activity and clickable <strong>Status</strong> done, working, coming up, or needs refinement</div><div class="hybrid-board"><div class="hybrid-axis"><span>Milestone</span><div class="hybrid-day-axis">' + axis + '</div><span>Status</span></div>' + "".join(rows) + '</div>'
+    axis = "".join(
+        f'<span>Day {index} · {esc(activity_date[5:10] if activity_date else "No date")}</span>'
+        for index, activity_date in enumerate(timeline_dates, 1)
+    )
+    axis_style = f' style="grid-template-columns:repeat({column_count},minmax(90px,1fr));min-width:{column_count * 90}px"'
+    return '<div class="hybrid-legend"><strong>Order</strong> roadmap order <strong>Bars</strong> share one activity-date column across milestones and stack when needed <strong>Status</strong> done, working, coming up, or needs refinement</div><div class="hybrid-board"><div class="hybrid-axis"><span>Milestone</span><div class="hybrid-day-axis"' + axis_style + '>' + axis + '</div><span>Status</span></div>' + "".join(rows) + '</div>'
 
 
 def _delivery_issue_parent(issue: dict) -> int | None:
