@@ -73,7 +73,9 @@ from each GitHub milestone description. It does not infer membership from
 issue labels or parent links. The backlog tree is available through the
 **Backlog** link at `/roadmap?mockup=backlog`. The explicit Bands URL
 `/roadmap?mockup=delivery-a` still works; Timeline (`delivery-b`) and Gantt
-(`delivery-c`) remain available through the view switcher.
+(`delivery-c`) remain available through the view switcher. Hybrid
+(`delivery-d`) combines milestone order, target dates, status, slice completion,
+and expandable Bands detail.
 
 ```markdown
 Outcome: The measurable milestone delivery outcome.
