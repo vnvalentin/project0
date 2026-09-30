@@ -76,11 +76,13 @@ func _run() -> void:
 	_report["world_entered"] = true
 	_report["status"] = "passed"
 	Input.action_press("move_forward")
+	Input.action_press("move_left" if _client_id == "a" else "move_right")
 	while not FileAccess.file_exists(_stop) and Time.get_ticks_msec() < _deadline:
 		await physics_frame
 		_write_report()
 	Input.action_release("move_back")
 	Input.action_release("move_forward")
+	Input.action_release("move_left" if _client_id == "a" else "move_right")
 	await _finish("coordinator stop" if FileAccess.file_exists(_stop) else "deadline")
 
 
