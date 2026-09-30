@@ -202,7 +202,6 @@ def check_shared_client(report, evidence):
             raise ValueError("shared_client_evidence_failed")
         if client.get("client_build") != report["client_build"] or client.get("server_build") != report["server_build"]:
             raise ValueError("shared_build_identity")
-        validate_frontier_observation(client.get("frontier"))
         remotes = client.get("remote_players", {})
         if set(remotes) != {"a" if client_id == "b" else "b"}:
             raise ValueError("shared_remote_presence")
@@ -230,6 +229,10 @@ def check_shared_client(report, evidence):
         raise ValueError("shared_disconnect_presence")
     if set(phases["reconnect"].get("remote_players", {})) != {"b"}:
         raise ValueError("shared_reconnect_presence")
+    initial_frontier = phases.get("initial", {}).get("a", {}).get("frontier")
+    disconnect_frontier = phases.get("disconnect", {}).get("frontier")
+    validate_frontier_observation(initial_frontier)
+    validate_frontier_observation(disconnect_frontier)
     return True
 
 
