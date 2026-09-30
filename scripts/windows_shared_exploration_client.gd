@@ -1,6 +1,8 @@
 extends SceneTree
 
 const SCENARIO: String = "shared-exploration-v1"
+const FRONTIER_SECTOR: String = "sector-1-0"
+const FRONTIER_EDGE_X: float = 440.0
 var _network: Node
 var _gameplay: Node3D
 var _client_id: String
@@ -11,6 +13,12 @@ var _deadline: int
 var _authenticated := false
 var _world_entered := false
 var _remote_identities: Dictionary = {}
+var _authoritative_position: Vector3 = Vector3.ZERO
+var _frontier_started_at_msec: int = -1
+var _frontier_geometry_ready_at_msec: int = -1
+var _frontier_crossed_at_msec: int = -1
+var _frontier_geometry_ready := false
+var _frontier_crossed := false
 var _report: Dictionary = {"status": "failed", "scenario_id": SCENARIO,
 	"authenticated": false, "world_entered": false, "remote_players": {}}
 
@@ -46,6 +54,8 @@ func _run() -> void:
 		return
 	_network.session_established_received.connect(func(outcome: String) -> void: _authenticated = outcome == "ok")
 	_network.world_entry_received.connect(func(outcome: String, _character: Dictionary) -> void: _world_entered = outcome == "ok")
+	_network.authoritative_position_received.connect(_on_authoritative_position)
+	_network.geometry_assembly_completed.connect(_on_geometry_assembly_completed)
 	_network.remote_player_identity_received.connect(_on_remote_identity)
 	_gameplay = load("res://client/gameplay.tscn").instantiate() as Node3D
 	root.add_child(_gameplay)
@@ -65,7 +75,7 @@ func _run() -> void:
 		return
 	_report["world_entered"] = true
 	_report["status"] = "passed"
-	Input.action_press("move_back" if _client_id == "a" else "move_forward")
+	Input.action_press("move_right")
 	while not FileAccess.file_exists(_stop) and Time.get_ticks_msec() < _deadline:
 		await physics_frame
 		_write_report()
@@ -84,6 +94,23 @@ func _on_remote_identity(peer_id: int, display_name: String, _cosmetic: Dictiona
 	_remote_identities[peer_id] = "a" if display_name.ends_with(" A") else "b"
 
 
+func _on_authoritative_position(position: Vector3, _last_processed_sequence: int) -> void:
+	_authoritative_position = position
+	if position.x >= FRONTIER_EDGE_X - 1.0 and _frontier_started_at_msec < 0:
+		_frontier_started_at_msec = Time.get_ticks_msec()
+	if position.x > FRONTIER_EDGE_X and not _frontier_crossed:
+		_frontier_crossed = true
+		_frontier_crossed_at_msec = Time.get_ticks_msec()
+
+
+func _on_geometry_assembly_completed(sector_id: String, result: Dictionary) -> void:
+	if sector_id != FRONTIER_SECTOR or result.get("outcome", "") != "valid":
+		return
+	_frontier_geometry_ready = true
+	if _frontier_geometry_ready_at_msec < 0:
+		_frontier_geometry_ready_at_msec = Time.get_ticks_msec()
+
+
 func _write_report() -> void:
 	var remotes: Dictionary = {}
 	var container: Node = _gameplay.get_node_or_null("RemotePlayers")
@@ -95,6 +122,17 @@ func _write_report() -> void:
 				remotes[_remote_identities[peer_id]] = {"position": position,
 					"character_id": "shared-%s-%s" % [_report.get("run_id", ""), _remote_identities[peer_id]]}
 	_report["remote_players"] = remotes
+	_report["authoritative_position"] = [_authoritative_position.x, _authoritative_position.y, _authoritative_position.z]
+	_report["frontier"] = {
+		"sector_id": FRONTIER_SECTOR,
+		"geometry_ready": _frontier_geometry_ready,
+		"crossed": _frontier_crossed,
+		"started_at_msec": _frontier_started_at_msec,
+		"geometry_ready_at_msec": _frontier_geometry_ready_at_msec,
+		"crossed_at_msec": _frontier_crossed_at_msec,
+		"ready_latency_ms": _frontier_geometry_ready_at_msec - _frontier_started_at_msec if _frontier_geometry_ready_at_msec >= 0 and _frontier_started_at_msec >= 0 else -1,
+		"cross_latency_ms": _frontier_crossed_at_msec - _frontier_started_at_msec if _frontier_crossed_at_msec >= 0 and _frontier_started_at_msec >= 0 else -1,
+	}
 	_report["own_position"] = _own_position()
 	_report["observed_at"] = Time.get_unix_time_from_system()
 	var file := FileAccess.open(_output + ".pending", FileAccess.WRITE)
@@ -111,8 +149,7 @@ func _own_position() -> Array:
 
 
 func _finish(failure: String) -> void:
-	Input.action_release("move_back")
-	Input.action_release("move_forward")
+	Input.action_release("move_right")
 	if failure == "coordinator stop":
 		_report["status"] = "passed"
 	else:

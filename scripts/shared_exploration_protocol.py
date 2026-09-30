@@ -58,6 +58,24 @@ def validate_authoritative_movement(baseline, observed, minimum_distance=0.5):
     return True
 
 
+def validate_frontier_observation(frontier, sector_id="sector-1-0"):
+    _require(isinstance(frontier, dict), "frontier_missing")
+    _require(frontier.get("sector_id") == sector_id, "frontier_sector")
+    _require(frontier.get("geometry_ready") is True and frontier.get("crossed") is True,
+             "frontier_not_ready")
+    started = frontier.get("started_at_msec")
+    geometry_ready = frontier.get("geometry_ready_at_msec")
+    crossed = frontier.get("crossed_at_msec")
+    _require(type(started) is int and type(geometry_ready) is int and type(crossed) is int,
+             "frontier_timing_shape")
+    _require(started >= 0 and started <= geometry_ready <= crossed, "frontier_timing_order")
+    _require(frontier.get("ready_latency_ms") == geometry_ready - started,
+             "frontier_ready_timing")
+    _require(frontier.get("cross_latency_ms") == crossed - started,
+             "frontier_cross_timing")
+    return True
+
+
 def validate_server_observation(server, correlation_id, characters):
     _require(server.get("scenario_id") == SCENARIO and
              server.get("correlation_id") == correlation_id, "server_identity")
