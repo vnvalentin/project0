@@ -58,7 +58,7 @@ def validate_authoritative_movement(baseline, observed, minimum_distance=0.5):
     return True
 
 
-def validate_frontier_observation(frontier, sector_id="sector-0-1"):
+def validate_frontier_observation(frontier, sector_id="sector-0--1"):
     _require(isinstance(frontier, dict), "frontier_missing")
     _require(frontier.get("sector_id") == sector_id, "frontier_sector")
     _require(frontier.get("geometry_ready") is True and frontier.get("crossed") is True,
