@@ -288,6 +288,8 @@ def test_hybrid_view_combines_schedule_status_and_slice_details(monkeypatch):
     assert "2026-10-01" in page
     assert "Slices 1/1 done" in page
     assert 'data-slice-id="M0.1"' in page
+    assert 'href="#hybrid-slice-1-M0-1"' in page
+    assert 'id="hybrid-slice-1-M0-1" class="milestone-slice"' in page
 
 
 def test_bands_reads_description_slice_groups_not_issue_labels(monkeypatch):

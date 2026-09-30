@@ -1186,6 +1186,11 @@ def _delivery_mockup_issue(issue: dict) -> str:
     return f'<a href="{esc(issue.get("url", ""))}">#{issue.get("number", "")} {esc(_tbp_story_map_title(issue))}</a>'
 
 
+def _slice_anchor_id(milestone_number: int, slice_id: str) -> str:
+    safe_id = re.sub(r"[^A-Za-z0-9_-]+", "-", slice_id).strip("-") or "slice"
+    return f"hybrid-slice-{milestone_number}-{safe_id}"
+
+
 def _delivery_hybrid_summary(record: dict, issue_feed: dict) -> dict:
     description = record.get("description") or ""
     plan = _milestone_slice_plan(description)
@@ -1245,11 +1250,13 @@ def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
         for slice_index, group in enumerate(plan["slices"]):
             start = (slice_index * 2) % 7 + 1
             span = min(2, 8 - start)
-            detail_url = "/roadmap?" + urlencode({"milestone": record["number"], "slice": group["id"]})
+            anchor = _slice_anchor_id(record["number"], group["id"])
             bar_class = "refine" if summary["status"] == "refine" else "done" if summary["status"] == "done" else ""
             bars.append(
-                f'<a class="hybrid-slice-bar {bar_class}" href="{esc(detail_url)}" '
+                f'<a class="hybrid-slice-bar {bar_class}" '
                 f'title="Slice {esc(group["id"])}: {esc(group["title"])}" '
+                f'onclick="this.closest(\'details.hybrid-board-row\').open=true;document.getElementById(\'{anchor}\').open=true" '
+                f'href="#{anchor}" '
                 f'style="grid-column:{start} / span {span}">' 
                 f'{esc(group["id"])} · {esc(group["title"])}</a>'
             )
@@ -1502,7 +1509,7 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
         warnings = "".join(f'<p class="milestone-mapping-warning">{esc(warning)}</p>' for warning in group["warnings"])
         activity = _delivery_activity_html([member for member in members if member.get("milestone_number") == record["number"]])
         groups_html.append(
-            f'<details class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}" data-reason="{esc(reason)}">'
+            f'<details id="{esc(_slice_anchor_id(record["number"], group["id"]))}" class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}" data-reason="{esc(reason)}">'
             f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}{activity}</summary>'
             f'{warnings}{_milestone_member_list(group["members"], by_number)}'
             f'<a class="slice-description-link" href="{esc(detail_url)}" '
