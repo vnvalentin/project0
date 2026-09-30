@@ -230,6 +230,9 @@ def test_default_roadmap_is_bands_with_explicit_backlog_link(monkeypatch, select
     })
     page = render_roadmap() if selection is None else render_roadmap(selection)
     assert page == render_roadmap("delivery-a")
+    assert "<h2>Milestone delivery</h2>" in page
+    assert 'href="/roadmap">Bands</a>' in page
+    assert "Delivery plan mockup" not in page
     assert 'class="milestone-band"' in page
     assert 'href="/roadmap?mockup=backlog">Backlog</a>' in page
     assert "Full backlog" not in page
@@ -240,7 +243,7 @@ def test_default_bands_retains_source_warning(monkeypatch):
     assert "GitHub issues unavailable: network down" in render_roadmap()
 
 
-@pytest.mark.parametrize("selection", ["", "delivery-a", "delivery-b", "delivery-c"])
+@pytest.mark.parametrize("selection", ["", "delivery-a", "delivery-b", "delivery-c", "delivery-d"])
 def test_numbered_milestones_sort_numerically_and_keep_original_links(monkeypatch, selection):
     milestones = [
         {"number": number, "title": f"Milestone {order}: Outcome", "description": ""}
@@ -261,6 +264,32 @@ def test_numbered_milestones_sort_numerically_and_keep_original_links(monkeypatc
         assert 'data-slice-id="M0.1"' in page
         assert 'href="/roadmap?milestone=14&amp;slice=M0.1"' in page
         assert "Milestone 14:" not in page
+
+
+def test_hybrid_view_combines_schedule_status_and_slice_details(monkeypatch):
+    description = "## Slice Mapping\n" + _mapped_slice_definition("M0.1")
+    issue = {**_roadmap_issue(7, "Closed work", []), "milestone_number": 1, "state": "closed"}
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True,
+        "issues": [issue],
+        "milestones": [{
+            "number": 1,
+            "title": "Milestone 1: Accepted",
+            "state": "closed",
+            "due_on": "2026-10-01T00:00:00Z",
+            "description": description,
+        }],
+    })
+
+    page = render_roadmap("delivery-d")
+
+    assert "Hybrid" in page
+    assert "Done" in page
+    assert "2026-10-01" in page
+    assert "Slices 1/1 done" in page
+    assert 'data-slice-id="M0.1"' in page
+    assert 'href="#hybrid-slice-1-M0-1"' in page
+    assert 'id="hybrid-slice-1-M0-1" class="milestone-slice"' in page
 
 
 def test_bands_reads_description_slice_groups_not_issue_labels(monkeypatch):
@@ -444,6 +473,26 @@ def test_bands_group_status_requires_explicit_readiness_and_outcome_evidence(mon
     assert f'Slice delivery: {1 if expected == "done" else 0}/1 complete' in page
 
 
+def test_closed_milestone_accepts_closed_groups_without_duplicate_outcome_evidence(monkeypatch):
+    member = {**_roadmap_issue(7, "Accepted entry", []), "milestone_number": 1, "state": "closed"}
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True,
+        "issues": [member],
+        "milestones": [{
+            "number": 1,
+            "title": "Milestone 1: Accepted",
+            "state": "closed",
+            "description": "## Slice Mapping\n" + _mapped_slice_definition(),
+        }],
+    })
+
+    page = render_roadmap("delivery-a")
+
+    assert 'data-slice-id="A1" data-state="done"' in page
+    assert "All members closed; milestone is closed" in page
+    assert "Slice delivery: 1/1 complete" in page
+
+
 def test_bands_reports_duplicate_missing_and_foreign_members(monkeypatch):
     description = "## Slice Mapping\n" + _mapped_slice_definition(members="- #7\n- #7\n- #404\n- #9") + _mapped_slice_definition("A2")
     issues = [
@@ -459,6 +508,34 @@ def test_bands_reports_duplicate_missing_and_foreign_members(monkeypatch):
     assert "Slice delivery: 0/2 complete" in page
     assert page.count("Issues: 0/1 closed") == 3
     assert "Issues: 0/4 closed" not in page
+
+
+def test_bands_accepts_slice_annotations_between_members_and_completion(monkeypatch):
+    description = """## Slice Mapping
+### Slice M2.2: Make a Lasting Change
+Outcome: A valid player interaction unlocks the selected gate.
+Included issues:
+- #7
+Capability owner: #8.
+Complete when: The committed change is durable.
+Dependency: M2.1.
+"""
+    member = {**_roadmap_issue(7, "Closed work", []), "milestone_number": 2, "state": "closed"}
+    monkeypatch.setattr("app.github_issues", lambda: {
+        "available": True,
+        "issues": [member],
+        "milestones": [{
+            "number": 2,
+            "title": "Milestone 2: Durable return",
+            "state": "closed",
+            "description": description,
+        }],
+    })
+
+    page = render_roadmap("delivery-a")
+
+    assert 'data-slice-id="M2.2" data-state="done"' in page
+    assert "Invalid member entry: Capability owner: #8." not in page
 
 
 def test_bands_shows_member_activity_without_relaxing_acceptance(monkeypatch):

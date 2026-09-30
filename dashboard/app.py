@@ -91,6 +91,7 @@ def github_issues() -> dict:
                     "assignees": [str(a.get("login", "")) for a in item.get("assignees", []) if a.get("login")],
                     "body": str(item.get("body", "")),
                     "updated_at": str(item.get("updated_at", "")),
+                    "closed_at": str(item.get("closed_at") or ""),
                     "milestone_number": milestone.get("number"),
                     "milestone_title": str(milestone.get("title", "")),
                 })
@@ -1117,6 +1118,8 @@ DELIVERY_MOCKUP_CSS = """
 .milestone-bands{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}.milestone-band{background:var(--mock-card);border:1px solid var(--mock-line);border-top:4px solid var(--cyan);padding:0}.milestone-band:nth-child(3n+2){border-top-color:var(--amber)}.milestone-band:nth-child(3n){border-top-color:#8ce3c2}.milestone-band>summary{cursor:pointer;list-style:none;padding:14px}.milestone-band>summary::-webkit-details-marker{display:none}.milestone-band>summary::before{content:'\25B6';display:inline-block;color:var(--muted);font-size:9px;margin-right:8px;transition:transform .15s}.milestone-band[open]>summary::before{transform:rotate(90deg)}.milestone-band h3{display:inline;margin:0 0 5px;font-size:15px}.milestone-band p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.4}.milestone-feature-summary{margin-top:12px;color:var(--muted);font-size:11px}.milestone-counts{display:flex;gap:5px;margin:7px 0 0;font-size:10px;font-weight:800}.milestone-counts span{padding:4px 6px;border-radius:8px}.milestone-counts .new{background:#4a2e18;color:#ffc079}.milestone-counts .ready{background:#30351e;color:#e4dc79}.milestone-counts .doing{background:#123d4a;color:#72e3f2}.milestone-counts .done{background:#173c2d;color:#8ce3c2}.milestone-issues{border-top:1px solid var(--mock-line);padding:12px 14px;display:flex;flex-direction:column;gap:5px}.milestone-issue-node{border-left:1px solid var(--mock-line);padding-left:10px}.milestone-issue-node>summary{cursor:pointer;list-style:none;color:var(--text);font-size:11px;padding:5px 0}.milestone-issue-node>summary::-webkit-details-marker{display:none}.milestone-issue-node>summary::before{content:'\25B6';color:var(--muted);font-size:8px;margin-right:6px}.milestone-issue-node[open]>summary::before{content:'\25BC'}.milestone-issue-node a{color:var(--text);text-decoration:none}.milestone-issue-node a:hover{color:var(--cyan)}.milestone-issue-children{margin-left:12px}.milestone-issue-parent{display:block;color:var(--muted);font-size:10px;padding:0 0 5px 14px}
 .delivery-timeline{display:flex;flex-direction:column;gap:10px}.timeline-row{display:grid;grid-template-columns:190px 1fr;gap:14px;background:var(--mock-card);border:1px solid var(--mock-line);padding:14px}.timeline-label h3{margin:0;font-size:15px}.timeline-label p{color:var(--muted);font-size:11px;margin:5px 0 0}.timeline-issues{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.timeline-issues section{border-left:2px solid var(--mock-line);padding-left:9px}.timeline-issues h4{margin:0 0 6px;font-size:10px;text-transform:uppercase;color:var(--muted)}.timeline-issues a{display:block;color:var(--text);font-size:11px;text-decoration:none;margin:5px 0}.timeline-issues a:hover{color:var(--cyan)}
 .delivery-gantt{overflow-x:auto}.gantt-axis,.gantt-row{display:grid;grid-template-columns:250px 150px minmax(720px,1fr);gap:12px;align-items:center}.gantt-axis{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:0 12px 8px}.gantt-axis-track,.gantt-track{display:grid;grid-template-columns:repeat(12,minmax(60px,1fr));gap:0;min-width:720px}.gantt-axis-track span{padding:0 5px;border-left:1px solid var(--mock-line)}.gantt-row{background:var(--mock-card);border:1px solid var(--mock-line);padding:12px;margin-bottom:7px}.gantt-title{color:var(--text);font-size:12px;font-weight:800}.gantt-date{width:140px;background:#101820;border:1px solid var(--mock-line);color:var(--text);padding:6px;font:inherit;font-size:11px}.gantt-track{height:28px;align-items:center;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(8.333% - 1px),var(--mock-line) calc(8.333% - 1px),var(--mock-line) 8.333%)}.gantt-bar{height:18px;border-radius:9px;background:var(--cyan);box-shadow:0 0 0 1px #72e3f2;position:relative}.gantt-bar:nth-child(3n){background:var(--amber);box-shadow:0 0 0 1px #ffc079}.gantt-bar span{position:absolute;left:8px;top:1px;color:#071117;font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 16px)}.mockup-empty{color:var(--muted);font-style:italic}
+.hybrid-list{display:flex;flex-direction:column;gap:8px}.hybrid-milestone{background:var(--mock-card);border:1px solid var(--mock-line);border-left:4px solid var(--cyan)}.hybrid-milestone[data-status="done"]{border-left-color:#8ce3c2}.hybrid-milestone[data-status="working"]{border-left-color:var(--cyan)}.hybrid-milestone[data-status="next"]{border-left-color:var(--amber)}.hybrid-milestone[data-status="refine"]{border-left-color:#ff8a65}.hybrid-milestone>summary{cursor:pointer;list-style:none;padding:12px}.hybrid-milestone>summary::-webkit-details-marker{display:none}.hybrid-row{display:grid;grid-template-columns:34px minmax(180px,1.4fr) minmax(100px,.7fr) minmax(90px,.6fr) minmax(140px,1fr);gap:10px;align-items:center}.hybrid-order{color:var(--muted);font-size:12px;font-weight:800}.hybrid-title{font-size:13px;font-weight:800}.hybrid-outcome,.hybrid-date,.hybrid-activity{color:var(--muted);font-size:11px}.hybrid-outcome{margin-top:4px;line-height:1.35}.hybrid-status{display:inline-block;width:max-content;padding:4px 7px;border-radius:4px;font-size:10px;font-weight:800;text-transform:uppercase}.hybrid-status.done{background:#173c2d;color:#8ce3c2}.hybrid-status.working{background:#123d4a;color:#72e3f2}.hybrid-status.next{background:#4a2e18;color:#ffc079}.hybrid-status.refine{background:#4a2118;color:#ffb199}.hybrid-detail{border-top:1px solid var(--mock-line);padding:12px 14px}.hybrid-detail .milestone-band{background:transparent;border:0;border-top:0}.hybrid-detail .milestone-band>summary{display:none}.hybrid-detail .milestone-issues{border-top:0;padding:0}.hybrid-legend{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:11px;margin:0 0 16px}.hybrid-legend strong{color:var(--text)}
+.hybrid-board{overflow-x:auto}.hybrid-axis,.hybrid-board-row{display:grid;grid-template-columns:220px minmax(700px,1fr) 120px;gap:10px;align-items:center;min-width:1060px}.hybrid-axis{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:0 10px 8px}.hybrid-day-axis,.hybrid-track{display:grid;grid-template-columns:repeat(7,minmax(90px,1fr));min-width:700px}.hybrid-day-axis span{padding:0 8px;border-left:1px solid var(--mock-line)}.hybrid-board-row{background:var(--mock-card);border:1px solid var(--mock-line);padding:10px;margin-bottom:7px}.hybrid-board-row[data-status="done"]{border-left:4px solid #8ce3c2}.hybrid-board-row[data-status="working"]{border-left:4px solid var(--cyan)}.hybrid-board-row[data-status="next"]{border-left:4px solid var(--amber)}.hybrid-board-row[data-status="refine"]{border-left:4px solid #ff8a65}.hybrid-board-summary{display:contents}.hybrid-board-summary::-webkit-details-marker{display:none}.hybrid-board-label{min-width:0}.hybrid-board-title{font-size:13px;font-weight:800}.hybrid-board-date,.hybrid-board-activity{color:var(--muted);font-size:10px;margin-top:4px}.hybrid-track{position:relative;min-height:42px;align-items:center;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(14.285% - 1px),var(--mock-line) calc(14.285% - 1px),var(--mock-line) 14.285%)}.hybrid-slice-bar{z-index:1;display:block;align-self:center;margin:0 5px;padding:7px 9px;background:#123d4a;border:1px solid #72e3f2;color:#d9fbff;text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hybrid-slice-bar:hover{background:#1a5b69;color:#fff}.hybrid-slice-bar.done{background:#173c2d;border-color:#8ce3c2;color:#dfffee}.hybrid-slice-bar.refine{background:#4a2118;border-color:#ff8a65;color:#ffe1d8}.hybrid-board-status{font-size:10px;font-weight:800;text-transform:uppercase}.hybrid-board-status.done{color:#8ce3c2}.hybrid-board-status.working{color:#72e3f2}.hybrid-board-status.next{color:#ffc079}.hybrid-board-status.refine{color:#ffb199}.hybrid-board-detail{grid-column:1 / -1;border-top:1px solid var(--mock-line);padding-top:10px;margin-top:2px}.hybrid-board-detail .milestone-band{background:transparent;border:0;border-top:0}.hybrid-board-detail .milestone-band>summary{display:none}.hybrid-board-detail .milestone-issues{border-top:0;padding:0}
 @media(max-width:760px){.timeline-row{grid-template-columns:1fr}.timeline-issues{grid-template-columns:1fr}}
 """
 
@@ -1184,6 +1187,123 @@ def _delivery_mockup_issue(issue: dict) -> str:
     return f'<a href="{esc(issue.get("url", ""))}">#{issue.get("number", "")} {esc(_tbp_story_map_title(issue))}</a>'
 
 
+def _slice_anchor_id(milestone_number: int, slice_id: str) -> str:
+    safe_id = re.sub(r"[^A-Za-z0-9_-]+", "-", slice_id).strip("-") or "slice"
+    return f"hybrid-slice-{milestone_number}-{safe_id}"
+
+
+def _delivery_hybrid_summary(record: dict, issue_feed: dict) -> dict:
+    description = record.get("description") or ""
+    plan = _milestone_slice_plan(description)
+    by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
+    membership: set[int] = set()
+    refinement = False
+    counts = {"done": 0, "doing": 0, "ready": 0, "new": 0}
+    for group in plan["slices"]:
+        if sum(other["id"].lower() == group["id"].lower() for other in plan["slices"]) > 1:
+            refinement = True
+        for required in ("title", "outcome", "complete when"):
+            if not group[required] or re.search(r"\{\{.*?\}\}|\b(?:TBD|TODO)\b", group[required], re.I):
+                refinement = True
+        if not group["members"]:
+            refinement = True
+        members = []
+        for number in dict.fromkeys(group["members"]):
+            membership.add(number)
+            member = by_number.get(number)
+            if member is None or member.get("milestone_number") != record["number"]:
+                refinement = True
+            elif member is not None:
+                members.append(member)
+        state, _reason = _milestone_group_state(
+            group, members, str(record.get("state", "")).lower() == "closed"
+        )
+        counts[state] += 1
+        if state == "new":
+            refinement = True
+    shared_text = "\n".join(plan["sections"].get("shared context", []))
+    shared = {int(number) for number in re.findall(r"#([1-9][0-9]*)\b", shared_text)}
+    if any(issue["number"] not in membership and issue["number"] not in shared for issue in record["issues"]):
+        refinement = True
+    if "required scope awaiting slice definition" in plan["sections"]:
+        refinement = True
+    if refinement:
+        status, label = "refine", "Needs refinement"
+    elif str(record.get("state", "")).lower() == "closed":
+        status, label = "done", "Done"
+    elif _delivery_activity_html(record["issues"]).find("Active 0") == -1:
+        status, label = "working", "Working"
+    else:
+        status, label = "next", "Coming up"
+    return {"status": status, "label": label, "counts": counts, "total": len(plan["slices"])}
+
+
+def _delivery_hybrid_slice_schedule(record: dict, plan: dict, issue_feed: dict) -> list[tuple[dict, str]]:
+    by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
+    scheduled = []
+    unscheduled = []
+    for group in plan["slices"]:
+        members = [by_number[number] for number in dict.fromkeys(group["members"]) if number in by_number]
+        closed_dates = [member.get("closed_at", "")[:10] for member in members if member.get("closed_at")]
+        updated_dates = [member.get("updated_at", "")[:10] for member in members if member.get("updated_at")]
+        activity_date = max(closed_dates) if members and all(member.get("state", "").lower() == "closed" for member in members) and closed_dates else max(updated_dates, default="")
+        if activity_date:
+            scheduled.append((group, activity_date))
+        else:
+            unscheduled.append((group, ""))
+    scheduled.sort(key=lambda item: (item[1], item[0]["id"].lower()))
+    return scheduled + unscheduled
+
+
+def _delivery_hybrid_view(issue_feed: dict, records: list[dict]) -> str:
+    plans = [_milestone_slice_plan(record.get("description") or "") for record in records]
+    schedules = [
+        _delivery_hybrid_slice_schedule(record, plan, issue_feed)
+        for record, plan in zip(records, plans)
+    ]
+    timeline_dates = sorted({activity_date for schedule in schedules for _group, activity_date in schedule if activity_date})
+    if not timeline_dates:
+        timeline_dates = [""]
+    date_columns = {activity_date: index + 1 for index, activity_date in enumerate(timeline_dates)}
+    column_count = len(timeline_dates)
+    track_style = f' style="grid-template-columns:repeat({column_count},minmax(90px,1fr));min-width:{column_count * 90}px"'
+    rows = []
+    for index, (record, schedule) in enumerate(zip(records, schedules), 1):
+        summary = _delivery_hybrid_summary(record, issue_feed)
+        counts = summary["counts"]
+        date = str(record.get("due_on", ""))[:10] or "No target date"
+        activity = _delivery_activity_html(record["issues"])
+        band = _delivery_mapped_band(record, issue_feed)
+        bars = []
+        for group, activity_date in schedule:
+            start = date_columns.get(activity_date, 1)
+            anchor = _slice_anchor_id(record["number"], group["id"])
+            bar_class = "refine" if summary["status"] == "refine" else "done" if summary["status"] == "done" else ""
+            bar_date = activity_date[5:10] if activity_date else "No date"
+            bars.append(
+                f'<a class="hybrid-slice-bar {bar_class}" '
+                f'title="Slice {esc(group["id"])}: {esc(group["title"])}" '
+                f'onclick="this.closest(\'details.hybrid-board-row\').open=true;document.getElementById(\'{anchor}\').open=true" '
+                f'href="#{anchor}" '
+                f'style="grid-column:{start} / span 1">'
+                f'{esc(group["id"])} · {esc(bar_date)}</a>'
+            )
+        rows.append(
+            f'<details class="hybrid-board-row" data-status="{summary["status"]}">'
+            f'<summary class="hybrid-board-summary"><div class="hybrid-board-label"><div class="hybrid-board-title">{index:02d} · {esc(record["title"])}</div>'
+            f'<div class="hybrid-board-date">Target: {esc(date)} · Slices {counts["done"]}/{summary["total"]} done</div></div>'
+            f'<div class="hybrid-track"{track_style}>{"".join(bars)}</div>'
+            f'<span class="hybrid-board-status {summary["status"]}">{summary["label"]}</span></summary>'
+            f'<div class="hybrid-board-detail"><div class="hybrid-board-activity">{activity}</div>{band}</div></details>'
+        )
+    axis = "".join(
+        f'<span>Day {index} · {esc(activity_date[5:10] if activity_date else "No date")}</span>'
+        for index, activity_date in enumerate(timeline_dates, 1)
+    )
+    axis_style = f' style="grid-template-columns:repeat({column_count},minmax(90px,1fr));min-width:{column_count * 90}px"'
+    return '<div class="hybrid-legend"><strong>Order</strong> roadmap order <strong>Bars</strong> share one activity-date column across milestones and stack when needed <strong>Status</strong> done, working, coming up, or needs refinement</div><div class="hybrid-board"><div class="hybrid-axis"><span>Milestone</span><div class="hybrid-day-axis"' + axis_style + '>' + axis + '</div><span>Status</span></div>' + "".join(rows) + '</div>'
+
+
 def _delivery_issue_parent(issue: dict) -> int | None:
     return _parent_link_any(issue, ["Parent Hoshin", "Parent vision", "Parent Theme", "Parent Feature", "Parent Epic"])
 
@@ -1242,11 +1362,18 @@ def _milestone_slice_plan(description: str) -> dict:
                 if match:
                     current = {"id": match[1].strip(), "title": match[2].strip(),
                                "outcome": "", "complete when": "", "dependency": "",
-                               "outcome evidence": "", "members": [], "warnings": []}
+                               "outcome evidence": "", "capability owner": "",
+                               "supporting recovery coverage": "", "owning epic": "",
+                               "members": [], "warnings": []}
                     plan["slices"].append(current)
             continue
         if current is not None:
-            match = re.match(r"^(Outcome|Included issues|Complete when|Dependency|Outcome evidence):\s*(.*)$", line, re.I)
+            match = re.match(
+                r"^(Outcome|Included issues|Complete when|Dependency|Outcome evidence|"
+                r"Capability owner|Supporting recovery coverage|Owning Epic):\s*(.*)$",
+                line,
+                re.I,
+            )
             if match:
                 field = match[1].lower()
                 if field != "included issues":
@@ -1268,10 +1395,12 @@ def _milestone_slice_plan(description: str) -> dict:
     return plan
 
 
-def _milestone_group_state(group: dict, members: list[dict]) -> tuple[str, str]:
+def _milestone_group_state(group: dict, members: list[dict], milestone_closed: bool = False) -> tuple[str, str]:
     if group["warnings"] or not members:
         return "new", "Definition or membership needs attention"
     if all(member.get("state", "").lower() == "closed" for member in members):
+        if milestone_closed:
+            return "done", "All members closed; milestone is closed"
         if re.search(r"https?://\S+", group["outcome evidence"]):
             return "done", "All members closed; outcome evidence linked"
         return "doing", "Awaiting outcome evidence"
@@ -1404,13 +1533,15 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
                 members.append(member)
                 if member.get("milestone_number") != record["number"]:
                     group["warnings"].append(f'Issue #{number} is not assigned to this milestone.')
-        state, reason = _milestone_group_state(group, members)
+        state, reason = _milestone_group_state(
+            group, members, str(record.get("state", "")).lower() == "closed"
+        )
         counts[state] += 1
         detail_url = "/roadmap?" + urlencode({"milestone": record["number"], "slice": group["id"]})
         warnings = "".join(f'<p class="milestone-mapping-warning">{esc(warning)}</p>' for warning in group["warnings"])
         activity = _delivery_activity_html([member for member in members if member.get("milestone_number") == record["number"]])
         groups_html.append(
-            f'<details class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}" data-reason="{esc(reason)}">'
+            f'<details id="{esc(_slice_anchor_id(record["number"], group["id"]))}" class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}" data-reason="{esc(reason)}">'
             f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}{activity}</summary>'
             f'{warnings}{_milestone_member_list(group["members"], by_number)}'
             f'<a class="slice-description-link" href="{esc(detail_url)}" '
@@ -1474,11 +1605,21 @@ def _delivery_mockup_view(issue_feed: dict, variant: str) -> str:
                 f'<div class="gantt-track"><div class="gantt-bar" style="grid-column:{start} / span 3"><span>{bar_label}</span></div></div></article>'
             )
         body = f'<div class="delivery-gantt"><div class="gantt-axis"><span>Milestone</span><span>Expected delivery</span><div class="gantt-axis-track">{axis}</div></div>{"".join(rows)}</div><p class="mockup-note">Expected dates are editable in this prototype and remain local to the browser.</p>'
+    elif variant == "delivery-d":
+        body = _delivery_hybrid_view(issue_feed, records)
     else:
         bands = [_delivery_mapped_band(record, issue_feed) for record in records]
         body = f'<div class="milestone-bands">{"".join(bands)}</div>'
-    links = "".join(f'<a class="{"on" if key == variant else ""}" href="/roadmap?mockup={key}">{label}</a>' for key, label in (("delivery-a", "Bands"), ("delivery-b", "Timeline"), ("delivery-c", "Gantt")))
-    return f'<section class="sec delivery-mockup"><h2>Delivery plan mockup</h2><p class="mockup-note">Prototype using live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
+    links = "".join(
+        f'<a class="{"on" if key == variant else ""}" href="{href}">{label}</a>'
+        for key, label, href in (
+            ("delivery-a", "Bands", "/roadmap"),
+            ("delivery-b", "Timeline", "/roadmap?mockup=delivery-b"),
+            ("delivery-c", "Gantt", "/roadmap?mockup=delivery-c"),
+            ("delivery-d", "Hybrid", "/roadmap?mockup=delivery-d"),
+        )
+    )
+    return f'<section class="sec delivery-mockup"><h2>Milestone delivery</h2><p class="mockup-note">Live GitHub milestones and milestone-assigned issues. Read-only; no delivery records are changed.</p><div class="mockup-switcher">{links}</div>{body}</section>'
 
 
 def _delivery_slice_description(issue_feed: dict, milestone_number: str, slice_id: str) -> str:
@@ -1497,13 +1638,15 @@ def _delivery_slice_description(issue_feed: dict, milestone_number: str, slice_i
             content = '<h2>Slice description unavailable</h2><p>The Slice is missing or its identifier is not unique.</p>'
         else:
             group = groups[0]
+            by_number = {issue["number"]: issue for issue in issue_feed.get("issues", [])}
             fields = "".join(
                 f'<dt>{label}</dt><dd>{esc(group[name] or "Not specified")}</dd>'
                 for name, label in (("outcome", "Outcome"), ("complete when", "Completion description"), ("dependency", "Dependency"))
             )
             if group["outcome evidence"]:
                 fields += f'<dt>Outcome evidence</dt><dd>{esc(group["outcome evidence"])}</dd>'
-            content = f'<h2>Slice {esc(group["id"])}: {esc(group["title"])}</h2><dl>{fields}</dl>'
+            issues = f'<h3>Included issues</h3>{_milestone_member_list(group["members"], by_number)}'
+            content = f'<h2>Slice {esc(group["id"])}: {esc(group["title"])}</h2><dl>{fields}</dl><section class="slice-issues">{issues}</section>'
     return f'<section class="sec slice-description">{back_link}{content}</section>'
 
 
@@ -1511,7 +1654,7 @@ def render_roadmap(mockup_variant: str = "", milestone_number: str = "", slice_i
     """Default to milestone Bands, with the backlog tree explicitly selectable."""
     issue_feed = github_issues()
     mockup = "" if mockup_variant == "backlog" else (
-        mockup_variant if mockup_variant in {"delivery-a", "delivery-b", "delivery-c"} else "delivery-a"
+        mockup_variant if mockup_variant in {"delivery-a", "delivery-b", "delivery-c", "delivery-d"} else "delivery-a"
     )
     page_body = (
         _delivery_mockup_view(issue_feed, mockup)
