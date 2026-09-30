@@ -38,12 +38,12 @@ func test_ground_tiles_render_as_per_kind_merged_mesh_with_no_bodies() -> void:
 	assert_not_null(floor_ground, "floor tiles render as a single Ground_floor MeshInstance3D")
 	assert_not_null(corridor_ground, "corridor tiles render as a single Ground_corridor MeshInstance3D")
 	assert_not_null(floor_ground.mesh, "the merged ground has a mesh")
-	assert_eq(floor_ground.mesh.get_surface_count(), 1, "the merged ground is a single surface (one draw call)")
+	assert_eq(floor_ground.get_meta("surface_count"), 1, "the merged ground is a single surface (one draw call)")
 
 	# Ground is visual-only: the mesh node carries no collider children.
 	assert_eq(floor_ground.get_child_count(), 0, "ground mesh has no collider children")
 
-	var floor_aabb: AABB = floor_ground.mesh.get_aabb()
+	var floor_aabb: AABB = floor_ground.get_meta("aabb")
 	assert_almost_eq(floor_aabb.size.x, 1.0, 0.001, "the one floor tile spans one unit in x")
 	assert_almost_eq(floor_aabb.get_center().x, 0.0, 0.001, "floor tile is centered at its grid x")
 	assert_almost_eq(floor_aabb.get_center().z, 0.0, 0.001, "floor tile is centered at its grid y (mapped to world z)")
@@ -64,7 +64,7 @@ func test_wall_tiles_render_as_merged_colliders_taller_than_ground() -> void:
 
 	var wall_box: BoxMesh = mesh.mesh
 	var floor_ground: MeshInstance3D = parent.get_node("Ground_floor") as MeshInstance3D
-	var floor_aabb: AABB = floor_ground.mesh.get_aabb()
+	var floor_aabb: AABB = floor_ground.get_meta("aabb")
 	assert_gt(wall_box.size.y, floor_aabb.size.y, "the wall segment reads taller than the ground")
 
 	assert_almost_eq(shape.position.x, 1.0, 0.001, "the single wall tile's collider centers on its x")
@@ -123,7 +123,7 @@ func test_unsupported_tile_and_structure_kinds_are_skipped_without_crashing() ->
 	assert_eq(parent.get_child_count(), 7, "unsupported tile/structure entries are skipped, leaving the 7 valid containers/instances")
 	assert_null(parent.get_node_or_null("Ground_lava"), "an unsupported tile kind produces no ground node")
 	var floor_ground: MeshInstance3D = parent.get_node("Ground_floor") as MeshInstance3D
-	assert_almost_eq(floor_ground.mesh.get_aabb().size.x, 1.0, 0.001, "the unsupported lava tile is not merged into any ground mesh")
+	assert_almost_eq((floor_ground.get_meta("aabb") as AABB).size.x, 1.0, 0.001, "the unsupported lava tile is not merged into any ground mesh")
 
 
 func test_floor_only_sector_produces_zero_physics_bodies() -> void:
@@ -139,8 +139,8 @@ func test_floor_only_sector_produces_zero_physics_bodies() -> void:
 
 	var floor_ground: MeshInstance3D = parent.get_node_or_null("Ground_floor") as MeshInstance3D
 	assert_not_null(floor_ground, "floors render as a single MeshInstance3D")
-	assert_eq(floor_ground.mesh.get_surface_count(), 1, "all 5 floor tiles merge into one surface")
-	assert_almost_eq(floor_ground.mesh.get_aabb().size.x, 5.0, 0.001, "the merged floor mesh spans all 5 tiles (x=0..4 -> width 5)")
+	assert_eq(floor_ground.get_meta("surface_count"), 1, "all 5 floor tiles merge into one surface")
+	assert_almost_eq((floor_ground.get_meta("aabb") as AABB).size.x, 5.0, 0.001, "the merged floor mesh spans all 5 tiles (x=0..4 -> width 5)")
 
 	var bodies: int = 0
 	for child in parent.get_children():

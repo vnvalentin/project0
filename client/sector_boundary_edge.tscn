@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[sub_resource type="BoxMesh" id="BoxMesh_edge"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_edge"]
+shading_mode = 0
+
+[node name="SectorBoundaryEdge" type="MeshInstance3D"]
+mesh = SubResource("BoxMesh_edge")
+material_override = SubResource("StandardMaterial3D_edge")

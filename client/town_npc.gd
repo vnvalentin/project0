@@ -21,21 +21,20 @@ var _has_target: bool = false
 
 func _ready() -> void:
 	_target_position = position
-	if get_node_or_null("MeshInstance3D") == null:
-		_build_mesh()
+	if DisplayServer.get_name() == "headless":
+		return
+	_build_mesh()
 
 
 func _build_mesh() -> void:
 	var mesh_instance := MeshInstance3D.new()
 	mesh_instance.name = "MeshInstance3D"
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.4
-	capsule.height = 1.8
-	mesh_instance.mesh = capsule
+	var box := BoxMesh.new()
+	box.size = Vector3(0.8, 1.8, 0.8)
+	mesh_instance.mesh = box
 	var material := StandardMaterial3D.new()
-	# Distinct from players (green) and monsters (red): town NPCs are teal.
 	material.albedo_color = Color(0.15, 0.6, 0.6, 1.0)
-	mesh_instance.set_surface_override_material(0, material)
+	mesh_instance.material_override = material
 	add_child(mesh_instance)
 
 
