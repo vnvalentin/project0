@@ -140,8 +140,8 @@ func _observe_shared_admission() -> void:
 			var client_id: String = "a" if String(state.character_id).ends_with("-a") else "b"
 			peers[client_id] = {"peer_id": peer_id, "character_id": String(state.character_id),
 				"position": _vector3_to_array(state.position), "last_processed_sequence": state._last_processed_sequence}
-			if state.position.x > 440.0:
-				var sector_id: String = "sector-1-0"
+			if state.position.z > 440.0:
+				var sector_id: String = "sector-0-1"
 				var generation: Dictionary = _provisional_sector_generator.get_provisional_result(sector_id)
 				var canon: Dictionary = _canon_repository.get_canonical_sector(sector_id)
 				frontier[client_id] = {

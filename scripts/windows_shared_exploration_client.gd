@@ -1,8 +1,8 @@
 extends SceneTree
 
 const SCENARIO: String = "shared-exploration-v1"
-const FRONTIER_SECTOR: String = "sector-1-0"
-const FRONTIER_EDGE_X: float = 440.0
+const FRONTIER_SECTOR: String = "sector-0-1"
+const FRONTIER_EDGE_Z: float = 440.0
 var _network: Node
 var _gameplay: Node3D
 var _client_id: String
@@ -75,7 +75,7 @@ func _run() -> void:
 		return
 	_report["world_entered"] = true
 	_report["status"] = "passed"
-	Input.action_press("move_right")
+	Input.action_press("move_back")
 	while not FileAccess.file_exists(_stop) and Time.get_ticks_msec() < _deadline:
 		await physics_frame
 		_write_report()
@@ -96,9 +96,9 @@ func _on_remote_identity(peer_id: int, display_name: String, _cosmetic: Dictiona
 
 func _on_authoritative_position(position: Vector3, _last_processed_sequence: int) -> void:
 	_authoritative_position = position
-	if position.x >= FRONTIER_EDGE_X - 1.0 and _frontier_started_at_msec < 0:
+	if position.z >= FRONTIER_EDGE_Z - 1.0 and _frontier_started_at_msec < 0:
 		_frontier_started_at_msec = Time.get_ticks_msec()
-	if position.x > FRONTIER_EDGE_X and not _frontier_crossed:
+	if position.z > FRONTIER_EDGE_Z and not _frontier_crossed:
 		_frontier_crossed = true
 		_frontier_crossed_at_msec = Time.get_ticks_msec()
 
@@ -149,7 +149,7 @@ func _own_position() -> Array:
 
 
 func _finish(failure: String) -> void:
-	Input.action_release("move_right")
+	Input.action_release("move_back")
 	if failure == "coordinator stop":
 		_report["status"] = "passed"
 	else:

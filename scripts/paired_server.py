@@ -167,7 +167,7 @@ def check_client(report, evidence):
         raise ValueError("client_evidence_failed")
 
 
-def validate_frontier_observation(frontier, sector_id="sector-1-0"):
+def validate_frontier_observation(frontier, sector_id="sector-0-1"):
     if not isinstance(frontier, dict) or frontier.get("sector_id") != sector_id:
         raise ValueError("frontier_sector")
     if frontier.get("geometry_ready") is not True or frontier.get("crossed") is not True:
@@ -428,7 +428,7 @@ def supervise(run):
                         raise ValueError("shared_frontier_missing")
                     for client_id in ("a", "b"):
                         evidence = frontier[client_id]
-                        if (evidence.get("sector_id") != "sector-1-0"
+                        if (evidence.get("sector_id") != "sector-0-1"
                                 or evidence.get("source") != "fallback"
                                 or evidence.get("fallback_selected") is not True
                                 or evidence.get("canon_outcome") != "ok"
