@@ -141,7 +141,6 @@ func _observe_shared_admission() -> void:
 			var client_id: String = "a" if String(state.character_id).ends_with("-a") else "b"
 			if not _frontier_fixture_seeded.has(client_id):
 				state.position = Vector3(0.0 if client_id == "a" else 1.0, 1.0, -439.0)
-				state.velocity = Vector3.ZERO
 				_frontier_fixture_seeded[client_id] = true
 			peers[client_id] = {"peer_id": peer_id, "character_id": String(state.character_id),
 				"position": _vector3_to_array(state.position), "last_processed_sequence": state._last_processed_sequence}
