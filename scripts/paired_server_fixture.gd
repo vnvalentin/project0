@@ -5,6 +5,7 @@ const PairedValidator: Script = preload("res://server/assertion_validator.gd")
 var _paired_identity: String = ""
 var _paired_observation: Dictionary = {"authenticated": false, "input_ack_sequence": -1}
 var _shared_observation: Dictionary = {"scenario_id": "shared-exploration-v1", "history": [], "frontier": {}}
+var _frontier_fixture_seeded: Dictionary = {}
 var _combat_observation: Dictionary = {"scenario_id": "coop-combat-v1", "history": [],
 	"accepted_count": 0, "hit_count": 0}
 
@@ -138,6 +139,10 @@ func _observe_shared_admission() -> void:
 		var state: Node = _player_states[peer_id]
 		if state._gameplay_authorized():
 			var client_id: String = "a" if String(state.character_id).ends_with("-a") else "b"
+			if not _frontier_fixture_seeded.has(client_id):
+				state.position = Vector3(0.0 if client_id == "a" else 1.0, 1.0, -439.0)
+				state.velocity = Vector3.ZERO
+				_frontier_fixture_seeded[client_id] = true
 			peers[client_id] = {"peer_id": peer_id, "character_id": String(state.character_id),
 				"position": _vector3_to_array(state.position), "last_processed_sequence": state._last_processed_sequence}
 			if state.position.z < -440.0:
@@ -159,6 +164,7 @@ func _observe_shared_admission() -> void:
 	_shared_observation["authenticated_world_peers"] = snapshot["authenticated_world_peers"]
 	_shared_observation["peers"] = peers
 	_shared_observation["frontier"] = frontier
+	_shared_observation["frontier_fixture_seeded"] = _frontier_fixture_seeded.size() == 2
 	_write_shared_observation()
 
 

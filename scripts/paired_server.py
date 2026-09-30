@@ -424,6 +424,8 @@ def supervise(run):
                     if not {1, 2}.issubset(history_counts) or history_counts[-1] != 2:
                         raise ValueError("shared_server_lifecycle_missing")
                     frontier = shared_observation.get("frontier", {})
+                    if shared_observation.get("frontier_fixture_seeded") is not True:
+                        raise ValueError("shared_frontier_fixture_missing")
                     if set(frontier) != {"a", "b"}:
                         raise ValueError("shared_frontier_missing")
                     for client_id in ("a", "b"):
