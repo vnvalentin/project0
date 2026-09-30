@@ -6,15 +6,15 @@ class_name CanonSectorResolver
 ## async — both processes could interpret it, so it lives in shared/, though the
 ## server is the one that applies it before replication.
 ##
-## The only geometry-affecting kind today is destroy_structure: a structure whose
-## derived CanonEntityGuid matches such a mutation's target_guid is removed. Other
-## kinds (loot/defeat_leader/clear_camp) remain in the durable log but do not yet
-## map to rendered geometry, so they are inert here. Removal is order-independent
-## and idempotent, and the result stays schema-valid (structures are optional).
+## Geometry-affecting mutations include destroying a structure and unlocking a
+## gate. Other kinds (loot/defeat_leader/clear_camp) remain in the durable log
+## but do not yet map to rendered geometry, so they are inert here. Replay is
+## order-independent and idempotent, and the result stays schema-valid.
 
 const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 
 const MUTATION_DESTROY_STRUCTURE: String = "destroy_structure"
+const MUTATION_UNLOCK_GATE: String = "unlock_gate"
 
 
 ## Returns a duplicated blueprint with destroyed structures removed. A non-dict
@@ -31,12 +31,18 @@ static func resolve_effective_blueprint(blueprint: Variant, mutations: Array) ->
 	var sector_id: String = data["sector_id"]
 
 	var destroyed_guids: Dictionary = {}
+	var unlocked_guids: Dictionary = {}
 	for mutation: Variant in mutations:
-		if mutation is Dictionary and (mutation as Dictionary).get("mutation_kind") == MUTATION_DESTROY_STRUCTURE:
-			var target_guid: Variant = (mutation as Dictionary).get("target_guid")
-			if target_guid is String:
+		if not mutation is Dictionary:
+			continue
+		var mutation_data: Dictionary = mutation
+		var target_guid: Variant = mutation_data.get("target_guid")
+		if target_guid is String and mutation_data.get("mutation_kind") == MUTATION_DESTROY_STRUCTURE:
 				destroyed_guids[target_guid] = true
-	if destroyed_guids.is_empty():
+		if target_guid is String and mutation_data.get("mutation_kind") == MUTATION_UNLOCK_GATE:
+			if bool(mutation_data.get("payload", {}).get("unlocked", false)):
+				unlocked_guids[target_guid] = true
+	if destroyed_guids.is_empty() and unlocked_guids.is_empty():
 		return data
 
 	var live_structures: Array = []
@@ -46,7 +52,13 @@ static func resolve_effective_blueprint(blueprint: Variant, mutations: Array) ->
 			continue
 		var record: Dictionary = structure
 		var guid: String = CanonEntityGuidScript.guid_for_entity(record, sector_id, CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, record["structure_id"])
-		if not destroyed_guids.has(guid):
-			live_structures.append(structure)
+		if destroyed_guids.has(guid):
+			continue
+		if unlocked_guids.has(guid):
+			var effective_record: Dictionary = record.duplicate(true)
+			effective_record["unlocked"] = true
+			live_structures.append(effective_record)
+			continue
+		live_structures.append(structure)
 	data["structures"] = live_structures
 	return data
