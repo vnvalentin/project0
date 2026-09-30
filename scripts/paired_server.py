@@ -167,6 +167,24 @@ def check_client(report, evidence):
         raise ValueError("client_evidence_failed")
 
 
+def validate_frontier_observation(frontier, sector_id="sector-0--1"):
+    if not isinstance(frontier, dict) or frontier.get("sector_id") != sector_id:
+        raise ValueError("frontier_sector")
+    if frontier.get("geometry_ready") is not True or frontier.get("crossed") is not True:
+        raise ValueError("frontier_not_ready")
+    started = frontier.get("started_at_msec")
+    geometry_ready = frontier.get("geometry_ready_at_msec")
+    crossed = frontier.get("crossed_at_msec")
+    if not all(type(value) is int for value in (started, geometry_ready, crossed)):
+        raise ValueError("frontier_timing_shape")
+    if not started >= 0 or not started <= geometry_ready <= crossed:
+        raise ValueError("frontier_timing_order")
+    if frontier.get("ready_latency_ms") != geometry_ready - started:
+        raise ValueError("frontier_ready_timing")
+    if frontier.get("cross_latency_ms") != crossed - started:
+        raise ValueError("frontier_cross_timing")
+
+
 def check_shared_client(report, evidence):
     if report["scenario_id"] != SHARED_SCENARIO or evidence.get("scenario_id") != SHARED_SCENARIO:
         raise ValueError("shared_scenario_identity")
@@ -211,6 +229,9 @@ def check_shared_client(report, evidence):
         raise ValueError("shared_disconnect_presence")
     if set(phases["reconnect"].get("remote_players", {})) != {"b"}:
         raise ValueError("shared_reconnect_presence")
+    frontier_phase = phases.get("frontier", {})
+    validate_frontier_observation(frontier_phase.get("a"))
+    validate_frontier_observation(frontier_phase.get("b"))
     return True
 
 
@@ -404,6 +425,19 @@ def supervise(run):
                     history_counts = [entry.get("authenticated_world_peers") for entry in shared_observation.get("history", [])]
                     if not {1, 2}.issubset(history_counts) or history_counts[-1] != 2:
                         raise ValueError("shared_server_lifecycle_missing")
+                    frontier = shared_observation.get("frontier", {})
+                    if shared_observation.get("frontier_fixture_seeded") is not True:
+                        raise ValueError("shared_frontier_fixture_missing")
+                    if set(frontier) != {"a", "b"}:
+                        raise ValueError("shared_frontier_missing")
+                    for client_id in ("a", "b"):
+                        evidence = frontier[client_id]
+                        if (evidence.get("sector_id") != "sector-0--1"
+                                or evidence.get("source") != "fallback"
+                                or evidence.get("fallback_selected") is not True
+                                or evidence.get("canon_outcome") != "ok"
+                                or evidence.get("presentation_ready") is not True):
+                            raise ValueError("shared_frontier_authority_missing")
                     report.update(status="server_passed", shared_observation=shared_observation,
                                   client_evidence_sha256=digest(control_path))
                     break

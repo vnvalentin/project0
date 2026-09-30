@@ -170,6 +170,14 @@ func _destination_trace(server: FrontierServer) -> Dictionary:
 	return server.presentations.back()["trace"]
 
 
+func test_starting_hub_owns_its_grid_sector_gap_before_generation() -> void:
+	var server: FrontierServer = _frontier_server()
+	assert_eq(server._frontier_sector_at(Vector3(30.0, 1.0, 0.0)), "starting_town_hub")
+	assert_eq(server._frontier_sector_at(Vector3(439.99, 1.0, 0.0)), "starting_town_hub")
+	assert_eq(server._frontier_sector_at(Vector3(440.0, 1.0, 0.0)), "sector-1-0")
+	server.free()
+
+
 func _ack_event(trace: Dictionary) -> Dictionary:
 	var payload: Dictionary = trace.duplicate(true)
 	payload.erase("event_type")

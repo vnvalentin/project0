@@ -4,7 +4,8 @@ const PairedIssuer: Script = preload("res://server/assertion_issuer.gd")
 const PairedValidator: Script = preload("res://server/assertion_validator.gd")
 var _paired_identity: String = ""
 var _paired_observation: Dictionary = {"authenticated": false, "input_ack_sequence": -1}
-var _shared_observation: Dictionary = {"scenario_id": "shared-exploration-v1", "history": []}
+var _shared_observation: Dictionary = {"scenario_id": "shared-exploration-v1", "history": [], "frontier": {}}
+var _frontier_fixture_seeded: Dictionary = {}
 var _combat_observation: Dictionary = {"scenario_id": "coop-combat-v1", "history": [],
 	"accepted_count": 0, "hit_count": 0}
 
@@ -133,17 +134,36 @@ func _install_shared_observer() -> void:
 
 func _observe_shared_admission() -> void:
 	var peers: Dictionary = {}
+	var frontier: Dictionary = _shared_observation.get("frontier", {})
 	for peer_id: int in _player_states:
 		var state: Node = _player_states[peer_id]
 		if state._gameplay_authorized():
 			var client_id: String = "a" if String(state.character_id).ends_with("-a") else "b"
+			if not _frontier_fixture_seeded.has(client_id):
+				state.position = Vector3(0.0 if client_id == "a" else 1.0, 1.0, -439.0)
+				_frontier_fixture_seeded[client_id] = true
 			peers[client_id] = {"peer_id": peer_id, "character_id": String(state.character_id),
 				"position": _vector3_to_array(state.position), "last_processed_sequence": state._last_processed_sequence}
+			if state.position.z < -440.0:
+				var sector_id: String = "sector-0--1"
+				var generation: Dictionary = _provisional_sector_generator.get_provisional_result(sector_id)
+				var canon: Dictionary = _canon_repository.get_canonical_sector(sector_id)
+				frontier[client_id] = {
+					"sector_id": sector_id,
+					"source": String(generation.get("source", "")),
+					"fallback_selected": generation.get("fallback_selected", false),
+					"request_outcome": String(generation.get("request_outcome", "")),
+					"canon_outcome": String(canon.get("outcome", "")),
+					"presentation_ready": _frontier_position_ready(peer_id, state.position),
+					"position": _vector3_to_array(state.position),
+				}
 	var snapshot: Dictionary = {"at": Time.get_unix_time_from_system(), "authenticated_world_peers": peers.size(), "peers": peers}
 	if _shared_observation["history"].is_empty() or _shared_observation["history"][-1]["authenticated_world_peers"] != snapshot["authenticated_world_peers"]:
 		_shared_observation["history"].append(snapshot)
 	_shared_observation["authenticated_world_peers"] = snapshot["authenticated_world_peers"]
 	_shared_observation["peers"] = peers
+	_shared_observation["frontier"] = frontier
+	_shared_observation["frontier_fixture_seeded"] = _frontier_fixture_seeded.size() == 2
 	_write_shared_observation()
 
 
