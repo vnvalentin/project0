@@ -21,6 +21,7 @@ import time
 import urllib.request
 
 CUTOFF_MS = 3000.0
+RAW_TIMEOUT_SEC = 180
 
 
 def call(host, payload, timeout):
@@ -46,7 +47,11 @@ def raw_sample(host, model, prompt, cold):
     if cold:
         unload(host, model)
     started = time.monotonic()
-    body = call(host, {"model": model, "prompt": prompt, "format": "json", "think": False, "stream": False}, 180)
+    try:
+        body = call(host, {"model": model, "prompt": prompt, "format": "json", "think": False, "stream": False}, RAW_TIMEOUT_SEC)
+    except (OSError, ValueError) as error:
+        # A sample that exceeds the raw ceiling is a measurement, not a harness failure.
+        return {"cold": cold, "wall_ms": (time.monotonic() - started) * 1000.0, "error": str(error)[:120]}
     wall_ms = (time.monotonic() - started) * 1000.0
     try:
         parsed = json.loads(body.get("response", ""))
