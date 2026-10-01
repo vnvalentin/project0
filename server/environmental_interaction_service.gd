@@ -24,11 +24,16 @@ const REASON_OUT_OF_REACH: String = "out_of_reach"
 const REASON_NO_LINE_OF_SIGHT: String = "no_line_of_sight"
 const REASON_LINE_OF_SIGHT_UNAVAILABLE: String = "line_of_sight_unavailable"
 const REASON_ALREADY_UNLOCKED: String = "already_unlocked"
+const REASON_GATE_LOCKED: String = "gate_locked"
+const REASON_OPENED: String = "opened"
+const REASON_ALREADY_OPEN: String = "already_open"
 
 var _canon: CanonRepository = null
 var _mutations: CanonMutationRepository = null
 var _clock: Callable = Callable()
 var _line_of_sight: Callable = Callable()
+## Server-runtime open posture by target GUID; deliberately not persisted.
+var _open_gates: Dictionary = {}
 
 
 ## line_of_sight receives actor and target world positions and must return bool.
@@ -71,6 +76,13 @@ func resolve_intent(
 		return _rejected(REASON_NO_LINE_OF_SIGHT, client_seq)
 	# A committed unlock answers later valid requests without a new mutation.
 	var committed_revision: int = _committed_unlock_revision(intent["sector_id"], intent["target_guid"])
+	if intent["verb"] == InteractionScript.VERB_OPEN:
+		if committed_revision <= 0:
+			return _rejected(REASON_GATE_LOCKED, client_seq)
+		var already_open: bool = _open_gates.has(intent["target_guid"])
+		_open_gates[intent["target_guid"]] = true
+		return {"status": STATUS_ACCEPTED, "reason": REASON_ALREADY_OPEN if already_open else REASON_OPENED, "client_seq": client_seq,
+			"applied_revision": committed_revision, "structure_cell": [int(target_position.x), int(target_position.z)]}
 	if committed_revision > 0:
 		return {"status": STATUS_ACCEPTED, "reason": REASON_ALREADY_UNLOCKED, "client_seq": client_seq, "applied_revision": committed_revision}
 
@@ -135,6 +147,10 @@ func _find_target(sector_id: String, target_guid: String) -> Dictionary:
 				"position": Vector3(float(structure.get("x", 0.0)), 0.0, float(structure.get("y", 0.0))),
 			}
 	return {}
+
+
+func is_open(target_guid: String) -> bool:
+	return _open_gates.has(target_guid)
 
 
 ## Applied revision of the committed unlock for the target, or 0 when none.

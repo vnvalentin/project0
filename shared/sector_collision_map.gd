@@ -19,6 +19,7 @@ const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry
 var _blocked: Dictionary = {}
 ## Structure footprint cells: Vector2i -> index of the owning structure.
 var _structure_by_cell: Dictionary = {}
+var _wall_cells: Dictionary = {}
 var _traversal_surfaces: Array[Dictionary] = []
 var _traversal_ceilings: Array[Dictionary] = []
 
@@ -38,6 +39,7 @@ func _init(blueprint: Dictionary = {}) -> void:
 	for tile: Dictionary in blueprint.get("tiles", []):
 		if String(tile.get("kind", "")) == "wall":
 			_blocked[Vector2i(int(tile.get("x", 0)), int(tile.get("y", 0)))] = true
+			_wall_cells[Vector2i(int(tile.get("x", 0)), int(tile.get("y", 0)))] = true
 
 	var structures: Array = blueprint.get("structures", [])
 	for index: int in range(structures.size()):
@@ -54,6 +56,19 @@ func _init(blueprint: Dictionary = {}) -> void:
 ## True when the grid cell is solid (a wall tile or inside a structure footprint).
 func is_blocked(cell: Vector2i) -> bool:
 	return _blocked.has(cell)
+
+
+## Makes the structure owning `cell` passable (an opened gate). Wall tiles under
+## its footprint stay solid. Returns the number of cells opened.
+func open_structure_at(cell: Vector2i) -> int:
+	var owner: int = int(_structure_by_cell.get(cell, -1))
+	if owner == -1:
+		return 0
+	var opened: int = 0
+	for footprint_cell: Vector2i in _structure_by_cell.keys():
+		if int(_structure_by_cell[footprint_cell]) == owner and not _wall_cells.has(footprint_cell) and _blocked.erase(footprint_cell):
+			opened += 1
+	return opened
 
 
 ## Server-owned grid line of sight. Intermediate solid cells block the ray; the

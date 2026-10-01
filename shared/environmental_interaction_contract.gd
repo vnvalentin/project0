@@ -7,7 +7,9 @@ class_name EnvironmentalInteractionContract
 const SCHEMA_VERSION: int = 1
 const VERB_LOCK_PICK: String = "lock_pick"
 const VERB_INTERRUPT: String = "interrupt"
-const SUPPORTED_VERBS: PackedStringArray = [VERB_LOCK_PICK, VERB_INTERRUPT]
+## Opens an already-unlocked gate; never unlocks and is never persisted.
+const VERB_OPEN: String = "open"
+const SUPPORTED_VERBS: PackedStringArray = [VERB_LOCK_PICK, VERB_INTERRUPT, VERB_OPEN]
 
 const MAX_ID_LENGTH: int = 128
 const MAX_REVISION: int = 1073741824
