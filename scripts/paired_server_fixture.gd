@@ -110,8 +110,8 @@ func _observe_frontier_timeout() -> void:
 			continue
 		peers += 1
 		if not _frontier_timeout_seeded:
-			# Seeded inside sector-0--1 one unit from unexplored sector-0--2.
-			state.position = Vector3(0.0, 1.0, -879.0)
+			# sector-0--1 spans z in [-440, 0); unexplored sector-0--2 starts one unit away.
+			state.position = Vector3(0.0, 1.0, -439.0)
 			_frontier_timeout_seeded = true
 		_frontier_timeout_observation["position"] = _vector3_to_array(state.position)
 	var generation: Dictionary = _provisional_sector_generator.get_provisional_result("sector-0--2")

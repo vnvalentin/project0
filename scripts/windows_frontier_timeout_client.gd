@@ -3,9 +3,9 @@ extends SceneTree
 const SCENARIO: String = "frontier-timeout-v1"
 const SEED_SECTOR: String = "sector-0--1"
 const FRONTIER_SECTOR: String = "sector-0--2"
-const FRONTIER_EDGE_Z: float = -880.0
-const INSIDE_Z: float = -882.5
-const OUTSIDE_Z: float = -878.0
+const FRONTIER_EDGE_Z: float = -440.0
+const INSIDE_Z: float = -442.5
+const OUTSIDE_Z: float = -438.0
 const FRAME_BUDGET_MS: float = 16.6
 var _network: Node
 var _gameplay: Node3D
