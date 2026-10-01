@@ -30,7 +30,10 @@ This narrow exclusion is for Windows tooling, not game/client/native changes.
 Changed client/native/export inputs require the committed
 `.github/artifact-contract.json` and the `platform:windows-required` label. The
 contract binds the reviewed client package, Linux artifact manifest, runtime
-image, application source identity and source allowlist. Without it, unknown
+image, application source identity and source allowlist. A contract never
+permits baseline reuse: whenever any Linux input differs from the baseline,
+every hosted Linux job validates the candidate SHA and candidate input digest
+([#1322](https://github.com/vnvalentin/project0/issues/1322)). Without it, unknown
 paths, mixed Linux inputs, symlinks, submodules and missing Windows labels fail
 closed. The ownership manifest and workflow are Linux inputs: changing them
 cannot be hidden by baseline reuse.
