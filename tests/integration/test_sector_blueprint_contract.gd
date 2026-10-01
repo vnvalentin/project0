@@ -132,6 +132,28 @@ func test_jit_response_before_at_and_after_absolute_deadline() -> void:
 		fake_server.stop()
 
 
+func test_schema_rejected_model_output_cascades_through_pass_1_then_pass_2() -> void:
+	var repairable: Dictionary = {"schema_version": 3, "sector_id": "sector-9-4", "origin": {"x": 0, "y": 0},
+		"tiles": [{"x": 0, "y": 0, "kind": "floor"}, {"x": 1, "y": 0, "kind": "lava_pit"}, {"x": 1.4, "y": 0, "kind": "path"}]}
+	var unrepairable: Dictionary = {"schema_version": 3, "sector_id": "sector-9-4", "origin": {"x": 0, "y": 0},
+		"tiles": [{"x": 0, "y": 0, "kind": "lava_pit"}]}
+	var expectations: Array = [[repairable, "pass_1", 2], [unrepairable, "pass_2", 1]]
+	for expectation: Array in expectations:
+		var fake_server: Node = FakeOllamaHttpServerScript.new()
+		var port: int = fake_server.start()
+		add_child_autofree(fake_server)
+		fake_server.next_response_body = JSON.stringify({"response": JSON.stringify(expectation[0])})
+		var result: Dictionary = await _make_service(port).request_sector_blueprint("repair cascade", "sector-9-4")
+		assert_eq(result["request_outcome"], "validated", "the model answered in time")
+		assert_eq(result["validation_outcome"], "unsupported_kind", "the original rejection is preserved")
+		assert_eq(result["source"], "fallback")
+		assert_eq(result["fallback_pass"], expectation[1])
+		assert_eq(result["candidate_validation_outcome"], "valid", "only an independently valid candidate is delivered")
+		assert_eq(result["blueprint"]["tiles"].size(), expectation[2])
+		assert_eq(fake_server.request_count, 1, "repair never retries the model")
+		fake_server.stop()
+
+
 func test_jit_preserves_short_explicit_timeout_under_large_environment() -> void:
 	var previous_timeout: String = OS.get_environment("PROJECT0_OLLAMA_TIMEOUT_SEC")
 	OS.set_environment("PROJECT0_OLLAMA_TIMEOUT_SEC", "180")

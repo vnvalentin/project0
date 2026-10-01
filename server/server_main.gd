@@ -1223,6 +1223,7 @@ static func _generation_stages(result: Dictionary, detail_ms: float, commit_ms: 
 	var stages: Dictionary = {
 		"request_outcome": String(result.get("request_outcome", "")),
 		"fallback_selected": bool(result.get("fallback_selected", false)),
+		"fallback_pass": String(result.get("fallback_pass", "")),
 		"source": String(result.get("source", "")),
 		"detail_ms": detail_ms,
 		"canon_commit_ms": commit_ms,
