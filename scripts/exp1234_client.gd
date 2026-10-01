@@ -8,6 +8,8 @@ const GATE_FACE_LIMIT_Z: float = -4.6
 const TRAVERSED_Z: float = -6.5
 const BLOCKED_PROBE_MSEC: int = 1500
 const TRAVERSE_TIMEOUT_MSEC: int = 8000
+## The closed-gate probe measures only after the server has reported a position.
+const FIRST_POSITION_TIMEOUT_MSEC: int = 6000
 
 var _phase: String = OS.get_environment("EXP1234_PHASE")
 var _authoritative: Array[Vector3] = [Vector3.INF]
@@ -28,7 +30,7 @@ func _run_case(network: Node) -> void:
 		_finish("reload_events_timeout")
 		return
 	if _role == "actor":
-		_result["closed_gate_probe"] = await _move_forward(BLOCKED_PROBE_MSEC, -INF)
+		_result["closed_gate_probe"] = await _move_forward(BLOCKED_PROBE_MSEC, -INF, FIRST_POSITION_TIMEOUT_MSEC)
 		await _send_verb(network, InteractionScript.VERB_OPEN, 2)
 	else:
 		if not await _until(func(observation: Dictionary) -> bool: return _opened_by_actor(observation)):
@@ -52,10 +54,15 @@ func _send_verb(network: Node, verb: String, client_seq: int) -> void:
 
 
 ## Holds forward (-z) until the authoritative z reaches stop_z or the time runs out.
-func _move_forward(duration_msec: int, stop_z: float) -> Dictionary:
+## With wait_first_msec, the duration starts at the first authoritative position.
+func _move_forward(duration_msec: int, stop_z: float, wait_first_msec: int = 0) -> Dictionary:
 	var start: Vector3 = _authoritative[0]
 	var min_z: float = INF
 	Input.action_press("move_forward")
+	var first_wait_deadline: int = Time.get_ticks_msec() + wait_first_msec
+	while wait_first_msec > 0 and not _authoritative[0].is_finite() and Time.get_ticks_msec() < first_wait_deadline:
+		await physics_frame
+	var first_position: Variant = _vec(_authoritative[0])
 	var deadline: int = Time.get_ticks_msec() + duration_msec
 	while Time.get_ticks_msec() < deadline:
 		await physics_frame
@@ -66,7 +73,7 @@ func _move_forward(duration_msec: int, stop_z: float) -> Dictionary:
 	Input.action_release("move_forward")
 	for _tick: int in range(10):
 		await physics_frame
-	return {"start": _vec(start), "end": _vec(_authoritative[0]), "min_z": min_z if is_finite(min_z) else null}
+	return {"start": _vec(start), "first_position": first_position, "end": _vec(_authoritative[0]), "min_z": min_z if is_finite(min_z) else null}
 
 
 static func _opened_by_actor(observation: Dictionary) -> bool:
