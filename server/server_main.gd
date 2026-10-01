@@ -287,7 +287,7 @@ func _start_server() -> void:
 	# socket. It is static data, so validation is synchronous and cheap; a
 	# fixture that fails its own schema is a programming error, so fail closed
 	# (refuse to start) rather than silently degrading to an empty world.
-	var hub: Dictionary = StartingTownHubFixtureScript.materialize(StartingTownHubFixtureScript.blueprint())
+	var hub: Dictionary = StartingTownHubFixtureScript.materialize(_starting_town_hub_source())
 	if not hub["ok"]:
 		push_error("Refusing to start: starting town hub fixture failed validation: %s — %s" % [hub["outcome"], hub["detail"]])
 		quit(1)
@@ -1168,21 +1168,33 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
 
 
 func _on_environmental_interaction_intent(sender_peer_id: int, intent: Dictionary) -> void:
-	if _environmental_interaction_service == null:
+	var resolution: Dictionary = _resolve_environmental_interaction(sender_peer_id, intent)
+	if resolution.is_empty():
 		return
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client == null:
+		return
+	network_client.rpc_id(sender_peer_id, "receive_environmental_interaction_resolution", resolution)
+
+
+## Empty when the sender has no server player state; such intents get no reply.
+func _resolve_environmental_interaction(sender_peer_id: int, intent: Dictionary) -> Dictionary:
+	if _environmental_interaction_service == null:
+		return {}
 	var player_state: Node = _player_states.get(sender_peer_id)
 	if player_state == null:
-		return
-	var resolution: Dictionary = _environmental_interaction_service.resolve_intent(
+		return {}
+	return _environmental_interaction_service.resolve_intent(
 		player_state.character_id,
 		player_state.position,
 		player_state.environmental_physical_outputs(),
 		intent
 	)
-	var network_client: Node = root.get_node_or_null("NetworkClient")
-	if network_client == null:
-		return
-	network_client.rpc_id(sender_peer_id, "receive_environmental_interaction_resolution", resolution)
+
+
+## Overridden only by experiment fixtures that declare extra hub Canon content.
+func _starting_town_hub_source() -> Dictionary:
+	return StartingTownHubFixtureScript.blueprint()
 
 
 func _has_environmental_line_of_sight(from_position: Vector3, target_position: Vector3) -> bool:

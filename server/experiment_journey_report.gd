@@ -13,6 +13,7 @@ const MISMATCH: String = "MISMATCH"
 
 const COMMIT_SUCCESS: String = "COMMIT_SUCCESS"
 const COMMIT_ROLLED_BACK: String = "COMMIT_ROLLED_BACK"
+const COMMIT_NOT_ATTEMPTED: String = "COMMIT_NOT_ATTEMPTED"
 const RECOVERY_PARITY_MATCH: String = "RECOVERY_PARITY_MATCH"
 const RECOVERY_FAILED: String = "RECOVERY_FAILED"
 const OUTCOME_PASSED: String = "PASSED"
@@ -27,8 +28,14 @@ const STAGE_ENTITY_PARITY: String = "reconstructed_entity_state_parity"
 const STAGE_SECTOR_TOTALS: String = "sector_totals"
 const STAGE_PLAYER_COUNTS: String = "player_counts"
 const STAGE_RELOAD_EVENTS: String = "reload_events"
+const STAGE_CASE_ASSERTIONS: String = "case_assertions"
 const STAGE_RUNTIME_ERRORS: String = "runtime_errors"
 const STAGES: PackedStringArray = [
+	STAGE_JOURNEY_IDENTITY, STAGE_COMMIT, STAGE_BASE_PARITY, STAGE_MUTATION_PARITY, STAGE_ENTITY_PARITY,
+	STAGE_SECTOR_TOTALS, STAGE_PLAYER_COUNTS, STAGE_RELOAD_EVENTS, STAGE_CASE_ASSERTIONS, STAGE_RUNTIME_ERRORS,
+]
+## Case assertions are experiment-specific, so only scenarios that list them require them.
+const DEFAULT_REQUIRED_STAGES: PackedStringArray = [
 	STAGE_JOURNEY_IDENTITY, STAGE_COMMIT, STAGE_BASE_PARITY, STAGE_MUTATION_PARITY, STAGE_ENTITY_PARITY,
 	STAGE_SECTOR_TOTALS, STAGE_PLAYER_COUNTS, STAGE_RELOAD_EVENTS, STAGE_RUNTIME_ERRORS,
 ]
@@ -43,7 +50,7 @@ const WRITE_FAILED: String = "write_failed"
 
 static func build(input: Dictionary) -> Dictionary:
 	var scenario: Dictionary = input.get("scenario", {})
-	var required: Array = Array(scenario.get("required_stages", STAGES))
+	var required: Array = Array(scenario.get("required_stages", DEFAULT_REQUIRED_STAGES))
 	if not required.has(STAGE_RUNTIME_ERRORS):
 		required.append(STAGE_RUNTIME_ERRORS)
 	var sector: Dictionary = input.get("sector", {})
@@ -58,7 +65,7 @@ static func build(input: Dictionary) -> Dictionary:
 
 	var commit: Dictionary = input.get("commit", {}) if input.get("commit") is Dictionary else {}
 	var commit_outcome: String = OUTCOME_OBSERVATION_FAILED
-	if commit.get("status") == OBSERVED and String(commit.get("outcome", "")) in [COMMIT_SUCCESS, COMMIT_ROLLED_BACK]:
+	if commit.get("status") == OBSERVED and String(commit.get("outcome", "")) in [COMMIT_SUCCESS, COMMIT_ROLLED_BACK, COMMIT_NOT_ATTEMPTED]:
 		commit_outcome = commit["outcome"]
 		status[STAGE_COMMIT] = MATCH if commit_outcome == String(scenario.get("expected_commit", "")) else MISMATCH
 	else:
@@ -85,6 +92,9 @@ static func build(input: Dictionary) -> Dictionary:
 	status[STAGE_SECTOR_TOTALS] = _zero_status([sector_totals])
 	status[STAGE_PLAYER_COUNTS] = _zero_status(entries) if entries.size() == 2 else NOT_OBSERVED
 	status[STAGE_RELOAD_EVENTS] = _reload_status(entries)
+
+	var case_assertions: Variant = input.get("case_assertions")
+	status[STAGE_CASE_ASSERTIONS] = _case_status(case_assertions)
 
 	var runtime_errors: Variant = input.get("runtime_errors")
 	status[STAGE_RUNTIME_ERRORS] = NOT_OBSERVED if not runtime_errors is Array else (MATCH if (runtime_errors as Array).is_empty() else MISMATCH)
@@ -121,6 +131,8 @@ static func build(input: Dictionary) -> Dictionary:
 		"snapshot_comparison": comparison,
 		"stage_status": status,
 		"first_failing_stage": first_failing,
+		"case_assertions": (case_assertions as Array).duplicate(true) if case_assertions is Array else null,
+		"observations": input.get("observations"),
 		"runtime_errors": (runtime_errors as Array).duplicate(true) if runtime_errors is Array else null,
 		"outcome": outcome,
 		"passed": first_failing == null,
@@ -221,6 +233,18 @@ static func _valid_reload(events: Array, journey_id: String, sector_id: String) 
 		and String(event.get("sector_id", "")) == sector_id
 		and not String(event.get("spatial_guid", "")).is_empty()
 	)
+
+
+static func _case_status(assertions: Variant) -> String:
+	if not assertions is Array or (assertions as Array).is_empty():
+		return NOT_OBSERVED
+	for assertion: Variant in assertions:
+		if not assertion is Dictionary or not (assertion as Dictionary).get("passed") is bool:
+			return NOT_OBSERVED
+	for assertion: Dictionary in assertions:
+		if not assertion["passed"]:
+			return MISMATCH
+	return MATCH
 
 
 static func _recovery_outcome(status: Dictionary) -> String:
