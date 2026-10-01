@@ -63,7 +63,8 @@ func resolve_intent(
 	if _is_unlocked(intent["sector_id"], intent["target_guid"]):
 		return _rejected(REASON_ALREADY_UNLOCKED, client_seq)
 	var target_position: Vector3 = target["position"]
-	if actor_position.distance_to(target_position) > MAX_REACH:
+	# Ground-plane reach: the Character origin sits above the ground-level gate point.
+	if Vector2(actor_position.x - target_position.x, actor_position.z - target_position.z).length() > MAX_REACH:
 		return _rejected(REASON_OUT_OF_REACH, client_seq)
 	var visibility_query: Callable = line_of_sight_override if line_of_sight_override.is_valid() else _line_of_sight
 	if not visibility_query.is_valid():

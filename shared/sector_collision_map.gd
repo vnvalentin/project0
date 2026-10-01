@@ -17,6 +17,8 @@ const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry
 
 ## Set of blocked grid cells: Vector2i -> true.
 var _blocked: Dictionary = {}
+## Structure footprint cells: Vector2i -> index of the owning structure.
+var _structure_by_cell: Dictionary = {}
 var _traversal_surfaces: Array[Dictionary] = []
 var _traversal_ceilings: Array[Dictionary] = []
 
@@ -37,13 +39,16 @@ func _init(blueprint: Dictionary = {}) -> void:
 		if String(tile.get("kind", "")) == "wall":
 			_blocked[Vector2i(int(tile.get("x", 0)), int(tile.get("y", 0)))] = true
 
-	for structure: Dictionary in blueprint.get("structures", []):
+	var structures: Array = blueprint.get("structures", [])
+	for index: int in range(structures.size()):
+		var structure: Dictionary = structures[index]
 		var footprint: Vector2i = SectorGeometryLookupScript.structure_footprint(String(structure.get("kind", "")))
 		var sx: int = int(structure.get("x", 0))
 		var sy: int = int(structure.get("y", 0))
 		for dx in range(-footprint.x, footprint.x + 1):
 			for dy in range(-footprint.y, footprint.y + 1):
 				_blocked[Vector2i(sx + dx, sy + dy)] = true
+				_structure_by_cell[Vector2i(sx + dx, sy + dy)] = index
 
 
 ## True when the grid cell is solid (a wall tile or inside a structure footprint).
@@ -52,18 +57,22 @@ func is_blocked(cell: Vector2i) -> bool:
 
 
 ## Server-owned grid line of sight. Intermediate solid cells block the ray; the
-## target cell is excluded so an interaction can see the structure it targets.
+## target cell and the rest of the structure that owns it are excluded so an
+## interaction can see the structure it targets.
 func has_line_of_sight(from_position: Vector3, target_position: Vector3) -> bool:
 	var delta: Vector3 = target_position - from_position
 	var distance: float = Vector2(delta.x, delta.z).length()
 	if distance <= 0.001:
 		return true
 	var target_cell: Vector2i = _cell(target_position)
+	var target_owner: int = int(_structure_by_cell.get(target_cell, -1))
 	var steps: int = maxi(1, ceili(distance / 0.25))
 	for step: int in range(1, steps):
 		var progress: float = float(step) / float(steps)
-		var sample: Vector3 = from_position.lerp(target_position, progress)
-		if _cell(sample) != target_cell and is_blocked(_cell(sample)):
+		var cell: Vector2i = _cell(from_position.lerp(target_position, progress))
+		if cell == target_cell or (target_owner != -1 and int(_structure_by_cell.get(cell, -2)) == target_owner):
+			continue
+		if is_blocked(cell):
 			return false
 	return true
 
