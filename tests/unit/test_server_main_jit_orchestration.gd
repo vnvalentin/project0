@@ -836,6 +836,38 @@ func test_timeout_fallback_records_one_stage_timed_ready_per_peer() -> void:
 	server.free()
 
 
+func test_held_reentry_retry_records_one_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server._prepare_frontier_position(7, state.position)
+	server.frontier_now = 1000
+	server._prepare_frontier_position(7, state.position)
+	server.frontier_now = 2000
+	server._prepare_frontier_position(7, state.position)
+	assert_eq(server.presentations.size(), 3, "an unacknowledged presentation is retried")
+	assert_eq(server.canon_reload_events().size(), 1, "retries of one held entry are one re-entry")
+	_add_frontier_peer(server, 8)
+	server._prepare_frontier_position(8, state.position)
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 2, "a second player's entry is its own re-entry")
+	if events.size() == 2:
+		assert_eq(events[1]["peer_id"], 8)
+	server.free()
+
+
+func test_ready_peer_pushing_detail_edge_records_no_extra_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server._prepare_frontier_position(7, state.position)
+	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
+	assert_true(server._frontier_position_ready(7, state.position))
+	for retry_time: int in [1000, 2000]:
+		server.frontier_now = retry_time
+		server._resolve_frontier_movement(7, state.position, Vector3(430, 1, 10))
+	assert_eq(server.canon_reload_events().size(), 1, "pushing against the connected-detail edge is not a re-entry")
+	server.free()
+
+
 func test_canon_reload_ready_record_keeps_first_trigger_across_retries() -> void:
 	var server: FrontierServer = _frontier_server()
 	var state: Node = server._player_states[7]

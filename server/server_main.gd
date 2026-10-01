@@ -922,9 +922,13 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 	if base["outcome"] != CanonSectorIntegrityScript.OUTCOME_OK:
 		_handle_damaged_sector(peer_id, sector_id, base)
 		return
-	_emit_jit_trace(trace, peer_id)
+	# A retry of a pending or ready presentation is not a new re-entry.
+	var retry: bool = _jit_presentation_ack_tracker.has_presentation(peer_id, sector_id, _frontier_binding(peer_id, sector_id))
+	if not retry:
+		_emit_jit_trace(trace, peer_id)
 	var presented: Dictionary = _present_frontier_sector(peer_id, sector_id, base["blueprint"], position, trace)
-	_record_canon_reload(peer_id, sector_id, presented)
+	if not retry:
+		_record_canon_reload(peer_id, sector_id, presented)
 
 
 func _inspect_canon_base(sector_id: String) -> Dictionary:
