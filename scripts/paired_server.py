@@ -26,6 +26,7 @@ HOST = "192.168.1.254"
 SCENARIO = "authenticated-input-ack-v1"
 SHARED_SCENARIO = "shared-exploration-v1"
 COOP_COMBAT_SCENARIO = "coop-combat-v1"
+FRONTIER_TIMEOUT_SCENARIO = "frontier-timeout-v1"
 IDENTITY_KEYS = ("schema_version", "run_id", "scenario_id", "correlation_id", "client_build", "server_build")
 RPC_FILES = ("network_client.gd", "player_identity.gd", "nakama_gameplay_bridge_client.gd",
              "sector_geometry_translator.gd", "sector_navigation_readiness.gd", "telemetry_batch_queue.gd")
@@ -238,6 +239,43 @@ def check_shared_client(report, evidence):
 def check_coop_combat_client(report, evidence):
     validate_coop_combat_pair(evidence, report["correlation_id"],
                                {"client": report["client_build"], "server": report["server_build"]})
+
+
+def check_frontier_timeout_client(report, evidence):
+    if report["scenario_id"] != FRONTIER_TIMEOUT_SCENARIO or evidence.get("scenario_id") != FRONTIER_TIMEOUT_SCENARIO:
+        raise ValueError("frontier_timeout_scenario_identity")
+    if evidence.get("correlation_id") != report["correlation_id"]:
+        raise ValueError("frontier_timeout_correlation_identity")
+    client = evidence.get("client", {})
+    if (client.get("status") != "passed" or client.get("scenario_id") != FRONTIER_TIMEOUT_SCENARIO
+            or client.get("correlation_id") != report["correlation_id"]
+            or client.get("authenticated") is not True or client.get("world_entered") is not True):
+        raise ValueError("frontier_timeout_client_failed")
+    if client.get("client_build") != report["client_build"] or client.get("server_build") != report["server_build"]:
+        raise ValueError("frontier_timeout_build_identity")
+    validate_frontier_observation(client.get("frontier"), "sector-0--2")
+    frames = client.get("frame_times", {})
+    if type(frames.get("count")) is not int or frames["count"] <= 0:
+        raise ValueError("frontier_timeout_frame_samples")
+    reentry = client.get("reentry", {})
+    if reentry.get("left") is not True or reentry.get("reentered") is not True:
+        raise ValueError("frontier_timeout_reentry")
+    return True
+
+
+def check_frontier_timeout_server(observation):
+    if observation.get("seeded") is not True or observation.get("authenticated_world_peers") != 1:
+        raise ValueError("frontier_timeout_server_peer")
+    generation = observation.get("generation", {})
+    if generation.get("request_outcome") != "timeout" or generation.get("fallback_selected") is not True:
+        raise ValueError("frontier_timeout_not_forced")
+    if observation.get("canon_outcome") != "ok":
+        raise ValueError("frontier_timeout_canon")
+    generated = [event for event in observation.get("frontier_ready_events", [])
+                 if event.get("sector_id") == "sector-0--2" and event.get("path") == "generated"]
+    if len(generated) != 1:
+        raise ValueError("frontier_timeout_ready_record")
+    return True
     return True
 
 
@@ -441,6 +479,13 @@ def supervise(run):
                     report.update(status="server_passed", shared_observation=shared_observation,
                                   client_evidence_sha256=digest(control_path))
                     break
+                if report["scenario_id"] == FRONTIER_TIMEOUT_SCENARIO:
+                    check_frontier_timeout_client(report, control["evidence"])
+                    observation = read_json(state / "frontier-observation.json")
+                    check_frontier_timeout_server(observation)
+                    report.update(status="server_passed", frontier_observation=observation,
+                                  client_evidence_sha256=digest(control_path))
+                    break
                 if report["scenario_id"] == COOP_COMBAT_SCENARIO:
                     check_coop_combat_client(report, control["evidence"])
                     combat_observation = read_json(state / "combat-observation.json")
@@ -548,7 +593,7 @@ def start(args):
     check_host()
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", args.correlation_id):
         raise ValueError("correlation_id")
-    if args.scenario not in (SCENARIO, SHARED_SCENARIO, COOP_COMBAT_SCENARIO):
+    if args.scenario not in (SCENARIO, SHARED_SCENARIO, COOP_COMBAT_SCENARIO, FRONTIER_TIMEOUT_SCENARIO):
         raise ValueError("scenario")
     if not re.fullmatch(r"[a-f0-9]{64}", args.client_sha256) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.client_version):
         raise ValueError("client_build")
@@ -624,12 +669,14 @@ def main():
                     check_shared_client(report, evidence)
                 elif report["scenario_id"] == COOP_COMBAT_SCENARIO:
                     check_coop_combat_client(report, evidence)
+                elif report["scenario_id"] == FRONTIER_TIMEOUT_SCENARIO:
+                    check_frontier_timeout_client(report, evidence)
                 else:
                     check_client(report, evidence)
             except (ValueError, OSError, TypeError):
                 write_json(args.run / "control.json", {"action": "reject"})
                 raise ValueError("client_evidence_rejected")
-            control["evidence"] = (evidence if report["scenario_id"] in (SHARED_SCENARIO, COOP_COMBAT_SCENARIO) else
+            control["evidence"] = (evidence if report["scenario_id"] in (SHARED_SCENARIO, COOP_COMBAT_SCENARIO, FRONTIER_TIMEOUT_SCENARIO) else
                                     {key: evidence[key] for key in (*IDENTITY_KEYS, "status", "observed_at", "authenticated", "world_entered", "input_ack_sequence")})
         write_json(args.run / "control.json", control)
         result = {"action": args.action, "status": "requested", "run_id": report["run_id"]}

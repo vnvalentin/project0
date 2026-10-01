@@ -161,6 +161,34 @@ class PairedServerTests(unittest.TestCase):
                 "clients": evidence["clients"] | {"a": observed_a | {"remote_players": {"b": {
                     "character_id": "shared-run-1-b", "position": [0.0, 1.0, 0.1]}}}}})
 
+    def test_frontier_timeout_requires_forced_cutoff_frames_and_reentry(self):
+        build = {"client_build": {"sha256": "client"}, "server_build": {"sha256": "server"}}
+        report = {"scenario_id": harness.FRONTIER_TIMEOUT_SCENARIO, "correlation_id": "run-1"} | build
+        frontier = {"sector_id": "sector-0--2", "geometry_ready": True, "crossed": True, "started_at_msec": 10,
+                    "geometry_ready_at_msec": 3500, "crossed_at_msec": 3600, "ready_latency_ms": 3490,
+                    "cross_latency_ms": 3590}
+        client = {"status": "passed", "scenario_id": harness.FRONTIER_TIMEOUT_SCENARIO, "correlation_id": "run-1",
+                  "authenticated": True, "world_entered": True, "frontier": frontier,
+                  "frame_times": {"count": 200}, "reentry": {"left": True, "reentered": True}} | build
+        evidence = {"scenario_id": harness.FRONTIER_TIMEOUT_SCENARIO, "correlation_id": "run-1", "client": client}
+        self.assertTrue(harness.check_frontier_timeout_client(report, evidence))
+        for change, reason in (({"frame_times": {"count": 0}}, "frame_samples"),
+                               ({"reentry": {"left": True, "reentered": False}}, "reentry"),
+                               ({"client_build": {"sha256": "other"}}, "build_identity"),
+                               ({"status": "failed"}, "client_failed")):
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, reason):
+                harness.check_frontier_timeout_client(report, evidence | {"client": client | change})
+        observation = {"seeded": True, "authenticated_world_peers": 1, "canon_outcome": "ok",
+                       "generation": {"request_outcome": "timeout", "fallback_selected": True},
+                       "frontier_ready_events": [{"sector_id": "sector-0--2", "path": "generated"}]}
+        self.assertTrue(harness.check_frontier_timeout_server(observation))
+        for change, reason in (({"generation": {"request_outcome": "transport_error", "fallback_selected": True}}, "not_forced"),
+                               ({"canon_outcome": "not_found"}, "canon"),
+                               ({"frontier_ready_events": []}, "ready_record"),
+                               ({"authenticated_world_peers": 2}, "server_peer")):
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, reason):
+                harness.check_frontier_timeout_server(observation | change)
+
     def test_health_requires_progress_and_freshness(self):
         now = time.time()
         health = {"status": "healthy", "server_tick": 30, "timestamp": int(now)}
