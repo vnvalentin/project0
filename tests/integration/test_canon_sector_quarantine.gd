@@ -222,11 +222,25 @@ func test_unaddressable_mutation_target_is_a_replay_inconsistency() -> void:
 	_run_fault_case("UPDATE canon_mutations SET target_guid = 'ghost-entity' WHERE sector_id = '%s';" % TARGET, CanonSectorIntegrityScript.FAILURE_REPLAY_INCONSISTENT)
 
 
-func test_unreadable_store_is_distinguished_and_fails_closed() -> void:
+func test_unreadable_store_is_distinguished_and_denied_without_quarantine() -> void:
 	var server: QuarantineServer = _server()
 	_store.close()
 	_enter_target(server)
-	_assert_quarantined(server, CanonSectorIntegrityScript.FAILURE_BASE_UNREADABLE)
+	var evidence: Dictionary = server.sector_quarantine_evidence()
+	assert_false(evidence["quarantined"].has(TARGET), "inability to observe is not recorded as observed damage")
+	assert_eq(evidence["events"].map(func(event: Dictionary) -> String: return event["event_type"]), ["CANON_SECTOR_UNOBSERVABLE"])
+	assert_eq(server.denials.size(), 1)
+	if server.denials.size() == 1:
+		assert_eq(server.denials[0]["denial"], {"sector_id": TARGET, "reason_code": "sector_unavailable", "failure_class": "base_unreadable"})
+	var types: Array = server._telemetry_sink.envelopes.map(func(envelope: Dictionary) -> String: return envelope["event_type"])
+	assert_eq(types.count("canon.sector_unobservable"), 1, "one high-severity unobservable diagnostic")
+	assert_eq(server.presentations.size(), 0)
+	assert_eq(server._provisional_sector_generator.requests.size(), 0, "an unreadable known sector never requests generation")
+	assert_eq(server.canon_reload_events().size(), 0)
+	assert_eq(_store.open(_relative_path)["outcome"], SqliteStore.OUTCOME_OK)
+	server._reload_sector_from_boundary(7, TARGET, TARGET_INGRESS, JitTraceContextScript.root(7, TARGET))
+	assert_eq(server.presentations.size(), 1, "the sector presents once the store is readable again")
+	assert_eq(server.canon_reload_events().size(), 1)
 	server.free()
 
 

@@ -228,6 +228,7 @@ var _quarantined_sectors: Dictionary = {}
 var _sector_entry_denials: Dictionary = {}
 var _sector_quarantine_events: Array[Dictionary] = []
 const REASON_SECTOR_QUARANTINED: String = "sector_quarantined"
+const REASON_SECTOR_UNAVAILABLE: String = "sector_unavailable"
 var _reclaimed_journey_peers: Dictionary = {}
 var _content_generation_requests: int = 0
 const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
@@ -906,8 +907,7 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 	if base["outcome"] == CanonSectorIntegrityScript.OUTCOME_ABSENT:
 		return
 	if base["outcome"] != CanonSectorIntegrityScript.OUTCOME_OK:
-		_quarantine_sector(sector_id, base)
-		_deny_if_quarantined(peer_id, sector_id)
+		_handle_damaged_sector(peer_id, sector_id, base)
 		return
 	_emit_jit_trace(trace, peer_id)
 	var presented: Dictionary = _present_frontier_sector(peer_id, sector_id, base["blueprint"], position, trace)
@@ -928,6 +928,25 @@ func _boundary_has_canon(sector_id: String) -> bool:
 	if _quarantined_sectors.has(sector_id):
 		return true
 	return _inspect_canon_base(sector_id)["outcome"] != CanonSectorIntegrityScript.OUTCOME_ABSENT
+
+
+## Observed damage quarantines the sector. An unreadable store denies only this
+## attempt, so the bounded preparation retry can recover once it is readable.
+func _handle_damaged_sector(peer_id: int, sector_id: String, inspection: Dictionary) -> void:
+	if inspection.get("failure_class") != CanonSectorIntegrityScript.FAILURE_BASE_UNREADABLE:
+		_quarantine_sector(sector_id, inspection)
+		_deny_if_quarantined(peer_id, sector_id)
+		return
+	_invalidate_frontier_sector(sector_id, false)
+	var event: Dictionary = {
+		"event_type": "CANON_SECTOR_UNOBSERVABLE", "sector_id": sector_id,
+		"failure_class": CanonSectorIntegrityScript.FAILURE_BASE_UNREADABLE, "detail": String(inspection.get("detail", "")),
+		"peer_id": peer_id, "severity": "high", "server_tick": _current_server_tick(),
+	}
+	_sector_quarantine_events.append(event)
+	push_error("CANON_SECTOR_UNOBSERVABLE %s" % JSON.stringify(event))
+	_emit_server_telemetry("canon.sector_unobservable", peer_id, event)
+	_send_sector_entry_denied(peer_id, {"sector_id": sector_id, "reason_code": REASON_SECTOR_UNAVAILABLE, "failure_class": CanonSectorIntegrityScript.FAILURE_BASE_UNREADABLE})
 
 
 func _quarantine_sector(sector_id: String, inspection: Dictionary) -> void:
@@ -1202,8 +1221,7 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 	if _canon_mutation_repository != null:
 		var history: Dictionary = CanonSectorIntegrityScript.inspect_history(sector_id, blueprint, _canon_mutation_repository.list_mutations(sector_id))
 		if history["outcome"] != CanonSectorIntegrityScript.OUTCOME_OK:
-			_quarantine_sector(sector_id, history)
-			_deny_if_quarantined(peer_id, sector_id)
+			_handle_damaged_sector(peer_id, sector_id, history)
 			return {}
 		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, history["mutations"])
 		revision = int(history["revision"])
