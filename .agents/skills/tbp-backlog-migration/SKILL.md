@@ -12,7 +12,10 @@ The canonical hierarchy is [.github/tbp-wayfinder.md](../../../.github/tbp-wayfi
 
 ## Guardrails
 
-- Use `gh` for every GitHub operation. Do not use browser scraping or direct API guesses.
+- Use `gh` for every GitHub operation. Prefer typed commands; when no typed
+   command exists, use authenticated `gh api` through a reviewed repository
+   helper. Do not use raw HTTP clients, browser scraping, or direct API tooling
+   outside `gh`.
 - Read each issue's title, body, labels, state, comments, and parent/child links before changing it.
 - Never migrate an issue outside the user's target scope.
 - Preserve existing links, issue numbers, code spans, and materially relevant wording. Convert preserved child/parent links into task-list items where the template calls for them.
