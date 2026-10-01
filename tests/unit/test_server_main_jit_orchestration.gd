@@ -189,6 +189,39 @@ func _ack_event(trace: Dictionary) -> Dictionary:
 	return {"event_type": "client_presentation_ack", "schema_version": 1, "payload": payload}
 
 
+func test_presented_canon_reload_records_one_structured_event_without_generation() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server._reload_sector_from_boundary(7, "sector-0-0", state.position, JitTraceContextScript.root(7, "sector-0-0"))
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 1, "one successful re-entry records one reload event")
+	if events.size() == 1:
+		var presented: Dictionary = server.presentations.back()["trace"]
+		assert_eq(events[0]["event_type"], "CANON_SECTOR_RELOADED")
+		assert_eq(events[0]["sector_id"], "sector-0-0")
+		assert_eq(events[0]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_eq(events[0]["spatial_guid"], presented["spatial_guid"])
+		assert_false(String(events[0]["spatial_guid"]).is_empty())
+	assert_eq(server.content_generation_count(), 0, "Canon re-entry issues no content generation")
+	server.free()
+
+
+func test_unpresented_canon_reload_records_no_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	server._frontier_bindings.erase(7)
+	server._reload_sector_from_boundary(7, "sector-0-0", Vector3(439.99, 1, 10), JitTraceContextScript.root(7, "sector-0-0"))
+	assert_eq(server.canon_reload_events().size(), 0, "a reload that presents nothing is not reported as successful")
+	server.free()
+
+
+func test_frontier_generation_request_is_counted() -> void:
+	var server: FrontierServer = _frontier_server()
+	_destination_trace(server)
+	assert_eq(server.content_generation_count(), server._provisional_sector_generator.requests.size())
+	assert_eq(server.content_generation_count(), 1)
+	server.free()
+
+
 func test_live_frontier_prepares_once_holds_then_releases_without_telemetry() -> void:
 	var server: FrontierServer = _frontier_server()
 	var state: Node = server._player_states[7]
