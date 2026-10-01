@@ -56,16 +56,18 @@ static func validate_ingress(blueprint: Dictionary, ingress: Vector3, town: Dict
 		return "invalid_placed_blueprint"
 	var reserved: Dictionary = _town_cells(town)
 	var collision: RefCounted = Collision.new(blueprint)
+	# The offset depends only on placement metadata; per-cell recomputation cost ~300 ms (#1366).
+	var offset: Vector3 = Placement.world_offset(blueprint)
 	for tile: Dictionary in blueprint["tiles"]:
 		if not Placement._integer(tile["x"]) or not Placement._integer(tile["y"]):
 			return "fractional_detail_tile"
-		var world: Vector3 = Placement.to_world(blueprint, Vector3(float(tile["x"]), 0, float(tile["y"])))
+		var world: Vector3 = offset + Vector3(float(tile["x"]), 0, float(tile["y"]))
 		if reserved.has(Vector2i(roundi(world.x), roundi(world.z))):
 			return "reserved_town_overlap"
 		if not Placement.clip_rectangle(blueprint, Rect2(Vector2(float(tile["x"]), float(tile["y"])) - Vector2(0.5, 0.5), Vector2.ONE)).has_area():
 			return "unrepresented_tile"
 	for cell: Vector2i in reserved:
-		var local: Vector3 = Placement.to_detail(blueprint, Vector3(cell.x, 0, cell.y))
+		var local: Vector3 = Vector3(cell.x, 0, cell.y) - offset
 		if collision.is_blocked(Vector2i(roundi(local.x), roundi(local.z))):
 			return "solid_town_overlap"
 	var detail: RefCounted = Placement.new(blueprint)
@@ -86,9 +88,10 @@ static func _fallback(sector_id: String, pinned: Dictionary, town: Dictionary) -
 	}
 	var reserved: Dictionary = _town_cells(town)
 	var origin: Dictionary = pinned["origin"]
+	var offset: Vector3 = Placement.world_offset(blueprint)
 	for horizontal: int in range(int(origin["x"]) - FALLBACK_RADIUS, int(origin["x"]) + FALLBACK_RADIUS + 1):
 		for vertical: int in range(int(origin["y"]) - FALLBACK_RADIUS, int(origin["y"]) + FALLBACK_RADIUS + 1):
-			var world: Vector3 = Placement.to_world(blueprint, Vector3(horizontal, 0, vertical))
+			var world: Vector3 = offset + Vector3(horizontal, 0, vertical)
 			if reserved.has(Vector2i(roundi(world.x), roundi(world.z))):
 				continue
 			if not Placement.clip_rectangle(blueprint, Rect2(Vector2(horizontal, vertical) - Vector2(0.5, 0.5), Vector2.ONE)).has_area():
