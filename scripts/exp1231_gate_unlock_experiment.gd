@@ -226,7 +226,7 @@ func _report_input(case: Dictionary, timestamp_ms: int, observation: Variant, ac
 
 func _check(assertions: Array[Dictionary], name: String, actual: Variant, expected: Variant) -> void:
 	var numeric: bool = typeof(actual) in [TYPE_INT, TYPE_FLOAT] and typeof(expected) in [TYPE_INT, TYPE_FLOAT]
-	var passed: bool = actual != null and (float(actual) == float(expected) if numeric else (typeof(actual) == typeof(expected) and actual == expected))
+	var passed: bool = actual == null if expected == null else (actual != null and (float(actual) == float(expected) if numeric else (typeof(actual) == typeof(expected) and actual == expected)))
 	assertions.append({"name": name, "expected": expected, "actual": actual, "passed": passed})
 
 
