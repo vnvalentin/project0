@@ -223,6 +223,11 @@ var _frontier_town_detail: RefCounted
 var _frontier_bindings: Dictionary = {}
 var _frontier_town_tiles: Dictionary = {}
 var _canon_reload_events: Array[Dictionary] = []
+## Slice 1357: per-(peer, sector) journeys from boundary trigger to readiness.
+var _frontier_journeys: Dictionary = {}
+var _frontier_sector_stages: Dictionary = {}
+var _frontier_ready_events: Array[Dictionary] = []
+const MAX_FRONTIER_READY_EVENTS: int = 256
 ## Slice 1343: runtime-only; a restart re-detects damage on the next load.
 var _quarantined_sectors: Dictionary = {}
 var _sector_entry_denials: Dictionary = {}
@@ -765,6 +770,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_jit_presentation_ack_tracker.forget_peer(peer_id)
 	_frontier_bindings.erase(peer_id)
 	_frontier_prepared_at_by_peer.erase(peer_id)
+	_frontier_journeys.erase(peer_id)
 	_sector_entry_denials.erase(peer_id)
 	_frontier_ack_limiter.forget_peer(peer_id)
 	for sector_id: String in _sector_ingress_positions.keys():
@@ -843,6 +849,7 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	var generation_started_usec: int = int(trace.get("generation_started_usec", Time.get_ticks_usec()))
 	if _provisional_sector_generator == null or _deny_if_quarantined(peer_id, sector_id):
 		return
+	_set_frontier_journey_path(peer_id, sector_id, "generated")
 	if not _sector_detail_requests.has(sector_id):
 		var placement: Dictionary = SectorDetailPlacementScript.select(sector_id, position)
 		if placement.is_empty():
@@ -854,6 +861,7 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	if _provisional_sector_generator.get_status(sector_id) == ProvisionalSectorGeneratorScript.STATUS_READY:
 		var cached_result: Dictionary = _provisional_sector_generator.get_provisional_result(sector_id).duplicate(true)
 		cached_result.erase("trace_spans")
+		_set_frontier_journey_path(peer_id, sector_id, "cached")
 		_jit_peer_by_sector[sector_id] = peer_id
 		_on_provisional_sector_ready(sector_id, cached_result)
 		return
@@ -903,7 +911,12 @@ static func _sector_generation_prompt(sector_id: String) -> String:
 func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
 	if _canon_repository == null or _deny_if_quarantined(peer_id, sector_id):
 		return
+	var lookup_started_usec: int = _frontier_now_usec()
 	var base: Dictionary = _inspect_canon_base(sector_id)
+	var journey: Dictionary = _frontier_journey(peer_id, sector_id)
+	if not journey.is_empty():
+		journey["path"] = "canon"
+		journey["stages"]["canon_lookup_ms"] = _elapsed_ms(lookup_started_usec)
 	if base["outcome"] == CanonSectorIntegrityScript.OUTCOME_ABSENT:
 		return
 	if base["outcome"] != CanonSectorIntegrityScript.OUTCOME_OK:
@@ -1045,19 +1058,24 @@ func content_generation_count() -> int:
 func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void:
 	if _canon_generation_coordinator == null:
 		return
+	var detail_started_usec: int = _frontier_now_usec()
 	if _sector_detail_requests.has(sector_id):
 		result = SectorDetailGenerationScript.prepare(result, _sector_detail_requests[sector_id], _starting_town_hub_blueprint)
+	var detail_ms: float = _elapsed_ms(detail_started_usec)
 	var peer_id: int = int(_jit_peer_by_sector.get(sector_id, 0))
 	for span: Dictionary in result.get("trace_spans", []):
 		_emit_jit_trace(span, peer_id)
 	var trace: Dictionary = result.get("trace_context", {})
 	var commit_trace: Dictionary = JitTraceContextScript.child(trace, "canon_db_commit") if not trace.is_empty() else {}
+	var commit_started_usec: int = _frontier_now_usec()
 	var finalization: Dictionary = _canon_generation_coordinator.accept_generation_result(
 		sector_id,
 		result.get("selected_profile", ""),
 		result
 	)
+	var commit_ms: float = _elapsed_ms(commit_started_usec)
 	if not commit_trace.is_empty():
+		commit_trace["duration_ms"] = commit_ms
 		commit_trace["status"] = "OK" if finalization["outcome"] in [CanonGenerationCoordinatorScript.OUTCOME_CANONICALIZED, CanonGenerationCoordinatorScript.OUTCOME_IDEMPOTENT] else "ERROR"
 		_emit_jit_trace(commit_trace, peer_id)
 	if finalization["outcome"] == CanonGenerationCoordinatorScript.OUTCOME_IGNORED:
@@ -1066,6 +1084,7 @@ func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void
 		push_warning("Rejected conflicting provisional sector %s: %s" % [sector_id, finalization["detail"]])
 	else:
 		_jit_commit_trace_by_sector[sector_id] = commit_trace
+		_frontier_sector_stages[sector_id] = _generation_stages(result, detail_ms, commit_ms)
 		_on_canonical_sector_ready(sector_id, finalization["blueprint"])
 	_jit_commit_trace_by_sector.erase(sector_id)
 	_jit_root_trace_by_sector.erase(sector_id)
@@ -1075,7 +1094,12 @@ func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void
 func _on_canonical_sector_ready(sector_id: String, blueprint: Dictionary) -> void:
 	var commit_trace: Dictionary = _jit_commit_trace_by_sector.get(sector_id, {})
 	var sector_ingresses: Dictionary = _sector_ingress_positions.get(sector_id, {})
+	var stages: Dictionary = _frontier_sector_stages.get(sector_id, {})
+	_frontier_sector_stages.erase(sector_id)
 	for peer_id: int in sector_ingresses.keys():
+		var journey: Dictionary = _frontier_journey(peer_id, sector_id)
+		if not journey.is_empty():
+			journey["stages"].merge(stages, true)
 		var ingress: Vector3 = sector_ingresses.get(peer_id, Vector3.ZERO)
 		_present_frontier_sector(peer_id, sector_id, blueprint, ingress, commit_trace)
 	_sector_ingress_positions.erase(sector_id)
@@ -1087,6 +1111,7 @@ func _configure_player_frontier(peer_id: int, player_state: Node) -> void:
 	if _frontier_town_detail == null and not _starting_town_hub_blueprint.is_empty():
 		_frontier_town_detail = SectorDetailPlacementScript.new(_starting_town_hub_blueprint)
 	_frontier_prepared_at_by_peer.erase(peer_id)
+	_frontier_journeys.erase(peer_id)
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
 	for sector_id: String in _sector_ingress_positions.keys():
@@ -1112,6 +1137,80 @@ func _frontier_now_msec() -> int:
 	return Time.get_ticks_msec()
 
 
+func _frontier_now_usec() -> int:
+	return Time.get_ticks_usec()
+
+
+func _elapsed_ms(started_usec: int) -> float:
+	return float(_frontier_now_usec() - started_usec) / 1000.0
+
+
+## Retries keep the original trigger so the total covers the whole journey.
+func _start_frontier_journey(peer_id: int, sector_id: String) -> void:
+	var journeys: Dictionary = _frontier_journeys.get(peer_id, {})
+	if journeys.has(sector_id):
+		return
+	if journeys.size() >= JitPresentationAckTrackerScript.MAX_PENDING_PER_PEER:
+		journeys.erase(journeys.keys()[0])
+	journeys[sector_id] = {"trigger_usec": _frontier_now_usec(), "path": "", "stages": {}}
+	_frontier_journeys[peer_id] = journeys
+
+
+func _frontier_journey(peer_id: int, sector_id: String) -> Dictionary:
+	return _frontier_journeys.get(peer_id, {}).get(sector_id, {})
+
+
+func _set_frontier_journey_path(peer_id: int, sector_id: String, path: String) -> void:
+	var journey: Dictionary = _frontier_journey(peer_id, sector_id)
+	if not journey.is_empty():
+		journey["path"] = path
+
+
+static func _generation_stages(result: Dictionary, detail_ms: float, commit_ms: float) -> Dictionary:
+	var stages: Dictionary = {
+		"request_outcome": String(result.get("request_outcome", "")),
+		"fallback_selected": bool(result.get("fallback_selected", false)),
+		"source": String(result.get("source", "")),
+		"detail_ms": detail_ms,
+		"canon_commit_ms": commit_ms,
+	}
+	var timing: Dictionary = result.get("timing", {})
+	for key: String in ["generation_duration_ms", "validation_duration_ms", "deadline_overshoot_ms"]:
+		if timing.has(key):
+			stages[key] = float(timing[key])
+	return stages
+
+
+## One stage-timed record per journey, only once that peer's ACK is verified.
+func _record_frontier_ready(peer_id: int, sector_id: String) -> void:
+	var journeys: Dictionary = _frontier_journeys.get(peer_id, {})
+	var journey: Dictionary = journeys.get(sector_id, {})
+	journeys.erase(sector_id)
+	if not journey.has("presented_usec"):
+		return
+	var now_usec: int = _frontier_now_usec()
+	var stages: Dictionary = journey["stages"].duplicate(true)
+	stages["presentation_ms"] = float(now_usec - int(journey["presented_usec"])) / 1000.0
+	var player_state: Node = _player_states.get(peer_id)
+	var character_id: String = String(player_state.character_id) if player_state != null else ""
+	var event: Dictionary = {
+		"event_type": "FRONTIER_SECTOR_READY", "peer_id": peer_id, "character_id": character_id,
+		"journey_id": _frontier_journey_id(peer_id, character_id), "sector_id": sector_id,
+		"path": String(journey["path"]), "stages": stages,
+		"total_ms": float(now_usec - int(journey["trigger_usec"])) / 1000.0,
+	}
+	if _frontier_ready_events.size() >= MAX_FRONTIER_READY_EVENTS:
+		_frontier_ready_events.pop_front()
+	_frontier_ready_events.append(event)
+	print("FRONTIER_SECTOR_READY %s" % JSON.stringify(event))
+	_emit_server_telemetry("frontier.sector_ready", peer_id, event)
+
+
+## Slice 1357: stage-timed frontier readiness records, for experiments.
+func frontier_ready_events() -> Array:
+	return _frontier_ready_events.duplicate(true)
+
+
 ## Bound replay/ACK-loss recovery independently of physics ticks. This retries
 ## presentation/preparation, never the generator's single accepted LLM request.
 func _prepare_frontier_position(peer_id: int, position: Vector3) -> void:
@@ -1123,6 +1222,7 @@ func _prepare_frontier_position(peer_id: int, position: Vector3) -> void:
 	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
 		_present_frontier_sector(peer_id, sector_id, _starting_town_hub_blueprint, position, {})
 	elif _sector_boundary_detector != null:
+		_start_frontier_journey(peer_id, sector_id)
 		_sector_boundary_detector.forget_preparation(peer_id, sector_id)
 		_sector_boundary_detector.prepare_position(peer_id, position)
 
@@ -1244,6 +1344,9 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 		trace = _jit_presentation_ack_tracker.issue(peer_id, parent, binding)
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.remember_canon_trace(sector_id, trace)
+	var journey: Dictionary = _frontier_journey(peer_id, sector_id)
+	if not journey.is_empty() and not journey.has("presented_usec"):
+		journey["presented_usec"] = _frontier_now_usec()
 	_send_sector_blueprint(peer_id, effective, ingress, trace)
 	return trace
 
@@ -1396,6 +1499,8 @@ func _on_client_telemetry_batch_received(peer_id: int, events: Array, _client_se
 			continue
 		var sector_id: String = String(event["payload"].get("sector_id", ""))
 		var presentation_trace: Dictionary = _jit_presentation_ack_tracker.confirm_ready(peer_id, event, _frontier_binding(peer_id, sector_id))
+		if not presentation_trace.is_empty():
+			_record_frontier_ready(peer_id, sector_id)
 		if not presentation_trace.is_empty() and _sector_boundary_detector != null:
 			_sector_boundary_detector.remember_canon_trace(
 				sector_id,
