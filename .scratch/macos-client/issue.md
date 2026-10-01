@@ -97,3 +97,10 @@ verify native admission and the original Character-to-world UI seam. The new
 `published-plan.json` owns exact Mac selections; it does not admit Windows
 execution or deferred private server access. Published dirty source metadata
 does not prove source/PCK equality. Existing apps and evidence remain intact.
+
+
+## 2026-10-01 native retry frontier
+
+At committed `93204a8a737563242bde00759a5db3f7e166609e`, 32 packaging and36 published controls passed;24 unchanged admission controls remain applicable. Fourth native run stopped in setup with PermissionError when creating uniquely owned validation data under Library/Application Support in the restricted sandbox; no engine or transport started. This was invocation permission, not product or preboot failure. Fifth native selection uses fresh report/output with escalated execution for precisely that owned temporary state, qualified local tools and anonymous public release/admission target. Existing app/evidence and unnamed-project state remain preserved.
+
+Source-only reviews: Spec unnamed-project finding resolved at cbb81c2; source custody findings resolved in93204a8 working diff. Standards process/cleanup fixes are covered by the32 controls. Exact final revision and actual normal Character-to-world runtime acceptance remain required. GitHub checkpoint update prepared but approval review timed out twice before execution; human retry permission requested. Active governing record remains https://github.com/vnvalentin/project0/issues/1353, awaiting evidence/access rather than complete. This local note is a planning pointer and retained handoff frontier, not a replacement delivery record.

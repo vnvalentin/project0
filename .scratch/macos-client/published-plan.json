@@ -41,7 +41,7 @@
       "suite": "macos-published",
       "platform": "macos",
       "host": "Philips-MacBook-Pro-2",
-      "command": "python3 scripts/macos/published.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.14.20 --output dist/macos/1353-published-fourth --plan .scratch/macos-client/published-plan.json --report build/validation/macos/published-fourth-1353.json",
+      "command": "python3 scripts/macos/published.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.14.20 --output dist/macos/1353-published-fifth --plan .scratch/macos-client/published-plan.json --report build/validation/macos/published-fifth-1353.json",
       "dependencies": [
         "godot-client",
         "python",
@@ -53,7 +53,7 @@
         "scripts/macos/published_admission_probe.gd"
       ],
       "artifacts": [
-        "build/validation/macos/published-fourth-1353.json"
+        "build/validation/macos/published-fifth-1353.json"
       ]
     }
   ]
