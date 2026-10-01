@@ -48,6 +48,7 @@ const CanonMutationRepositoryScript: Script = preload("res://server/canon_mutati
 const CanonMutationServiceScript: Script = preload("res://server/canon_mutation_service.gd")
 const EnvironmentalInteractionServiceScript: Script = preload("res://server/environmental_interaction_service.gd")
 const CanonSectorResolverScript: Script = preload("res://shared/canon_sector_resolver.gd")
+const CanonSectorIntegrityScript: Script = preload("res://server/canon_sector_integrity.gd")
 const ProvisionalSectorGeneratorScript: Script = preload("res://server/provisional_sector_generator.gd")
 const SectorBoundaryDetectorScript: Script = preload("res://server/sector_boundary_detector.gd")
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
@@ -222,6 +223,11 @@ var _frontier_town_detail: RefCounted
 var _frontier_bindings: Dictionary = {}
 var _frontier_town_tiles: Dictionary = {}
 var _canon_reload_events: Array[Dictionary] = []
+## Slice 1343: runtime-only; a restart re-detects damage on the next load.
+var _quarantined_sectors: Dictionary = {}
+var _sector_entry_denials: Dictionary = {}
+var _sector_quarantine_events: Array[Dictionary] = []
+const REASON_SECTOR_QUARANTINED: String = "sector_quarantined"
 var _reclaimed_journey_peers: Dictionary = {}
 var _content_generation_requests: int = 0
 const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
@@ -451,7 +457,7 @@ func _start_server() -> void:
 	_canon_generation_coordinator.set_canonicalize_callback(Callable(_canon_repository, "canonicalize_blueprint"))
 	_provisional_sector_generator.provisional_sector_ready.connect(_on_provisional_sector_ready)
 	_sector_boundary_detector = SectorBoundaryDetectorScript.new()
-	_sector_boundary_detector.set_canon_lookup(Callable(_canon_repository, "get_canonical_sector"))
+	_sector_boundary_detector.set_canon_lookup(Callable(self, "_boundary_has_canon"))
 	_sector_boundary_detector.set_request_callback(Callable(self, "_request_sector_from_boundary"))
 	_sector_boundary_detector.set_reload_callback(Callable(self, "_reload_sector_from_boundary"))
 	# Slice 085: the game server builds an assertion-only login graph (no
@@ -758,6 +764,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_jit_presentation_ack_tracker.forget_peer(peer_id)
 	_frontier_bindings.erase(peer_id)
 	_frontier_prepared_at_by_peer.erase(peer_id)
+	_sector_entry_denials.erase(peer_id)
 	_frontier_ack_limiter.forget_peer(peer_id)
 	for sector_id: String in _sector_ingress_positions.keys():
 		var ingresses: Dictionary = _sector_ingress_positions[sector_id]
@@ -833,7 +840,7 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 
 func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
 	var generation_started_usec: int = int(trace.get("generation_started_usec", Time.get_ticks_usec()))
-	if _provisional_sector_generator == null:
+	if _provisional_sector_generator == null or _deny_if_quarantined(peer_id, sector_id):
 		return
 	if not _sector_detail_requests.has(sector_id):
 		var placement: Dictionary = SectorDetailPlacementScript.select(sector_id, position)
@@ -893,22 +900,94 @@ static func _sector_generation_prompt(sector_id: String) -> String:
 
 
 func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
-	if _canon_repository == null:
+	if _canon_repository == null or _deny_if_quarantined(peer_id, sector_id):
 		return
-	var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
-	if canon_result["outcome"] != CanonRepositoryScript.OUTCOME_OK:
+	var base: Dictionary = _inspect_canon_base(sector_id)
+	if base["outcome"] == CanonSectorIntegrityScript.OUTCOME_ABSENT:
+		return
+	if base["outcome"] != CanonSectorIntegrityScript.OUTCOME_OK:
+		_quarantine_sector(sector_id, base)
+		_deny_if_quarantined(peer_id, sector_id)
 		return
 	_emit_jit_trace(trace, peer_id)
-	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
-	var presented: Dictionary = _present_frontier_sector(peer_id, sector_id, blueprint, position, trace)
-	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
+	var presented: Dictionary = _present_frontier_sector(peer_id, sector_id, base["blueprint"], position, trace)
 	_record_canon_reload(peer_id, sector_id, presented)
+
+
+func _inspect_canon_base(sector_id: String) -> Dictionary:
+	var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
+	var history: Dictionary = {"outcome": CanonMutationRepositoryScript.OUTCOME_OK, "mutations": []}
+	if canon_result.get("outcome") == CanonRepositoryScript.OUTCOME_NOT_FOUND and _canon_mutation_repository != null:
+		history = _canon_mutation_repository.list_mutations(sector_id)
+	return CanonSectorIntegrityScript.inspect_base(sector_id, canon_result, history)
+
+
+## Boundary lookup: a quarantined, damaged or unreadable known sector counts as
+## Canon so the reload path denies it; only a never-generated sector is absent.
+func _boundary_has_canon(sector_id: String) -> bool:
+	if _quarantined_sectors.has(sector_id):
+		return true
+	return _inspect_canon_base(sector_id)["outcome"] != CanonSectorIntegrityScript.OUTCOME_ABSENT
+
+
+func _quarantine_sector(sector_id: String, inspection: Dictionary) -> void:
+	if _quarantined_sectors.has(sector_id):
+		return
+	var record: Dictionary = {
+		"sector_id": sector_id,
+		"failure_class": String(inspection.get("failure_class", "")),
+		"detail": String(inspection.get("detail", "")),
+		"severity": "high",
+		"server_tick": _current_server_tick(),
+	}
+	_quarantined_sectors[sector_id] = record
+	_invalidate_frontier_sector(sector_id, false)
+	var event: Dictionary = record.duplicate()
+	event["event_type"] = "CANON_SECTOR_QUARANTINED"
+	_sector_quarantine_events.append(event)
+	push_error("CANON_SECTOR_QUARANTINED %s" % JSON.stringify(record))
+	_emit_server_telemetry("canon.sector_quarantined", -1, record)
+
+
+## Denies entry once per peer and sector; true whenever the sector is quarantined.
+func _deny_if_quarantined(peer_id: int, sector_id: String) -> bool:
+	if not _quarantined_sectors.has(sector_id):
+		return false
+	var denied: Dictionary = _sector_entry_denials.get(peer_id, {})
+	if denied.has(sector_id):
+		return true
+	denied[sector_id] = true
+	_sector_entry_denials[peer_id] = denied
+	var denial: Dictionary = {
+		"sector_id": sector_id,
+		"reason_code": REASON_SECTOR_QUARANTINED,
+		"failure_class": _quarantined_sectors[sector_id]["failure_class"],
+	}
+	var event: Dictionary = denial.duplicate()
+	event.merge({"event_type": "CANON_SECTOR_ENTRY_DENIED", "peer_id": peer_id, "severity": "high", "server_tick": _current_server_tick()})
+	_sector_quarantine_events.append(event)
+	push_error("CANON_SECTOR_ENTRY_DENIED %s" % JSON.stringify(event))
+	_emit_server_telemetry("canon.sector_entry_denied", peer_id, event)
+	_send_sector_entry_denied(peer_id, denial)
+	return true
+
+
+func _send_sector_entry_denied(peer_id: int, denial: Dictionary) -> void:
+	var network_client: Node = root.get_node_or_null("NetworkClient")
+	if network_client != null:
+		network_client.rpc_id(peer_id, "receive_sector_entry_denied", denial)
+
+
+## Slice 1343: quarantine records and the ordered quarantine/denial events.
+func sector_quarantine_evidence() -> Dictionary:
+	return {"quarantined": _quarantined_sectors.duplicate(true), "events": _sector_quarantine_events.duplicate(true)}
 
 
 ## Records one journey-correlated re-entry, only when a presentation was sent.
 func _record_canon_reload(peer_id: int, sector_id: String, presented: Dictionary) -> void:
 	if presented.is_empty():
 		return
+	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
 	var player_state: Node = _player_states.get(peer_id)
 	var character_id: String = String(player_state.character_id) if player_state != null else ""
 	_canon_reload_events.append({
@@ -936,7 +1015,6 @@ func _reload_reclaimed_hub_entry(peer_id: int, position: Vector3) -> void:
 	if hub_id.is_empty() or _frontier_sector_at(position) != hub_id:
 		return
 	var presented: Dictionary = _present_frontier_sector(peer_id, hub_id, _starting_town_hub_blueprint, position, {})
-	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [hub_id, peer_id])
 	_record_canon_reload(peer_id, hub_id, presented)
 
 
@@ -995,6 +1073,7 @@ func _configure_player_frontier(peer_id: int, player_state: Node) -> void:
 	for sector_id: String in _sector_ingress_positions.keys():
 		var ingresses: Dictionary = _sector_ingress_positions[sector_id]
 		ingresses.erase(peer_id)
+	_sector_entry_denials.erase(peer_id)
 	_frontier_bindings[peer_id] = {
 		"connection": player_state.get_instance_id(),
 		"character": String(player_state.character_id),
@@ -1115,19 +1194,19 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 		return {}
 	if String(blueprint.get("sector_id", "")) != sector_id:
 		return {}
+	if _deny_if_quarantined(peer_id, sector_id):
+		return {}
 	_remember_frontier_preparation(peer_id, sector_id)
 	var effective: Dictionary = blueprint
 	var revision: int = 0
 	if _canon_mutation_repository != null:
-		var listed: Dictionary = _canon_mutation_repository.list_mutations(sector_id)
-		if listed.get("outcome") != "ok":
-			# Revoke stale authority, but preserve the failed-attempt cooldown.
-			_invalidate_frontier_sector(sector_id, false)
+		var history: Dictionary = CanonSectorIntegrityScript.inspect_history(sector_id, blueprint, _canon_mutation_repository.list_mutations(sector_id))
+		if history["outcome"] != CanonSectorIntegrityScript.OUTCOME_OK:
+			_quarantine_sector(sector_id, history)
+			_deny_if_quarantined(peer_id, sector_id)
 			return {}
-		var mutations: Array = listed.get("mutations", [])
-		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, mutations)
-		if not mutations.is_empty():
-			revision = int(mutations.back()["applied_revision"])
+		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, history["mutations"])
+		revision = int(history["revision"])
 	var detail: RefCounted = SectorDetailPlacementScript.new(effective)
 	if sector_id != String(_starting_town_hub_blueprint.get("sector_id", "")) and not detail.contains_world(ingress):
 		print("SECTOR_INGRESS_REJECTED sector_id=%s peer_id=%d reason=outside_connected_detail" % [sector_id, peer_id])
@@ -1179,7 +1258,11 @@ func _on_canon_mutation_intent(sender_peer_id: int, intent: Dictionary) -> void:
 	var player_state: Node = _player_states.get(sender_peer_id)
 	if player_state == null:
 		return
-	var resolution: Dictionary = _canon_mutation_service.resolve_intent(player_state.character_id, intent)
+	var resolution: Dictionary = {}
+	if _quarantined_sectors.has(String(intent.get("sector_id", ""))):
+		resolution = {"status": CanonMutationServiceScript.STATUS_REJECTED, "reason": REASON_SECTOR_QUARANTINED, "applied_revision": -1, "client_seq": _intent_client_seq(intent), "event_id": ""}
+	else:
+		resolution = _canon_mutation_service.resolve_intent(player_state.character_id, intent)
 	if resolution.get("status") == CanonMutationServiceScript.STATUS_ACCEPTED and resolution.get("reason") == CanonMutationRepositoryScript.OUTCOME_OK:
 		_invalidate_frontier_sector(String(intent.get("sector_id", "")))
 	var network_client: Node = root.get_node_or_null("NetworkClient")
@@ -1205,6 +1288,8 @@ func _resolve_environmental_interaction(sender_peer_id: int, intent: Dictionary)
 	var player_state: Node = _player_states.get(sender_peer_id)
 	if player_state == null:
 		return {}
+	if _quarantined_sectors.has(String(intent.get("sector_id", ""))):
+		return {"status": EnvironmentalInteractionServiceScript.STATUS_REJECTED, "reason": REASON_SECTOR_QUARANTINED, "client_seq": _intent_client_seq(intent)}
 	var resolution: Dictionary = _environmental_interaction_service.resolve_intent(
 		player_state.character_id,
 		player_state.position,
@@ -1215,6 +1300,10 @@ func _resolve_environmental_interaction(sender_peer_id: int, intent: Dictionary)
 		var cell: Array = resolution.get("structure_cell", [])
 		_town_collision.open_structure_at(Vector2i(int(cell[0]), int(cell[1])))
 	return resolution
+
+
+static func _intent_client_seq(intent: Dictionary) -> int:
+	return int(intent["client_seq"]) if intent.get("client_seq") is int else -1
 
 
 ## Overridden only by experiment fixtures that declare extra hub Canon content.
