@@ -54,6 +54,10 @@ func _village_hall_guid() -> String:
 	return CanonEntityGuidScript.derive("sector-0-0", CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, "village_hall")
 
 
+func _gate_guid() -> String:
+	return CanonEntityGuidScript.derive("sector-0-0", CanonEntityGuidScript.ENTITY_CLASS_STRUCTURE, "gate-1")
+
+
 func test_effective_blueprint_before_any_mutation_keeps_the_structure() -> void:
 	var mutations: Array = _mutations.list_mutations("sector-0-0")["mutations"]
 	var effective: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(_hub_blueprint(), mutations)
@@ -104,6 +108,39 @@ func test_effective_blueprint_survives_restart() -> void:
 	var mutations: Array = _mutations.list_mutations("sector-0-0")["mutations"]
 	var effective: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(_hub_blueprint(), mutations)
 	assert_eq(effective.get("structures", []).size(), 0, "the destruction persists across a restart")
+
+
+func test_unlocked_gate_survives_restart_and_replay() -> void:
+	# before_each canonicalizes sector-0-0 as a village hall; the gate sector needs its own store.
+	after_each()
+	_relative_path = "test_canon_sector_replay_gate_%d_%d.db" % [Time.get_ticks_usec(), randi()]
+	_store = SqliteStoreScript.new()
+	_store.open(_relative_path)
+	_canon = CanonRepositoryScript.new(_store)
+	_canon.ensure_schema()
+	_mutations = CanonMutationRepositoryScript.new(_store, _canon)
+	_mutations.ensure_schema()
+	var gate_blueprint: Dictionary = JSON.parse_string(FixturesScript.VALID_WITH_LOCKED_GATE)
+	assert_eq(_canon.canonicalize_blueprint(gate_blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var event: Dictionary = {
+		"schema_version": 1, "event_id": "evt-unlock-gate", "sector_id": "sector-0-0",
+		"target_guid": _gate_guid(), "mutation_kind": "unlock_gate", "actor_player_id": "character-1",
+		"server_tick": 7, "expected_revision": 0, "payload": {"unlocked": true},
+	}
+	assert_eq(_mutations.apply_mutation(event)["outcome"], CanonMutationRepositoryScript.OUTCOME_OK)
+	_store.close()
+
+	_store = SqliteStoreScript.new()
+	_store.open(_relative_path)
+	_canon = CanonRepositoryScript.new(_store)
+	_canon.ensure_schema()
+	_mutations = CanonMutationRepositoryScript.new(_store, _canon)
+	_mutations.ensure_schema()
+	var replayed: Array = _mutations.list_mutations("sector-0-0")["mutations"]
+	var effective: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(
+		_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], replayed
+	)
+	assert_true(effective["structures"][0].get("unlocked", false), "unlock survives restart and replay")
 
 
 func test_experiment_1012_reentry_restores_exact_canon_without_generation_or_writes() -> void:

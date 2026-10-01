@@ -28,6 +28,10 @@ func _destroy(structure_id: String) -> Dictionary:
 	return {"mutation_kind": "destroy_structure", "target_guid": _guid(structure_id)}
 
 
+func _unlock(structure_id: String) -> Dictionary:
+	return {"mutation_kind": "unlock_gate", "target_guid": _guid(structure_id), "payload": {"unlocked": true}}
+
+
 func _structure_ids(blueprint: Dictionary) -> Array:
 	var ids: Array = []
 	for structure: Dictionary in blueprint.get("structures", []):
@@ -43,6 +47,12 @@ func test_no_mutations_returns_blueprint_unchanged() -> void:
 func test_destroy_structure_removes_the_matching_structure() -> void:
 	var effective: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(_blueprint(), [_destroy("smithy_1")])
 	assert_eq(_structure_ids(effective), ["village_hall"], "the destroyed structure is gone; the rest remain")
+
+
+func test_unlock_gate_marks_the_matching_structure_effective_state() -> void:
+	var effective: Dictionary = CanonSectorResolverScript.resolve_effective_blueprint(_blueprint(), [_unlock("village_hall")])
+	assert_true(effective["structures"][0].get("unlocked", false), "the unlocked gate state is replayed")
+	assert_false(effective["structures"][1].has("unlocked"), "unrelated structures remain unchanged")
 
 
 func test_destroy_structure_uses_stamped_guid_when_present() -> void:
