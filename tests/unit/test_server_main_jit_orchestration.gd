@@ -222,6 +222,33 @@ func test_frontier_generation_request_is_counted() -> void:
 	server.free()
 
 
+func test_reclaimed_hub_entry_records_one_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	state.position = Vector3(0.01, 1, 0)
+	server._on_journey_evidence("reclaim", {"journey_id": "journey-returning", "character_id": "", "peer_id": 7})
+	server._on_player_state_character_bound(7, "Tester", {})
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 1, "a returning player's hub entry is one Canon re-entry")
+	if events.size() == 1:
+		assert_eq(events[0]["sector_id"], "starting_town_hub")
+		assert_eq(events[0]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_false(String(events[0]["spatial_guid"]).is_empty())
+	server._on_player_state_character_bound(7, "Tester", {})
+	assert_eq(server.canon_reload_events().size(), 1, "a later bind without a new reclaim adds no event")
+	assert_eq(server.content_generation_count(), 0)
+	server.free()
+
+
+func test_fresh_hub_entry_records_no_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	server._player_states[7].position = Vector3(0.01, 1, 0)
+	server._on_journey_evidence("entry", {"journey_id": "journey-new", "character_id": "", "peer_id": 7})
+	server._on_player_state_character_bound(7, "Tester", {})
+	assert_eq(server.canon_reload_events().size(), 0)
+	server.free()
+
+
 func test_live_frontier_prepares_once_holds_then_releases_without_telemetry() -> void:
 	var server: FrontierServer = _frontier_server()
 	var state: Node = server._player_states[7]
