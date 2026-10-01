@@ -19,6 +19,7 @@ own evidence exists.
 | --- | --- | --- | --- |
 | `macos-tooling` | `scripts/macos/test_*.py` | Python, Git | Mac component regression |
 | `macos-client` | `scripts/macos/package_inventory.gd`, `scripts/macos/offline_probe.gd` | Godot client, Python coordinator, Git | Package audit and offline native client probe |
+| `macos-admission` | `scripts/macos/admission.py`, `scripts/macos/admission_probe.gd` | Godot client, Python coordinator, Git | Bounded public pre-auth client admission |
 
 The Mac client retains the existing client authority boundary: presentation,
 input and disposable prediction only. No SQLite, Canon persistence, Ollama,
@@ -32,6 +33,18 @@ universal macOS release template under `build/tools/godot/`. It does not install
 an engine globally or use the Windows packaging scripts. A successful Mac
 component report does not prove that an Intel Mac ran the app, a live server
 accepted it, or a player approved its visual/input behavior.
+
+The user's game-entry defect report also authorizes client-side admission
+diagnosis against the configured public default `192.69.180.236:9999`, recorded
+in [#1353](https://github.com/vnvalentin/project0/issues/1353#issuecomment-5937286309).
+The separate `macos-admission` runner stages the same client source/version with
+fresh user/editor state and invokes the real connection and admission waiters.
+It stops before authentication/assertion presentation, reads no user settings,
+credentials or logs, and captures only allowlisted connection/admission/version
+metadata. Engine output is discarded before capture. It never executes server
+commands or contacts the deferred private hosts. A successful admission report
+does not establish Character assertion acceptance or gameplay. The original
+offline package evidence and broader host/merge gates remain separate.
 
 ## Separate Mac static preflight
 

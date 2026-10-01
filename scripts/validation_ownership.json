@@ -88,6 +88,14 @@
       "runner": "python3 scripts/macos/package.py --verify",
       "tests": ["scripts/macos/package_inventory.gd", "scripts/macos/offline_probe.gd"],
       "evidence": "client-only-not-server-proof"
+    },
+    "macos-admission": {
+      "platform": "macos",
+      "owner": "macos-client",
+      "dependencies": ["godot-client", "python", "git"],
+      "runner": "python3 scripts/macos/admission.py",
+      "tests": ["scripts/macos/admission.py", "scripts/macos/admission_probe.gd"],
+      "evidence": "pre-auth-client-admission-only"
     }
   }
 }

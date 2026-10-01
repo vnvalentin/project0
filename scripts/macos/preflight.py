@@ -23,7 +23,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "scripts/validation_ownership.json"
 MAC_HOST = "Philips-MacBook-Pro-2"
-MAC_SUITES = {"macos-tooling", "macos-client"}
+MAC_SUITES = {"macos-tooling", "macos-client", "macos-admission"}
 SERVER_DEPENDENCIES = {"sqlite", "canon", "ollama"}
 
 
@@ -175,6 +175,32 @@ def validate_plan(
                 or arguments[3] not in artifacts
             ):
                 errors.append(f"{prefix}: tooling command requires a selected test and planned --report only")
+        elif suite_id == "macos-admission":
+            expected_tests = {"scripts/macos/admission.py", "scripts/macos/admission_probe.gd"}
+            remaining = arguments[2:]
+            if arguments[1] != "scripts/macos/admission.py" or set(tests) != expected_tests:
+                errors.append(f"{prefix}: admission requires its exact client coordinator and probe")
+            flags = {"--godot", "--version", "--plan", "--report"}
+            if len(remaining) != 8 or any(
+                flag not in flags or not value or value.startswith("--")
+                for flag, value in zip(remaining[::2], remaining[1::2])
+            ):
+                errors.append(f"{prefix}: admission requires only its four planned value flags")
+                continue
+            values = dict(zip(remaining[::2], remaining[1::2]))
+            if set(values) != flags:
+                errors.append(f"{prefix}: admission flags must be complete and unique")
+                continue
+            if (not repository_path(root, values["--godot"])
+                or not values["--godot"].startswith("build/tools/godot/")):
+                errors.append(f"{prefix}: admission engine must be repository-local")
+            if values["--version"] != "0.12.0":
+                errors.append(f"{prefix}: admission must match the observed Mac package version")
+            if (not repository_path(root, values["--plan"])
+                or not values["--plan"].startswith(".scratch/macos-client/")):
+                errors.append(f"{prefix}: admission requires an owned Mac plan")
+            if artifacts != [values["--report"]]:
+                errors.append(f"{prefix}: admission requires its single exact planned report")
         elif arguments[1] != "scripts/macos/package.py" or "--verify" not in arguments:
             errors.append(f"{prefix}: client command must use the Mac package verifier")
         else:

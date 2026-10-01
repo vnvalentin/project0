@@ -79,3 +79,12 @@ static preflight, then the exact Mac component commands in the owned plan.
 Linux/Windows owners supply their deferred evidence only under a later access
 grant. The governing issue must remain open or explicitly blocked until its own
 acceptance and required delivery gates are satisfied.
+
+## Game-entry investigation
+
+Computer use confirmed the user's `server_admission_timeout` on the Character
+screen. [Issue checkpoint](https://github.com/vnvalentin/project0/issues/1353#issuecomment-5937286309)
+owns the expanded bounded public client diagnosis and unresolved root cause.
+The exact preflight/commands/evidence are in `admission-plan.json`. Native
+admission tests read no user settings or credentials and stop before assertions;
+they do not prove authenticated world entry. Private host access stays deferred.
