@@ -13,13 +13,14 @@ own evidence exists.
 ## Owned local scope
 
 `scripts/validation_ownership.json` adds the exact Mac host
-`Philips-MacBook-Pro-2` and two disjoint suites:
+`Philips-MacBook-Pro-2` and disjoint suites:
 
 | Suite | Selections | Required dependencies | Evidence |
 | --- | --- | --- | --- |
 | `macos-tooling` | `scripts/macos/test_*.py` | Python, Git | Mac component regression |
 | `macos-client` | `scripts/macos/package_inventory.gd`, `scripts/macos/offline_probe.gd` | Godot client, Python coordinator, Git | Package audit and offline native client probe |
 | `macos-admission` | `scripts/macos/admission.py`, `scripts/macos/admission_probe.gd` | Godot client, Python coordinator, Git | Bounded public pre-auth client admission |
+| `macos-published` | `scripts/macos/published.py`, `scripts/macos/published_inventory.gd`, `scripts/macos/published_admission_probe.gd` | Godot client, Python coordinator, Git | Unchanged published PCK audit, Mac bundle and pre-auth admission |
 
 The Mac client retains the existing client authority boundary: presentation,
 input and disposable prediction only. No SQLite, Canon persistence, Ollama,
@@ -45,6 +46,23 @@ metadata. Engine output is discarded before capture. It never executes server
 commands or contacts the deferred private hosts. A successful admission report
 does not establish Character assertion acceptance or gameplay. The original
 offline package evidence and broader host/merge gates remain separate.
+
+The real public admission test confirmed an RPC checksum mismatch in the
+source-built `0.12.0` app. The Mac-only compatibility countermeasure packages
+the exact publicly published `0.14.20` PCK with the qualified universal Mac
+engine. The fixed anonymous deployment manifest and two-member Windows ZIP
+are bounded and hash-verified; the Windows executable is never run. A data-only
+Mac inventory rejects server/native/SQLite dependencies before packaged scripts
+execute. The original app and reports are preserved. The published manifest
+reports a dirty source tree, so its source commit cannot establish equality
+with the PCK; retained manifest and PCK hashes bind artifact custody instead.
+
+The separate published-pack lifecycle owns download, audit, isolated native
+admission, universal bundle assembly, signing checks, archive fingerprints and
+cleanup. It refuses existing outputs and captures only bounded admission
+metadata, with engine output discarded. Normal standalone Character-to-world
+entry requires separate computer-use evidence. Neither pre-auth admission nor
+startup is a claim of gameplay, Intel runtime, or full cross-host regression.
 
 ## Separate Mac static preflight
 

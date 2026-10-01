@@ -88,3 +88,12 @@ owns the expanded bounded public client diagnosis and unresolved root cause.
 The exact preflight/commands/evidence are in `admission-plan.json`. Native
 admission tests read no user settings or credentials and stop before assertions;
 they do not prove authenticated world entry. Private host access stays deferred.
+
+The native public test at clean `1cb76ebba6bb5a8d2c9afbdee0f7b45fd31aa58a`
+confirmed an RPC checksum mismatch before admission. The issue checkpoint
+records the focused Mac countermeasure: retain the exact published `0.14.20`
+PCK bytes in a universal Mac bundle after a data-only dependency audit, then
+verify native admission and the original Character-to-world UI seam. The new
+`published-plan.json` owns exact Mac selections; it does not admit Windows
+execution or deferred private server access. Published dirty source metadata
+does not prove source/PCK equality. Existing apps and evidence remain intact.

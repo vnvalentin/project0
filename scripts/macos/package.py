@@ -138,7 +138,10 @@ def owned_state(report: dict):
             try:
                 temporary.cleanup()
             finally:
-                report["temporary_state_removed"] = not owned.exists() and (not created or not data.exists())
+                removed = not owned.exists() and (not created or not data.exists())
+                receipts = report.setdefault("cleanup_receipts", [])
+                receipts.append(removed)
+                report["temporary_state_removed"] = all(receipts)
 
 
 def isolated_settings(name: str) -> str:

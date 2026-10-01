@@ -96,6 +96,14 @@
       "runner": "python3 scripts/macos/admission.py",
       "tests": ["scripts/macos/admission.py", "scripts/macos/admission_probe.gd"],
       "evidence": "pre-auth-client-admission-only"
+    },
+    "macos-published": {
+      "platform": "macos",
+      "owner": "macos-client",
+      "dependencies": ["godot-client", "python", "git"],
+      "runner": "python3 scripts/macos/published.py",
+      "tests": ["scripts/macos/published.py", "scripts/macos/published_inventory.gd", "scripts/macos/published_admission_probe.gd"],
+      "evidence": "published-pack-mac-client-not-gameplay-proof"
     }
   }
 }

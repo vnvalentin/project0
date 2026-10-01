@@ -23,7 +23,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "scripts/validation_ownership.json"
 MAC_HOST = "Philips-MacBook-Pro-2"
-MAC_SUITES = {"macos-tooling", "macos-client", "macos-admission"}
+MAC_SUITES = {"macos-tooling", "macos-client", "macos-admission", "macos-published"}
 SERVER_DEPENDENCIES = {"sqlite", "canon", "ollama"}
 
 
@@ -201,6 +201,40 @@ def validate_plan(
                 errors.append(f"{prefix}: admission requires an owned Mac plan")
             if artifacts != [values["--report"]]:
                 errors.append(f"{prefix}: admission requires its single exact planned report")
+        elif suite_id == "macos-published":
+            if (not string_list(dependencies)
+                or {item.strip().lower() for item in dependencies} != {"godot-client", "python", "git"}):
+                errors.append(f"{prefix}: published pack dependencies must be exactly Godot client, Python and Git")
+            expected_tests = {"scripts/macos/published.py", "scripts/macos/published_inventory.gd",
+                              "scripts/macos/published_admission_probe.gd"}
+            remaining = arguments[2:]
+            if arguments[1] != "scripts/macos/published.py" or set(tests) != expected_tests:
+                errors.append(f"{prefix}: published pack requires its exact Mac coordinator, inventory and probe")
+            flags = {"--godot", "--template", "--version", "--output", "--plan", "--report"}
+            if len(remaining) != 12 or any(
+                flag not in flags or not value or value.startswith("--")
+                for flag, value in zip(remaining[::2], remaining[1::2])
+            ):
+                errors.append(f"{prefix}: published pack requires only its six planned value flags")
+                continue
+            values = dict(zip(remaining[::2], remaining[1::2]))
+            if set(values) != flags:
+                errors.append(f"{prefix}: published pack flags must be complete and unique")
+                continue
+            for flag in ("--godot", "--template"):
+                if (not repository_path(root, values[flag])
+                    or not values[flag].startswith("build/tools/godot/")):
+                    errors.append(f"{prefix}: published pack tools must be repository-local")
+            if values["--version"] != "0.14.20":
+                errors.append(f"{prefix}: published pack must match the reviewed public release")
+            if (not repository_path(root, values["--output"])
+                or not values["--output"].startswith("dist/macos/")):
+                errors.append(f"{prefix}: published pack output must remain beneath dist/macos")
+            if (not repository_path(root, values["--plan"])
+                or not values["--plan"].startswith(".scratch/macos-client/")):
+                errors.append(f"{prefix}: published pack requires an owned Mac plan")
+            if artifacts != [values["--report"]]:
+                errors.append(f"{prefix}: published pack requires its single exact planned report")
         elif arguments[1] != "scripts/macos/package.py" or "--verify" not in arguments:
             errors.append(f"{prefix}: client command must use the Mac package verifier")
         else:
