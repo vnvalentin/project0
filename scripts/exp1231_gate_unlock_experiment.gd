@@ -139,7 +139,7 @@ func _run_case(case: Dictionary, timestamp_ms: int) -> Dictionary:
 	_restore_environment(saved)
 	if not GameplayTestSessionScript.restore(session):
 		_harness_errors.append("%s: failed to remove accounts database" % case_id)
-	return {"id": case_id, "expect": case["expect"], "passed": report["passed"], "outcome": report["outcome"],
+	return {"id": case_id, "expect": case.get("expect"), "passed": report["passed"], "outcome": report["outcome"],
 		"first_failing_stage": report["first_failing_stage"], "report": written.get("path"),
 		"failed_assertions": (report["case_assertions"] if report["case_assertions"] is Array else []).filter(
 			func(assertion: Dictionary) -> bool: return not assertion["passed"])}
