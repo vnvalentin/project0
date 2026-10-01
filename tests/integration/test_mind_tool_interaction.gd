@@ -136,3 +136,26 @@ func test_unsupported_verb_cannot_mutate_gate() -> void:
 	var result: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 0.0, 1.0), {}, _intent("solve_riddle"))
 	assert_eq(result["reason"], EnvironmentalServiceScript.REASON_INVALID_INTENT)
 	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 0)
+
+
+func _unlock_once() -> void:
+	assert_eq(_service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 1.0), {}, _intent())["reason"], CanonMutationRepositoryScript.OUTCOME_OK)
+
+
+func test_already_unlocked_valid_request_succeeds_without_a_canon_write() -> void:
+	_unlock_once()
+	var before: Dictionary = _store.canon_write_counters()
+	for request: Array in [["character-2", 1], [ACTOR, 1]]:
+		var result: Dictionary = _service.resolve_intent(request[0], Vector3(0.0, 1.0, 1.5), {}, _intent(InteractionScript.VERB_LOCK_PICK, request[1]))
+		assert_eq(result["status"], EnvironmentalServiceScript.STATUS_ACCEPTED, "%s gets a successful already-unlocked result" % request[0])
+		assert_eq(result["reason"], EnvironmentalServiceScript.REASON_ALREADY_UNLOCKED)
+		assert_eq(result["applied_revision"], 1, "reports the committed unlock revision")
+	assert_eq(_store.canon_write_counters()["attempted"], before["attempted"], "no Canon INSERT/UPDATE in the no-op window")
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 1)
+
+
+func test_already_unlocked_gate_still_enforces_reach_and_line_of_sight() -> void:
+	_unlock_once()
+	assert_eq(_service.resolve_intent("character-2", Vector3(0.0, 1.0, 3.0), {}, _intent())["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
+	var blocked: Dictionary = _service.resolve_intent("character-2", Vector3(0.0, 1.0, 1.0), {}, _intent(), func(_from: Vector3, _to: Vector3) -> bool: return false)
+	assert_eq(blocked["reason"], EnvironmentalServiceScript.REASON_NO_LINE_OF_SIGHT)
