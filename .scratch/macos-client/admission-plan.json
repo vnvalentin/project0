@@ -9,19 +9,19 @@
       "suite": "macos-tooling",
       "platform": "macos",
       "host": "Philips-MacBook-Pro-2",
-      "command": "python3 scripts/macos/test_admission.py --report build/validation/macos/admission-controls-second-1353.json",
+      "command": "python3 scripts/macos/test_admission.py --report build/validation/macos/admission-controls-third-1353.json",
       "dependencies": ["python", "git"],
       "tests": ["scripts/macos/test_admission.py"],
-      "artifacts": ["build/validation/macos/admission-controls-second-1353.json"]
+      "artifacts": ["build/validation/macos/admission-controls-third-1353.json"]
     },
     {
       "suite": "macos-admission",
       "platform": "macos",
       "host": "Philips-MacBook-Pro-2",
-      "command": "python3 scripts/macos/admission.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --version 0.12.0 --plan .scratch/macos-client/admission-plan.json --report build/validation/macos/admission-first-1353.json",
+      "command": "python3 scripts/macos/admission.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --version 0.12.0 --plan .scratch/macos-client/admission-plan.json --report build/validation/macos/admission-second-1353.json",
       "dependencies": ["godot-client", "python", "git"],
       "tests": ["scripts/macos/admission.py", "scripts/macos/admission_probe.gd"],
-      "artifacts": ["build/validation/macos/admission-first-1353.json"]
+      "artifacts": ["build/validation/macos/admission-second-1353.json"]
     }
   ]
 }

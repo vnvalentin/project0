@@ -10,11 +10,53 @@ const RUNTIME_BUDGET_MS: int = 45000
 const MAX_EVENTS: int = 64
 const KNOWN_REJECTIONS: Array[String] = ["CLIENT_OUTDATED", "MALFORMED", "SERVER_MISCONFIGURED", "UNSUPPORTED"]
 
+class AdmissionChecksumLogger:
+	extends Logger
+
+	const PREFIX: String = "The rpc node checksum failed."
+	const ENGINE_FILES: Array[String] = [
+		"modules/multiplayer/scene_cache_interface.cpp",
+		"modules/multiplayer/scene_rpc_interface.cpp",
+	]
+	var _mutex: Mutex = Mutex.new()
+	var _count: int = 0
+
+	func is_checksum_failure(file: String, code: String, rationale: String) -> bool:
+		var normalized: String = file.replace("\\", "/").trim_prefix("./")
+		var engine_source: bool = false
+		for expected: String in ENGINE_FILES:
+			if normalized == expected or normalized.ends_with("/" + expected):
+				engine_source = true
+		return engine_source and (code.begins_with(PREFIX) or rationale.begins_with(PREFIX))
+
+	func _log_error(_function: String, file: String, _line: int, code: String, rationale: String, _editor_notify: bool, _error_type: int, _script_backtraces: Array[ScriptBacktrace]) -> void:
+		if not is_checksum_failure(file, code, rationale):
+			return
+		_mutex.lock()
+		_count = mini(_count + 1, 64)
+		_mutex.unlock()
+
+	func _log_message(_message: String, _error: bool) -> void:
+		pass
+
+	func failure_count() -> int:
+		_mutex.lock()
+		var count: int = _count
+		_mutex.unlock()
+		return count
+
+	func reset() -> void:
+		_mutex.lock()
+		_count = 0
+		_mutex.unlock()
+
 var _evidence_path: String = ""
 var _expected_user_data: String = ""
 var _started_ms: int = 0
 var _finished: bool = false
 var _network: Node
+var _checksum_logger: AdmissionChecksumLogger
+var _logger_registered: bool = false
 var _result: Dictionary = {
 	"schema_version": 1,
 	"probe": "macos-server-admission",
@@ -37,6 +79,9 @@ var _result: Dictionary = {
 	"session_attempted": false,
 	"world_entry_attempted": false,
 	"cleanup_disconnect": false,
+	"rpc_checksum_failed": false,
+	"rpc_checksum_failure_count": 0,
+	"checksum_classifier_selfcheck_passed": false,
 	"failures": [],
 }
 
@@ -91,6 +136,14 @@ func _run() -> void:
 	if not (_result["failures"] as Array).is_empty():
 		_finish("setup_failed")
 		return
+	_checksum_logger = AdmissionChecksumLogger.new()
+	_result["checksum_classifier_selfcheck_passed"] = _check_classifier()
+	if not _result["checksum_classifier_selfcheck_passed"]:
+		_fail("checksum_classifier_selfcheck_failed")
+		_finish("setup_failed")
+		return
+	OS.add_logger(_checksum_logger)
+	_logger_registered = true
 	_network.connect("connection_status_changed", _on_connection_status)
 	_network.connect("version_handshake_rejected", _on_version_rejection)
 	_network.call("connect_to_server", TARGET_HOST, TARGET_PORT)
@@ -117,6 +170,26 @@ func _run() -> void:
 			_finish("server_admission_timeout")
 		return
 	_finish("admitted")
+
+
+func _check_classifier() -> bool:
+	var backtraces: Array[ScriptBacktrace] = []
+	var source: String = "modules/multiplayer/scene_cache_interface.cpp"
+	var prefix: String = "The rpc node checksum failed."
+	var positive_rationale: bool = _checksum_logger.is_checksum_failure(source, "", prefix + " Owned synthetic control.")
+	_checksum_logger._log_error("owned_control", source, 0, "", prefix + " Owned synthetic control.", false, 0, backtraces)
+	var one: bool = _checksum_logger.failure_count() == 1
+	var positive_code: bool = _checksum_logger.is_checksum_failure("modules/multiplayer/scene_rpc_interface.cpp", prefix, "")
+	var unrelated_rpc: bool = not _checksum_logger.is_checksum_failure(source, "", "Unrelated RPC failure.")
+	_checksum_logger._log_error("owned_control", source, 0, "", "Unrelated RPC failure.", false, 0, backtraces)
+	var marker_rejected: bool = not _checksum_logger.is_checksum_failure("res://owned-marker.gd", "", prefix)
+	_checksum_logger._log_error("owned_control", "res://owned-marker.gd", 0, "", prefix, false, 0, backtraces)
+	var negatives_unchanged: bool = _checksum_logger.failure_count() == 1
+	for control: int in range(70):
+		_checksum_logger._log_error("owned_control", source, 0, "", prefix, false, 0, backtraces)
+	var capped: bool = _checksum_logger.failure_count() == 64
+	_checksum_logger.reset()
+	return positive_rationale and one and positive_code and unrelated_rpc and marker_rejected and negatives_unchanged and capped and _checksum_logger.failure_count() == 0
 
 
 func _on_connection_status(status: String) -> void:
@@ -165,6 +238,14 @@ func _finish(stage: String) -> void:
 	_finished = true
 	if is_instance_valid(_network):
 		_network.call("disconnect_from_server")
+	if _logger_registered:
+		OS.remove_logger(_checksum_logger)
+		_logger_registered = false
+	if _checksum_logger != null:
+		_result["rpc_checksum_failure_count"] = _checksum_logger.failure_count()
+		_result["rpc_checksum_failed"] = _result["rpc_checksum_failure_count"] > 0
+		if _result["rpc_checksum_failed"]:
+			_fail("rpc_checksum_failed")
 	var peer: MultiplayerPeer = root.multiplayer.multiplayer_peer
 	_result["cleanup_disconnect"] = peer == null or peer is OfflineMultiplayerPeer
 	if current_scene != null:
@@ -173,7 +254,7 @@ func _finish(stage: String) -> void:
 		inert_scene.free()
 	_result["terminal_stage"] = stage
 	_result["elapsed_msec"] = Time.get_ticks_msec() - _started_ms
-	_result["passed"] = stage == "admitted" and _result["admitted"] and _result["connected"] and _result["user_data_isolated"] and _result["startup_scene_inert"] and _result["cleanup_disconnect"] and not _result["version_rejection"]["received"] and (_result["failures"] as Array).is_empty()
+	_result["passed"] = stage == "admitted" and _result["admitted"] and _result["connected"] and _result["user_data_isolated"] and _result["startup_scene_inert"] and _result["cleanup_disconnect"] and _result["checksum_classifier_selfcheck_passed"] and not _result["rpc_checksum_failed"] and not _result["version_rejection"]["received"] and (_result["failures"] as Array).is_empty()
 	var output: FileAccess = FileAccess.open(_evidence_path, FileAccess.WRITE)
 	if output == null:
 		quit(1)

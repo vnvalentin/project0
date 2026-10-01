@@ -33,12 +33,14 @@ TERMINALS = {"setup", "setup_failed", "game_connect_timeout", "server_admission_
 REJECTIONS = {"", "CLIENT_OUTDATED", "MALFORMED", "SERVER_MISCONFIGURED", "UNSUPPORTED", "unknown_rejection"}
 FAILURES = {"isolation_mismatch", "inert_scene_missing", "engine_mismatch", "client_version_mismatch",
             "logging_not_disabled", "network_client_missing", "waiter_contract_mismatch",
-            "game_connect_timeout", "server_admission_timeout", "version_rejected", "runtime_deadline"}
+            "game_connect_timeout", "server_admission_timeout", "version_rejected", "runtime_deadline",
+            "rpc_checksum_failed", "checksum_classifier_selfcheck_failed"}
 PROBE_FIELDS = {"schema_version", "probe", "passed", "target", "client_version", "user_data_isolated",
                 "startup_scene_inert", "connected", "admitted", "terminal_stage", "timeout_ms",
                 "elapsed_msec", "phase_durations_ms", "connection_events", "events_truncated",
                 "version_rejection", "assertion_sent", "authentication_attempted", "session_attempted",
-                "world_entry_attempted", "cleanup_disconnect", "failures"}
+                "world_entry_attempted", "cleanup_disconnect", "failures", "rpc_checksum_failed",
+                "rpc_checksum_failure_count", "checksum_classifier_selfcheck_passed"}
 
 
 def validate_invocation(root: Path, plan: dict, args: argparse.Namespace) -> None:
@@ -88,12 +90,14 @@ def validate_evidence(report: dict) -> None:
     if report["target"] != {"host": HOST, "port": PORT} or report["client_version"] != VERSION:
         raise ValueError("native admission evidence target or version is invalid")
     for field in ("passed", "user_data_isolated", "startup_scene_inert", "connected", "admitted",
-                  "events_truncated", "cleanup_disconnect"):
+                  "events_truncated", "cleanup_disconnect", "rpc_checksum_failed", "checksum_classifier_selfcheck_passed"):
         if type(report[field]) is not bool:
             raise ValueError("native admission verdict type is invalid")
     for field in ("assertion_sent", "authentication_attempted", "session_attempted", "world_entry_attempted"):
         if report[field] is not False:
             raise ValueError("native admission crossed the unauthenticated boundary")
+    if not _integer(report["rpc_checksum_failure_count"], 64) or report["rpc_checksum_failed"] != (report["rpc_checksum_failure_count"] > 0):
+        raise ValueError("native checksum failure verdict is inconsistent")
     if not isinstance(report["terminal_stage"], str) or report["terminal_stage"] not in TERMINALS or report["timeout_ms"] != 20000 or not _integer(report["elapsed_msec"], 60000):
         raise ValueError("native admission stage or deadline is invalid")
     durations = report["phase_durations_ms"]
@@ -114,11 +118,12 @@ def validate_evidence(report: dict) -> None:
     if not rejection["received"] and (rejection["outcome"] or version):
         raise ValueError("native admission rejection claims an unreceived reply")
     failures = report["failures"]
-    if not isinstance(failures, list) or len(failures) > 12 or any(not isinstance(failure, str) or failure not in FAILURES for failure in failures):
+    if not isinstance(failures, list) or len(failures) > 14 or any(not isinstance(failure, str) or failure not in FAILURES for failure in failures):
         raise ValueError("native admission failures are not allowlisted")
     accepted = (report["admitted"] and report["connected"] and report["user_data_isolated"]
                 and report["startup_scene_inert"] and report["cleanup_disconnect"]
-                and report["terminal_stage"] == "admitted" and not failures and not rejection["received"])
+                and report["terminal_stage"] == "admitted" and not failures and not rejection["received"]
+                and report["checksum_classifier_selfcheck_passed"] and not report["rpc_checksum_failed"])
     if report["passed"] != bool(accepted):
         raise ValueError("native admission verdict is inconsistent")
 

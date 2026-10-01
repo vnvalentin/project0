@@ -273,6 +273,9 @@ def admitted_probe_fixture():
             {"state": "connected", "elapsed_msec": 1},
         ],
         "events_truncated": False,
+        "rpc_checksum_failed": False,
+        "rpc_checksum_failure_count": 0,
+        "checksum_classifier_selfcheck_passed": True,
         "version_rejection": {"received": False, "outcome": "", "required_version": ""},
         "assertion_sent": False, "authentication_attempted": False,
         "session_attempted": False, "world_entry_attempted": False,
@@ -313,7 +316,9 @@ class AdmissionEvidenceTests(unittest.TestCase):
                     self.admission.validate_evidence(report)
 
     def test_unknown_fields_or_remote_text_cannot_enter_evidence(self):
-        for field, value in (("account_assertion", "synthetic-fixture"), ("raw_error", "untrusted fixture text")):
+        for field, value in (("account_assertion", "synthetic-fixture"), ("raw_error", "untrusted fixture text"),
+                             ("rpc_checksum_message", "synthetic diagnostic text"),
+                             ("checksum_classifier_inputs", ["synthetic diagnostic text"])):
             with self.subTest(field=field):
                 report = admitted_probe_fixture()
                 report[field] = value
@@ -334,6 +339,59 @@ class AdmissionEvidenceTests(unittest.TestCase):
         report["connection_events"][0]["state"] = "failed: untrusted fixture text"
         with self.assertRaises(ValueError):
             self.admission.validate_evidence(report)
+
+    def test_checksum_flag_and_count_must_be_typed_and_consistent(self):
+        for changes in (
+            {"rpc_checksum_failed": False, "rpc_checksum_failure_count": 1},
+            {"rpc_checksum_failed": True, "rpc_checksum_failure_count": 0},
+            {"rpc_checksum_failed": "true", "rpc_checksum_failure_count": 1},
+            {"rpc_checksum_failed": False, "rpc_checksum_failure_count": True},
+            {"rpc_checksum_failed": False, "rpc_checksum_failure_count": -1},
+        ):
+            with self.subTest(changes=changes):
+                report = admitted_probe_fixture()
+                report.update(changes)
+                with self.assertRaises(ValueError):
+                    self.admission.validate_evidence(report)
+
+    def test_checksum_failure_cannot_be_reported_as_admitted_success(self):
+        report = admitted_probe_fixture()
+        report["rpc_checksum_failed"] = True
+        report["rpc_checksum_failure_count"] = 1
+        with self.assertRaises(ValueError):
+            self.admission.validate_evidence(report)
+
+    def test_checksum_failure_is_bounded_evidence_without_a_raw_message(self):
+        report = admitted_probe_fixture()
+        report.update({
+            "passed": False, "admitted": False, "terminal_stage": "server_admission_timeout",
+            "elapsed_msec": 20003, "phase_durations_ms": {"connect": 3, "admission": 20000},
+            "rpc_checksum_failed": True, "rpc_checksum_failure_count": 1,
+            "failures": ["server_admission_timeout", "rpc_checksum_failed"],
+        })
+        self.admission.validate_evidence(report)
+        report["rpc_checksum_failure_count"] = 64
+        self.admission.validate_evidence(report)
+        report["rpc_checksum_failure_count"] = 65
+        with self.assertRaises(ValueError):
+            self.admission.validate_evidence(report)
+
+    def test_native_classifier_selfcheck_is_required_before_a_success_claim(self):
+        report = admitted_probe_fixture()
+        report["checksum_classifier_selfcheck_passed"] = False
+        with self.assertRaises(ValueError):
+            self.admission.validate_evidence(report)
+        report["checksum_classifier_selfcheck_passed"] = "true"
+        with self.assertRaises(ValueError):
+            self.admission.validate_evidence(report)
+        report.update({
+            "passed": False, "connected": False, "admitted": False,
+            "terminal_stage": "setup_failed", "elapsed_msec": 0,
+            "phase_durations_ms": {"connect": 0, "admission": 0}, "connection_events": [],
+            "checksum_classifier_selfcheck_passed": False,
+            "failures": ["checksum_classifier_selfcheck_failed"],
+        })
+        self.admission.validate_evidence(report)
 
     def test_unbounded_or_wrong_typed_events_and_durations_are_refused(self):
         for field, value in (("elapsed_msec", 60001), ("elapsed_msec", True),
