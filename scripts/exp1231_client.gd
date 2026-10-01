@@ -66,7 +66,7 @@ func _run() -> void:
 
 
 func _wait_for_bound_roles() -> bool:
-	var needed: Array[String] = ["occluder"] if _case == "unbound_actor" else ["actor", "occluder"]
+	var needed: Array = ["occluder"] if _case == "unbound_actor" else ["actor", "occluder"]
 	var deadline: int = Time.get_ticks_msec() + BOUND_TIMEOUT_MSEC
 	while Time.get_ticks_msec() < deadline:
 		var observation: Variant = JSON.parse_string(FileAccess.get_file_as_string(OS.get_environment("EXP1231_OBSERVATION")))
