@@ -36,6 +36,8 @@ const DEFAULT_TIMEOUT_SEC: float = 60.0
 const ENV_OLLAMA_HOST: String = "PROJECT0_OLLAMA_HOST"
 const ENV_MODEL_NAME: String = "PROJECT0_OLLAMA_MODEL"
 const ENV_TIMEOUT_SEC: String = "PROJECT0_OLLAMA_TIMEOUT_SEC"
+## One 60 Hz server tick: the latest a frame-polled deadline check can land.
+const DEADLINE_FRAME_MARGIN_USEC: int = 16667
 
 @export var ollama_host: String = DEFAULT_OLLAMA_HOST
 @export var model_name: String = DEFAULT_MODEL_NAME
@@ -149,10 +151,11 @@ func generate_json(prompt: String, deadline_usec: int = 0, clock_usec: Callable 
 
 	var response: Array
 	if deadline_usec > 0:
-		while responses.is_empty() and _now_usec(clock_usec) < deadline_usec:
+		# Frame polling can only observe the deadline late, so stop while a frame of margin remains (#1365).
+		while responses.is_empty() and _now_usec(clock_usec) + DEADLINE_FRAME_MARGIN_USEC < deadline_usec:
 			await get_tree().process_frame
 		_http_request.request_completed.disconnect(capture)
-		if _now_usec(clock_usec) >= deadline_usec:
+		if responses.is_empty() or _now_usec(clock_usec) + DEADLINE_FRAME_MARGIN_USEC >= deadline_usec:
 			_http_request.cancel_request()
 			return _deadline_result(started_usec, clock_usec)
 		response = responses[0]
