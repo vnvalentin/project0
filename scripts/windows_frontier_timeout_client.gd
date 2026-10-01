@@ -91,13 +91,18 @@ func _run() -> void:
 		await _finish("frontier crossing")
 		return
 	Input.action_release("move_right")
+	var traverse_until: int = Time.get_ticks_msec() + 3000
+	await _sample_until(func() -> bool: return _position.z <= FRONTIER_EDGE_Z - 4.0 or Time.get_ticks_msec() >= traverse_until)
+	_report["traverse"] = {"depth_into_sector": FRONTIER_EDGE_Z - _position.z, "target_depth": 4.0, "window_ms": 3000}
 	Input.action_release("move_forward")
 	Input.action_press("move_back")
+	Input.action_press("move_left")
 	if not await _sample_until(func() -> bool: return _position.z >= OUTSIDE_Z):
 		await _finish("leave sector")
 		return
 	_reentry["left"] = true
 	_reentry["left_at_msec"] = Time.get_ticks_msec()
+	Input.action_release("move_left")
 	Input.action_release("move_back")
 	Input.action_press("move_forward")
 	if not await _sample_until(func() -> bool: return _position.z < FRONTIER_EDGE_Z):
@@ -191,7 +196,7 @@ func _write_report() -> void:
 
 
 func _finish(failure: String) -> void:
-	for action: String in ["move_forward", "move_back", "move_right"]:
+	for action: String in ["move_forward", "move_back", "move_left", "move_right"]:
 		Input.action_release(action)
 	if failure != "coordinator stop":
 		_report["status"] = "failed"
