@@ -8,9 +8,17 @@ var _shared_observation: Dictionary = {"scenario_id": "shared-exploration-v1", "
 var _frontier_fixture_seeded: Dictionary = {}
 var _combat_observation: Dictionary = {"scenario_id": "coop-combat-v1", "history": [],
 	"accepted_count": 0, "hit_count": 0}
+const FRONTIER_TIMEOUT_LLM_PORT: int = 18434
+var _hang_listener: TCPServer
+var _hung_connections: Array[StreamPeerTCP] = []
+var _frontier_timeout_observation: Dictionary = {"scenario_id": "frontier-timeout-v1", "history": [], "llm_connections": 0}
+var _frontier_timeout_seeded: bool = false
 
 
 func _initialize() -> void:
+	if OS.get_environment("PAIRED_SCENARIO") == "frontier-timeout-v1":
+		_initialize_frontier_timeout()
+		return
 	if OS.get_environment("PAIRED_SCENARIO") == "shared-exploration-v1":
 		_initialize_shared_exploration()
 		return
@@ -57,6 +65,69 @@ func _initialize_shared_exploration() -> void:
 	_write_shared_observation()
 	super._initialize()
 	call_deferred("_install_shared_observer")
+
+
+## Experiment 1359: one player; the LLM endpoint accepts and never answers, so
+## the server's real generation cutoff fires instead of a transport error.
+func _initialize_frontier_timeout() -> void:
+	_hang_listener = TCPServer.new()
+	if _hang_listener.listen(FRONTIER_TIMEOUT_LLM_PORT, "127.0.0.1") != OK:
+		quit(1)
+		return
+	OS.set_environment("PROJECT0_OLLAMA_HOST", "http://127.0.0.1:%d" % FRONTIER_TIMEOUT_LLM_PORT)
+	var secret: String = Crypto.new().generate_random_bytes(32).hex_encode()
+	OS.set_environment("PROJECT0_ASSERTION_SECRET", secret)
+	_paired_identity = OS.get_environment("PAIRED_RUN_ID")
+	var now: int = int(Time.get_unix_time_from_system())
+	var issuer: Object = PairedIssuer.new(secret, "project0-login", "project0-game")
+	var character_id: String = "frontier-%s-a" % _paired_identity
+	_write_paired("assertion-a", issuer.issue("%s-session" % character_id, "%s-account" % character_id,
+		character_id, now, 300, "Frontier Explorer A", {}))
+	_write_paired("auth.json", JSON.stringify({"issuer_validated": true, "tampered_rejected": true, "expired_rejected": true}))
+	_frontier_timeout_observation["correlation_id"] = OS.get_environment("PAIRED_CORRELATION_ID")
+	_frontier_timeout_observation["character_id"] = character_id
+	_write_paired("frontier-observation.json", JSON.stringify(_frontier_timeout_observation))
+	super._initialize()
+	call_deferred("_install_frontier_timeout_observer")
+
+
+func _install_frontier_timeout_observer() -> void:
+	var timer: Timer = Timer.new()
+	timer.wait_time = 0.1
+	timer.timeout.connect(_observe_frontier_timeout)
+	root.add_child(timer)
+	timer.start()
+
+
+func _observe_frontier_timeout() -> void:
+	while _hang_listener.is_connection_available():
+		_hung_connections.append(_hang_listener.take_connection())
+		_frontier_timeout_observation["llm_connections"] += 1
+	var peers: int = 0
+	for peer_id: int in _player_states:
+		var state: Node = _player_states[peer_id]
+		if not state._gameplay_authorized():
+			continue
+		peers += 1
+		if not _frontier_timeout_seeded:
+			state.position = Vector3(0.0, 1.0, -439.0)
+			_frontier_timeout_seeded = true
+		_frontier_timeout_observation["position"] = _vector3_to_array(state.position)
+	var generation: Dictionary = _provisional_sector_generator.get_provisional_result("sector-0--1")
+	_frontier_timeout_observation["generation"] = {
+		"request_outcome": String(generation.get("request_outcome", "")),
+		"source": String(generation.get("source", "")),
+		"fallback_selected": generation.get("fallback_selected", false),
+		"timing": generation.get("timing", {}),
+	}
+	_frontier_timeout_observation["canon_outcome"] = String(_canon_repository.get_canonical_sector("sector-0--1").get("outcome", ""))
+	_frontier_timeout_observation["frontier_ready_events"] = frontier_ready_events()
+	_frontier_timeout_observation["canon_reload_events"] = canon_reload_events()
+	_frontier_timeout_observation["seeded"] = _frontier_timeout_seeded
+	if _frontier_timeout_observation["history"].is_empty() or _frontier_timeout_observation["history"][-1]["authenticated_world_peers"] != peers:
+		_frontier_timeout_observation["history"].append({"at": Time.get_unix_time_from_system(), "authenticated_world_peers": peers})
+	_frontier_timeout_observation["authenticated_world_peers"] = peers
+	_write_paired("frontier-observation.json", JSON.stringify(_frontier_timeout_observation))
 
 
 func _initialize_coop_combat() -> void:
