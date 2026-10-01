@@ -9,7 +9,23 @@
       "suite": "macos-tooling",
       "platform": "macos",
       "host": "Philips-MacBook-Pro-2",
-      "command": "python3 scripts/macos/test_published.py --report build/validation/macos/published-controls-third-1353.json",
+      "command": "python3 scripts/macos/test_package.py --report build/validation/macos/package-controls-fourth-1353.json",
+      "dependencies": [
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/test_package.py"
+      ],
+      "artifacts": [
+        "build/validation/macos/package-controls-fourth-1353.json"
+      ]
+    },
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_published.py --report build/validation/macos/published-controls-review-1353.json",
       "dependencies": [
         "python",
         "git"
@@ -18,14 +34,14 @@
         "scripts/macos/test_published.py"
       ],
       "artifacts": [
-        "build/validation/macos/published-controls-third-1353.json"
+        "build/validation/macos/published-controls-review-1353.json"
       ]
     },
     {
       "suite": "macos-published",
       "platform": "macos",
       "host": "Philips-MacBook-Pro-2",
-      "command": "python3 scripts/macos/published.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.14.20 --output dist/macos/1353-published-third --plan .scratch/macos-client/published-plan.json --report build/validation/macos/published-third-1353.json",
+      "command": "python3 scripts/macos/published.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.14.20 --output dist/macos/1353-published-fourth --plan .scratch/macos-client/published-plan.json --report build/validation/macos/published-fourth-1353.json",
       "dependencies": [
         "godot-client",
         "python",
@@ -37,7 +53,7 @@
         "scripts/macos/published_admission_probe.gd"
       ],
       "artifacts": [
-        "build/validation/macos/published-third-1353.json"
+        "build/validation/macos/published-fourth-1353.json"
       ]
     }
   ]

@@ -421,6 +421,39 @@ def verify_archive_pack(archive: Path, expected_bytes: int, expected_sha256: str
             raise ValueError("Mac archive changed the published PCK bytes")
 
 
+@contextmanager
+def publication_guard(output: Path, report: dict):
+    """Remove only output created by this lifecycle after any late failure."""
+    try:
+        yield
+        if report.get("cleanup_receipts") and report.get("temporary_state_removed") is not True:
+            raise RuntimeError("published lifecycle cleanup was not verified")
+    except BaseException:
+        report["passed"] = False
+        if report.get("output_created_by_lifecycle"):
+            try:
+                if output.is_symlink():
+                    raise ValueError("owned output custody changed")
+                if output.exists():
+                    shutil.rmtree(output)
+            finally:
+                report["failed_output_removed"] = not output.exists() and not output.is_symlink()
+        raise
+
+
+def verify_custody(editor: Path, editor_copy: Path, template: Path, pack: Path,
+                   candidate: Path, source_paths: list[Path], fingerprints: dict, report: dict) -> None:
+    """Recheck the actual executed tool and all inputs before publishing."""
+    report["source_custody_preserved"] = package.source_hashes(ROOT, source_paths) == fingerprints
+    report["tool_custody_preserved"] = (package.sha256(editor) == report["tool_hashes"]["editor"]
+                                        and package.sha256(editor_copy) == report["tool_hashes"]["editor"]
+                                        and package.sha256(template) == report["tool_hashes"]["template"])
+    report["pack_custody_preserved"] = (package.sha256(pack) == report["published_pck_sha256"]
+                                        and package.sha256(candidate / "Contents/Resources/Project0.pck") == report["published_pck_sha256"])
+    if not all(report[key] for key in ("source_custody_preserved", "tool_custody_preserved", "pack_custody_preserved")):
+        raise ValueError("published lifecycle custody changed")
+
+
 def assemble_pack(editor: Path, template: Path, pack: Path, output: Path, report: dict, evidence: Path) -> None:
     """Qualify an already validated PCK; own every temporary process and state."""
     if output.exists() or output.is_symlink():
@@ -441,7 +474,7 @@ def assemble_pack(editor: Path, template: Path, pack: Path, output: Path, report
     if report.get("published_pck_sha256", pack_hash) != pack_hash:
         raise ValueError("published-client PCK changed before assembly")
     report["published_pck_sha256"] = pack_hash
-    with package.owned_state(report) as (owned, user_data, user_data_name):
+    with publication_guard(output, report), package.owned_state(report) as (owned, user_data, user_data_name):
         portable = owned / "editor/Godot.app"
         shutil.copytree(editor.parents[2], portable, symlinks=True)
         editor_copy = portable / "Contents/MacOS/Godot"
@@ -497,11 +530,7 @@ def assemble_pack(editor: Path, template: Path, pack: Path, output: Path, report
         report["native_admission"] = native
         report["native_evidence_sha256"] = package.sha256(probe_path)
         report["terminal_stage"] = native["terminal_stage"]
-        report["source_custody_preserved"] = package.source_hashes(ROOT, source_paths) == source_fingerprints
-        report["tool_custody_preserved"] = package.sha256(editor) == report["tool_hashes"]["editor"] and package.sha256(template) == report["tool_hashes"]["template"]
-        report["pack_custody_preserved"] = package.sha256(pack) == report["published_pck_sha256"] and package.sha256(candidate / "Contents/Resources/Project0.pck") == report["published_pck_sha256"]
-        if not all(report[key] for key in ("source_custody_preserved", "tool_custody_preserved", "pack_custody_preserved")):
-            raise ValueError("published lifecycle custody changed")
+        verify_custody(editor, editor_copy, template, pack, candidate, source_paths, source_fingerprints, report)
         if not native["passed"] or executed["timeout"] or executed["exit_code"] != 0 or not executed["process_group_removed"]:
             return
         publication = owned / "publication"
@@ -514,27 +543,25 @@ def assemble_pack(editor: Path, template: Path, pack: Path, output: Path, report
         verify_archive_pack(staged_archive, pack.stat().st_size, report["published_pck_sha256"])
         if package.sha256(staged_app / "Contents/Resources/Project0.pck") != report["published_pck_sha256"]:
             raise ValueError("published output changed the exact PCK")
+        verify_custody(editor, editor_copy, template, pack, staged_app, source_paths, source_fingerprints, report)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.mkdir(exist_ok=False)
-        try:
-            shutil.copytree(staged_app, output / "Project0.app", symlinks=True)
-            with staged_archive.open("rb") as input_file, (output / archive_name).open("xb") as output_file:
-                shutil.copyfileobj(input_file, output_file, 1024 * 1024)
-            if package.sha256(output / "Project0.app/Contents/Resources/Project0.pck") != report["published_pck_sha256"]:
-                raise ValueError("final Mac output changed the published PCK")
-            verify_archive_pack(output / archive_name, pack.stat().st_size, report["published_pck_sha256"])
-            package.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(output / "Project0.app")],
-                        output, evidence / "codesign-final.log", 30)
-            report.update({"app": str(output / "Project0.app"), "archive": str(output / archive_name),
-                           "archive_sha256": package.sha256(output / archive_name),
-                           "executable_sha256": package.sha256(output / "Project0.app/Contents/MacOS/Project0"),
-                           "info_plist_sha256": package.sha256(output / "Project0.app/Contents/Info.plist"),
-                           "architectures": sorted(architectures.split()), "codesign": "ad-hoc verified; not notarized",
-                           "exact_published_pck_preserved": True, "editor_pack_admission_passed": True})
-        except Exception:
-            shutil.rmtree(output)
-            report["failed_output_removed"] = not output.exists()
-            raise
+        report["output_created_by_lifecycle"] = True
+        shutil.copytree(staged_app, output / "Project0.app", symlinks=True)
+        with staged_archive.open("rb") as input_file, (output / archive_name).open("xb") as output_file:
+            shutil.copyfileobj(input_file, output_file, 1024 * 1024)
+        if package.sha256(output / "Project0.app/Contents/Resources/Project0.pck") != report["published_pck_sha256"]:
+            raise ValueError("final Mac output changed the published PCK")
+        verify_archive_pack(output / archive_name, pack.stat().st_size, report["published_pck_sha256"])
+        package.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(output / "Project0.app")],
+                    output, evidence / "codesign-final.log", 30)
+        report.update({"app": str(output / "Project0.app"), "archive": str(output / archive_name),
+                       "archive_sha256": package.sha256(output / archive_name),
+                       "executable_sha256": package.sha256(output / "Project0.app/Contents/MacOS/Project0"),
+                       "info_plist_sha256": package.sha256(output / "Project0.app/Contents/Info.plist"),
+                       "architectures": sorted(architectures.split()), "codesign": "ad-hoc verified; not notarized",
+                       "exact_published_pck_preserved": True, "editor_pack_admission_passed": True})
+        verify_custody(editor, editor_copy, template, pack, staged_app, source_paths, source_fingerprints, report)
     report["passed"] = bool(report.get("editor_pack_admission_passed") and report["temporary_state_removed"])
 
 
@@ -567,7 +594,7 @@ def diagnose(args: argparse.Namespace, report: dict, evidence: Path) -> None:
     report["source_tree_dirty"] = bool(subprocess.check_output(["git", "-C", str(ROOT), "status", "--porcelain"]))
     step = next(step for step in plan["steps"] if step["suite"] == "macos-published")
     report["invocation"] = shlex.split(step["command"])
-    with package.owned_state(report) as (owned, user_data, user_data_name):
+    with publication_guard(output, report), package.owned_state(report) as (owned, user_data, user_data_name):
         report["terminal_stage"] = "published_download"
         manifest_bytes = _fetch(MANIFEST_URL, 131072)
         manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
@@ -584,6 +611,8 @@ def diagnose(args: argparse.Namespace, report: dict, evidence: Path) -> None:
         assemble_pack(editor, template, pack, output, report, evidence)
         if package.source_hashes(ROOT, source_paths) != report["source_hashes"]:
             raise ValueError("published lifecycle source custody changed")
+        if {"editor": package.sha256(editor), "template": package.sha256(template)} != report["tool_hashes"]:
+            raise ValueError("published lifecycle tool custody changed")
     report["passed"] = bool(report.get("editor_pack_admission_passed") and report["temporary_state_removed"])
 
 

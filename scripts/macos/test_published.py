@@ -548,6 +548,72 @@ class PublishedLifecycleTests(unittest.TestCase):
         self.assertFalse(outer[1].exists())
         self.assertEqual(self.sentinel.read_bytes(), b"preserve existing fixture state")
 
+    def test_changed_executed_editor_copy_refuses_publication(self):
+        candidate = self.root / "staged.app/Contents/Resources"
+        candidate.mkdir(parents=True)
+        (candidate / "Project0.pck").write_bytes(self.pack.read_bytes())
+        executed = self.root / "portable-editor"
+        executed.write_bytes(b"altered owned tool fixture")
+        report = {"tool_hashes": {"editor": self.published.package.sha256(self.editor),
+                                  "template": self.published.package.sha256(self.template)},
+                  "published_pck_sha256": self.published.package.sha256(self.pack)}
+        with self.assertRaises(ValueError):
+            self.published.verify_custody(self.editor, executed, self.template, self.pack,
+                                          candidate.parents[1], [], {"fixture": "owned"}, report)
+        self.assertFalse(report["tool_custody_preserved"])
+        self.assertFalse(self.output.exists())
+        self.launch.assert_not_called()
+
+    def test_late_source_failure_removes_only_newly_owned_output(self):
+        report = {}
+        with self.assertRaises(ValueError):
+            with self.published.publication_guard(self.output, report):
+                self.output.mkdir()
+                (self.output / "owned-candidate").write_bytes(b"owned fixture")
+                report["output_created_by_lifecycle"] = True
+                raise ValueError("owned late source-custody failure")
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["failed_output_removed"])
+        self.assert_clean_failure({"temporary_state_removed": True})
+
+    def test_publication_failure_preserves_unowned_or_substituted_output(self):
+        self.output.mkdir()
+        sentinel = self.output / "preserve"
+        sentinel.write_bytes(b"existing owned fixture")
+        with self.assertRaises(ValueError):
+            with self.published.publication_guard(self.output, {}):
+                raise ValueError("owned failure before creation")
+        self.assertEqual(sentinel.read_bytes(), b"existing owned fixture")
+        self.output.rename(self.root / "preserved")
+        self.output.symlink_to(self.root / "preserved", target_is_directory=True)
+        report = {"output_created_by_lifecycle": True}
+        with self.assertRaises(ValueError):
+            with self.published.publication_guard(self.output, report):
+                raise ValueError("owned substituted-output fixture")
+        self.assertFalse(report["failed_output_removed"])
+        self.assertEqual(sentinel.read_bytes(), b"existing owned fixture")
+
+    def test_retained_failed_output_is_reported_and_never_passed(self):
+        report = {"output_created_by_lifecycle": True}
+        self.output.mkdir()
+        with mock.patch.object(self.published.shutil, "rmtree", side_effect=PermissionError), self.assertRaises(PermissionError):
+            with self.published.publication_guard(self.output, report):
+                raise ValueError("owned final-check failure")
+        self.assertFalse(report["passed"])
+        self.assertFalse(report["failed_output_removed"])
+        self.assertTrue(self.output.exists())
+
+    def test_cleanup_failure_verdict_removes_new_candidate_even_without_exception(self):
+        report = {"output_created_by_lifecycle": True, "cleanup_receipts": [False],
+                  "temporary_state_removed": False, "passed": True}
+        self.output.mkdir()
+        with self.assertRaises(RuntimeError):
+            with self.published.publication_guard(self.output, report):
+                pass
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["failed_output_removed"])
+        self.assertFalse(self.output.exists())
+
     def test_main_pack_override_is_beside_pack_and_removed_after_failure(self):
         settings = "[application]\nconfig/name=\"Owned fixture\"\n"
         with self.assertRaises(RuntimeError):

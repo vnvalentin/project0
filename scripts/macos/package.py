@@ -12,6 +12,7 @@ import signal
 import shlex
 import subprocess
 import tempfile
+import time
 import uuid
 
 
@@ -79,15 +80,27 @@ def run(command: list[str], cwd: Path, log: Path, timeout: int = 120) -> str:
     with log.open("xb") as handle:
         process = subprocess.Popen(command, cwd=cwd, stdout=handle, stderr=subprocess.STDOUT,
                                    env=environment, start_new_session=True)
+        removed = False
         try:
             status = process.wait(timeout=timeout)
-        except BaseException:
+        finally:
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
-            raise
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    removed = True
+            finally:
+                process.wait(timeout=5)
+            deadline = time.monotonic() + 2
+            while not removed and time.monotonic() < deadline:
+                try:
+                    os.killpg(process.pid, 0)
+                except ProcessLookupError:
+                    removed = True
+                if not removed:
+                    time.sleep(0.02)
+            if not removed:
+                raise RuntimeError("owned process group cleanup could not be verified")
     text = log.read_text(errors="replace")
     diagnostics = text
     if "--log-file" in command:
@@ -283,7 +296,7 @@ def build(args: argparse.Namespace, report: dict, evidence: Path) -> None:
                        "pck_sha256": sha256(packs[0]), "inventory_sha256": sha256(inventory_path),
                        "probe_sha256": sha256(probe_path), "codesign": "ad-hoc verified; not notarized",
                        "native_offline_probe_passed": True, "native_account_startup_passed": True})
-    report["passed"] = True
+    report["passed"] = report.get("temporary_state_removed") is True
 
 
 def main() -> int:

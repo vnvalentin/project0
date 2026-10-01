@@ -266,6 +266,9 @@ class PackageInvocationTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.package = load_module("package")
+        killpg = mock.patch.object(self.package.os, "killpg", side_effect=ProcessLookupError)
+        self.killpg = killpg.start()
+        self.addCleanup(killpg.stop)
         self.plan = {
             "schema_version": 1, "kind": "component",
             "steps": [{
@@ -312,6 +315,7 @@ class PackageInvocationTests(unittest.TestCase):
             options["stdout"].write(b"ERROR: Failed to open the export template.\n")
             options["stdout"].flush()
             process = mock.Mock()
+            process.pid = 43123
             process.wait.return_value = 0
             return process
 
@@ -328,6 +332,7 @@ class PackageInvocationTests(unittest.TestCase):
             options["stdout"].write(b"Fixture export completed.\n")
             options["stdout"].flush()
             process = mock.Mock()
+            process.pid = 43123
             process.wait.return_value = 0
             return process
 
@@ -346,6 +351,7 @@ class PackageInvocationTests(unittest.TestCase):
             options["stdout"].flush()
             engine_log.write_bytes(b"ERROR: Engine resource loading failed.\n")
             process = mock.Mock()
+            process.pid = 43123
             process.wait.return_value = 0
             return process
 
@@ -392,13 +398,205 @@ class PackageInvocationTests(unittest.TestCase):
         })
 
 
+class PackageProcessCleanupTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="project0-macos-process-control-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.package = load_module("package")
+        self.log = self.root / "fixture.log"
+        self.process = mock.Mock(pid=43123)
+
+    def launch(self, command, **options):
+        options["stdout"].write(b"Owned synthetic process output.\n")
+        options["stdout"].flush()
+        return self.process
+
+    def removed_group(self, pid, signal):
+        if signal == 0:
+            raise ProcessLookupError
+
+    def test_normal_parent_exit_kills_and_verifies_the_owned_group_before_returning(self):
+        self.process.wait.return_value = 0
+        with mock.patch.object(self.package.subprocess, "Popen", side_effect=self.launch) as launch, \
+                mock.patch.object(self.package.os, "killpg", side_effect=self.removed_group) as killpg:
+            result = self.package.run(["owned-fixture"], self.root, self.log, 3)
+        self.assertEqual(result, "Owned synthetic process output.")
+        self.assertEqual(killpg.call_args_list, [mock.call(43123, self.package.signal.SIGKILL), mock.call(43123, 0)])
+        self.assertEqual(self.process.wait.call_args_list, [mock.call(timeout=3), mock.call(timeout=5)])
+        self.assertTrue(launch.call_args.kwargs["start_new_session"])
+
+    def test_nonzero_parent_exit_preserves_status_after_group_cleanup(self):
+        self.process.wait.return_value = 7
+        with mock.patch.object(self.package.subprocess, "Popen", side_effect=self.launch), \
+                mock.patch.object(self.package.os, "killpg", side_effect=self.removed_group) as killpg:
+            with self.assertRaisesRegex(RuntimeError, "exit 7"):
+                self.package.run(["owned-fixture"], self.root, self.log, 3)
+        self.assertEqual(killpg.call_args_list, [mock.call(43123, self.package.signal.SIGKILL), mock.call(43123, 0)])
+        self.assertEqual(self.process.wait.call_args_list, [mock.call(timeout=3), mock.call(timeout=5)])
+        self.assertEqual(self.log.read_bytes(), b"Owned synthetic process output.\n")
+
+    def test_timeout_and_exceptional_parent_waits_reap_and_verify_before_propagating(self):
+        for index, failure in enumerate((subprocess.TimeoutExpired(["owned-fixture"], 3), ValueError("owned fixture failure"), KeyboardInterrupt())):
+            with self.subTest(failure=type(failure).__name__):
+                self.process.wait.reset_mock()
+                self.process.wait.side_effect = [failure, -9]
+                with mock.patch.object(self.package.subprocess, "Popen", side_effect=self.launch), \
+                        mock.patch.object(self.package.os, "killpg", side_effect=self.removed_group) as killpg:
+                    with self.assertRaises(type(failure)) as observed:
+                        self.package.run(["owned-fixture"], self.root, self.root / (str(index) + ".log"), 3)
+                self.assertIs(observed.exception, failure)
+                self.assertEqual(killpg.call_args_list, [mock.call(43123, self.package.signal.SIGKILL), mock.call(43123, 0)])
+                self.assertEqual(self.process.wait.call_args_list, [mock.call(timeout=3), mock.call(timeout=5)])
+
+    def test_unverified_group_cleanup_refuses_a_successful_parent_exit(self):
+        self.process.wait.return_value = 0
+        with mock.patch.object(self.package.subprocess, "Popen", side_effect=self.launch), \
+                mock.patch.object(self.package.os, "killpg", return_value=None) as killpg, \
+                mock.patch.object(self.package.time, "monotonic", side_effect=[0, 0, 3]), \
+                mock.patch.object(self.package.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "process group cleanup"):
+                self.package.run(["owned-fixture"], self.root, self.log, 3)
+        self.assertEqual(killpg.call_args_list, [mock.call(43123, self.package.signal.SIGKILL), mock.call(43123, 0)])
+        self.assertEqual(self.process.wait.call_args_list, [mock.call(timeout=3), mock.call(timeout=5)])
+        sleep.assert_called_once_with(0.02)
+
+    def test_signalling_failure_still_reaps_and_refuses_success(self):
+        self.process.wait.return_value = 0
+        failure = PermissionError("owned synthetic signalling failure")
+        with mock.patch.object(self.package.subprocess, "Popen", side_effect=self.launch), \
+                mock.patch.object(self.package.os, "killpg", side_effect=failure):
+            with self.assertRaises(PermissionError) as observed:
+                self.package.run(["owned-fixture"], self.root, self.log, 3)
+        self.assertIs(observed.exception, failure)
+        self.assertEqual(self.process.wait.call_args_list, [mock.call(timeout=3), mock.call(timeout=5)])
+
+
+class PackageBuildCleanupTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="project0-macos-build-control-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.package = load_module("package")
+        self.files = {
+            "project.godot": 'config_version=5\n[application]\nconfig/name="Fixture"\n[rendering]\n',
+            "client/account_gate.gd": "extends Control\n",
+            "shared/client_build_version.gd": 'extends RefCounted\nconst CLIENT_BUILD_VERSION: String = "0.12.0"\n',
+            "server/starting_town_hub_fixture.gd": "extends RefCounted\n",
+            "docs/third-party/nakama-godot-v3.4.0/LICENSE": "Owned synthetic notice.\n",
+            "scripts/macos/offline_probe.gd": "extends SceneTree\n",
+            "scripts/macos/package_inventory.gd": "extends SceneTree\n",
+        }
+        for name, contents in self.files.items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(contents)
+        self.args = argparse.Namespace(
+            godot=self.root / "build/tools/godot/Godot.app/Contents/MacOS/Godot",
+            template=self.root / "build/tools/godot/templates/macos.zip", version="0.12.0",
+            output=self.root / "dist/macos/control", verify=True,
+            report=self.root / "build/validation/macos/client.json",
+        )
+        for tool in (self.args.godot, self.args.template):
+            tool.parent.mkdir(parents=True, exist_ok=True)
+            tool.write_bytes(b"Owned synthetic tool, never executed.\n")
+        selected = ["scripts/macos/package_inventory.gd", "scripts/macos/offline_probe.gd"]
+        manifest = {"schema_version": 1, "hosts": {"macos": ["Philips-MacBook-Pro-2"]},
+                    "server_dependencies": ["sqlite", "canon", "ollama"],
+                    "suites": {"macos-client": {"platform": "macos", "dependencies": ["godot-client", "python", "git"], "tests": selected}}}
+        (self.root / "scripts/validation_ownership.json").write_text(json.dumps(manifest))
+        plan = {"schema_version": 1, "kind": "component", "steps": [{
+            "suite": "macos-client", "platform": "macos", "host": "Philips-MacBook-Pro-2",
+            "command": "python3 scripts/macos/package.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.12.0 --output dist/macos/control --verify --report build/validation/macos/client.json",
+            "dependencies": ["godot-client", "python", "git"], "tests": selected,
+            "artifacts": ["build/validation/macos/client.json"],
+        }]}
+        plan_path = self.root / ".scratch/macos-client/validation-plan.json"
+        plan_path.parent.mkdir(parents=True)
+        plan_path.write_text(json.dumps(plan))
+        self.home = self.root / "fixture-home"
+        (self.home / "Library/Application Support").mkdir(parents=True)
+        self.evidence = self.root / "evidence"
+        self.evidence.mkdir()
+
+    def query(self, command, **options):
+        if "ls-files" in command:
+            return "\0".join(name for name in self.files if not name.startswith("scripts/")).encode()
+        if "rev-parse" in command:
+            return "f" * 40 + "\n"
+        if "status" in command:
+            return b""
+        self.fail("unexpected synthetic Git query")
+
+    def launch(self, command, **options):
+        output = b""
+        if "--version" in command:
+            output = b"4.7.2.stable.official.ed1daf0bf\n"
+        elif "--export-release" in command:
+            app = Path(command[command.index("--export-release") + 2])
+            executable = app / "Contents/MacOS/Project0"
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(b"Owned synthetic release executable, never executed.\n")
+            pack = app / "Contents/Resources/Project0.pck"
+            pack.parent.mkdir(parents=True)
+            pack.write_bytes(b"Owned synthetic client PCK, never executed.\n")
+        elif command[0] == "/usr/bin/lipo":
+            output = b"arm64 x86_64\n"
+        elif "package_inventory.gd" in command:
+            Path(command[command.index("--") + 2]).write_text(json.dumps({"passed": True, "client_files": 1}))
+        elif any(value.startswith("--evidence=") for value in command):
+            path = next(value.removeprefix("--evidence=") for value in command if value.startswith("--evidence="))
+            Path(path).write_text(json.dumps({"passed": True, "paired_runtime_acceptance": False}))
+        elif command[0] == "/usr/bin/ditto":
+            Path(command[-1]).write_bytes(b"Owned synthetic archive.\n")
+        elif "--import" not in command and "--quit-after" not in command and command[0] != "/usr/bin/codesign":
+            self.fail("unexpected synthetic native command")
+        if "--log-file" in command:
+            Path(command[command.index("--log-file") + 1]).write_bytes(b"")
+        options["stdout"].write(output)
+        options["stdout"].flush()
+        process = mock.Mock(pid=43123)
+        process.wait.return_value = 0
+        return process
+
+    def build(self, report):
+        import preflight
+        with mock.patch.object(self.package, "ROOT", self.root), \
+                mock.patch.dict(self.package.os.environ, {"HOME": str(self.home)}), \
+                mock.patch.object(self.package.subprocess, "check_output", side_effect=self.query), \
+                mock.patch.object(self.package.subprocess, "Popen", side_effect=self.launch) as launch, \
+                mock.patch.object(self.package.os, "killpg", side_effect=ProcessLookupError), \
+                mock.patch.object(preflight.platform, "system", return_value="Darwin"), \
+                mock.patch.object(preflight.socket, "gethostname", return_value="Philips-MacBook-Pro-2"):
+            self.package.build(self.args, report, self.evidence)
+        self.assertGreater(launch.call_count, 0)
+        self.assertEqual(list((self.home / "Library/Application Support").iterdir()), [])
+        self.assertTrue((self.args.output / "Project0.app").is_dir())
+
+    def test_public_build_refuses_an_aggregate_failed_cleanup_after_native_steps_pass(self):
+        report = {"passed": False, "cleanup_receipts": [False]}
+        self.build(report)
+        self.assertTrue(report["native_offline_probe_passed"])
+        self.assertTrue(report["native_account_startup_passed"])
+        self.assertFalse(report["temporary_state_removed"])
+        self.assertEqual(report["cleanup_receipts"], [False, True])
+        self.assertFalse(report["passed"])
+
+    def test_public_build_passes_only_with_verified_aggregate_cleanup(self):
+        report = {"passed": False, "cleanup_receipts": [True]}
+        self.build(report)
+        self.assertTrue(report["temporary_state_removed"])
+        self.assertEqual(report["cleanup_receipts"], [True, True])
+        self.assertTrue(report["passed"])
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
     if args.report.exists():
         parser.error("report already exists; choose a new evidence path")
-    suites = [unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (PackageTests, StagingControlTests, PreflightTests, PackageInvocationTests)]
+    suites = [unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in (PackageTests, StagingControlTests, PreflightTests, PackageInvocationTests, PackageProcessCleanupTests, PackageBuildCleanupTests)]
     selected = [test.id() for suite in suites for test in suite]
     result = unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(suites))
     args.report.parent.mkdir(parents=True, exist_ok=True)
