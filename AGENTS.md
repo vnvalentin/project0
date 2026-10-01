@@ -164,8 +164,11 @@ Do not create implementation slices or product code while this gate is open.
   and does not sync via the remote). Seed your repository memory from it, and
   keep it in sync when a convention changes.
 - GitHub operations: use the authenticated `gh` CLI for every GitHub read and
-  mutation. Do not use the GitHub API directly or alternate GitHub integration
-  tools for issue, project, pull request, label, or notification operations.
+  mutation. Prefer a typed `gh` command. When the core CLI has no command for a
+  required GitHub resource, use the authenticated `gh api` subcommand through a
+  reviewed repository helper; do not use raw HTTP clients, direct API tooling
+  outside `gh`, browser scraping, or alternate GitHub integration tools. The
+  milestone lifecycle helper is `scripts/gh_milestone.sh`.
 - Implementation ownership: Copilot implements application code, tests, and
   implementation-facing delivery records directly, and owns validation and
   review. No external CLI handoff or fallback authorization is required.
