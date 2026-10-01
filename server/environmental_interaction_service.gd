@@ -60,8 +60,6 @@ func resolve_intent(
 		return _rejected(REASON_TARGET_NOT_FOUND, client_seq)
 	if target["kind"] != "locked_gate":
 		return _rejected(REASON_TARGET_NOT_LOCKED_GATE, client_seq)
-	if _is_unlocked(intent["sector_id"], intent["target_guid"]):
-		return _rejected(REASON_ALREADY_UNLOCKED, client_seq)
 	var target_position: Vector3 = target["position"]
 	# Ground-plane reach: the Character origin sits above the ground-level gate point.
 	if Vector2(actor_position.x - target_position.x, actor_position.z - target_position.z).length() > MAX_REACH:
@@ -71,6 +69,10 @@ func resolve_intent(
 		return _rejected(REASON_LINE_OF_SIGHT_UNAVAILABLE, client_seq)
 	if not bool(visibility_query.call(actor_position, target_position)):
 		return _rejected(REASON_NO_LINE_OF_SIGHT, client_seq)
+	# A committed unlock answers later valid requests without a new mutation.
+	var committed_revision: int = _committed_unlock_revision(intent["sector_id"], intent["target_guid"])
+	if committed_revision > 0:
+		return {"status": STATUS_ACCEPTED, "reason": REASON_ALREADY_UNLOCKED, "client_seq": client_seq, "applied_revision": committed_revision}
 
 	var execution: Dictionary = execution_profile(physical_outputs)
 	var event_id: String = _event_id(actor_player_id, client_seq)
@@ -135,16 +137,17 @@ func _find_target(sector_id: String, target_guid: String) -> Dictionary:
 	return {}
 
 
-func _is_unlocked(sector_id: String, target_guid: String) -> bool:
+## Applied revision of the committed unlock for the target, or 0 when none.
+func _committed_unlock_revision(sector_id: String, target_guid: String) -> int:
 	if _mutations == null:
-		return false
+		return 0
 	var history: Dictionary = _mutations.list_mutations(sector_id)
 	if history["outcome"] != CanonMutationRepositoryScript.OUTCOME_OK:
-		return false
+		return 0
 	for mutation: Dictionary in history["mutations"]:
 		if mutation["target_guid"] == target_guid and mutation["mutation_kind"] == MUTATION_KIND_UNLOCK_GATE and bool(mutation["payload"].get("unlocked", false)):
-			return true
-	return false
+			return int(mutation["applied_revision"])
+	return 0
 
 
 func _event_id(actor_player_id: String, client_seq: int) -> String:
