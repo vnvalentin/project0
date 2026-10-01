@@ -1,6 +1,8 @@
 extends SceneTree
-## Runs from a byte-identical compiled release PCK with scoped custom user-data.
+class_name MacOfflineProbe
+## Runs as the temporary main-loop override from the app's built-in release PCK.
 ## HOME remains the caller's; the coordinator owns the fresh user-data directory.
+## The temporary override suppresses automatic startup-scene instantiation.
 ## Require its exact binding before any account controls can read saved settings.
 ## This probe never authenticates or writes client settings.
 ## Evidence is written only to the caller's explicit, previously unused path.
@@ -51,6 +53,9 @@ func _initialize() -> void:
 		push_error("Mac probe evidence path must be absolute and unused")
 		quit(1)
 		return
+	if not _check_user_data_isolation():
+		_finish()
+		return
 	call_deferred("_run")
 
 
@@ -62,9 +67,12 @@ func _process(_delta: float) -> bool:
 
 
 func _run() -> void:
+	if _finished:
+		return
 	if not _check_user_data_isolation():
 		_finish()
 		return
+	_clear_current_scene()
 	_check_pack()
 	_check_version()
 	_check_rpc_contract()
@@ -111,7 +119,7 @@ func _check_pack() -> void:
 		"scripts": compiled,
 	}
 	_expect(ProjectSettings.get_setting("application/config/name", "") == "Project0", "Project0 PCK is mounted")
-	_expect(ProjectSettings.get_setting("application/run/main_scene", "") == "res://client/account_gate.tscn", "account gate remains the real client startup scene")
+	_expect(ProjectSettings.get_setting("application/run/main_scene", "") == "", "startup scene is suppressed for the contained offline probe")
 	_expect(player_identity_present and network_present, "both client autoloads are present")
 	_expect(not loose_project, "no loose project.godot beside the app executable")
 	_expect(not ClassDB.class_exists("SQLite"), "server SQLite extension is absent")
@@ -330,6 +338,7 @@ func _finish() -> void:
 		_gameplay.free()
 	if is_instance_valid(_geometry_root):
 		_geometry_root.free()
+	_clear_current_scene()
 	_result["elapsed_msec"] = Time.get_ticks_msec() - _started_msec
 	_result["passed"] = (_result["failures"] as Array).is_empty()
 	var output: FileAccess = FileAccess.open(_evidence_path, FileAccess.WRITE)
@@ -341,3 +350,10 @@ func _finish() -> void:
 	output.close()
 	print("Mac offline client probe: passed=%s" % _result["passed"])
 	quit(0 if _result["passed"] else 1)
+
+
+func _clear_current_scene() -> void:
+	if current_scene != null:
+		var startup_scene: Node = current_scene
+		current_scene = null
+		startup_scene.free()

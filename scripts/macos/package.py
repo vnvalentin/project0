@@ -62,6 +62,14 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def source_hashes(root: Path, paths: list[Path]) -> dict[str, str]:
+    """Establish custody for every source before reading any evidence bytes."""
+    for path in paths:
+        if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(root.resolve()):
+            raise ValueError("source evidence requires regular repository resources")
+    return {path.relative_to(root).as_posix(): sha256(path) for path in paths}
+
+
 def run(command: list[str], cwd: Path, log: Path, timeout: int = 120) -> str:
     """Bound and retain one owned process group; never evaluate a shell command."""
     environment = {key: value for key, value in os.environ.items()
@@ -191,13 +199,15 @@ def build(args: argparse.Namespace, report: dict, evidence: Path) -> None:
     report["tools"]["engine"] = version
     report["source_commit"] = subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip()
     report["source_tree_dirty"] = bool(subprocess.check_output(["git", "-C", str(ROOT), "status", "--porcelain"]))
-    report["source_hashes"] = {}
+    sources = []
     for directory in (ROOT / "client", ROOT / "shared", ROOT / "scripts/macos", ROOT / "addons/com.heroiclabs.nakama"):
+        if directory.is_symlink() or not directory.resolve().is_relative_to(ROOT.resolve()):
+            raise ValueError("source directory must remain inside the repository")
         for source in sorted(directory.rglob("*")):
             if source.is_file() and source.suffix in (".gd", ".tscn", ".tres", ".json", ".py"):
-                report["source_hashes"][source.relative_to(ROOT).as_posix()] = sha256(source)
-    for source in [ROOT / "project.godot", ROOT / "server/starting_town_hub_fixture.gd", ROOT / "docs/third-party/nakama-godot-v3.4.0/LICENSE"]:
-        report["source_hashes"][source.relative_to(ROOT).as_posix()] = sha256(source)
+                sources.append(source)
+    sources.extend([ROOT / "project.godot", ROOT / "server/starting_town_hub_fixture.gd", ROOT / "docs/third-party/nakama-godot-v3.4.0/LICENSE"])
+    report["source_hashes"] = source_hashes(ROOT, sources)
     with owned_state(report) as (owned, user_data, user_data_name):
         portable_app = owned / "editor/Godot.app"
         shutil.copytree(editor.parents[2], portable_app, symlinks=True)
@@ -237,19 +247,24 @@ def build(args: argparse.Namespace, report: dict, evidence: Path) -> None:
         if inventory.get("passed") is not True or inventory.get("client_files", 0) <= 0:
             raise ValueError("client package inventory failed")
         probe_path = evidence / "offline-probe.json"
-        runtime = owned / "runtime"
-        runtime.mkdir()
-        runtime_pack = runtime / "Project0.pck"
-        shutil.copyfile(packs[0], runtime_pack)
-        if sha256(runtime_pack) != sha256(packs[0]):
-            raise ValueError("runtime PCK copy differs from the audited app")
-        (runtime / "override.cfg").write_text(isolated_settings(user_data_name + "/probe"))
-        run([str(executable), "--main-pack", str(runtime_pack), "--log-file", str(evidence / "probe-engine.log"), "--script",
-             "res://scripts/macos/offline_probe.gd", "--", "--evidence=" + str(probe_path),
-             "--expected-version=" + args.version, "--expected-user-data=" + str(user_data / "probe")], staged.parent, evidence / "offline-probe.log", 60)
+        override = executable.parent / "override.cfg"
+        override.write_text(isolated_settings(user_data_name + "/probe") + 'run/main_loop_type="MacOfflineProbe"\nrun/main_scene=""\n')
+        try:
+            run([str(executable), "--log-file", str(evidence / "probe-engine.log"), "--",
+                 "--evidence=" + str(probe_path), "--expected-version=" + args.version,
+                 "--expected-user-data=" + str(user_data / "probe")], staged.parent, evidence / "offline-probe.log", 60)
+        finally:
+            override.unlink()
         probe = json.loads(probe_path.read_text())
         if probe.get("passed") is not True or probe.get("paired_runtime_acceptance") is not False:
             raise ValueError("native offline probe failed")
+        override.write_text(isolated_settings(user_data_name + "/startup"))
+        try:
+            run([str(executable), "--quit-after", "90", "--log-file", str(evidence / "startup-engine.log")],
+                staged.parent, evidence / "startup.log", 60)
+        finally:
+            override.unlink()
+        run(["/usr/bin/codesign", "--verify", "--deep", "--strict", str(staged)], owned, evidence / "codesign-after-probe.log")
         output.parent.mkdir(parents=True, exist_ok=True)
         output.mkdir()
         app = output / "Project0.app"
@@ -262,7 +277,7 @@ def build(args: argparse.Namespace, report: dict, evidence: Path) -> None:
                        "executable_sha256": sha256(app / "Contents/MacOS/Project0"),
                        "pck_sha256": sha256(packs[0]), "inventory_sha256": sha256(inventory_path),
                        "probe_sha256": sha256(probe_path), "codesign": "ad-hoc verified; not notarized",
-                       "native_offline_probe_passed": True})
+                       "native_offline_probe_passed": True, "native_account_startup_passed": True})
     report["passed"] = True
 
 

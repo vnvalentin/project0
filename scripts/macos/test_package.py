@@ -377,6 +377,20 @@ class PackageInvocationTests(unittest.TestCase):
         self.assertFalse(user_data.exists())
         self.assertEqual(existing.read_bytes(), b"existing user state is preserved\n")
 
+    def test_source_hashing_rejects_symlinks_before_reading_any_selected_bytes(self):
+        regular = self.root / "client/known.gd"
+        regular.parent.mkdir()
+        regular.write_bytes(b"abc")
+        linked = self.root / "client/linked.gd"
+        linked.symlink_to(regular)
+        with mock.patch.object(self.package, "sha256", wraps=self.package.sha256) as digest:
+            with self.assertRaises(ValueError):
+                self.package.source_hashes(self.root, [regular, linked])
+            digest.assert_not_called()
+        self.assertEqual(self.package.source_hashes(self.root, [regular]), {
+            "client/known.gd": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+        })
+
 
 def main():
     parser = argparse.ArgumentParser()
