@@ -19,6 +19,8 @@ static func prepare(generation: Dictionary, context: Dictionary, town: Dictionar
 	var ingress: Vector3 = context["ingress"]
 	var sector_id: String = String(context["sector_id"])
 	var reason: String = ""
+	if result.get("fallback_pass") == "pass_1":
+		candidate["tiles"] = _reanchor(candidate["tiles"], pinned["origin"])
 	if String(candidate.get("sector_id", "")) != sector_id:
 		reason = "sector_identity_conflict"
 	if candidate.has("detail_origin"):
@@ -36,7 +38,7 @@ static func prepare(generation: Dictionary, context: Dictionary, town: Dictionar
 	result["placement_validation_outcome"] = "valid" if reason.is_empty() else reason
 	result["generation_source"] = generation.get("source", "")
 	result["generation_detail"] = generation.get("detail", "")
-	if not reason.is_empty() or result.get("source") == "fallback":
+	if not reason.is_empty() or (result.get("source") == "fallback" and result.get("fallback_pass") != "pass_1"):
 		candidate = _fallback(sector_id, pinned, town)
 		var fallback_error: String = validate_ingress(candidate, ingress, town)
 		result["placement_fallback_outcome"] = "valid" if fallback_error.is_empty() else fallback_error
@@ -45,6 +47,7 @@ static func prepare(generation: Dictionary, context: Dictionary, town: Dictionar
 			return result
 		result["source"] = "fallback"
 		result["fallback_selected"] = true
+		result["fallback_pass"] = "pass_2"
 		result["generation_candidate_validation_outcome"] = generation.get("candidate_validation_outcome", generation.get("validation_outcome", ""))
 		result["candidate_validation_outcome"] = "valid"
 	result["blueprint"] = candidate
@@ -98,6 +101,17 @@ static func _fallback(sector_id: String, pinned: Dictionary, town: Dictionary) -
 				continue
 			blueprint["tiles"].append({"x": horizontal, "y": vertical, "kind": "floor"})
 	return blueprint
+
+
+## Pass 1 repairs anchor a tile at local (0, 0); move it onto the server-pinned entry tile.
+static func _reanchor(tiles: Array, entry: Dictionary) -> Array:
+	var shifted: Array = []
+	for tile: Dictionary in tiles:
+		var x: int = int(tile["x"]) + int(entry["x"])
+		var y: int = int(tile["y"]) + int(entry["y"])
+		if absi(x) <= Schema.MAX_COORDINATE_ABS and absi(y) <= Schema.MAX_COORDINATE_ABS:
+			shifted.append({"x": x, "y": y, "kind": tile["kind"]})
+	return shifted
 
 
 static func _town_cells(town: Dictionary) -> Dictionary:

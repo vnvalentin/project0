@@ -24,6 +24,7 @@ class_name SectorBlueprintService
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
 const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
+const SectorBlueprintRepairScript: Script = preload("res://server/sector_blueprint_repair.gd")
 
 ## Outcome codes for the request seam itself, distinct from
 ## SectorBlueprintSchema's validation outcome codes. A request can fail before
@@ -33,6 +34,9 @@ const REQUEST_OUTCOME_TRANSPORT_ERROR: String = "transport_error"
 const REQUEST_OUTCOME_TIMEOUT: String = "timeout"
 const SOURCE_LLM: String = "llm"
 const SOURCE_FALLBACK: String = "fallback"
+const FALLBACK_PASS_NONE: String = "none"
+const FALLBACK_PASS_REPAIR: String = "pass_1"
+const FALLBACK_PASS_TEMPLATE: String = "pass_2"
 const JIT_MAX_GENERATION_SEC: float = 3.0
 
 signal blueprint_request_completed(correlation_id: String, result: Dictionary)
@@ -122,11 +126,14 @@ func request_sector_blueprint(prompt: String, sector_id: String = "generic-secto
 				"detail": validation["detail"],
 				"source": SOURCE_LLM,
 				"fallback_selected": false,
+				"fallback_pass": FALLBACK_PASS_NONE,
 				"blueprint": blueprint,
 				"provenance": provenance,
 			}
 		else:
-			result = _fallback_result(correlation_id, REQUEST_OUTCOME_VALIDATED, validation["outcome"], "Generated blueprint rejected by schema gate.", sector_id, provenance)
+			result = _repaired_result(correlation_id, validation["outcome"], llm_result["data"], sector_id, provenance)
+			if result.is_empty():
+				result = _fallback_result(correlation_id, REQUEST_OUTCOME_VALIDATED, validation["outcome"], "Generated blueprint rejected by schema gate.", sector_id, provenance)
 
 	result["timing"] = {
 		"generation_duration_ms": float(generation_completed_usec - started_usec) / 1000.0,
@@ -158,7 +165,30 @@ func _fallback_result(correlation_id: String, request_outcome: String, validatio
 		"detail": detail,
 		"source": SOURCE_FALLBACK,
 		"fallback_selected": true,
+		"fallback_pass": FALLBACK_PASS_TEMPLATE,
 		"blueprint": candidate_validation["blueprint"],
+		"provenance": provenance,
+	}
+
+
+## Pass 1: an independently re-validated repair of the rejected model candidate; {} sends it to Pass 2.
+func _repaired_result(correlation_id: String, validation_outcome: String, candidate: Variant, sector_id: String, provenance: Dictionary) -> Dictionary:
+	var repaired: Dictionary = SectorBlueprintRepairScript.repair(candidate, sector_id)
+	if repaired.is_empty():
+		return {}
+	var repaired_validation: Dictionary = SectorBlueprintSchemaScript.validate_generated(repaired)
+	if repaired_validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
+		return {}
+	return {
+		"correlation_id": correlation_id,
+		"request_outcome": REQUEST_OUTCOME_VALIDATED,
+		"validation_outcome": validation_outcome,
+		"candidate_validation_outcome": repaired_validation["outcome"],
+		"detail": "Generated blueprint rejected by schema gate; Pass 1 repair re-validated.",
+		"source": SOURCE_FALLBACK,
+		"fallback_selected": true,
+		"fallback_pass": FALLBACK_PASS_REPAIR,
+		"blueprint": repaired_validation["blueprint"],
 		"provenance": provenance,
 	}
 
