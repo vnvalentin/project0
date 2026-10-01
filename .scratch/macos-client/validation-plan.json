@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": "https://github.com/vnvalentin/project0/issues/1353",
+  "scope": "standalone universal macOS app and offline Mac component regression",
+  "rollback": "Remove only owned Mac staging and process state; preserve existing packages and all external services.",
+  "steps": [
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_package.py --report build/validation/macos/regression-1353.json",
+      "dependencies": ["python"],
+      "tests": ["scripts/macos/test_package.py"],
+      "artifacts": ["build/validation/macos/regression-1353.json"]
+    },
+    {
+      "suite": "macos-client",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/package.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.12.0 --output dist/macos/1353-first --verify --report build/validation/macos/package-1353.json",
+      "dependencies": ["godot-client", "python"],
+      "tests": ["scripts/macos/package_inventory.gd", "scripts/macos/offline_probe.gd"],
+      "artifacts": ["build/validation/macos/package-1353.json"]
+    }
+  ]
+}

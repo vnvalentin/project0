@@ -2,7 +2,8 @@
   "schema_version": 1,
   "hosts": {
     "linux": ["192.168.1.254", "github-actions-linux"],
-    "windows": ["SETSUJOKU", "github-actions-windows"]
+    "windows": ["SETSUJOKU", "github-actions-windows"],
+    "macos": ["Philips-MacBook-Pro-2"]
   },
   "test_roots": ["tests", "scripts", "infra", "dashboard", "operator_console", "native"],
   "server_data_exceptions": ["server/starting_town_hub_fixture.gd"],
@@ -71,6 +72,22 @@
       "runner": "scripts/run_windows_launcher_validation.ps1",
       "tests": ["native/windows_launcher/*_test.go"],
       "evidence": "launcher-only-not-gameplay-proof"
+    },
+    "macos-tooling": {
+      "platform": "macos",
+      "owner": "macos-tooling",
+      "dependencies": ["python"],
+      "runner": "python3 scripts/macos/test_package.py",
+      "tests": ["scripts/macos/test_*.py"],
+      "evidence": "supporting-component"
+    },
+    "macos-client": {
+      "platform": "macos",
+      "owner": "macos-client",
+      "dependencies": ["godot-client", "python"],
+      "runner": "python3 scripts/macos/package.py --verify",
+      "tests": ["scripts/macos/package_inventory.gd", "scripts/macos/offline_probe.gd"],
+      "evidence": "client-only-not-server-proof"
     }
   }
 }
