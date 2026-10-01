@@ -1022,15 +1022,8 @@ func _invalidate_frontier_sector(sector_id: String, clear_preparation: bool = tr
 
 
 func _frontier_sector_at(position: Vector3) -> String:
-	var hub_sector_id: String = String(_starting_town_hub_blueprint.get("sector_id", ""))
-	if hub_sector_id.is_empty():
-		return SectorBoundaryDetectorScript.sector_id_for_position(position)
-	var hub_origin: Dictionary = _starting_town_hub_blueprint.get("origin", {})
-	var hub_grid_sector: String = SectorBoundaryDetectorScript.sector_id_for_position(
-		Vector3(float(hub_origin.get("x", 0)), 0.0, float(hub_origin.get("y", 0)))
-	)
-	if SectorBoundaryDetectorScript.sector_id_for_position(position) == hub_grid_sector:
-		return hub_sector_id
+	if _frontier_town_tiles.has(Vector2i(floori(position.x + 0.5), floori(position.z + 0.5))):
+		return String(_starting_town_hub_blueprint.get("sector_id", ""))
 	return SectorBoundaryDetectorScript.sector_id_for_position(position)
 
 
