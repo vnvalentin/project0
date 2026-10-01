@@ -175,17 +175,17 @@ func test_write_uses_contract_name_and_never_overwrites() -> void:
 
 
 func test_required_case_assertions_fail_when_any_assertion_fails_or_is_missing() -> void:
-var input: Dictionary = _report_input()
-input["scenario"]["required_stages"] = [ReportScript.STAGE_JOURNEY_IDENTITY, ReportScript.STAGE_COMMIT, ReportScript.STAGE_CASE_ASSERTIONS]
-input["case_assertions"] = [{"name": "rejected", "passed": true}, {"name": "no write", "passed": false}]
-assert_eq(ReportScript.build(input)["first_failing_stage"], ReportScript.STAGE_CASE_ASSERTIONS)
-input.erase("case_assertions")
-assert_eq(ReportScript.build(input)["outcome"], ReportScript.OUTCOME_OBSERVATION_FAILED)
-input["case_assertions"] = [{"name": "rejected", "passed": true}]
-input["commit"] = {"status": ReportScript.OBSERVED, "outcome": ReportScript.COMMIT_NOT_ATTEMPTED}
-input["scenario"]["expected_commit"] = ReportScript.COMMIT_NOT_ATTEMPTED
-assert_true(ReportScript.build(input)["passed"], "an observed non-attempt passes a declared rejection case")
+	var input: Dictionary = _report_input()
+	input["scenario"]["required_stages"] = [ReportScript.STAGE_JOURNEY_IDENTITY, ReportScript.STAGE_COMMIT, ReportScript.STAGE_CASE_ASSERTIONS]
+	input["case_assertions"] = [{"name": "rejected", "passed": true}, {"name": "no write", "passed": false}]
+	assert_eq(ReportScript.build(input)["first_failing_stage"], ReportScript.STAGE_CASE_ASSERTIONS)
+	input.erase("case_assertions")
+	assert_eq(ReportScript.build(input)["outcome"], ReportScript.OUTCOME_OBSERVATION_FAILED)
+	input["case_assertions"] = [{"name": "rejected", "passed": true}]
+	input["commit"] = {"status": ReportScript.OBSERVED, "outcome": ReportScript.COMMIT_NOT_ATTEMPTED}
+	input["scenario"]["expected_commit"] = ReportScript.COMMIT_NOT_ATTEMPTED
+	assert_true(ReportScript.build(input)["passed"], "an observed non-attempt passes a declared rejection case")
 
 
 func test_case_assertions_are_not_required_by_default() -> void:
-assert_eq(ReportScript.build(_report_input())["stage_status"][ReportScript.STAGE_CASE_ASSERTIONS], ReportScript.NOT_EXERCISED)
+	assert_eq(ReportScript.build(_report_input())["stage_status"][ReportScript.STAGE_CASE_ASSERTIONS], ReportScript.NOT_EXERCISED)
