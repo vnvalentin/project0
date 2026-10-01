@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory)][ValidatePattern('^/data/[A-Za-z0-9_./-]+$')][string]$ServerRoot,
     [Parameter(Mandatory)][ValidatePattern('^/data/[A-Za-z0-9_./-]+$')][string]$Artifact,
     [Parameter(Mandatory)][ValidatePattern('^[a-f0-9]{64}$')][string]$ArtifactSha,
-    [ValidatePattern('^\d+x\d+$')][string]$Resolution = '1280x720'
+    [ValidatePattern('^\d+x\d+$')][string]$Resolution = '1280x720',
+    [ValidateRange(1, 60)][int]$TransportTimeoutSeconds = 15
 )
 
 # Experiment 1359: one packaged client crosses an unexplored frontier while the
