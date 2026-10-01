@@ -19,8 +19,6 @@ static func prepare(generation: Dictionary, context: Dictionary, town: Dictionar
 	var ingress: Vector3 = context["ingress"]
 	var sector_id: String = String(context["sector_id"])
 	var reason: String = ""
-	if result.get("fallback_pass") == "pass_1":
-		candidate["tiles"] = _reanchor(candidate["tiles"], pinned["origin"])
 	if String(candidate.get("sector_id", "")) != sector_id:
 		reason = "sector_identity_conflict"
 	if candidate.has("detail_origin"):
@@ -33,6 +31,8 @@ static func prepare(generation: Dictionary, context: Dictionary, town: Dictionar
 	candidate["schema_version"] = Placement.SCHEMA_VERSION
 	candidate["detail_origin"] = pinned["detail_origin"].duplicate(true)
 	candidate["origin"] = pinned["origin"].duplicate(true)
+	if result.get("fallback_pass") == "pass_1":
+		candidate["tiles"] = _reanchor(candidate, pinned["origin"])
 	if reason.is_empty():
 		reason = validate_ingress(candidate, ingress, town)
 	result["placement_validation_outcome"] = "valid" if reason.is_empty() else reason
@@ -61,13 +61,14 @@ static func validate_ingress(blueprint: Dictionary, ingress: Vector3, town: Dict
 	var collision: RefCounted = Collision.new(blueprint)
 	# The offset depends only on placement metadata; per-cell recomputation cost ~300 ms (#1366).
 	var offset: Vector3 = Placement.world_offset(blueprint)
+	var area: Rect2 = _representable_area(blueprint)
 	for tile: Dictionary in blueprint["tiles"]:
 		if not Placement._integer(tile["x"]) or not Placement._integer(tile["y"]):
 			return "fractional_detail_tile"
 		var world: Vector3 = offset + Vector3(float(tile["x"]), 0, float(tile["y"]))
 		if reserved.has(Vector2i(roundi(world.x), roundi(world.z))):
 			return "reserved_town_overlap"
-		if not Placement.clip_rectangle(blueprint, Rect2(Vector2(float(tile["x"]), float(tile["y"])) - Vector2(0.5, 0.5), Vector2.ONE)).has_area():
+		if not Rect2(Vector2(float(tile["x"]), float(tile["y"])) - Vector2(0.5, 0.5), Vector2.ONE).intersection(area).has_area():
 			return "unrepresented_tile"
 	for cell: Vector2i in reserved:
 		var local: Vector3 = Vector3(cell.x, 0, cell.y) - offset
@@ -103,15 +104,24 @@ static func _fallback(sector_id: String, pinned: Dictionary, town: Dictionary) -
 	return blueprint
 
 
-## Pass 1 repairs anchor a tile at local (0, 0); move it onto the server-pinned entry tile.
-static func _reanchor(tiles: Array, entry: Dictionary) -> Array:
+## Pass 1 repairs anchor a tile at local (0, 0); move it onto the server-pinned
+## entry tile and keep only tiles this sector can represent.
+static func _reanchor(blueprint: Dictionary, entry: Dictionary) -> Array:
+	var area: Rect2 = _representable_area(blueprint)
 	var shifted: Array = []
-	for tile: Dictionary in tiles:
+	for tile: Dictionary in blueprint["tiles"]:
 		var x: int = int(tile["x"]) + int(entry["x"])
 		var y: int = int(tile["y"]) + int(entry["y"])
-		if absi(x) <= Schema.MAX_COORDINATE_ABS and absi(y) <= Schema.MAX_COORDINATE_ABS:
+		if absi(x) > Schema.MAX_COORDINATE_ABS or absi(y) > Schema.MAX_COORDINATE_ABS:
+			continue
+		if Rect2(Vector2(x, y) - Vector2(0.5, 0.5), Vector2.ONE).intersection(area).has_area():
 			shifted.append({"x": x, "y": y, "kind": tile["kind"]})
 	return shifted
+
+
+## Equivalent to clip_rectangle per tile; the clip depends only on placement metadata.
+static func _representable_area(blueprint: Dictionary) -> Rect2:
+	return Placement.clip_rectangle(blueprint, Rect2(Vector2(-1e7, -1e7), Vector2(2e7, 2e7)))
 
 
 static func _town_cells(town: Dictionary) -> Dictionary:

@@ -176,7 +176,8 @@ func _repaired_result(correlation_id: String, validation_outcome: String, candid
 	var repaired: Dictionary = SectorBlueprintRepairScript.repair(candidate, sector_id)
 	if repaired.is_empty():
 		return {}
-	var repaired_validation: Dictionary = SectorBlueprintSchemaScript.validate_generated(repaired)
+	# The repair is server-built from known fields, so the semantic gate applies, as for Canon blueprints.
+	var repaired_validation: Dictionary = SectorBlueprintSchemaScript.validate(repaired)
 	if repaired_validation["outcome"] != SectorBlueprintSchemaScript.OUTCOME_VALID:
 		return {}
 	return {

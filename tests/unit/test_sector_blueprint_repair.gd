@@ -67,7 +67,7 @@ func test_pass_1_survives_placement_or_cascades_to_pass_2() -> void:
 	var kept: Dictionary = Detail.prepare(_pass_1_result(connected), context, town)
 	assert_eq(kept.get("placement_validation_outcome"), "valid", "a connected repair passes the unchanged ingress gate")
 	assert_eq(kept.get("fallback_pass"), "pass_1")
-	assert_eq(kept["blueprint"]["tiles"].size(), 25, "the repaired geometry is kept, not the template")
+	assert_eq(kept["blueprint"]["tiles"].size(), 15, "the repaired geometry, clipped to this sector, is kept instead of the template")
 	var lone: Dictionary = Repair.repair({"tiles": [{"x": 0, "y": 0, "kind": "floor"}]}, SECTOR_ID)
 	var replaced: Dictionary = Detail.prepare(_pass_1_result(lone), context, town)
 	assert_eq(replaced.get("placement_validation_outcome"), "insufficient_connected_route")
@@ -83,7 +83,7 @@ func test_worst_case_pass_1_and_pass_2_fit_the_200_ms_budget() -> void:
 	var context: Dictionary = {"sector_id": SECTOR_ID, "placement": Placement.select(SECTOR_ID, INGRESS), "ingress": INGRESS}
 	var started: int = Time.get_ticks_usec()
 	var repaired: Dictionary = Repair.repair({"tiles": tiles}, SECTOR_ID)
-	var validated: Dictionary = Schema.validate_generated(repaired)
+	var validated: Dictionary = Schema.validate(repaired)
 	var prepared: Dictionary = Detail.prepare(_pass_1_result(validated["blueprint"]), context, Hub.blueprint())
 	var elapsed_ms: float = float(Time.get_ticks_usec() - started) / 1000.0
 	assert_eq(validated["outcome"], Schema.OUTCOME_VALID)
