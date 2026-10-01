@@ -147,7 +147,7 @@ func test_jit_preserves_short_explicit_timeout_under_large_environment() -> void
 	var result: Dictionary = await service.request_sector_blueprint("short deadline")
 	assert_eq(result["request_outcome"], "timeout")
 	assert_eq(result["provenance"]["generation_budget_ms"], 50.0)
-	assert_between(result["timing"]["generation_duration_ms"], 50.0, 200.0)
+	assert_between(result["timing"]["generation_duration_ms"], 50.0 - float(LocalLLMClientScript.DEADLINE_FRAME_MARGIN_USEC) / 1000.0, 50.0, "the short budget is honored, not extended")
 	assert_eq(fake_server.request_count, 1)
 	fake_server.stop()
 
