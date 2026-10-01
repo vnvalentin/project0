@@ -30,9 +30,13 @@ func after_all() -> void:
 class FrontierServer extends "res://server/server_main.gd":
 	var presentations: Array[Dictionary] = []
 	var frontier_now: int = 0
+	var fixed_usec: int = -1
 
 	func _frontier_now_msec() -> int:
 		return frontier_now
+
+	func _frontier_now_usec() -> int:
+		return fixed_usec if fixed_usec >= 0 else super()
 
 	func _send_sector_blueprint(peer_id: int, blueprint: Dictionary, ingress: Vector3, trace: Dictionary) -> void:
 		presentations.append({"peer_id": peer_id, "blueprint": blueprint, "ingress": ingress, "trace": trace})
@@ -755,6 +759,104 @@ func test_timeout_fallback_commits_canon_and_holds_until_matching_ack() -> void:
 		var database_path: String = ProjectSettings.globalize_path("user://%s%s" % [database, suffix])
 		if FileAccess.file_exists(database_path):
 			DirAccess.remove_absolute(database_path)
+	server.free()
+
+
+func test_timeout_fallback_records_one_stage_timed_ready_per_peer() -> void:
+	var server: FrontierServer = _frontier_server()
+	var sink: FakeTelemetrySink = FakeTelemetrySink.new()
+	server._telemetry_sink = sink
+	var states: Array[Node] = [server._player_states[7], _add_frontier_peer(server, 8)]
+	var database: String = "test_stage_timing_%d_%d.db" % [Time.get_ticks_usec(), randi()]
+	var store: RecoverableCanonStore = RecoverableCanonStore.new()
+	store.fail_writes = false
+	assert_eq(store.open(database)["outcome"], "ok")
+	var repository: CanonRepository = CanonRepositoryScript.new(store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	server._canon_repository = repository
+	server._sector_boundary_detector.set_canon_lookup(func(sector_id: String) -> bool:
+		return repository.get_canonical_sector(sector_id)["outcome"] == "ok"
+	)
+	var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
+	coordinator.set_canonicalize_callback(repository.canonicalize_blueprint)
+	server._canon_generation_coordinator = coordinator
+	var ollama: CountingOllamaServer = CountingOllamaServer.new()
+	ollama.respond_at_all = false
+	add_child_autofree(ollama)
+	var port: int = ollama.start()
+	assert_gt(port, 0)
+	server._provisional_sector_generator.free()
+	var generator: ProvisionalSectorGenerator = ProvisionalSectorGeneratorScript.new()
+	generator.ollama_host = "http://127.0.0.1:%d" % port
+	generator.request_timeout_sec = 0.1
+	add_child_autofree(generator)
+	generator.provisional_sector_ready.connect(server._on_provisional_sector_ready)
+	server._provisional_sector_generator = generator
+	for index: int in states.size():
+		states[index].set_physics_process(false)
+		states[index].apply_input_intent([7, 8][index], Vector2(1, 0), 1)
+		states[index]._physics_process(1.0 / 60.0)
+	await generator.provisional_sector_ready
+	await wait_process_frames(1)
+	assert_eq(server.presentations.size(), 2, "both waiting peers receive the committed sector")
+	assert_eq(server.frontier_ready_events().size(), 0, "no readiness record before an ACK")
+	for presentation: Dictionary in server.presentations:
+		server._on_client_telemetry_batch_received(15 - int(presentation["peer_id"]), [_ack_event(presentation["trace"])], 1)
+	assert_eq(server.frontier_ready_events().size(), 0, "a wrong-peer ACK records nothing")
+	for presentation: Dictionary in server.presentations:
+		server._on_client_telemetry_batch_received(int(presentation["peer_id"]), [_ack_event(presentation["trace"])], 2)
+		server._on_client_telemetry_batch_received(int(presentation["peer_id"]), [_ack_event(presentation["trace"])], 3)
+	var events: Array = server.frontier_ready_events()
+	assert_eq(events.size(), 2, "one record per peer journey; duplicate ACKs add none")
+	assert_eq(events.map(func(event: Dictionary) -> int: return int(event["peer_id"])), [7, 8])
+	for event: Dictionary in events:
+		var stages: Dictionary = event["stages"]
+		assert_eq(event["event_type"], "FRONTIER_SECTOR_READY")
+		assert_eq(event["sector_id"], "sector-1-0")
+		assert_eq(event["path"], "generated")
+		assert_eq(stages["request_outcome"], "timeout")
+		assert_true(stages["fallback_selected"])
+		assert_eq(stages["source"], "fallback")
+		assert_gt(float(stages["generation_duration_ms"]), 0.0)
+		assert_true(stages.has("deadline_overshoot_ms"))
+		assert_gt(float(stages["canon_commit_ms"]), 0.0, "real SQLite commit time is measured")
+		assert_true(float(stages["detail_ms"]) >= 0.0 and float(stages["presentation_ms"]) >= 0.0)
+		assert_true(float(event["total_ms"]) >= float(stages["generation_duration_ms"]) + float(stages["presentation_ms"]), "the trigger clock precedes generation")
+	var commits: Array = sink.envelopes.filter(func(envelope: Dictionary) -> bool: return envelope["event_type"] == "canon_db_commit")
+	assert_eq(commits.size(), 1)
+	if commits.size() == 1:
+		assert_gt(float(commits[0]["payload"]["duration_ms"]), 0.0, "the Canon commit span carries its real duration")
+	assert_eq(sink.envelopes.filter(func(envelope: Dictionary) -> bool: return envelope["event_type"] == "frontier.sector_ready").size(), 2)
+	ollama.stop()
+	store.close()
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		var database_path: String = ProjectSettings.globalize_path("user://%s%s" % [database, suffix])
+		if FileAccess.file_exists(database_path):
+			DirAccess.remove_absolute(database_path)
+	server.free()
+
+
+func test_canon_reload_ready_record_keeps_first_trigger_across_retries() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server.fixed_usec = 1_000
+	server._prepare_frontier_position(7, state.position)
+	assert_eq(server.presentations.size(), 1, "Canon re-entry is presented")
+	server.frontier_now = 1000
+	server.fixed_usec = 1_001_000
+	server._prepare_frontier_position(7, state.position)
+	assert_eq(server.frontier_ready_events().size(), 0, "a retry without an ACK records nothing")
+	server.fixed_usec = 2_001_000
+	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
+	var events: Array = server.frontier_ready_events()
+	assert_eq(events.size(), 1)
+	if events.size() == 1:
+		assert_eq(events[0]["path"], "canon")
+		assert_eq(events[0]["sector_id"], "sector-0-0")
+		assert_eq(events[0]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_eq(float(events[0]["stages"]["canon_lookup_ms"]), 0.0)
+		assert_eq(float(events[0]["stages"]["presentation_ms"]), 2000.0, "presentation runs from the first send")
+		assert_eq(float(events[0]["total_ms"]), 2000.0, "a retry does not restart the trigger clock")
 	server.free()
 
 
