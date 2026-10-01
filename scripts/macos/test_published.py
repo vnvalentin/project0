@@ -547,6 +547,24 @@ class PublishedLifecycleTests(unittest.TestCase):
         self.assertFalse(outer[1].exists())
         self.assertEqual(self.sentinel.read_bytes(), b"preserve existing fixture state")
 
+    def test_main_pack_override_is_beside_pack_and_removed_after_failure(self):
+        settings = "[application]\nconfig/name=\"Owned fixture\"\n"
+        with self.assertRaises(RuntimeError):
+            with self.published.pack_boot_settings(self.pack, settings) as override:
+                self.assertEqual(override, self.pack.parent / "override.cfg")
+                self.assertEqual(override.read_text(), settings)
+                self.assertEqual(self.pack.read_bytes(), b"owned pack fixture, never executed")
+                raise RuntimeError("owned runtime fixture failure")
+        self.assertFalse((self.pack.parent / "override.cfg").exists())
+
+    def test_main_pack_override_refuses_existing_state_without_overwrite(self):
+        override = self.pack.parent / "override.cfg"
+        override.write_bytes(b"existing owned state is preserved")
+        with self.assertRaises(FileExistsError):
+            with self.published.pack_boot_settings(self.pack, "new fixture"):
+                self.fail("occupied override must stop startup")
+        self.assertEqual(override.read_bytes(), b"existing owned state is preserved")
+
     def test_failure_json_retains_stage_and_type_without_exception_text(self):
         report_path = self.root / "build/validation/macos/failure.json"
         arguments = ["--godot", str(self.editor), "--template", str(self.template),

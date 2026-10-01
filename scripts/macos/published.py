@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
@@ -210,6 +211,18 @@ def _settings(name: str, inert: Path | None = None) -> str:
     return text + '[debug]\nfile_logging/enable_file_logging=false\nsettings/stdout/print_to_stdout=false\nsettings/stdout/print_to_stderr=false\n'
 
 
+@contextmanager
+def pack_boot_settings(pack: Path, settings: str):
+    """Own the external override where main-pack startup resolves its project."""
+    override = pack.parent / "override.cfg"
+    with override.open("x") as output:
+        output.write(settings)
+    try:
+        yield override
+    finally:
+        override.unlink(missing_ok=True)
+
+
 def qualify_preboot(editor: Path, owned: Path, user_data_name: str, user_data: Path, evidence: Path, report: dict) -> None:
     """Prove the route's pre-autoload overrides with an inline harmless PCK."""
     fixture = owned / "preboot-fixture"
@@ -281,7 +294,6 @@ func _initialize() -> void:
     receipt["fixture_pck_sha256"] = package.sha256(pack)
     settings = _settings(user_data_name + "/preboot-qualified", inert)
     (runtime / "project.godot").write_text('config_version=5\n' + settings)
-    (runtime / "override.cfg").write_text(settings)
     probe = runtime / "preboot_probe.gd"
     probe.write_text('''extends SceneTree
 func _initialize() -> void:
@@ -292,7 +304,10 @@ func _finish() -> void:
     command = [str(editor), "--headless", "--path", str(runtime), "--main-pack", str(pack), "--script", str(probe), "--",
                "--evidence=" + str(receipt_path), "--expected-user-data=" + str(expected_data), "--expected-inert-scene=" + str(inert)]
     receipt["command"] = command
-    receipt["process"] = admission.run_suppressed(command, runtime, 30)
+    with pack_boot_settings(pack, settings):
+        receipt["process"] = admission.run_suppressed(command, runtime, 30)
+    receipt["override_location"] = "pack_directory"
+    receipt["override_removed"] = not (pack.parent / "override.cfg").exists()
     if (receipt["process"]["timeout"] or receipt["process"]["exit_code"] != 0
             or not receipt["process"]["process_group_removed"] or not receipt_path.is_file()
             or receipt_path.is_symlink() or receipt_path.stat().st_size > 4096):
@@ -461,7 +476,6 @@ def assemble_pack(editor: Path, template: Path, pack: Path, output: Path, report
         inert = runtime / "published_entry.tscn"
         inert.write_text('[gd_scene format=3]\n[node name="PublishedAdmissionEntry" type="Node"]\n')
         (runtime / "project.godot").write_text('config_version=5\n' + _settings(user_data_name + "/published-probe", inert))
-        (runtime / "override.cfg").write_text(_settings(user_data_name + "/published-probe", inert))
         probe = runtime / "published_admission_probe.gd"
         shutil.copyfile(ROOT / "scripts/macos/published_admission_probe.gd", probe)
         probe_path = evidence / "published-admission.json"
@@ -469,7 +483,9 @@ def assemble_pack(editor: Path, template: Path, pack: Path, output: Path, report
         command = [str(editor_copy), "--headless", "--path", str(runtime), "--main-pack", str(pack), "--script", str(probe), "--",
                    "--evidence=" + str(probe_path), "--expected-user-data=" + str(user_data / "published-probe"),
                    "--expected-inert-scene=" + str(inert)]
-        executed = admission.run_suppressed(command, runtime, 55)
+        with pack_boot_settings(pack, _settings(user_data_name + "/published-probe", inert)):
+            executed = admission.run_suppressed(command, runtime, 55)
+        report["published_override_removed"] = not (pack.parent / "override.cfg").exists()
         report["admission_command"] = command
         report["admission_process"] = executed
         if not probe_path.is_file() or probe_path.is_symlink() or probe_path.stat().st_size > 32768:
