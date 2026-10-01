@@ -226,6 +226,13 @@ def expected_tests(tree, windows_required=False):
     }
 
 
+def planned_expected_tests(metadata, plan):
+    # Expect the tests of the tree the jobs execute: the baseline only when it is reused (#1345).
+    reused = plan["linux_ref"] == metadata["baseline"] != metadata["candidate"]
+    tree = metadata["baseline_tree"] if reused else metadata["candidate_tree"]
+    return expected_tests(tree, plan["windows_required"])
+
+
 def launcher_tests(directory):
     summary = json.loads((directory / "validation-summary.json").read_text(encoding="utf-8-sig"))
     if (summary.get("status") != "passed" or type(summary.get("exit_code")) is not int
@@ -377,9 +384,7 @@ def main():
         if args.action == "plan":
             metadata = metadata_from_event()
             plan = route(metadata)
-            expected_tree = (metadata["baseline_tree"] if plan["windows_required"]
-                             else metadata["candidate_tree"])
-            plan["expected_tests"] = expected_tests(expected_tree, plan["windows_required"])
+            plan["expected_tests"] = planned_expected_tests(metadata, plan)
             args.plan.parent.mkdir(parents=True, exist_ok=True)
             args.plan.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
             if os.environ.get("GITHUB_OUTPUT"):
