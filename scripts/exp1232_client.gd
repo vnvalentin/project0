@@ -45,6 +45,10 @@ func _run() -> void:
 	if not await _until(func(observation: Dictionary) -> bool: return observation.get("bound", {}).has("actor") and observation.get("bound", {}).has("occluder")):
 		_finish("bound_roles_timeout")
 		return
+	await _run_case(network)
+
+
+func _run_case(network: Node) -> void:
 	var first: String = "occluder" if _case == "order_b_first" else "actor"
 	if _case == "retry_after_withheld_confirmation":
 		await _run_retry_case(network)
