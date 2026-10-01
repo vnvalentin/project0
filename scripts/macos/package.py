@@ -52,6 +52,8 @@ def stage_project(root: Path, destination: Path, version: str) -> None:
     text = text.replace('PackedStringArray("4.3", "Forward Plus")', 'PackedStringArray("4.7", "GL Compatibility")')
     text = text.replace('[rendering]', '[rendering]\ntextures/vram_compression/import_etc2_astc=true')
     project.write_text(text)
+    (destination / "scripts/macos/offline_probe.tscn").write_text(
+        '[gd_scene format=3]\n[node name="MacProbeEntry" type="Node"]\n')
 
 
 def sha256(path: Path) -> str:
@@ -248,7 +250,7 @@ def build(args: argparse.Namespace, report: dict, evidence: Path) -> None:
             raise ValueError("client package inventory failed")
         probe_path = evidence / "offline-probe.json"
         override = executable.parent / "override.cfg"
-        override.write_text(isolated_settings(user_data_name + "/probe") + 'run/main_loop_type="MacOfflineProbe"\nrun/main_scene=""\n')
+        override.write_text(isolated_settings(user_data_name + "/probe") + 'run/main_loop_type="MacOfflineProbe"\nrun/main_scene="res://scripts/macos/offline_probe.tscn"\n')
         try:
             run([str(executable), "--log-file", str(evidence / "probe-engine.log"), "--",
                  "--evidence=" + str(probe_path), "--expected-version=" + args.version,

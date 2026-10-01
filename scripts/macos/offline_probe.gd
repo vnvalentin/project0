@@ -119,7 +119,7 @@ func _check_pack() -> void:
 		"scripts": compiled,
 	}
 	_expect(ProjectSettings.get_setting("application/config/name", "") == "Project0", "Project0 PCK is mounted")
-	_expect(ProjectSettings.get_setting("application/run/main_scene", "") == "", "startup scene is suppressed for the contained offline probe")
+	_expect(ProjectSettings.get_setting("application/run/main_scene", "") == "res://scripts/macos/offline_probe.tscn", "inert startup scene contains the offline probe before account controls load")
 	_expect(player_identity_present and network_present, "both client autoloads are present")
 	_expect(not loose_project, "no loose project.godot beside the app executable")
 	_expect(not ClassDB.class_exists("SQLite"), "server SQLite extension is absent")
