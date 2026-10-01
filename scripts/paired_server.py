@@ -253,7 +253,7 @@ def check_frontier_timeout_client(report, evidence):
         raise ValueError("frontier_timeout_client_failed")
     if client.get("client_build") != report["client_build"] or client.get("server_build") != report["server_build"]:
         raise ValueError("frontier_timeout_build_identity")
-    validate_frontier_observation(client.get("frontier"))
+    validate_frontier_observation(client.get("frontier"), "sector-0--2")
     frames = client.get("frame_times", {})
     if type(frames.get("count")) is not int or frames["count"] <= 0:
         raise ValueError("frontier_timeout_frame_samples")
@@ -272,7 +272,7 @@ def check_frontier_timeout_server(observation):
     if observation.get("canon_outcome") != "ok":
         raise ValueError("frontier_timeout_canon")
     generated = [event for event in observation.get("frontier_ready_events", [])
-                 if event.get("sector_id") == "sector-0--1" and event.get("path") == "generated"]
+                 if event.get("sector_id") == "sector-0--2" and event.get("path") == "generated"]
     if len(generated) != 1:
         raise ValueError("frontier_timeout_ready_record")
     return True

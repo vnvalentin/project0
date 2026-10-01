@@ -110,17 +110,18 @@ func _observe_frontier_timeout() -> void:
 			continue
 		peers += 1
 		if not _frontier_timeout_seeded:
-			state.position = Vector3(0.0, 1.0, -439.0)
+			# Seeded inside sector-0--1 one unit from unexplored sector-0--2.
+			state.position = Vector3(0.0, 1.0, -879.0)
 			_frontier_timeout_seeded = true
 		_frontier_timeout_observation["position"] = _vector3_to_array(state.position)
-	var generation: Dictionary = _provisional_sector_generator.get_provisional_result("sector-0--1")
+	var generation: Dictionary = _provisional_sector_generator.get_provisional_result("sector-0--2")
 	_frontier_timeout_observation["generation"] = {
 		"request_outcome": String(generation.get("request_outcome", "")),
 		"source": String(generation.get("source", "")),
 		"fallback_selected": generation.get("fallback_selected", false),
 		"timing": generation.get("timing", {}),
 	}
-	_frontier_timeout_observation["canon_outcome"] = String(_canon_repository.get_canonical_sector("sector-0--1").get("outcome", ""))
+	_frontier_timeout_observation["canon_outcome"] = String(_canon_repository.get_canonical_sector("sector-0--2").get("outcome", ""))
 	_frontier_timeout_observation["frontier_ready_events"] = frontier_ready_events()
 	_frontier_timeout_observation["canon_reload_events"] = canon_reload_events()
 	_frontier_timeout_observation["seeded"] = _frontier_timeout_seeded

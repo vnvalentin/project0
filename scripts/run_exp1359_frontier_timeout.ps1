@@ -44,12 +44,13 @@ function Read-Json([string]$path) {
 }
 
 function Get-Verdict([hashtable]$client, [hashtable]$observation) {
-    $ready = @($observation.frontier_ready_events | Where-Object { $_.sector_id -eq 'sector-0--1' -and $_.path -eq 'generated' }) | Select-Object -First 1
+    $ready = @($observation.frontier_ready_events | Where-Object { $_.sector_id -eq 'sector-0--2' -and $_.path -eq 'generated' }) | Select-Object -First 1
     $stages = $ready.stages
-    $reloads = @($observation.canon_reload_events | Where-Object { $_.sector_id -eq 'sector-0--1' })
+    $reloads = @($observation.canon_reload_events | Where-Object { $_.sector_id -eq 'sector-0--2' })
     $checks = [ordered]@{
         forced_timeout = $observation.generation.request_outcome -eq 'timeout' -and $observation.generation.fallback_selected -eq $true
-        zero_retries = $observation.llm_connections -eq 1
+        # One request each for the seeded sector and the frontier sector; more is a retry.
+        zero_retries = $observation.llm_connections -eq 2
         generation_cutoff = [double]$stages.generation_duration_ms -le $budgets.generation_cutoff_ms
         fallback_validation = ([double]$stages.validation_duration_ms + [double]$stages.detail_ms) -le $budgets.fallback_validation_ms
         canon_commit = [double]$stages.canon_commit_ms -le $budgets.canon_commit_ms
@@ -154,6 +155,11 @@ finally {
             [IO.File]::WriteAllText((Join-Path $evidence 'client.stderr.log'), $logs.stderr.Result)
         }
     } catch { $result.cleanup_failure = $_.Exception.Message }
+    try {
+        $clientReport = Join-Path $root 'a.json'
+        if (Test-Path $clientReport) { Copy-Item $clientReport (Join-Path $evidence 'client-report.json') }
+        if ($remoteStarted -and -not $result.server_observation) { Copy-Remote "okami:$remoteRun/private/frontier-observation.json" (Join-Path $evidence 'frontier-observation.json') }
+    } catch { $result.retention_failure = $_.Exception.Message }
     try { if (Test-Path $root) { Remove-Item $root -Recurse -Force }; $result.local_cleanup = -not (Test-Path $root) } catch { $result.cleanup_failure = $_.Exception.Message }
     if ($remoteStarted) {
         try {

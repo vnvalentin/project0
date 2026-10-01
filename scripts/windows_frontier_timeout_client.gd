@@ -1,10 +1,11 @@
 extends SceneTree
 
 const SCENARIO: String = "frontier-timeout-v1"
-const FRONTIER_SECTOR: String = "sector-0--1"
-const FRONTIER_EDGE_Z: float = -440.0
-const INSIDE_Z: float = -444.0
-const OUTSIDE_Z: float = -436.0
+const SEED_SECTOR: String = "sector-0--1"
+const FRONTIER_SECTOR: String = "sector-0--2"
+const FRONTIER_EDGE_Z: float = -880.0
+const INSIDE_Z: float = -882.5
+const OUTSIDE_Z: float = -878.0
 const FRAME_BUDGET_MS: float = 16.6
 var _network: Node
 var _gameplay: Node3D
@@ -19,6 +20,7 @@ var _frontier_geometry_ready_at_msec: int = -1
 var _frontier_crossed_at_msec: int = -1
 var _frontier_geometry_ready := false
 var _frontier_crossed := false
+var _seed_ready := false
 var _x_at_start: float = NAN
 var _x_at_ready: float = NAN
 var _window_frame_ms: Array[float] = []
@@ -75,7 +77,12 @@ func _run() -> void:
 		await _finish("world entry")
 		return
 	_report["world_entered"] = true
-	# Strafing inside loaded terrain while the frontier holds shows adjacent responsiveness.
+	if not await _wait_for(func() -> bool: return _seed_ready):
+		await _finish("seed sector readiness")
+		return
+	# The trigger is a walk out of loaded terrain; strafing while held shows adjacent responsiveness.
+	_frontier_started_at_msec = Time.get_ticks_msec()
+	_x_at_start = _position.x
 	Input.action_press("move_forward")
 	Input.action_press("move_right")
 	if not await _sample_until(func() -> bool: return _frontier_crossed and _position.z <= INSIDE_Z):
@@ -123,15 +130,14 @@ func _wait_for(condition: Callable) -> bool:
 
 func _on_authoritative_position(position: Vector3, _last_processed_sequence: int) -> void:
 	_position = position
-	if position.z <= FRONTIER_EDGE_Z + 1.0 and _frontier_started_at_msec < 0:
-		_frontier_started_at_msec = Time.get_ticks_msec()
-		_x_at_start = position.x
-	if position.z < FRONTIER_EDGE_Z and not _frontier_crossed:
+	if _frontier_started_at_msec >= 0 and position.z < FRONTIER_EDGE_Z and not _frontier_crossed:
 		_frontier_crossed = true
 		_frontier_crossed_at_msec = Time.get_ticks_msec()
 
 
 func _on_geometry_assembly_completed(sector_id: String, result: Dictionary) -> void:
+	if sector_id == SEED_SECTOR and result.get("outcome", "") == "valid":
+		_seed_ready = true
 	if sector_id != FRONTIER_SECTOR or result.get("outcome", "") != "valid" or _frontier_geometry_ready:
 		return
 	_frontier_geometry_ready = true
