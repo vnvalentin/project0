@@ -37,26 +37,48 @@ func _initialize() -> void:
 
 func _run() -> void:
 	if OS.get_name() != "Linux":
-		push_error("EXP1231 runs only on the Linux validation host.")
+		push_error("EXP%d runs only on the Linux validation host." % _experiment_id())
 		quit(2)
 		return
 	var stamp: int = int(Time.get_unix_time_from_system() * 1000.0)
-	_run_dir = ProjectSettings.globalize_path("res://logs/experiments/exp1231-%d" % stamp)
+	_run_dir = ProjectSettings.globalize_path("res://logs/experiments/exp%d-%d" % [_experiment_id(), stamp])
 	DirAccess.make_dir_recursive_absolute(_run_dir)
-	var summary: Dictionary = {"experiment_id": 1231, "run_dir": _run_dir, "godot": Engine.get_version_info()["string"],
+	var summary: Dictionary = {"experiment_id": _experiment_id(), "run_dir": _run_dir, "godot": Engine.get_version_info()["string"],
 		"source_commit": _git_head(), "cases": [], "timeouts_msec": {"server_ready": SERVER_READY_TIMEOUT_MSEC,
 		"actor": ACTOR_TIMEOUT_MSEC, "stop": STOP_TIMEOUT_MSEC}}
-	for index: int in range(CASES.size()):
-		var outcome: Dictionary = await _run_case(CASES[index], stamp + index)
+	var cases: Array[Dictionary] = _cases()
+	for index: int in range(cases.size()):
+		var outcome: Dictionary = await _run_case(cases[index], stamp + index)
 		summary["cases"].append(outcome)
 	summary["harness_errors"] = _harness_errors
 	var all_passed: bool = summary["cases"].all(func(case: Dictionary) -> bool: return case.get("passed", false))
 	summary["status"] = "PASSED" if all_passed and _harness_errors.is_empty() else "FAILED"
 	_write_json("%s/summary.json" % _run_dir, summary)
-	print("EXP1231 summary: %s (%s)" % [summary["status"], _run_dir])
+	print("EXP%d summary: %s (%s)" % [_experiment_id(), summary["status"], _run_dir])
 	for case: Dictionary in summary["cases"]:
-		print("EXP1231 case %s: %s first_failing_stage=%s" % [case["id"], case["outcome"], case.get("first_failing_stage")])
+		print("EXP%d case %s: %s first_failing_stage=%s" % [_experiment_id(), case["id"], case["outcome"], case.get("first_failing_stage")])
 	quit(0 if summary["status"] == "PASSED" else (2 if not _harness_errors.is_empty() else 1))
+
+
+func _experiment_id() -> int:
+	return 1231
+
+
+func _cases() -> Array[Dictionary]:
+	return CASES
+
+
+func _fixture_script() -> String:
+	return "scripts/exp1231_gate_fixture.gd"
+
+
+func _client_script() -> String:
+	return "scripts/exp1231_client.gd"
+
+
+## The #1231 occluder idles until the stop file, so only the actor is awaited.
+func _await_clients(actor_pid: int, _occluder_pid: int) -> void:
+	await _wait_for_exit(actor_pid, ACTOR_TIMEOUT_MSEC)
 
 
 func _run_case(case: Dictionary, timestamp_ms: int) -> Dictionary:
@@ -68,7 +90,7 @@ func _run_case(case: Dictionary, timestamp_ms: int) -> Dictionary:
 	var occluder_token: String = OS.get_environment(GameplayTestSessionScript.ASSERTION_ENV)
 	GameplayTestSessionScript.refresh_identity()
 	var actor_token: String = OS.get_environment(GameplayTestSessionScript.ASSERTION_ENV)
-	var canon_db: String = "exp1231_canon_%s_%d_%d.db" % [case_id, OS.get_process_id(), Time.get_ticks_usec()]
+	var canon_db: String = "exp%d_canon_%s_%d_%d.db" % [_experiment_id(), case_id, OS.get_process_id(), Time.get_ticks_usec()]
 	var paths: Dictionary = {
 		"observation": "%s/server-observation.json" % case_dir,
 		"actor": "%s/actor-result.json" % case_dir,
@@ -87,14 +109,14 @@ func _run_case(case: Dictionary, timestamp_ms: int) -> Dictionary:
 		"EXP1231_STOP": paths["stop"],
 	}
 	var saved: Dictionary = _apply_environment(environment)
-	var server_pid: int = _spawn("scripts/exp1231_gate_fixture.gd", "%s/server.log" % case_dir, {})
+	var server_pid: int = _spawn(_fixture_script(), "%s/server.log" % case_dir, {})
 	var ready: bool = await _wait_for_log("%s/server.log" % case_dir, "Server listening on", server_pid, SERVER_READY_TIMEOUT_MSEC)
 	if ready:
-		_spawn("scripts/exp1231_client.gd", "%s/occluder.log" % case_dir, {"EXP1231_ROLE": "occluder",
+		var occluder_pid: int = _spawn(_client_script(), "%s/occluder.log" % case_dir, {"EXP1231_ROLE": "occluder",
 			"EXP1231_RESULT": paths["occluder"], GameplayTestSessionScript.ASSERTION_ENV: occluder_token})
-		var actor_pid: int = _spawn("scripts/exp1231_client.gd", "%s/actor.log" % case_dir, {"EXP1231_ROLE": "actor",
+		var actor_pid: int = _spawn(_client_script(), "%s/actor.log" % case_dir, {"EXP1231_ROLE": "actor",
 			"EXP1231_RESULT": paths["actor"], GameplayTestSessionScript.ASSERTION_ENV: actor_token})
-		await _wait_for_exit(actor_pid, ACTOR_TIMEOUT_MSEC)
+		await _await_clients(actor_pid, occluder_pid)
 	FileAccess.open(paths["stop"], FileAccess.WRITE).close()
 	await _stop_owned_processes()
 	var observation: Variant = _read_json(paths["observation"])
@@ -117,7 +139,7 @@ func _run_case(case: Dictionary, timestamp_ms: int) -> Dictionary:
 	_restore_environment(saved)
 	if not GameplayTestSessionScript.restore(session):
 		_harness_errors.append("%s: failed to remove accounts database" % case_id)
-	return {"id": case_id, "expect": case["expect"], "passed": report["passed"], "outcome": report["outcome"],
+	return {"id": case_id, "expect": case.get("expect"), "passed": report["passed"], "outcome": report["outcome"],
 		"first_failing_stage": report["first_failing_stage"], "report": written.get("path"),
 		"failed_assertions": (report["case_assertions"] if report["case_assertions"] is Array else []).filter(
 			func(assertion: Dictionary) -> bool: return not assertion["passed"])}
@@ -204,7 +226,7 @@ func _report_input(case: Dictionary, timestamp_ms: int, observation: Variant, ac
 
 func _check(assertions: Array[Dictionary], name: String, actual: Variant, expected: Variant) -> void:
 	var numeric: bool = typeof(actual) in [TYPE_INT, TYPE_FLOAT] and typeof(expected) in [TYPE_INT, TYPE_FLOAT]
-	var passed: bool = actual != null and (float(actual) == float(expected) if numeric else (typeof(actual) == typeof(expected) and actual == expected))
+	var passed: bool = actual == null if expected == null else (actual != null and (float(actual) == float(expected) if numeric else (typeof(actual) == typeof(expected) and actual == expected)))
 	assertions.append({"name": name, "expected": expected, "actual": actual, "passed": passed})
 
 
