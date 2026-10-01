@@ -221,6 +221,8 @@ var _frontier_details: Dictionary = {}
 var _frontier_town_detail: RefCounted
 var _frontier_bindings: Dictionary = {}
 var _frontier_town_tiles: Dictionary = {}
+var _canon_reload_events: Array[Dictionary] = []
+var _content_generation_requests: int = 0
 const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
 var _frontier_prepared_at_by_peer: Dictionary = {}
 var _frontier_ack_limiter: Object = TelemetryRateLimiterScript.new()
@@ -307,6 +309,7 @@ func _start_server() -> void:
 		llm_client.name = "BootTownLLMClient"
 		llm_client.configure_from_env()
 		root.add_child(llm_client)
+		_content_generation_requests += 1
 		var boot_town: Dictionary = await TownLayoutProviderScript.resolve_boot_town(true, llm_client, fixture_blueprint)
 		_starting_town_hub_blueprint = boot_town["blueprint"]
 		print("LLM-at-boot town: source=%s outcome=%s." % [boot_town["source"], boot_town["outcome"]])
@@ -860,6 +863,7 @@ func _request_sector_from_boundary(peer_id: int, sector_id: String, position: Ve
 	var placement_context: Dictionary = _sector_detail_requests[sector_id]
 	prompt += "\nServer-owned placement: %s. Return local geometry only; do not override this placement. Connect the entry tile to traversable terrain extending at least two yards. Required local ingress: %s." % [JSON.stringify(placement_context["placement"]), str(position - SectorDetailPlacementScript.grid_offset(sector_id) - Vector3(placement_context["placement"]["detail_origin"]["x"], 0, placement_context["placement"]["detail_origin"]["y"]))]
 	var selected_profile: String = _select_sector_profile(sector_id)
+	_content_generation_requests += 1
 	var correlation_id: String = _provisional_sector_generator.request_provisional_sector(sector_id, prompt, selected_profile, initiating_trace)
 	print("Requested provisional sector %s for peer %d (%s)." % [sector_id, peer_id, correlation_id])
 
@@ -894,8 +898,30 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 		return
 	_emit_jit_trace(trace, peer_id)
 	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
-	_present_frontier_sector(peer_id, sector_id, blueprint, position, trace)
+	var presented: Dictionary = _present_frontier_sector(peer_id, sector_id, blueprint, position, trace)
 	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
+	if presented.is_empty():
+		return
+	var player_state: Node = _player_states.get(peer_id)
+	var character_id: String = String(player_state.character_id) if player_state != null else ""
+	_canon_reload_events.append({
+		"event_type": "CANON_SECTOR_RELOADED",
+		"journey_id": _frontier_journey_id(peer_id, character_id),
+		"character_id": character_id,
+		"peer_id": peer_id,
+		"sector_id": sector_id,
+		"spatial_guid": String(presented.get("spatial_guid", "")),
+	})
+
+
+## Slice 1325: successful Canon re-entry presentations, for experiment reports.
+func canon_reload_events() -> Array:
+	return _canon_reload_events.duplicate(true)
+
+
+## Slice 1325: accepted content-generation requests (JIT sectors + boot LLM town).
+func content_generation_count() -> int:
+	return _content_generation_requests
 
 
 func _on_provisional_sector_ready(sector_id: String, result: Dictionary) -> void:
@@ -1063,11 +1089,11 @@ func _resolve_frontier_movement(peer_id: int, current: Vector3, candidate: Vecto
 	return Vector3(current.x, candidate.y, current.z)
 
 
-func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictionary, ingress: Vector3, parent_trace: Dictionary) -> void:
+func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictionary, ingress: Vector3, parent_trace: Dictionary) -> Dictionary:
 	if not _player_states.has(peer_id) or not _frontier_bindings.has(peer_id):
-		return
+		return {}
 	if String(blueprint.get("sector_id", "")) != sector_id:
-		return
+		return {}
 	_remember_frontier_preparation(peer_id, sector_id)
 	var effective: Dictionary = blueprint
 	var revision: int = 0
@@ -1076,7 +1102,7 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 		if listed.get("outcome") != "ok":
 			# Revoke stale authority, but preserve the failed-attempt cooldown.
 			_invalidate_frontier_sector(sector_id, false)
-			return
+			return {}
 		var mutations: Array = listed.get("mutations", [])
 		effective = CanonSectorResolverScript.resolve_effective_blueprint(blueprint, mutations)
 		if not mutations.is_empty():
@@ -1084,14 +1110,14 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 	var detail: RefCounted = SectorDetailPlacementScript.new(effective)
 	if sector_id != String(_starting_town_hub_blueprint.get("sector_id", "")) and not detail.contains_world(ingress):
 		print("SECTOR_INGRESS_REJECTED sector_id=%s peer_id=%d reason=outside_connected_detail" % [sector_id, peer_id])
-		return
+		return {}
 	_frontier_details[sector_id] = detail
 	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
 		_frontier_town_detail = detail
 	_frontier_versions[sector_id] = "%d:%s" % [revision, JSON.stringify(effective).sha256_text()]
 	var binding: Dictionary = _frontier_binding(peer_id, sector_id)
 	if binding.is_empty():
-		return
+		return {}
 	var parent: Dictionary = parent_trace if not parent_trace.is_empty() else JitTraceContextScript.root(peer_id, sector_id)
 	# Preserve the pending token on retry so slow/reordered ACKs remain valid.
 	# A changed presentation/connection binding still requires a fresh token.
@@ -1101,6 +1127,7 @@ func _present_frontier_sector(peer_id: int, sector_id: String, blueprint: Dictio
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.remember_canon_trace(sector_id, trace)
 	_send_sector_blueprint(peer_id, effective, ingress, trace)
+	return trace
 
 
 func _send_sector_blueprint(peer_id: int, blueprint: Dictionary, ingress: Vector3, trace: Dictionary) -> void:

@@ -37,6 +37,25 @@ func test_expired_disconnect_is_cleaned_and_next_entry_gets_new_journey() -> voi
 	assert_ne(next["journey_id"], first["journey_id"])
 
 
+func test_new_journeys_have_distinct_rfc4122_v5_identities() -> void:
+	var registry: RefCounted = JourneyRegistryScript.new()
+	var uuid_v5: RegEx = RegEx.create_from_string("^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+	var a: String = registry.enter("character-a", 7, 100)["journey_id"]
+	var b: String = registry.enter("character-b", 8, 100)["journey_id"]
+	assert_not_null(uuid_v5.search(a), "journey A id is UUIDv5: %s" % a)
+	assert_not_null(uuid_v5.search(b), "journey B id is UUIDv5: %s" % b)
+	assert_ne(a, b)
+
+
+func test_restart_issues_new_ids_that_never_collide_with_restored_journeys() -> void:
+	var first: RefCounted = JourneyRegistryScript.new()
+	var original: Dictionary = first.enter("character-a", 7, 100)
+	var restarted: RefCounted = JourneyRegistryScript.new()
+	restarted.restore_records([original["journey"]])
+	var other: String = restarted.enter("character-b", 8, 100)["journey_id"]
+	assert_ne(other, original["journey_id"])
+
+
 func _journey_position(result: Dictionary) -> Vector3:
 	var journey: Dictionary = result["journey"]
 	return Vector3(float(journey["position_x"]), float(journey["position_y"]), float(journey["position_z"]))

@@ -24,9 +24,32 @@ const OUTCOME_UNSUPPORTED_VERSION: String = "unsupported_version"
 const OUTCOME_QUERY_FAILED: String = "query_failed"
 const OUTCOME_TRANSACTION_FAILED: String = "transaction_failed"
 
+## Slice 1325: physical Canon tables whose INSERT/UPDATE statements are counted.
+const CANON_WRITE_TABLES: PackedStringArray = ["canon_sectors", "canon_mutations"]
+const CANON_WRITE_WINDOWS: PackedStringArray = ["attempted", "committed", "rolled_back", "failed"]
+
 var _db: SQLite = null
 var _db_path_user_uri: String = ""
 var _is_open: bool = false
+var _canon_writes: Dictionary = {}
+var _pending_canon_writes: Array[String] = []
+var _in_transaction: bool = false
+var _write_target: RegEx = RegEx.create_from_string("(?i)^\\s*(?:INSERT|REPLACE|UPDATE)(?:\\s+OR\\s+\\w+)?(?:\\s+INTO)?\\s+[\"`\\[]?(\\w+)")
+
+
+func _init() -> void:
+	for window: String in CANON_WRITE_WINDOWS:
+		_canon_writes[window] = {}
+		for table: String in CANON_WRITE_TABLES:
+			_canon_writes[window][table] = 0
+
+
+## Public seam. Per-table Canon INSERT/UPDATE statement counts for this store
+## instance: attempted = every statement issued, failed = statement errors,
+## committed/rolled_back = outcome of the enclosing transaction (autocommit
+## statements count as committed).
+func canon_write_counters() -> Dictionary:
+	return _canon_writes.duplicate(true)
 
 
 ## Public seam. Opens (creating on first use) the SQLite database at
@@ -120,6 +143,8 @@ func transaction(body: Callable) -> Dictionary:
 
 	if not _db.query("BEGIN;"):
 		return _result(OUTCOME_TRANSACTION_FAILED, "Failed to BEGIN transaction.", -1)
+	_in_transaction = true
+	_pending_canon_writes.clear()
 
 	var body_ok: bool = false
 	var body_detail: String = ""
@@ -140,10 +165,13 @@ func transaction(body: Callable) -> Dictionary:
 	if body_ok and not had_error:
 		if not _db.query("COMMIT;"):
 			_db.query("ROLLBACK;")
+			_finish_canon_transaction("rolled_back")
 			return _result(OUTCOME_TRANSACTION_FAILED, "COMMIT failed; rolled back.", -1)
+		_finish_canon_transaction("committed")
 		return _result(OUTCOME_OK, "Committed.", -1)
 
 	_db.query("ROLLBACK;")
+	_finish_canon_transaction("rolled_back")
 	return _result(OUTCOME_TRANSACTION_FAILED, body_detail if body_detail != "" else "Transaction rolled back.", -1)
 
 
@@ -157,7 +185,9 @@ func query_with_bindings(sql: String, bindings: Array = []) -> Dictionary:
 	if not _is_open:
 		return _result_rows(OUTCOME_NOT_OPEN, "Store is not open.", [])
 	if not _db.query_with_bindings(sql, bindings):
+		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
+	_note_canon_write(sql, true)
 	return _result_rows(OUTCOME_OK, "", _db.query_result.duplicate(true))
 
 
@@ -171,8 +201,33 @@ func query(sql: String) -> Dictionary:
 	if not _is_open:
 		return _result_rows(OUTCOME_NOT_OPEN, "Store is not open.", [])
 	if not _db.query(sql):
+		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
+	_note_canon_write(sql, true)
 	return _result_rows(OUTCOME_OK, "", _db.query_result.duplicate(true))
+
+
+func _note_canon_write(sql: String, succeeded: bool) -> void:
+	var found: RegExMatch = _write_target.search(sql)
+	if found == null:
+		return
+	var table: String = found.get_string(1).to_lower()
+	if not CANON_WRITE_TABLES.has(table):
+		return
+	_canon_writes["attempted"][table] += 1
+	if not succeeded:
+		_canon_writes["failed"][table] += 1
+	elif _in_transaction:
+		_pending_canon_writes.append(table)
+	else:
+		_canon_writes["committed"][table] += 1
+
+
+func _finish_canon_transaction(window: String) -> void:
+	for table: String in _pending_canon_writes:
+		_canon_writes[window][table] += 1
+	_pending_canon_writes.clear()
+	_in_transaction = false
 
 
 func _read_user_version(db: SQLite) -> int:
