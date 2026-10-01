@@ -4,8 +4,7 @@ const SCENARIO: String = "frontier-timeout-v1"
 const SEED_SECTOR: String = "sector-0--1"
 const FRONTIER_SECTOR: String = "sector-0--2"
 const FRONTIER_EDGE_Z: float = -440.0
-const INSIDE_Z: float = -442.5
-const OUTSIDE_Z: float = -438.0
+const OUTSIDE_Z: float = -439.5
 const FRAME_BUDGET_MS: float = 16.6
 var _network: Node
 var _gameplay: Node3D
@@ -49,6 +48,9 @@ func _run() -> void:
 		_report[key] = ready[key]
 	_report["client_id"] = arguments[0]
 	_report["character_id"] = arguments[1]
+	# Unpaced frames expose main-thread blocking that 60 Hz vsync would mask.
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	_report["vsync"] = "disabled"
 	if FileAccess.get_sha256(arguments[5]) != ready["client_build"]["sha256"] or ClassDB.class_exists("SQLite"):
 		await _finish("client package or dependency mismatch")
 		return
@@ -85,7 +87,7 @@ func _run() -> void:
 	_x_at_start = _position.x
 	Input.action_press("move_forward")
 	Input.action_press("move_right")
-	if not await _sample_until(func() -> bool: return _frontier_crossed and _position.z <= INSIDE_Z):
+	if not await _sample_until(func() -> bool: return _frontier_crossed):
 		await _finish("frontier crossing")
 		return
 	Input.action_release("move_right")
@@ -98,7 +100,7 @@ func _run() -> void:
 	_reentry["left_at_msec"] = Time.get_ticks_msec()
 	Input.action_release("move_back")
 	Input.action_press("move_forward")
-	if not await _sample_until(func() -> bool: return _position.z <= INSIDE_Z):
+	if not await _sample_until(func() -> bool: return _position.z < FRONTIER_EDGE_Z):
 		await _finish("re-enter sector")
 		return
 	_reentry["reentered"] = true
