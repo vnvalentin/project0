@@ -121,6 +121,17 @@ func test_physical_profiles_change_execution_without_changing_solution_permissio
 	assert_ne(agile["execution_ticks"], heavy["execution_ticks"], "physical profiles change execution timing")
 
 
+func test_reach_is_inclusive_two_yards_on_the_ground_plane() -> void:
+	var at_limit: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 2.0), {}, _intent())
+	assert_eq(at_limit["status"], EnvironmentalServiceScript.STATUS_ACCEPTED, "2.0 yd on the ground from a y=1 Character origin is in reach")
+
+
+func test_reach_just_beyond_two_yards_is_rejected_without_a_write() -> void:
+	var beyond: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 2.01), {}, _intent())
+	assert_eq(beyond["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 0)
+
+
 func test_unsupported_verb_cannot_mutate_gate() -> void:
 	var result: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 0.0, 1.0), {}, _intent("solve_riddle"))
 	assert_eq(result["reason"], EnvironmentalServiceScript.REASON_INVALID_INTENT)
