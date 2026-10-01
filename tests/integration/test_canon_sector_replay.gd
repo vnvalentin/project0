@@ -111,6 +111,15 @@ func test_effective_blueprint_survives_restart() -> void:
 
 
 func test_unlocked_gate_survives_restart_and_replay() -> void:
+	# before_each canonicalizes sector-0-0 as a village hall; the gate sector needs its own store.
+	after_each()
+	_relative_path = "test_canon_sector_replay_gate_%d_%d.db" % [Time.get_ticks_usec(), randi()]
+	_store = SqliteStoreScript.new()
+	_store.open(_relative_path)
+	_canon = CanonRepositoryScript.new(_store)
+	_canon.ensure_schema()
+	_mutations = CanonMutationRepositoryScript.new(_store, _canon)
+	_mutations.ensure_schema()
 	var gate_blueprint: Dictionary = JSON.parse_string(FixturesScript.VALID_WITH_LOCKED_GATE)
 	assert_eq(_canon.canonicalize_blueprint(gate_blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
 	var event: Dictionary = {

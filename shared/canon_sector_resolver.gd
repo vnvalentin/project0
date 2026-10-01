@@ -38,7 +38,7 @@ static func resolve_effective_blueprint(blueprint: Variant, mutations: Array) ->
 		var mutation_data: Dictionary = mutation
 		var target_guid: Variant = mutation_data.get("target_guid")
 		if target_guid is String and mutation_data.get("mutation_kind") == MUTATION_DESTROY_STRUCTURE:
-				destroyed_guids[target_guid] = true
+			destroyed_guids[target_guid] = true
 		if target_guid is String and mutation_data.get("mutation_kind") == MUTATION_UNLOCK_GATE:
 			if bool(mutation_data.get("payload", {}).get("unlocked", false)):
 				unlocked_guids[target_guid] = true
