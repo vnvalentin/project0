@@ -868,6 +868,32 @@ func test_ready_peer_pushing_detail_edge_records_no_extra_reload_event() -> void
 	server.free()
 
 
+func test_return_to_still_ready_canon_sector_records_one_reload_event_per_return() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	var inside: Vector3 = state.position
+	var outside: Vector3 = Vector3(440.5, 1, 10)
+	server._prepare_frontier_position(7, inside)
+	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
+	server._on_player_state_position_updated(7, inside)
+	assert_eq(server.canon_reload_events().size(), 1, "the prepared entry is the only event for this stay")
+	server._on_player_state_position_updated(7, outside)
+	assert_eq(server.canon_reload_events().size(), 1, "a first entry into another sector is not a re-entry")
+	server._on_player_state_position_updated(7, inside)
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 2, "returning while still ready is one re-entry")
+	if events.size() == 2:
+		assert_eq(events[1]["sector_id"], "sector-0-0")
+		assert_eq(events[1]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_eq(events[1]["spatial_guid"], events[0]["spatial_guid"])
+	server._on_player_state_position_updated(7, inside + Vector3(0, 0, 0.5))
+	assert_eq(server.canon_reload_events().size(), 2, "moving within the sector is not a re-entry")
+	server._on_player_state_position_updated(7, outside)
+	server._on_player_state_position_updated(7, inside)
+	assert_eq(server.canon_reload_events().size(), 3, "each return is its own re-entry")
+	server.free()
+
+
 func test_canon_reload_ready_record_keeps_first_trigger_across_retries() -> void:
 	var server: FrontierServer = _frontier_server()
 	var state: Node = server._player_states[7]
