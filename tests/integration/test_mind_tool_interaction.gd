@@ -159,3 +159,30 @@ func test_already_unlocked_gate_still_enforces_reach_and_line_of_sight() -> void
 	assert_eq(_service.resolve_intent("character-2", Vector3(0.0, 1.0, 3.0), {}, _intent())["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
 	var blocked: Dictionary = _service.resolve_intent("character-2", Vector3(0.0, 1.0, 1.0), {}, _intent(), func(_from: Vector3, _to: Vector3) -> bool: return false)
 	assert_eq(blocked["reason"], EnvironmentalServiceScript.REASON_NO_LINE_OF_SIGHT)
+
+
+func test_open_is_rejected_while_the_gate_is_locked_without_a_write() -> void:
+	var before: Dictionary = _store.canon_write_counters()
+	var result: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 1.0), {}, _intent(InteractionScript.VERB_OPEN))
+	assert_eq(result["reason"], EnvironmentalServiceScript.REASON_GATE_LOCKED)
+	assert_false(_service.is_open(_target_guid()))
+	assert_eq(_store.canon_write_counters()["attempted"], before["attempted"])
+
+
+func test_open_after_unlock_is_runtime_only_and_idempotent() -> void:
+	_unlock_once()
+	var before: Dictionary = _store.canon_write_counters()
+	var opened: Dictionary = _service.resolve_intent("character-2", Vector3(0.0, 1.0, 1.5), {}, _intent(InteractionScript.VERB_OPEN))
+	assert_eq([opened["status"], opened["reason"]], [EnvironmentalServiceScript.STATUS_ACCEPTED, EnvironmentalServiceScript.REASON_OPENED])
+	assert_eq(opened["structure_cell"], [0, 0])
+	assert_true(_service.is_open(_target_guid()))
+	var again: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 1.5), {}, _intent(InteractionScript.VERB_OPEN, 2))
+	assert_eq(again["reason"], EnvironmentalServiceScript.REASON_ALREADY_OPEN)
+	assert_eq(_store.canon_write_counters()["attempted"], before["attempted"], "opening never writes Canon")
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 1)
+
+
+func test_open_still_enforces_reach() -> void:
+	_unlock_once()
+	assert_eq(_service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 3.0), {}, _intent(InteractionScript.VERB_OPEN))["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
+	assert_false(_service.is_open(_target_guid()))

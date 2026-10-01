@@ -222,6 +222,7 @@ var _frontier_town_detail: RefCounted
 var _frontier_bindings: Dictionary = {}
 var _frontier_town_tiles: Dictionary = {}
 var _canon_reload_events: Array[Dictionary] = []
+var _reclaimed_journey_peers: Dictionary = {}
 var _content_generation_requests: int = 0
 const FRONTIER_PREPARATION_RETRY_MSEC: int = 1000
 var _frontier_prepared_at_by_peer: Dictionary = {}
@@ -819,6 +820,7 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 	if player_state != null:
 		_configure_player_frontier(peer_id, player_state)
 		_present_current_frontier(peer_id, player_state.position)
+		_reload_reclaimed_hub_entry(peer_id, player_state.position)
 	var network_client: Node = root.get_node_or_null("NetworkClient")
 	if network_client == null:
 		return
@@ -900,6 +902,11 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 	var blueprint: Dictionary = canon_result["sector"]["blueprint"]
 	var presented: Dictionary = _present_frontier_sector(peer_id, sector_id, blueprint, position, trace)
 	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [sector_id, peer_id])
+	_record_canon_reload(peer_id, sector_id, presented)
+
+
+## Records one journey-correlated re-entry, only when a presentation was sent.
+func _record_canon_reload(peer_id: int, sector_id: String, presented: Dictionary) -> void:
 	if presented.is_empty():
 		return
 	var player_state: Node = _player_states.get(peer_id)
@@ -917,6 +924,20 @@ func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vec
 ## Slice 1325: successful Canon re-entry presentations, for experiment reports.
 func canon_reload_events() -> Array:
 	return _canon_reload_events.duplicate(true)
+
+
+## Slice 1334: a returning player's reclaimed entry into the hub is a Canon
+## re-entry; present it with the mutation overlay and record exactly one event.
+func _reload_reclaimed_hub_entry(peer_id: int, position: Vector3) -> void:
+	if not _reclaimed_journey_peers.has(peer_id):
+		return
+	_reclaimed_journey_peers.erase(peer_id)
+	var hub_id: String = String(_starting_town_hub_blueprint.get("sector_id", ""))
+	if hub_id.is_empty() or _frontier_sector_at(position) != hub_id:
+		return
+	var presented: Dictionary = _present_frontier_sector(peer_id, hub_id, _starting_town_hub_blueprint, position, {})
+	print("CANON_SECTOR_RELOADED sector_id=%s peer_id=%d" % [hub_id, peer_id])
+	_record_canon_reload(peer_id, hub_id, presented)
 
 
 ## Slice 1325: accepted content-generation requests (JIT sectors + boot LLM town).
@@ -1184,12 +1205,16 @@ func _resolve_environmental_interaction(sender_peer_id: int, intent: Dictionary)
 	var player_state: Node = _player_states.get(sender_peer_id)
 	if player_state == null:
 		return {}
-	return _environmental_interaction_service.resolve_intent(
+	var resolution: Dictionary = _environmental_interaction_service.resolve_intent(
 		player_state.character_id,
 		player_state.position,
 		player_state.environmental_physical_outputs(),
 		intent
 	)
+	if resolution.get("reason") == EnvironmentalInteractionServiceScript.REASON_OPENED and _town_collision != null:
+		var cell: Array = resolution.get("structure_cell", [])
+		_town_collision.open_structure_at(Vector2i(int(cell[0]), int(cell[1])))
+	return resolution
 
 
 ## Overridden only by experiment fixtures that declare extra hub Canon content.
@@ -1375,6 +1400,8 @@ func _checkpoint_journey(peer_id: int, authoritative_position: Vector3) -> void:
 
 func _on_journey_evidence(kind: String, payload: Dictionary) -> void:
 	var peer_id: int = int(payload.get("peer_id", 0))
+	if kind == "reclaim":
+		_reclaimed_journey_peers[peer_id] = true
 	_emit_server_telemetry("journey.%s" % kind, peer_id, payload)
 
 
