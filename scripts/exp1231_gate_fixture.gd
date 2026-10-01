@@ -49,7 +49,7 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 	var role: String = ""
 	if character_id == OS.get_environment("EXP1231_ACTOR_CID"):
 		role = "actor"
-		state.position = EXP1231_ACTOR.get(_exp_case, EXP1231_ACTOR["valid_in_range"])
+		state.position = _exp_actor_position()
 	elif character_id == OS.get_environment("EXP1231_OCCLUDER_CID"):
 		role = "occluder"
 		state.position = _exp_occluder_position()
@@ -62,6 +62,10 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 		"position": _exp_vec(state.position),
 	}
 	_exp_write()
+
+
+func _exp_actor_position() -> Vector3:
+	return EXP1231_ACTOR.get(_exp_case, EXP1231_ACTOR["valid_in_range"])
 
 
 func _exp_occluder_position() -> Vector3:
