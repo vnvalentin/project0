@@ -118,8 +118,15 @@ func _wait_for_file(path: String, timeout_msec: int) -> bool:
 ## and reports only committed state.
 func _observe_committed(db_path: String) -> Variant:
 	var script: String = "import json,sqlite3,sys\nc=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True)\nr=c.execute(\"SELECT COUNT(*),COALESCE(MAX(applied_revision),0),GROUP_CONCAT(mutation_kind) FROM canon_mutations WHERE sector_id='starting_town_hub'\").fetchone()\nprint(json.dumps({'rows':r[0],'revision':r[1],'kinds':r[2],'journal_mode':c.execute('PRAGMA journal_mode').fetchone()[0]}))"
+	# OS.execute with captured output runs through sh on Linux without escaping
+	# embedded quotes, so the observer program is passed as a file, not via -c.
+	var script_path: String = db_path.get_base_dir().path_join("exp1235_observer.py")
+	var file: FileAccess = FileAccess.open(script_path, FileAccess.WRITE)
+	file.store_string(script)
+	file.close()
 	var output: Array = []
-	var code: int = OS.execute("python3", ["-c", script, db_path], output, true)
+	var code: int = OS.execute("python3", [script_path, db_path], output, true)
+	DirAccess.remove_absolute(script_path)
 	var parsed: Variant = JSON.parse_string(String(output[0]).strip_edges()) if code == 0 and not output.is_empty() else null
 	return parsed if parsed is Dictionary else {"error": String(output[0]) if not output.is_empty() else "no output", "exit_code": code}
 
