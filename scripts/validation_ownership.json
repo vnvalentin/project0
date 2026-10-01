@@ -76,7 +76,7 @@
     "macos-tooling": {
       "platform": "macos",
       "owner": "macos-tooling",
-      "dependencies": ["python"],
+      "dependencies": ["python", "git"],
       "runner": "python3 scripts/macos/test_package.py",
       "tests": ["scripts/macos/test_*.py"],
       "evidence": "supporting-component"
@@ -84,7 +84,7 @@
     "macos-client": {
       "platform": "macos",
       "owner": "macos-client",
-      "dependencies": ["godot-client", "python"],
+      "dependencies": ["godot-client", "python", "git"],
       "runner": "python3 scripts/macos/package.py --verify",
       "tests": ["scripts/macos/package_inventory.gd", "scripts/macos/offline_probe.gd"],
       "evidence": "client-only-not-server-proof"

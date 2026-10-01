@@ -17,8 +17,8 @@ own evidence exists.
 
 | Suite | Selections | Required dependencies | Evidence |
 | --- | --- | --- | --- |
-| `macos-tooling` | `scripts/macos/test_*.py` | Python | Mac component regression |
-| `macos-client` | `scripts/macos/package_inventory.gd`, `scripts/macos/offline_probe.gd` | Godot client, Python coordinator | Package audit and offline native client probe |
+| `macos-tooling` | `scripts/macos/test_*.py` | Python, Git | Mac component regression |
+| `macos-client` | `scripts/macos/package_inventory.gd`, `scripts/macos/offline_probe.gd` | Godot client, Python coordinator, Git | Package audit and offline native client probe |
 
 The Mac client retains the existing client authority boundary: presentation,
 input and disposable prediction only. No SQLite, Canon persistence, Ollama,
