@@ -227,6 +227,11 @@ var _canon_reload_events: Array[Dictionary] = []
 var _frontier_journeys: Dictionary = {}
 var _frontier_sector_stages: Dictionary = {}
 var _frontier_ready_events: Array[Dictionary] = []
+## Slice 1367: per-peer current sector, visited sectors and stays already counted as re-entries.
+var _frontier_sector_by_peer: Dictionary = {}
+var _frontier_visited_by_peer: Dictionary = {}
+var _reentry_counted_by_peer: Dictionary = {}
+const MAX_VISITED_SECTORS_PER_PEER: int = 256
 const MAX_FRONTIER_READY_EVENTS: int = 256
 ## Slice 1343: runtime-only; a restart re-detects damage on the next load.
 var _quarantined_sectors: Dictionary = {}
@@ -771,6 +776,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_frontier_bindings.erase(peer_id)
 	_frontier_prepared_at_by_peer.erase(peer_id)
 	_frontier_journeys.erase(peer_id)
+	_forget_frontier_stays(peer_id)
 	_sector_entry_denials.erase(peer_id)
 	_frontier_ack_limiter.forget_peer(peer_id)
 	for sector_id: String in _sector_ingress_positions.keys():
@@ -813,6 +819,7 @@ func _broadcast_presence_snapshot() -> void:
 func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.commit_position(peer_id, updated_position)
+	_observe_frontier_stay(peer_id, updated_position)
 	var last_position: Vector3 = _last_journey_checkpoint_position_by_peer.get(peer_id, updated_position)
 	if last_position.distance_squared_to(updated_position) >= JOURNEY_CHECKPOINT_DISTANCE_UNITS * JOURNEY_CHECKPOINT_DISTANCE_UNITS:
 		_checkpoint_journey(peer_id, updated_position)
@@ -1034,6 +1041,47 @@ func _record_canon_reload(peer_id: int, sector_id: String, presented: Dictionary
 		"sector_id": sector_id,
 		"spatial_guid": String(presented.get("spatial_guid", "")),
 	})
+	var counted: Dictionary = _reentry_counted_by_peer.get(peer_id, {})
+	counted[sector_id] = true
+	_reentry_counted_by_peer[peer_id] = counted
+
+
+## A return to a visited Canon sector that is still ready skips preparation,
+## so its re-entry is recorded on the authoritative sector transition instead.
+func _observe_frontier_stay(peer_id: int, position: Vector3) -> void:
+	var sector_id: String = _frontier_sector_at(position)
+	var previous: String = String(_frontier_sector_by_peer.get(peer_id, ""))
+	if sector_id == previous:
+		return
+	_frontier_sector_by_peer[peer_id] = sector_id
+	var counted: Dictionary = _reentry_counted_by_peer.get(peer_id, {})
+	counted.erase(previous)
+	_reentry_counted_by_peer[peer_id] = counted
+	var visited: Dictionary = _frontier_visited_by_peer.get(peer_id, {})
+	var returning: bool = visited.has(sector_id)
+	if not returning and visited.size() >= MAX_VISITED_SECTORS_PER_PEER:
+		visited.erase(visited.keys()[0])
+	visited[sector_id] = true
+	_frontier_visited_by_peer[peer_id] = visited
+	if not returning or counted.has(sector_id) or _sector_boundary_detector == null:
+		return
+	if sector_id == String(_starting_town_hub_blueprint.get("sector_id", "")):
+		return
+	if not _jit_presentation_ack_tracker.is_ready(peer_id, sector_id, _frontier_binding(peer_id, sector_id)):
+		return
+	var presented: Dictionary = _sector_boundary_detector.retained_trace(sector_id)
+	if presented.is_empty():
+		return
+	var reentry_trace: Dictionary = JitTraceContextScript.child(presented, "canon_reentry")
+	reentry_trace["event_type"] = "canon_reentry"
+	_emit_jit_trace(reentry_trace, peer_id)
+	_record_canon_reload(peer_id, sector_id, presented)
+
+
+func _forget_frontier_stays(peer_id: int) -> void:
+	_frontier_sector_by_peer.erase(peer_id)
+	_frontier_visited_by_peer.erase(peer_id)
+	_reentry_counted_by_peer.erase(peer_id)
 
 
 ## Slice 1325: successful Canon re-entry presentations, for experiment reports.
@@ -1116,6 +1164,7 @@ func _configure_player_frontier(peer_id: int, player_state: Node) -> void:
 		_frontier_town_detail = SectorDetailPlacementScript.new(_starting_town_hub_blueprint)
 	_frontier_prepared_at_by_peer.erase(peer_id)
 	_frontier_journeys.erase(peer_id)
+	_forget_frontier_stays(peer_id)
 	if _sector_boundary_detector != null:
 		_sector_boundary_detector.forget_peer(peer_id)
 	for sector_id: String in _sector_ingress_positions.keys():
