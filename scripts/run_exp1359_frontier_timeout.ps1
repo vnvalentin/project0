@@ -127,7 +127,10 @@ try {
     } while ($true)
     # Let the server observer record the re-entry before finishing.
     Start-Sleep -Milliseconds 1500
-    $client = Read-Json $clientReport
+    # The probe replaces its report every frame, so a single read can miss it.
+    $clock.Restart()
+    do { $client = Read-Json $clientReport; if ($client -and $client.status -eq 'passed') { break }; Start-Sleep -Milliseconds 50 } while ($clock.Elapsed.TotalSeconds -lt 5)
+    if (-not $client -or $client.status -ne 'passed') { throw 'final client report unreadable' }
     $result.client = $client
     Copy-Remote "okami:$remoteRun/private/frontier-observation.json" (Join-Path $root 'frontier-observation.json')
     $observation = Read-Json (Join-Path $root 'frontier-observation.json')
