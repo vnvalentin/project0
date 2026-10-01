@@ -12,6 +12,7 @@ const ProvisionalSectorGeneratorScript: Script = preload("res://server/provision
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const SectorDetailGenerationScript: Script = preload("res://server/sector_detail_generation.gd")
+const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 var _network_client: Node
 
 
@@ -106,9 +107,16 @@ class FakeMutationRepository extends RefCounted:
 	var revision: int = 0
 	var reads: int = 0
 
-	func list_mutations(_sector_id: String) -> Dictionary:
+	func list_mutations(sector_id: String) -> Dictionary:
 		reads += 1
-		return {"outcome": outcome, "mutations": [] if revision == 0 else [{"applied_revision": revision, "mutation_kind": "loot"}]}
+		var rows: Array = []
+		for applied: int in range(1, revision + 1):
+			rows.append({
+				"event_id": "evt-%d" % applied, "sector_id": sector_id, "mutation_kind": "loot", "payload": {},
+				"target_guid": CanonEntityGuidScript.derive(sector_id, CanonEntityGuidScript.ENTITY_CLASS_SPAWN_POINT, "spawn-a"),
+				"schema_version": 1, "expected_revision": applied - 1, "applied_revision": applied,
+			})
+		return {"outcome": outcome, "mutations": rows}
 
 
 func _frontier_server(town: Dictionary = {}) -> FrontierServer:
@@ -416,7 +424,9 @@ func test_changed_revision_reentry_rejects_old_token_and_accepts_new_child() -> 
 	server._canon_mutation_service = FakeMutationService.new()
 	server._on_canon_mutation_intent(7, {"sector_id": "sector-1-0"})
 	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)), "mutation clears already granted readiness")
-	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
+	var mutated: Dictionary = _frontier_blueprint("sector-1-0")
+	mutated["spawn_points"] = [{"spawn_id": "spawn-a", "x": 1, "y": 1}]
+	server._canon_repository.blueprint = mutated
 	var reentry: Dictionary = JitTraceContextScript.child(old_trace, "canon_reentry")
 	server._reload_sector_from_boundary(7, "sector-1-0", Vector3(440.1, 1, 10), reentry)
 	var fresh: Dictionary = server.presentations.back()["trace"]
