@@ -1101,6 +1101,11 @@ func receive_sector_blueprint(blueprint: Dictionary, ingress: Vector3 = Vector3.
 	_render_sector_blueprint_into_scene(gameplay_root, blueprint, ingress, trace)
 
 
+## The most recently presented sector blueprint (server-built, Canon overlay applied).
+func latest_sector_blueprint() -> Dictionary:
+	return _latest_sector_blueprint.duplicate(true)
+
+
 func render_pending_sector_blueprint() -> void:
 	var blueprint: Dictionary = _latest_sector_blueprint
 	if blueprint.is_empty() and not _pending_sector_blueprint.is_empty():
