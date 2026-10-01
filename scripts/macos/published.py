@@ -205,7 +205,8 @@ def extract_archive(archive: Path, destination: Path, expected_archive: dict, ex
 
 
 def _settings(name: str, inert: Path | None = None) -> str:
-    text = package.isolated_settings(name)
+    # Godot ignores the custom data directory for an unnamed project.
+    text = package.isolated_settings(name) + 'config/name="Project0 Mac Validation"\n'
     if inert is not None:
         text += "run/main_scene=" + json.dumps(str(inert)) + "\n"
     return text + '[debug]\nfile_logging/enable_file_logging=false\nsettings/stdout/print_to_stdout=false\nsettings/stdout/print_to_stderr=false\n'
@@ -236,6 +237,7 @@ def qualify_preboot(editor: Path, owned: Path, user_data_name: str, user_data: P
     inert.write_text('[gd_scene format=3]\n[node name="QualifiedPrebootEntry" type="Node"]\n')
     expected_data = user_data / "preboot-qualified"
     baseline = (package.isolated_settings(user_data_name + "/preboot-baseline")
+                + 'config/name="Project0 Mac Preboot Fixture"\n'
                 + 'run/main_scene="res://baseline.tscn"\n'
                 + '[autoload]\nPrebootWitness="*res://preboot_witness.gd"\n'
                 + '[debug]\nfile_logging/enable_file_logging=true\nsettings/stdout/print_to_stdout=true\nsettings/stdout/print_to_stderr=true\n')

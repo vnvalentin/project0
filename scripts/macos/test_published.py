@@ -1,5 +1,6 @@
 """Synthetic Mac controls for the exact published-client packaging seam (#1353)."""
 import argparse
+import configparser
 from contextlib import redirect_stdout
 from copy import deepcopy
 import hashlib
@@ -556,6 +557,13 @@ class PublishedLifecycleTests(unittest.TestCase):
                 self.assertEqual(self.pack.read_bytes(), b"owned pack fixture, never executed")
                 raise RuntimeError("owned runtime fixture failure")
         self.assertFalse((self.pack.parent / "override.cfg").exists())
+
+    def test_owned_settings_name_the_project_so_custom_data_is_not_ignored(self):
+        settings = configparser.ConfigParser(interpolation=None)
+        settings.read_string(self.published._settings("OwnedNativeFixture/probe"))
+        self.assertEqual(json.loads(settings["application"]["config/name"]), "Project0 Mac Validation")
+        self.assertTrue(settings.getboolean("application", "config/use_custom_user_dir"))
+        self.assertEqual(json.loads(settings["application"]["config/custom_user_dir_name"]), "OwnedNativeFixture/probe")
 
     def test_main_pack_override_refuses_existing_state_without_overwrite(self):
         override = self.pack.parent / "override.cfg"
