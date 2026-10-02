@@ -63,7 +63,9 @@ func canon_write_counters() -> Dictionary:
 func start_dml_observation() -> Dictionary:
 	if not _is_open or _in_transaction:
 		_statement_observer.invalidate("window_start_requires_open_idle_connection")
-		return {"observation_status": "NOT_OBSERVED", "reasons": ["window_start_requires_open_idle_connection"]}
+		var report: Dictionary = _statement_observer.report()
+		report["reasons"].append("window_start_requires_open_idle_connection")
+		return report
 	var tables: Array[String] = []
 	var reasons: Array[String] = []
 	if not _db.has_method("get_autocommit") or not bool(_db.call("get_autocommit")):
