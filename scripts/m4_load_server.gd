@@ -241,6 +241,7 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 	var sample: Dictionary = {"tick": frame, "duration_ms": physics_time * 1000.0,
 		"engine_frame_ms": frame_time * 1000.0, "engine_process_ms": process_time * 1000.0,
 		"physics_step_seconds": physics_frame_time, "monotonic_usec": Time.get_ticks_usec(),
+		"unix_usec": int(Time.get_unix_time_from_system() * 1000000.0),
 		"peers": peers, "ready": ready, "sectors": active_sectors.size(), "active_sector_maps": active_sectors, "npcs": advanced_npcs,
 		"bodies": advanced_bodies, "triggers": active_triggers, "trigger_entries": _m4_trigger_entries}
 	_m4_report["samples"].append(sample)

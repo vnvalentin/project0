@@ -51,6 +51,22 @@ def container_cgroup(name):
     return (Path('/proc') / str(pid) / 'cgroup').read_text()
 
 
+def owned_cpu_stat(cgroup):
+    lines = [line.split(':', 2) for line in cgroup.splitlines()]
+    paths = [fields[2] for fields in lines if fields[:2] == ['0', '']]
+    if len(paths) != 1 or '..' in Path(paths[0]).parts:
+        raise RuntimeError('owned_cgroup_v2_path_unavailable')
+    path = Path('/sys/fs/cgroup') / paths[0].lstrip('/') / 'cpu.stat'
+    values = {}
+    for line in path.read_text().splitlines():
+        key, value = line.split()
+        if key in ('usage_usec', 'nr_periods', 'nr_throttled', 'throttled_usec'):
+            values[key] = int(value)
+    if len(values) != 4:
+        raise RuntimeError('owned_cpu_stat_incomplete')
+    return {'unix_usec': time.time_ns() // 1000, 'monotonic_ns': time.monotonic_ns(), **values}
+
+
 def competing_engines(allowed_cgroups=(), owned_pids=()):
     """Never infer absence from unreadable engines; inspect comm/cwd/cgroup only."""
     results = []
@@ -249,7 +265,9 @@ def main():
             time.sleep(.05)
         else:
             raise RuntimeError('server_setup_deadline')
-        allowed_cgroups.append(container_cgroup(container_name))
+        owned_cgroup = container_cgroup(container_name)
+        allowed_cgroups.append(owned_cgroup)
+        report['container_cpu_stat'] = [owned_cpu_stat(owned_cgroup)]
         for index in range(10):
             peer_env = {k: v for k, v in env.items() if k != 'PROJECT0_ASSERTION_SECRET'}
             peer_env.update({'XDG_DATA_HOME': str(private / ('xdg-peer-%d' % index)),
@@ -260,6 +278,12 @@ def main():
         competition_check = time.monotonic()
         report['competing_engines_during'] = []
         while server.poll() is None and time.monotonic() < deadline:
+            try:
+                report['container_cpu_stat'].append(owned_cpu_stat(owned_cgroup))
+            except FileNotFoundError:
+                if server.poll() is None:
+                    raise RuntimeError('owned_cpu_stat_lost_while_running')
+                break
             if any(peer.poll() is not None for peer in owned[1:]):
                 raise RuntimeError('load_peer_exited_before_server')
             if time.monotonic() >= competition_check:
