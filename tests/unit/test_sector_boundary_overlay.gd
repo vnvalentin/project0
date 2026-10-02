@@ -63,4 +63,4 @@ func test_overlay_tracks_negative_sector_bounds_and_lifecycle_signals() -> void:
 func _assert_edge(overlay: Node3D, edge_name: String, expected_position: Vector3, expected_size: Vector3) -> void:
 	var edge: MeshInstance3D = overlay.get_node(edge_name)
 	assert_eq(edge.position, expected_position)
-	assert_eq((edge.mesh as BoxMesh).size, expected_size)
+	assert_eq(edge.scale, expected_size, "the scene-backed unit edge is scaled to the expected boundary size")

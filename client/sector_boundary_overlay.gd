@@ -2,6 +2,7 @@ extends Node3D
 
 const WorldScaleScript: Script = preload("res://shared/world_scale.gd")
 const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_blueprint_schema.gd")
+const BoundaryEdgeScene: PackedScene = preload("res://client/sector_boundary_edge.tscn")
 
 const STATE_UNEXPLORED: String = "unexplored"
 const STATE_GENERATING: String = "generating"
@@ -88,12 +89,10 @@ func _build_boundary() -> void:
 
 
 func _add_edge(edge_name: String, edge_position: Vector3, size: Vector3) -> void:
-	var mesh: BoxMesh = BoxMesh.new()
-	mesh.size = size
-	var edge: MeshInstance3D = MeshInstance3D.new()
+	var edge: MeshInstance3D = BoundaryEdgeScene.instantiate() as MeshInstance3D
 	edge.name = edge_name
 	edge.position = edge_position
-	edge.mesh = mesh
+	edge.scale = size
 	edge.material_override = _boundary_material
 	add_child(edge)
 
