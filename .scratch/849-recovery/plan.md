@@ -40,3 +40,9 @@ Static review found the initial Git revision query preceded the EXIT finalizer a
 Shell syntax, embedded Python AST, and diff whitespace checks passed. Three copied whole-runner controls passed: initial Git nonzero exit, absent Git executable, and malformed revision output. Each retained failed structured evidence, stopped at initial identity with no runtime phases, and verified cleanup. No Godot was launched and no actual Git state was mutated; selected actual source hashes were unchanged and copied contexts were removed. Private control result: `build/validation/849/initial-identity-control-86ba14976693/control-result.json`.
 
 Governing finding: https://github.com/vnvalentin/project0/issues/849#issuecomment-5958621667. Previous native evidence remains bound to its recorded source; final-source native/full validation and both independent review axes remain pending.
+
+### Accepted main integration before final review
+
+Integrated accepted `main` revision `521601a72e792e7a54c6b12c618f10eff48cadb0` into the clean experiment branch. This includes the accepted M4 source identity/parity validation changes and earlier accepted delivery guidance. Refreshed the explicit full GUT plan from the actual nonrecursive unit/integration script inventory; the newly accepted M4 parity integration script is included. Static validation ownership preflight, record sync, shell syntax, embedded Python AST, and whitespace checks passed. Evidence is retained privately at `build/validation/849/accepted-main-preflight/`.
+
+No native validation ran during integration. Historical baseline/control results remain source-bound to their original revision. Final-source experiment rerun, full GUT, and both independent review axes remain pending; this integration does not establish any M4 or M3 runtime acceptance.
