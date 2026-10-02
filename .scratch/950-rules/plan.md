@@ -19,3 +19,11 @@ Linux192.168.1.254 via strict SSH. Validated ownership plan .scratch/950-rules/v
 Preflight rejected initial plan before runtime: suite dependency declaration omitted sqlite. Public seam check_validation_ownership.py; hypothesis mandatory godot-server suite requires sqlite even for a pure server helper. Report build/validation/950-rules/preflight.json confirms missing declared dependency. Countermeasure: declare existing server-owned sqlite in the plan, then rerun preflight; no install or platform relocation. Runtime was not executed. Narrow plan validation, not product tests, detects this metadata omission. Superseding passed preflight retained separately below.
 
 Corrected preflight: build/validation/950-rules/preflight-corrected.json passed, runtime_executed=false. Tracer/runtime RED pending shared host window; no behavior claim.
+
+## First tracer frontier
+
+Qualified RED: unchanged-source second import had no script errors; one test/one expected assertion failure, no errors/skips, stable fingerprints and cleanup verified. First import failure remains retained locally and linked public checkpoint https://github.com/vnvalentin/project0/issues/950#issuecomment-5957111010 . It supports cache/discovery-order sensitivity but does not confirm engine root cause or repair1396.
+
+Minimal first evaluator prepared for worked fixture; GREEN pending next shared window. This draft is incomplete: nested profile/input validation and integer encoding/overflow bounds are upcoming vertical cycles, not accepted public behavior. No persistence or live profile activation.
+
+First worked-profile GREEN passed and owned cleanup/source stability were verified. Evidence remains local under build/validation/950-rules/first-evaluator-green-20261002, including source-start.json binding the prepared evaluator. This completes only the worked-example cycle. Closed nested validation, exact numeric encoding bounds and persistence remain pending; no merge/full acceptance claim.
