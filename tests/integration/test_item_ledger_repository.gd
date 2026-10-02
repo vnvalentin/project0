@@ -327,6 +327,20 @@ func _install_receipt_constraint() -> void:
 	);""").outcome, "ok")
 
 
+func test_definition_revision_rejects_effect_numeric_type_changes_without_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	var original: Dictionary = _definition_wire()
+	original.base_effect = 10
+	assert_eq(ledger.register_definition(original).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var altered: Dictionary = original.duplicate(true)
+	altered.base_effect = 10.0
+	assert_eq(ledger.register_definition(altered).outcome, "definition_conflict")
+	assert_true(ledger.get_definition(original.definition_id, original.definition_revision).definition.to_wire_dict().base_effect is int)
+	_assert_no_writes()
+
+
 func _instance_wire() -> Dictionary:
 	return {
 		"schema_version": 1, "instance_id": "instance:sword", "definition_id": "definition:sword",

@@ -84,23 +84,28 @@ func register_definition(wire: Variant) -> Dictionary:
 	if validation.definition == null:
 		return _definition_result("invalid_definition", validation.detail)
 	var data: Dictionary = validation.definition.to_wire_dict()
-	var existing: Dictionary = get_definition(data.definition_id, data.definition_revision)
-	if existing.outcome == "ok":
-		if existing.definition.to_wire_dict() == data:
-			return existing
-		return _definition_result("definition_conflict", "definition revision already exists")
-	if existing.outcome != "not_found":
-		return existing
+	var work: Dictionary = _definition_result("transaction_failed", "transaction did not complete")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		return _store.query_with_bindings(
+		var existing: Dictionary = get_definition(data.definition_id, data.definition_revision)
+		if existing.outcome == "ok":
+			work.merge(existing if existing.definition.to_wire_dict() == data else _definition_result("definition_conflict", "definition revision already exists"), true)
+			return work.outcome == "ok"
+		if existing.outcome != "not_found":
+			work.merge(existing, true)
+			return false
+		var inserted: Dictionary = _store.query_with_bindings(
 			"INSERT INTO canon_item_definitions (definition_id, definition_revision, schema_version, item_class, slot, category, maximum_stack, binding_policy, base_effect, base_effect_integer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
 			[data.definition_id, data.definition_revision, data.schema_version, data.item_class, data.slot,
 			 data.category, data.maximum_stack, data.binding_policy, data.base_effect, 1 if data.base_effect is int else 0]
-		).outcome == "ok"
+		)
+		if inserted.outcome != "ok":
+			return false
+		work.merge(_definition_result("ok", "", validation.definition), true)
+		return true
 	)
-	if transaction.outcome != "ok":
+	if transaction.outcome != "ok" and work.outcome == "ok":
 		return _definition_result("transaction_failed", transaction.detail)
-	return _definition_result("ok", "", validation.definition)
+	return work
 
 
 func get_definition(definition_id: String, definition_revision: String) -> Dictionary:
