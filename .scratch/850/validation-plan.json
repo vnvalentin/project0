@@ -27,7 +27,8 @@
       "dependencies": [
         "godot",
         "sqlite",
-        "python"
+        "python",
+        "hostname"
       ],
       "tests": [
         "scripts/test_claim_permit_authority_process_recovery.gd"
