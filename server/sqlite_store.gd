@@ -191,6 +191,8 @@ func query_with_bindings(sql: String, bindings: Array = []) -> Dictionary:
 	if not _is_open:
 		return _result_rows(OUTCOME_NOT_OPEN, "Store is not open.", [])
 	if not _db.query_with_bindings(sql, bindings):
+		if _in_transaction:
+			_transaction_query_failed = true
 		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
 	_note_canon_write(sql, true)

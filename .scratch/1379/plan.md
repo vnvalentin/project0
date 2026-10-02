@@ -17,3 +17,5 @@ Use validation-plan.json on Linux 192.168.1.254 via okami.tail02bdf2.ts.net. God
 
 ## Root-cause learning
 RED: 12 focused tests ran; the added public-seam test failed both transaction outcome and durable row assertions (2 assertion failures), while 11 existing tests passed. GREEN: the unbound query failure latch passed 12/12. Evidence: build/validation/1379/red-query.{xml,log} and green-query.{xml,log}. Cause: only the callback bool was checked; SQLite statement ABORT does not abort the enclosing transaction. Prior coverage returned false after the error. The transaction now retains the failed-query condition until rollback; the bound-query behavior is the next increment. Test fixture database cleanup verified (zero remaining files).
+
+Bound-query increment: RED 13 tests, 3 assertions failed (success outcome, retained rows, reopen parity). GREEN 14/14 including later successful statement, next independent transaction, and errors outside a transaction. Evidence: build/validation/1379/red-bound-query.{xml,log} and green-bound-query.{xml,log}. Both query entry points now latch active transaction failures. No fixture databases remain.
