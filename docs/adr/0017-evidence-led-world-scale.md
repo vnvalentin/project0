@@ -14,7 +14,9 @@ and container evidence are pending; it does not claim the baseline passes.
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Source analysis: [M4.3 findings](../../.scratch/zone-sharding/m4-source-findings.md),
-bound to `75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae`.
+reconciled at accepted main `9702827c918cbf34719e11123e349c20af76fc1f`.
+The [records-first checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685)
+owns this documentation amendment.
 
 ## Evidence required to accept
 
@@ -48,8 +50,38 @@ Acceptance also requires the complete workload on an identifiable containerized
 single-runtime artifact, exact source/engine/host/container identities, retained
 reports, independent review and final-revision repository validation. Source
 inspection, component tests or a source-checkout load run alone cannot establish
-this result. No report identity or successful measurement has yet been inserted
-into this proposal.
+this result. The public diagnostic checkpoints below supply supporting evidence,
+not completed capacity or integrated parity acceptance.
+
+## Supporting evidence and unresolved coverage
+
+[The retained frontier diagnostic](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5957463251)
+at `ce26012f3cbd0eb1875d1dfa8f4764d19bff3d5d` reports 60 zero-worker
+observations, ten above 33.3 ms, none above 50 ms, no coalescing and a 44.115 ms
+maximum. At that peak, 28.232 ms of journey checkpoints was nested inside
+31.611 ms of position callbacks; frontier-stay took 0.123 ms and did not dominate
+that peak. Reconstruction, hashing, persistence and scheduling remain unseparated
+inside the checkpoint span. These are issue-recorded observations, not a new raw
+report inspection. They justify continued attribution/evaluation without a
+production refactor or process split. Sixty observations and zero workers do not
+satisfy the 1,000-tick capacity and worker-isolation contract.
+
+Retain physics and process coverage separately. Deadline polling resumes on
+`process_frame`; asynchronous generation completion/evaluation can execute outside
+the physics span. Nested timings must not be added, and coalesced iteration
+maxima cannot establish exact per-tick P99. The tested request path is bounded
+timeout fallback, not arbitrary successful generated candidates. No zero
+native-engine blocking claim follows from these timings or an `await` statement.
+
+[M4.2's final-source integration checkpoint](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5957487132)
+retains historical ten-case focused evidence at
+`5e7d56dafbe29b3e8f66d396cb5202894f5fabf7`; final integrated native parity,
+full validation and review remain pending. The source findings retain the matched
+worker and earlier inclusive callback diagnostics with their exact identities.
+Research source, benchmark/package source, engine/artifact identity and final
+integration source remain distinct. Accepted main's interior-anchor persistence
+([ADR 0016](0016-interior-anchor-and-cell-persistence.md)) has unresolved runtime
+integration and does not establish new supported repair/claim gameplay.
 
 ## Authority and scale contract
 

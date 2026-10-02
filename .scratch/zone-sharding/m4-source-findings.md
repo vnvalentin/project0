@@ -1,10 +1,13 @@
 # M4.3 source findings and scale decision draft
 
-Status: proposed; source investigation complete, workload/parity evidence pending.
+Status: proposed; source findings reconciled with recorded diagnostics, full acceptance pending.
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Milestone/group: Milestone 4 / M4.3.
-Source baseline: `75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae`.
+Source baseline: `9702827c918cbf34719e11123e349c20af76fc1f` (accepted main).
+Prior investigation baseline: `75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae`; all cited source files
+were compared as committed objects and are byte-identical at accepted main.
+Records-first amendment: [#205 checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685).
 Research date: 2026-10-02.
 
 This note maps the current implementation and the decisions needed after
@@ -43,10 +46,75 @@ requires a tested containerized single-runtime increment.
 
 | Required evidence | Current finding | Decision consequence |
 | --- | --- | --- |
-| Complete M4.1 workload, native host/engine, source identity, all 1,000 samples, crossings, isolation controls, cleanup | Measurements not supplied to this draft | Capacity and isolation outcome remain unknown. |
-| Complete M4.2 supported unilateral/concurrent boundary and current interaction parity, attempted Canon writes, database/sidecar hashes, cleanup; explicit unsupported-state list | Measurements not supplied to this draft | Missing supported observations fail closed; unsupported representations are documented limitations under the approved scope. |
+| Complete M4.1 workload, qualified source/artifact identity, all 1,000 samples, crossings, isolation controls, cleanup | Recorded 60-observation diagnostics are summarized below; the complete capacity/worker-isolation result remains pending | Diagnostics do not establish the required capacity or isolation outcome. |
+| Complete M4.2 supported unilateral/concurrent boundary and current interaction parity, attempted Canon writes, database/sidecar hashes, cleanup; explicit unsupported-state list | The issue records historical ten-case focused evidence at `5e7d56dafbe29b3e8f66d396cb5202894f5fabf7`; final integrated qualification remains pending | Preserve the historical source binding; missing supported observations fail closed, while unsupported representations remain documented limitations. |
 | Same containerized artifact passes the complete profile | No artifact-bound result supplied | Source-checkout success would be supporting evidence only. |
 | Independent review and integrated validation | Not yet run for this draft | Neither #205 nor M4 is complete. |
+
+## Recorded diagnostics and measurement limits
+
+These summaries come from public issue checkpoints, not a fresh read of their
+raw reports. They retain the reported source identities and do not relabel old
+results as executions of this research revision or accepted main.
+
+- [The matched worker diagnostic](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5956830845)
+  at `6d8adcf0e2c1843f3711ebad997bc66d8e214554` reports 60 observations
+  with 32 synthetic worker tasks versus zero: maximum iteration physics times
+  88.479 ms and 44.450 ms, respectively. The first had four coalesced physics
+  observations. Synthetic CPU stress is not existing application demand; residual
+  tails without it do not support a sole-worker cause or an architecture split.
+- [The inclusive callback diagnostic](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5957014254)
+  at `6754b7fe339d119a2b414291c98f893e9eacd1a4` reports 60 single-tick
+  observations, seven above 33.3 ms and none above 50 ms. At the 48.761 ms peak,
+  inclusive position callbacks took 36.411 ms, including 18.621 ms of journey
+  checkpoints. This is association and callback contribution, not sole-cause proof.
+- [The frontier diagnostic](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5957463251)
+  at `ce26012f3cbd0eb1875d1dfa8f4764d19bff3d5d` reports 60 zero-worker
+  observations, no coalescing, ten above 33.3 ms, none above 50 ms, and a
+  44.115 ms maximum. At that peak, journey checkpoints took 28.232 ms nested
+  inside 31.611 ms of position callbacks; frontier-stay took 0.123 ms and the
+  separate server physics callback took 7.885 ms. Frontier-stay reached 9.029 ms
+  on another observation but did not dominate this peak. The checkpoint span
+  still combines reconstruction, hashing, persistence and scheduling. Its cost
+  is not a separately established SQL query duration. Cleanup was reported
+  verified; the result remains diagnostic, not the 1,000-tick or contention pass.
+
+Do not add nested/inclusive spans into an invented total. Coalesced iteration
+maxima cannot establish exact per-tick P99; the final report must qualify all
+1,000 tick observations and its calculation. Zero synthetic workers cannot
+qualify the worker-contention probe. Earlier failed teardown evidence remains
+historical failure evidence, not a pass because a later cleanup succeeded.
+
+Physics timing does not cover every asynchronous completion/evaluation budget.
+`LocalLLMClient` awaits `process_frame` during deadline polling; generation
+continuations, validation and result dispatch can therefore execute outside the
+physics span. Retain process measurements and their coverage limit. The tested
+request path is bounded timeout fallback, not arbitrary successful generated
+candidates. Neither fast ticks nor suspension by `await` proves zero native-engine
+blocking or scheduling starvation. The structural assertion for new paths and
+any measured lock/wait result must name their actual observation boundary.
+[Deadline continuation source](https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/shared/local_llm_client.gd#L151-L164)
+
+[M4.2's integration checkpoint](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5957487132)
+keeps the ten-case focused evidence at `5e7d56dafbe29b3e8f66d396cb5202894f5fabf7`
+historical while accepted main is integrated. Final source-bound native parity,
+full repository validation and review remain required. Command controls proving
+source propagation are not parity or capacity measurements.
+
+## Source qualification after integration
+
+The cited authority, generation, interaction, Canon, deployment and residency
+source files are unchanged between the prior baseline and accepted main above.
+The accepted main also adds [ADR 0016](../../docs/adr/0016-interior-anchor-and-cell-persistence.md)
+and interior-anchor persistence. That increment retains unresolved runtime and
+permission integration; it does not supply new M4 gameplay observations or
+establish repair/claim state. Preserve those integration gates without expanding
+this scale evaluation into new gameplay implementation.
+
+Keep the research revision, inspected source baseline, diagnostic source,
+benchmark/package source and engine/artifact qualification distinct. Acceptance
+requires the actual final integrated benchmark and parity evidence; a historical
+source equality check does not qualify an unexecuted run.
 
 ## Current authority per mutable fact
 
@@ -243,7 +311,7 @@ No final choice yet. The evidence distinguishes these outcomes:
    baseline adequate. Explicitly unsupported gameplay state is a limitation under
    the approved scope, rather than a demand to implement it for M4.
 
-[ADR 0013](../../docs/adr/0013-evidence-led-world-scale.md) stages this conditional
+[ADR 0017](../../docs/adr/0017-evidence-led-world-scale.md) stages this conditional
 disposition with `status: proposed`. Accept it only after linking the actual M4
 reports and their exact source/container identities; proposed is not accepted.
 
@@ -253,31 +321,35 @@ This is a source-bound research artifact. Document/link review and whitespace
 validation apply locally; Linux ownership preflight, full GUT, record sync,
 independent Standards/Spec review and final-revision evidence remain root-owned
 delivery gates. No product/runtime test was run as part of this source research.
+The documentation behavior check is: given a diagnostic or historical parity
+checkpoint, when this decision is read, then its exact source, observation limit
+and outstanding acceptance remain explicit. A missing full profile keeps the
+ADR proposed; a source/command check cannot promote it to accepted.
 The next actor is the M4.1/M4.2 evidence owner, followed by the M4.3 reviewer.
 Rollback for this artifact is reverting its documentation commit.
 
-[runtime]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/docs/SYSTEMS-SPECIFICATION.md#deployment-and-interaction-boundary
-[player]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_player_state.gd
-[tick]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_main.gd#L1604-L1636
-[generator]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/provisional_sector_generator.gd
-[coordinator]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/canon_generation_coordinator.gd
-[canon]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/canon_repository.gd#L21-L113
-[mutations]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/canon_mutation_repository.gd#L58-L163
-[boundary]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/sector_boundary_detector.gd
-[frontier]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_main.gd#L1292-L1335
-[stores]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_main.gd#L369-L489
-[compose]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/deploy/compose.yml#L16-L144
-[admission]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_main.gd#L647-L650
-[health]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_health.gd#L24-L46
-[service]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/sector_blueprint_service.gd#L93-L144
-[placement]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/sector_detail_generation.gd
-[retry]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_main.gd#L1268-L1289
-[completion]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/server_main.gd#L1110-L1158
-[workers]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/.scratch/container-platform/issues/06-worker-extension-contract.md
-[sqlite]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/sqlite_store.gd#L116-L241
-[interaction]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/server/environmental_interaction_service.gd#L31-L118
-[residency]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/shared/sector_residency_reconciler.gd
-[residency-test]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/tests/integration/test_sector_residency_canon_preservation.gd
-[deploy-adr]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/docs/adr/0011-stable-compose-deployment-authority.md
-[deploy]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/scripts/deploy_containers.sh
-[migration]: https://github.com/vnvalentin/project0/blob/75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae/.scratch/container-platform/issues/05-migration-update-and-rollback.md
+[runtime]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/docs/SYSTEMS-SPECIFICATION.md#deployment-and-interaction-boundary
+[player]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_player_state.gd
+[tick]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_main.gd#L1604-L1636
+[generator]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/provisional_sector_generator.gd
+[coordinator]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/canon_generation_coordinator.gd
+[canon]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/canon_repository.gd#L21-L113
+[mutations]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/canon_mutation_repository.gd#L58-L163
+[boundary]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/sector_boundary_detector.gd
+[frontier]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_main.gd#L1292-L1335
+[stores]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_main.gd#L369-L489
+[compose]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/deploy/compose.yml#L16-L144
+[admission]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_main.gd#L647-L650
+[health]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_health.gd#L24-L46
+[service]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/sector_blueprint_service.gd#L93-L144
+[placement]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/sector_detail_generation.gd
+[retry]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_main.gd#L1268-L1289
+[completion]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/server_main.gd#L1110-L1158
+[workers]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/.scratch/container-platform/issues/06-worker-extension-contract.md
+[sqlite]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/sqlite_store.gd#L116-L241
+[interaction]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/server/environmental_interaction_service.gd#L31-L118
+[residency]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/shared/sector_residency_reconciler.gd
+[residency-test]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/tests/integration/test_sector_residency_canon_preservation.gd
+[deploy-adr]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/docs/adr/0011-stable-compose-deployment-authority.md
+[deploy]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/scripts/deploy_containers.sh
+[migration]: https://github.com/vnvalentin/project0/blob/9702827c918cbf34719e11123e349c20af76fc1f/.scratch/container-platform/issues/05-migration-update-and-rollback.md
