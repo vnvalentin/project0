@@ -253,7 +253,7 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 		_m4_finish()
 
 func _m4_start_worker_probe() -> void:
-	for _index: int in range(32):
+	for _index: int in range(int(OS.get_environment("M4_WORKERS"))):
 		var probe: WorkerProbe = WorkerProbe.new()
 		_m4_worker_objects.append(probe)
 		_m4_worker_tasks.append(WorkerThreadPool.add_task(probe.run))

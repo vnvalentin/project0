@@ -131,10 +131,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ticks', type=int, choices=(60, 1000), default=1000)
     parser.add_argument('--godot', default='godot')
+    parser.add_argument('--diagnostic-workers', type=int, choices=(0, 32), help='60-tick causal comparison only; never baseline acceptance')
     parser.add_argument('--server-image', required=True, help='Immutable locally cached sha256 image ID')
     args = parser.parse_args()
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', args.server_image):
         parser.error('server-image must be an immutable SHA-256 image ID')
+    if args.diagnostic_workers is not None and args.ticks != 60:
+        parser.error('diagnostic-workers requires --ticks 60')
+    worker_count = 32 if args.diagnostic_workers is None else args.diagnostic_workers
     os.chdir(ROOT)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     folder = ROOT / 'logs/experiments' / ('m4-1-' + stamp)
@@ -142,11 +146,14 @@ def main():
     report_path = ROOT / 'logs/experiments' / ('exp_m4_1_baseline_' + stamp + '.json')
     report = {'issue': 1376, 'kind': 'smoke' if args.ticks == 60 else 'baseline',
               'started_utc': stamp, 'host': socket.gethostname(), 'requested_ticks': args.ticks,
+              'diagnostic_workers': args.diagnostic_workers,
               'command': ['python3', 'scripts/run_m4_baseline.py', '--ticks', str(args.ticks), '--server-image', args.server_image],
               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True, timeout=15).strip(),
               'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True, timeout=15)),
               'engine': None,
               'competing_engines_before': [], 'errors': [], 'artifacts': str(folder.relative_to(ROOT))}
+    if args.diagnostic_workers is not None:
+        report['command'] += ['--diagnostic-workers', str(args.diagnostic_workers)]
     report['source_hashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                                for p in [ROOT / 'scripts/m4_load_server.gd', ROOT / 'scripts/m4_load_peer.gd',
                                          ROOT / 'scripts/run_m4_baseline.py', ROOT / 'scripts/m4_baseline_report.py']}
@@ -185,7 +192,7 @@ def main():
                     'PROJECT0_OPERATOR_CONTROL_PORT': '0', 'PROJECT0_TICK_RATE': '30',
                     'PROJECT0_LLM_TOWN_AT_BOOT': '0', 'PROJECT0_CLIENT_LOGIN_SPLIT': '0', 'PROJECT0_CLIENT_HTTPS_LOGIN': '0',
                     'M4_PRIVATE': str(private), 'M4_HTTP_PORT': str(available_port(socket.SOCK_STREAM)),
-                    'M4_TICKS': str(args.ticks), 'M4_STOP': str(private / 'stop'),
+                    'M4_TICKS': str(args.ticks), 'M4_WORKERS': str(worker_count), 'M4_STOP': str(private / 'stop'),
                     'M4_OBSERVATION': str(folder / 'server-observation.json')})
         archive = folder / 'source.tar'
         subprocess.run(['git', 'archive', '--format=tar', '--output=' + str(archive), report['source']], check=True, timeout=30)
