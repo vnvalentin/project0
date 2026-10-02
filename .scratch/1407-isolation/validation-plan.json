@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [{
+    "suite": "godot-server",
+    "platform": "linux",
+    "host": "192.168.1.254",
+    "command": "flock -x /tmp/project0-m4-01a0fcfa-validation.lock python3 .scratch/1407-isolation/run-comparison.py <new-run-id>",
+    "dependencies": ["godot", "sqlite", "python"],
+    "tests": ["scripts/test_prediction_reconciliation.gd"],
+    "artifacts": ["build/validation/1407-isolation/<run-id>/result.json"]
+  }],
+  "setup": "Clean committed source and passing static preflight; fresh minimal-environment child fixtures with held loopback sentinel and shared versus distinct owned telemetry targets.",
+  "cleanup": "Whole-runner lock; bounded owned process-group/subreaper teardown, empty-descendant verification and removal of only the new temporary root before structured result retention.",
+  "rollback": "Remove additive owned experiment only; no application, assertions, production storage or host settings change."
+}
