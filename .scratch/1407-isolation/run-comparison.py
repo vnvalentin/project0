@@ -2,7 +2,7 @@
 """Private supporting fixture comparison; raw child output is never persisted."""
 import ctypes
 import hashlib
-import importlib.util
+import types
 import json
 import os
 from pathlib import Path
@@ -43,11 +43,16 @@ def assertions():
 
 
 
-def preparation_contract():
+def preparation_contract(source):
     path=ROOT/'scripts/prepare_godot_project.py'
-    if path.is_symlink() or not path.is_file():raise ValueError('preparation_helper_unavailable')
-    spec=importlib.util.spec_from_file_location('owned_preparation_contract',path)
-    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    if path.parent.is_symlink() or path.is_symlink() or not path.is_file():raise ValueError('preparation_helper_unavailable')
+    content=path.read_bytes()
+    if hashlib.sha256(content).hexdigest()!=source['source_sha256'].get('scripts/prepare_godot_project.py'):
+        raise ValueError('preparation_helper_changed')
+    # Execute only the source-bound snapshot; never reopen it through an importer.
+    module=types.ModuleType('owned_preparation_contract');module.__file__=str(path)
+    exec(compile(content,str(path),'exec'),module.__dict__)
+    module.source_bytes=content
     return module
 
 
@@ -85,7 +90,7 @@ def preparation_receipt(path,project,source,logging=False):
 
 
 def qualify_staged(project,source,report,logging):
-    contract=preparation_contract()
+    contract=preparation_contract(source)
     expected={name:value for name,value in source['source_sha256'].items() if not contract.excluded(Path(name))}
     if (report.get('source_manifest')!=expected or report.get('source_inventory_kind')!='git-tracked' or
         report.get('source_sha256')!=hashlib.sha256(json.dumps(expected,sort_keys=True).encode()).hexdigest() or
@@ -320,7 +325,10 @@ def run(run_id):
         result['engine']=version
         result['stage']='preparation'
         report_path=result_dir/'preparation.json'
-        command=[sys.executable,str(ROOT/'scripts/prepare_godot_project.py'),'--source-root',str(ROOT),
+        contract=preparation_contract(result['source_start'])
+        helper_snapshot=temporary/'preparation-helper.py'
+        with helper_snapshot.open('xb') as stream:stream.write(contract.source_bytes)
+        command=[sys.executable,str(helper_snapshot),'--source-root',str(ROOT),
                  '--prepared-root',str(project),'--godot','godot','--source-revision',result['source_start']['revision'],
                  '--timeout-seconds','120','--report',str(report_path)]
         preparation_attempted=True
