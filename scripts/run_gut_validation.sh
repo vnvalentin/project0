@@ -20,6 +20,26 @@ case "$(uname -s)" in
     ;;
 esac
 
+# Bind M4 evidence to this checkout. Source-only container artifacts obtain the
+# verified host revision through the explicit environment instead of Git.
+if [[ ${M4_SOURCE_REVISION+x} && ! "$M4_SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "VALIDATION GATE ERROR: M4_SOURCE_REVISION must be a full 40-hex Git revision." >&2
+  exit 2
+fi
+checkout_revision="$(git rev-parse --verify HEAD 2>/dev/null || true)"
+if [[ "$checkout_revision" =~ ^[0-9a-f]{40}$ ]]; then
+  if [[ ${M4_SOURCE_REVISION+x} && "$M4_SOURCE_REVISION" != "$checkout_revision" ]]; then
+    echo "VALIDATION GATE ERROR: supplied M4 source revision differs from checkout HEAD." >&2
+    exit 2
+  fi
+  export M4_SOURCE_REVISION="$checkout_revision"
+elif [[ ! ${M4_SOURCE_REVISION+x} ]]; then
+  echo "VALIDATION GATE ERROR: source artifacts without Git require M4_SOURCE_REVISION." >&2
+  exit 2
+else
+  export M4_SOURCE_REVISION
+fi
+
 mkdir -p "$RESULT_DIR"
 
 if ! command -v timeout >/dev/null 2>&1; then
