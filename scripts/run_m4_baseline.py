@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import time
 
-from m4_baseline_report import evaluate
+from m4_baseline_report import evaluate, audit_worker_probe
 
 ROOT = Path(__file__).resolve().parents[1]
 ERROR_MARKERS = ('SCRIPT ERROR:', 'Parse Error:', 'Compile Error:', 'Failed to load script')
@@ -76,11 +76,14 @@ def main():
     report['source_hashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                                for p in [ROOT / 'scripts/m4_load_server.gd', ROOT / 'scripts/m4_load_peer.gd',
                                          ROOT / 'scripts/run_m4_baseline.py', ROOT / 'scripts/m4_baseline_report.py']}
+    report['structural_audit'] = audit_worker_probe((ROOT / 'scripts/m4_load_server.gd').read_text())
     owned = []
     files = []
     private = None
     observation = {}
     try:
+        if not report['structural_audit']['passed']:
+            raise RuntimeError('structural_probe_failed')
         report['engine'] = subprocess.check_output([args.godot, '--version'], text=True).strip()
         if report['competing_engines_before']:
             raise RuntimeError('competing_project_engines')
@@ -178,6 +181,7 @@ def main():
         cleanup = all(process.poll() is not None for process in owned) and (private is None or not private.exists())
         report['cleanup'] = {'processes_stopped': all(p.poll() is not None for p in owned),
                              'private_tree_removed': private is None or not private.exists(), 'verified': cleanup}
+        observation.setdefault('isolation', {})['structural_nonblocking_verified'] = report['structural_audit']['passed']
         report['observation'] = observation
         if report['errors']:
             observation.setdefault('errors', []).extend(report['errors'])

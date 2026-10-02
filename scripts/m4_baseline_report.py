@@ -33,3 +33,23 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
             'p99_ms': ordered[989] if ordered else None,
             'max_ms': ordered[-1] if ordered else None,
             'crossings_per_second': len(crossings) / elapsed if elapsed_valid else None}
+
+
+def audit_worker_probe(source: str) -> dict:
+    """Bounded structural check for the added probe, not native engine lock proof."""
+    import re
+    names = ('_m4_tick', '_m4_start_worker_probe', '_m4_poll_workers', '_m4_inject_sector_fault')
+    forbidden = ('wait_for_task_completion', 'wait_for_group_task_completion', 'wait_to_finish',
+                 'Mutex', 'Semaphore', '.lock(', '.wait(', 'OS.execute', 'OS.delay_',
+                 'FileAccess', 'DirAccess', '.query(', '.transaction(')
+    failures = []
+    for name in names:
+        match = re.search(r'^func ' + re.escape(name) + r'\([^\n]*\)[^\n]*:\n(?P<body>.*?)(?=^func |\Z)', source, re.M | re.S)
+        if not match:
+            failures.append(name + ':missing')
+            continue
+        for token in forbidden:
+            if token in match['body']:
+                failures.append(name + ':' + token)
+    return {'passed': not failures, 'functions': names, 'failures': failures,
+            'scope': 'Added measured application callbacks only; existing Canon reads and native engine synchronization are separate.'}

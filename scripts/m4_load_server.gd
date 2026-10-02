@@ -9,6 +9,15 @@ class TickProfiler extends EngineProfiler:
 	func _tick(frame_time: float, process_time: float, physics_time: float, physics_frame_time: float) -> void:
 		receiver.call(frame_time, process_time, physics_time, physics_frame_time)
 
+class WorkerProbe extends RefCounted:
+	var iterations: int = 0
+	var thread_id: int = 0
+	func run() -> void:
+		thread_id = OS.get_thread_caller_id()
+		var deadline: int = Time.get_ticks_usec() + 50000
+		while Time.get_ticks_usec() < deadline:
+			iterations += 1
+
 class MovingBody extends CharacterBody3D:
 	var home: Vector3
 	var steps: int = 0
@@ -37,6 +46,12 @@ var _m4_connections: Array[StreamPeerTCP] = []
 var _m4_background: Node
 var _m4_background_results: Array[Dictionary] = []
 var _m4_fault: Dictionary = {}
+var _m4_worker_tasks: Array[int] = []
+var _m4_worker_objects: Array[WorkerProbe] = []
+var _m4_worker_peak_pending: int = 0
+var _m4_worker_completed: int = 0
+var _m4_blocking_wait_calls: int = 0
+var _m4_blocking_wait_usec: int = 0
 var _m4_required_ticks: int = int(OS.get_environment("M4_TICKS"))
 
 func _initialize() -> void:
@@ -194,13 +209,36 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 	_m4_report["samples"].append(sample)
 	var count: int = _m4_report["samples"].size()
 	if count == 10:
+		_m4_start_worker_probe()
 		# Concurrent real asynchronous generation requests wait on a private loopback endpoint.
 		for index: int in range(4):
 			_m4_background.request_provisional_sector("sector-%d-10" % index, "Isolated M4 bounded fixture")
+	_m4_poll_workers()
 	if count == 20:
 		_m4_inject_sector_fault()
 	if count >= _m4_required_ticks:
 		_m4_finish()
+
+func _m4_start_worker_probe() -> void:
+	for _index: int in range(32):
+		var probe: WorkerProbe = WorkerProbe.new()
+		_m4_worker_objects.append(probe)
+		_m4_worker_tasks.append(WorkerThreadPool.add_task(probe.run))
+
+func _m4_poll_workers() -> void:
+	var completed: int = 0
+	for task: int in _m4_worker_tasks:
+		if WorkerThreadPool.is_task_completed(task):
+			completed += 1
+	_m4_worker_completed = completed
+	_m4_worker_peak_pending = maxi(_m4_worker_peak_pending, _m4_worker_tasks.size() - completed)
+
+func _m4_join_worker(task: int) -> void:
+	var started: int = Time.get_ticks_usec()
+	WorkerThreadPool.wait_for_task_completion(task)
+	if _m4_started and not _m4_finished:
+		_m4_blocking_wait_calls += 1
+		_m4_blocking_wait_usec += Time.get_ticks_usec() - started
 
 func _m4_seed_sector_fault() -> void:
 	# Only a fifth, never-occupied fixture sector is corrupted. Other Canon is compared exactly.
@@ -226,15 +264,24 @@ func _m4_healthy_rows() -> Array:
 func _m4_finish() -> void:
 	_m4_finished = true
 	_m4_report["elapsed_seconds"] = float(Time.get_ticks_usec() - _m4_start_usec) / 1000000.0
+	for task: int in _m4_worker_tasks:
+		_m4_join_worker(task)
+	_m4_report["worker_probe"] = {"tasks": _m4_worker_tasks.size(), "peak_pending": _m4_worker_peak_pending,
+		"completed_before_window_end": _m4_worker_completed,
+		"results": _m4_worker_objects.map(func(probe: WorkerProbe) -> Dictionary: return {"iterations": probe.iterations, "thread_id": probe.thread_id}),
+		"main_thread_id": OS.get_main_thread_id(), "blocking_wait_calls_in_window": _m4_blocking_wait_calls,
+		"blocking_wait_usec_in_window": _m4_blocking_wait_usec,
+		"scope": "Application-owned worker probe explicit waits only. Native engine synchronization is not observed. Joins occur after measured window."}
 	_m4_report["body_activity"] = _m4_bodies.map(func(body: MovingBody) -> Dictionary: return {"steps": body.steps, "travel": body.travel})
 	_m4_report["fault"] = _m4_fault
 	_m4_report["background"] = {"accepted_connections": _m4_connections.size(), "results": _m4_background_results}
 	_m4_report["isolation"] = {
 		"healthy_canon_unchanged": _m4_healthy_before.size() == 4 and _m4_healthy_before == _m4_healthy_rows(),
 		"sector_fault_contained": _m4_fault.get("quarantine", {}).get("quarantined", {}).has("sector-5-5"),
-		"background_contention_observed": _m4_connections.size() == 4 and _m4_background_results.size() == 4,
-		"structural_nonblocking_verified": false, "lock_wait_observed": false,
-		"limitation": "Async HTTP timeout concurrency observed; native worker starvation and lock wait require separate qualified instrumentation. No new worker/handoff path is introduced."
+		"background_contention_observed": _m4_connections.size() == 4 and _m4_background_results.size() == 4 and _m4_worker_completed == 32 and _m4_worker_peak_pending > 0,
+		"structural_nonblocking_verified": false,
+		"lock_wait_observed": _m4_worker_completed == 32 and _m4_blocking_wait_calls == 0 and _m4_blocking_wait_usec == 0,
+		"limitation": "Only bounded application-owned worker contention and explicit main-thread waits are measured; native engine synchronization and arbitrary worker failures are outside this probe."
 	}
 	_m4_report["status"] = "complete"
 	_m4_write()
