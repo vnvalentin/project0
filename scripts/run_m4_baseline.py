@@ -40,21 +40,39 @@ def read_json(path):
         return {}
 
 
-def competing_engines():
-    """Allowlisted comm and cwd only; never process argv or environment."""
+def container_cgroup(name):
+    result = subprocess.run(['docker', 'inspect', '--format', '{{.State.Pid}}', name],
+                            capture_output=True, text=True, timeout=10)
+    if result.returncode != 0 or not result.stdout.strip().isdigit():
+        raise RuntimeError('container_process_identity_unavailable')
+    pid = int(result.stdout.strip())
+    if pid <= 0:
+        raise RuntimeError('container_not_running')
+    return (Path('/proc') / str(pid) / 'cgroup').read_text()
+
+
+def competing_engines(allowed_cgroups=(), owned_pids=()):
+    """Never infer absence from unreadable engines; inspect comm/cwd/cgroup only."""
     results = []
     for item in Path('/proc').iterdir():
-        if not item.name.isdigit():
+        if not item.name.isdigit() or int(item.name) in owned_pids:
             continue
         try:
             name = (item / 'comm').read_text().strip()
-            if not name.lower().startswith('godot'):
-                continue
-            cwd = (item / 'cwd').resolve()
-            if str(cwd).startswith('/data/code/project0'):
-                results.append({'pid': int(item.name), 'cwd': str(cwd), 'comm': name})
-        except (OSError, PermissionError):
+        except OSError:
+            continue  # exited or not identifiable as an engine
+        if not name.lower().startswith('godot'):
             continue
+        try:
+            cgroup = (item / 'cgroup').read_text()
+            if cgroup in allowed_cgroups:
+                continue
+            cwd = str((item / 'cwd').resolve(strict=True))
+        except OSError:
+            if not item.exists():
+                continue
+            cwd = 'unreadable'
+        results.append({'pid': int(item.name), 'cwd': cwd, 'comm': name})
     return results
 
 
@@ -112,7 +130,7 @@ def main():
               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True, timeout=15).strip(),
               'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True, timeout=15)),
               'engine': None,
-              'competing_engines_before': competing_engines(), 'errors': [], 'artifacts': str(folder.relative_to(ROOT))}
+              'competing_engines_before': [], 'errors': [], 'artifacts': str(folder.relative_to(ROOT))}
     report['source_hashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                                for p in [ROOT / 'scripts/m4_load_server.gd', ROOT / 'scripts/m4_load_peer.gd',
                                          ROOT / 'scripts/run_m4_baseline.py', ROOT / 'scripts/m4_baseline_report.py']}
@@ -126,7 +144,14 @@ def main():
     source = None
     fingerprints = None
     observation = {}
+    allowed_cgroups = []
     try:
+        report['baseline_services'] = {}
+        for name in ('project0-login-server', 'project0-game-server'):
+            cgroup = container_cgroup(name)
+            allowed_cgroups.append(cgroup)
+            report['baseline_services'][name] = hashlib.sha256(cgroup.encode()).hexdigest()
+        report['competing_engines_before'] = competing_engines(allowed_cgroups)
         if not report['structural_audit']['passed']:
             raise RuntimeError('structural_probe_failed')
         report['engine'] = subprocess.check_output([args.godot, '--version'], text=True, timeout=15).strip()
@@ -224,6 +249,7 @@ def main():
             time.sleep(.05)
         else:
             raise RuntimeError('server_setup_deadline')
+        allowed_cgroups.append(container_cgroup(container_name))
         for index in range(10):
             peer_env = {k: v for k, v in env.items() if k != 'PROJECT0_ASSERTION_SECRET'}
             peer_env.update({'XDG_DATA_HOME': str(private / ('xdg-peer-%d' % index)),
@@ -237,7 +263,7 @@ def main():
             if any(peer.poll() is not None for peer in owned[1:]):
                 raise RuntimeError('load_peer_exited_before_server')
             if time.monotonic() >= competition_check:
-                others = [p for p in competing_engines() if p['pid'] not in {item.pid for item in owned}]
+                others = competing_engines(allowed_cgroups, {item.pid for item in owned})
                 report['competing_engines_during'].extend(others)
                 if others:
                     raise RuntimeError('competing_project_engines_during_run')
