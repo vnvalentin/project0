@@ -17,6 +17,14 @@ stage=setup
 engine_version=NOT_OBSERVED
 result_exit=1
 source_clean_start=false
+scan_phase_log() {
+  python3 - "$1" <<'PYSCAN'
+import re,sys
+from pathlib import Path
+text=Path(sys.argv[1]).read_text(errors='replace')
+raise SystemExit(1 if re.search(r'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script',text) else 0)
+PYSCAN
+}
 finish() {
   trap - EXIT
   set +e
@@ -111,14 +119,14 @@ python3 scripts/check_validation_ownership.py --plan .scratch/849-recovery/valid
 stage=import
 engine_version="$(/usr/local/bin/godot --version)"
 timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . --import > "$result_dir/import.log" 2>&1
-! rg -q 'SCRIPT ERROR|Parse Error|Compile Error' "$result_dir/import.log"
+scan_phase_log "$result_dir/import.log"
 stage=prepare
 set +e
 timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- prepare "$state_path" "$result_dir/prepare.json" > "$result_dir/prepare.log" 2>&1
 prepare_exit=$?
 set -e
 [[ "$prepare_exit" -eq 0 ]] || exit "$prepare_exit"
-! rg -q 'SCRIPT ERROR|Parse Error|Compile Error' "$result_dir/prepare.log"
+scan_phase_log "$result_dir/prepare.log"
 if [[ "$mode" == negative-control ]]; then
   python3 - "$state_path" "$fixture_dir/negative-expected.json" <<'PY'
 import json,sys
@@ -133,5 +141,5 @@ set +e
 timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- recover "$state_path" "$result_dir/recover.json" > "$result_dir/recover.log" 2>&1
 recover_exit=$?
 set -e
-! rg -q 'SCRIPT ERROR|Parse Error|Compile Error' "$result_dir/recover.log"
+scan_phase_log "$result_dir/recover.log"
 result_exit=0
