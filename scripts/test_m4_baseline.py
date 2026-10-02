@@ -29,7 +29,18 @@ class BaselineReportTests(unittest.TestCase):
                        'worker_probe': {'tasks': 32, 'completed_before_window_end': 32, 'peak_pending': 32, 'main_thread_id': 1, 'blocking_wait_calls_in_window': 0, 'blocking_wait_usec_in_window': 0, 'results': [{'thread_id': 2, 'iterations': 1} for _ in range(32)]},
                        'isolation': dict.fromkeys(('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed'), True),
                        'samples': [{'tick': tick, 'duration_ms': 1.0, 'peers': 10, 'ready': 10, 'sectors': 4, 'npcs': 10, 'bodies': 15, 'triggers': 15} for tick in range(1000)]}
+        for sample in observation['samples']:
+            sample['stage_timings'] = {
+                'server_physics_callback': {'calls': 1, 'duration_usec': 100},
+                'player_position_callback': {'calls': 10, 'duration_usec': 100},
+                'frontier_stay_callback': {'calls': 10, 'duration_usec': 10},
+                'boundary_reentry_callback': {'calls': 0, 'duration_usec': 0},
+                'journey_checkpoint': {'calls': 0, 'duration_usec': 0}}
         self.assertTrue(evaluate(observation, True)['passed'])
+        missing = observation['samples'][500]['stage_timings'].pop('journey_checkpoint')
+        self.assertFalse(evaluate(observation, True)['passed'], 'missing callback observations cannot establish overall acceptance')
+        observation['samples'][500]['stage_timings']['journey_checkpoint'] = missing
+
         diagnostic = evaluate(observation, True, supported_load=True)
         self.assertFalse(diagnostic['passed'], 'explicit capacity measurement cannot imply isolation acceptance')
         self.assertTrue(diagnostic['checks']['complete_tick_samples'])

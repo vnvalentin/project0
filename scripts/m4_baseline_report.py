@@ -35,6 +35,7 @@ def evaluate(observation: dict, cleanup: bool, supported_load: bool = False) -> 
         'background_outcomes_observed': background.get('accepted_connections') == 4 and len(results) == 4 and {r.get('sector') for r in results} == {'sector-%d-10' % i for i in range(4)} and all(r.get('outcome') == 'timeout' for r in results),
         'worker_activity_observed': worker.get('tasks') == 32 and worker.get('completed_before_window_end') == 32 and worker.get('peak_pending', 0) > 0 and worker.get('blocking_wait_calls_in_window') == 0 and worker.get('blocking_wait_usec_in_window') == 0 and len(worker_results) == 32 and all(r.get('iterations', 0) > 0 and r.get('thread_id') != worker.get('main_thread_id') for r in worker_results),
         'runtime_errors_absent': observation.get('errors') == [],
+        'callback_stage_evidence_qualified': summarize_stage_timings(observation)['qualified'],
         'cleanup_verified': cleanup is True,
     }
     return {'passed': all(checks.values()) and not supported_load, 'checks': checks,
