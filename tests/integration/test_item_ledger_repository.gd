@@ -177,6 +177,156 @@ func _assert_no_writes() -> void:
 			assert_eq(counts.totals[window][operation], 0, "%s/%s" % [window, operation])
 
 
+func test_malformed_unpinned_carried_and_terminal_creation_reject_without_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	for change: Dictionary in [{"quantity": 0}, {"quantity": 1.0}, {"quantity": 3}, {"schema_version": 2}, {"unknown": true}, {"owner": {"kind": "character", "id": " "}}, {"location": {"kind": "equipped", "slot": "left_hand"}}]:
+		var bad: Dictionary = _instance_wire()
+		bad.merge(change, true)
+		assert_eq(ledger.create_instance("character:one", "operation:create", bad, 0, 0).outcome, "invalid_instance", str(change))
+	var unpinned: Dictionary = _instance_wire()
+	unpinned.definition_revision = "edition:missing"
+	assert_eq(ledger.create_instance("character:one", "operation:create", unpinned, 0, 0).outcome, "unpinned_definition")
+	var carried: Dictionary = _instance_wire()
+	carried.location = {"kind": "carried", "container_instance_id": "instance:bag", "index": 0}
+	assert_eq(ledger.create_instance("character:one", "operation:create", carried, 0, 0).outcome, "capacity_not_configured")
+	var terminal: Dictionary = _instance_wire()
+	terminal.owner = null
+	terminal.location = null
+	terminal.terminal = {"reason": "destroyed", "operation_id": "operation:previous", "server_tick": 10}
+	assert_eq(ledger.create_instance("character:one", "operation:create", terminal, 0, 0).outcome, "invalid_creation")
+	var noninitial: Dictionary = _instance_wire()
+	noninitial.instance_revision = 1
+	assert_eq(ledger.create_instance("character:one", "operation:create", noninitial, 0, 0).outcome, "invalid_creation")
+	assert_eq(ledger.create_instance("character:one", "operation:create", _instance_wire(), 0.0, 0).outcome, "invalid_command")
+	assert_eq(ledger.create_instance(" ", "operation:create", _instance_wire(), 0, 0).outcome, "invalid_command")
+	_assert_no_writes()
+
+
+func test_replay_binds_all_logical_intent_and_rejections_leave_record_unchanged() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var first: Dictionary = ledger.create_instance("character:one", "operation:create", original, 0, 0)
+	assert_eq(first.outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var reordered: Dictionary = {}
+	var keys: Array = original.keys()
+	keys.reverse()
+	for key: String in keys:
+		reordered[key] = original[key]
+	reordered.acquisition = original.acquisition.duplicate(true)
+	reordered.acquisition.server_tick = 500
+	assert_eq(ledger.create_instance("character:one", "operation:create", reordered, 0, 0), first)
+	for change: Dictionary in [{"quantity": 2}, {"instance_id": "instance:other"}, {"owner": {"kind": "character", "id": "character:other"}}, {"acquisition": {"source_id": "source:other", "operation_id": "operation:create", "server_tick": 1}}]:
+		var altered: Dictionary = original.duplicate(true)
+		altered.merge(change, true)
+		assert_eq(ledger.create_instance("character:one", "operation:create", altered, 0, 0).outcome, "operation_conflict")
+	assert_eq(ledger.create_instance("character:one", "operation:create", original, 1, 1).outcome, "operation_conflict")
+	assert_eq(ledger.retire_instance("character:one", "operation:create", original, 1, 1, "destroyed", 10).outcome, "operation_conflict")
+	var other: Dictionary = original.duplicate(true)
+	other.instance_id = "instance:second"
+	other.acquisition.operation_id = "operation:second"
+	assert_eq(ledger.create_instance("character:one", "operation:second", other, 0, 0).outcome, "stale_revision")
+	assert_eq(ledger.create_instance("character:one", "operation:second", other, 1, 1).outcome, "location_occupied")
+	assert_eq(ledger.create_instance("character:other", "operation:create", original, 1, 1).outcome, "identity_exists")
+	var stale: Dictionary = original.duplicate(true)
+	stale.quantity = 2
+	assert_eq(ledger.retire_instance("character:one", "operation:retire", stale, 1, 1, "consumed", 10).outcome, "stale_instance")
+	assert_eq(ledger.get_instance(original.instance_id).instance.to_wire_dict(), original)
+	_assert_no_writes()
+
+
+func test_actor_scoped_keys_and_exact_loot_position_indices_survive_reopen() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	assert_eq(ledger.create_instance("character:one", "operation:create", _instance_wire(), 0, 0).outcome, "ok")
+	var loot: Dictionary = _instance_wire()
+	loot.instance_id = "instance:loot"
+	loot.owner = {"kind": "world_container", "id": "source:chest"}
+	loot.location = {"kind": "loot_position", "source_id": "source:chest", "index": 9007199254740993}
+	var created: Dictionary = ledger.create_instance("character:other", "operation:create", loot, 0, 0)
+	assert_eq(created.outcome, "ok", "same operation key has independent authenticated actor scope")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	var loaded: Dictionary = ledger.get_instance(loot.instance_id)
+	assert_eq(loaded.instance.to_wire_dict(), loot)
+	assert_true(loaded.instance.to_wire_dict().location.index is int)
+	assert_eq(ledger.list_owner(loot.owner).instances.size(), 1)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.create_instance("character:other", "operation:create", loot, 0, 0), created)
+	_assert_no_writes()
+
+
+func test_real_receipt_failure_rolls_back_creation_and_all_revisions() -> void:
+	_install_receipt_constraint()
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var failed: Dictionary = _instance_wire()
+	failed.acquisition.operation_id = "operation:fault"
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.create_instance("character:one", "operation:fault", failed, 0, 0).outcome, "transaction_failed")
+	var counts: Dictionary = _store.dml_statement_counters()
+	assert_eq(counts.observation_status, "OBSERVED")
+	assert_eq(counts.totals.attempted.insert, 4)
+	assert_eq(counts.totals.failed.insert, 1)
+	assert_eq(counts.totals.rolled_back.insert, 3)
+	assert_eq(counts.totals.committed.insert, 0)
+	assert_eq(counts.by_table.canon_item_operations.failed.insert, 1)
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	assert_eq(ledger.get_instance(failed.instance_id).outcome, "not_found")
+	assert_eq(ledger.get_owner_revision(failed.owner).revision, 0)
+	assert_eq(ledger.get_location_revision(failed.owner, failed.location).revision, 0)
+	assert_eq(_store.query("SELECT operation_id FROM canon_item_operations;").rows.size(), 0)
+	assert_eq(ledger.create_instance("character:one", "operation:create", _instance_wire(), 0, 0).outcome, "ok", "healthy later command succeeds after rollback")
+
+
+func test_real_receipt_failure_preserves_active_identity_during_retirement() -> void:
+	_install_receipt_constraint()
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	assert_eq(ledger.create_instance("character:one", "operation:create", original, 0, 0).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.retire_instance("character:one", "operation:fault", original, 1, 1, "destroyed", 200).outcome, "transaction_failed")
+	var counts: Dictionary = _store.dml_statement_counters()
+	assert_eq(counts.observation_status, "OBSERVED")
+	assert_eq(counts.totals.attempted.update, 3)
+	assert_eq(counts.totals.rolled_back.update, 3)
+	assert_eq(counts.totals.failed.insert, 1)
+	assert_eq(counts.totals.committed.update, 0)
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	assert_eq(ledger.get_instance(original.instance_id).instance.to_wire_dict(), original)
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 1)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 1)
+	assert_eq(_store.query("SELECT operation_id FROM canon_item_operations;").rows.size(), 1)
+	assert_eq(ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "destroyed", 200).outcome, "ok")
+
+
+func _install_receipt_constraint() -> void:
+	# Owned real SQLite CHECK fails only the final receipt INSERT; no trigger or hidden writer.
+	assert_eq(_store.query("""CREATE TABLE canon_item_operations (
+		actor_character_id TEXT NOT NULL, operation_id TEXT NOT NULL CHECK (operation_id <> 'operation:fault'),
+		operation_kind TEXT NOT NULL, fingerprint TEXT NOT NULL, instance_id TEXT NOT NULL,
+		instance_revision INTEGER NOT NULL, owner_revision INTEGER NOT NULL, location_revision INTEGER NOT NULL,
+		PRIMARY KEY (actor_character_id, operation_id)
+	);""").outcome, "ok")
+
+
 func _instance_wire() -> Dictionary:
 	return {
 		"schema_version": 1, "instance_id": "instance:sword", "definition_id": "definition:sword",
