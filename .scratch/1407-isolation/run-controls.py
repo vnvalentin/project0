@@ -61,7 +61,7 @@ def main():
         assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
-        cases=['nondefault_sigchld','initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
@@ -100,7 +100,7 @@ def main():
                 assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').read_bytes()==(root/'scripts/test_prediction_reconciliation.gd').read_bytes()
                 if case=='metadata_unavailable':raise OSError('copied metadata unavailable')
                 if case=='metadata_timeout':raise subprocess.TimeoutExpired(command,10)
-                return b'4.3.stable.copied\n'
+                return b'4.7.2.stable.official.synthetic\n' if case=='unsupported_engine' else b'4.3.stable.official.77dcf97d8\n'
             def observe(commands,envs,allowed,limit):
                 project=Path(commands[0][commands[0].index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
                 # The unchanged harness derives nested server --path from res://.
@@ -134,10 +134,11 @@ def main():
                     assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable']),case
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
                     if case=='nondefault_sigchld':assert result['stage']=='child_signal_contract' and not calls and identity_calls[0]==0
+                    if case=='unsupported_engine':assert result['stage']=='engine_metadata' and not calls
                     if case=='missing_assertion':assert all(child['public_assertion_verdict']=='failed' for mode in result['comparisons'] for child in mode['children'])
                     (output/(case+'-result.json')).write_text(json.dumps(result,indent=2)+'\n')
                 else:assert 'NOT_OBSERVED' in stream.getvalue()
-                if case in ['dirty_source','metadata_unavailable','metadata_timeout','import_failure','import_marker']:assert 'harness' not in calls,case
+                if case in ['dirty_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker']:assert 'harness' not in calls,case
                 records.append({'case':case,'passed':True})
             finally:
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
@@ -146,7 +147,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==24 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==25 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))

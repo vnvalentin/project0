@@ -268,7 +268,7 @@ def run(run_id):
         env=minimal_environment(setup,port)
         result['stage']='engine_metadata'
         version=subprocess.check_output(['godot','--path',str(project),'--version'],env=env,cwd=ROOT,stderr=subprocess.DEVNULL,timeout=10,preexec_fn=reset_child_sigchld).decode().strip()
-        if not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?\.[A-Za-z0-9.]+',version):
+        if version != '4.3.stable.official.77dcf97d8':
             raise ValueError('engine_not_qualified')
         result['engine']=version
         result['stage']='import'
