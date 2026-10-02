@@ -1,5 +1,6 @@
 extends GutTest
 
+const LedgerScript = preload("res://server/item_ledger_repository.gd")
 const StoreScript = preload("res://server/sqlite_store.gd")
 
 var _relative_path: String = ""
@@ -35,3 +36,60 @@ func test_sqlite_preserves_integer_types_above_json_precision_across_reopen() ->
 	for index: int in values.size():
 		assert_true(result.rows[index].value is int, "INTEGER row preserves its type")
 		assert_eq(result.rows[index].value, values[index], "no float rounding or int64 truncation")
+
+
+func test_definition_registration_preserves_pinned_metadata_and_numeric_types() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	var original: Dictionary = _definition_wire()
+	original.maximum_stack = 9007199254740993
+	original.base_effect = 10
+	var created: Dictionary = ledger.register_definition(original)
+	assert_eq(created.outcome, "ok")
+	assert_not_null(created.definition)
+	if created.definition == null:
+		return
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, StoreScript.OUTCOME_OK)
+	ledger = LedgerScript.new(_store)
+	var loaded: Dictionary = ledger.get_definition("definition:sword", "edition:one")
+	assert_eq(loaded.outcome, "ok")
+	assert_not_null(loaded.definition)
+	if loaded.definition != null:
+		var wire: Dictionary = loaded.definition.to_wire_dict()
+		assert_eq(wire, original)
+		assert_true(wire.maximum_stack is int)
+		assert_true(wire.base_effect is int)
+	var fractional: Dictionary = _definition_wire()
+	fractional.definition_id = "definition:other-sword"
+	fractional.base_effect = 10.25
+	assert_eq(ledger.register_definition(fractional).outcome, "ok")
+	var other: Dictionary = ledger.get_definition(fractional.definition_id, fractional.definition_revision)
+	assert_not_null(other.definition)
+	if other.definition != null:
+		assert_eq(other.definition.to_wire_dict(), fractional)
+		assert_true(other.definition.to_wire_dict().base_effect is float)
+
+
+func test_definition_revision_is_immutable_and_exact_re_registration_is_idempotent() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	var original: Dictionary = _definition_wire()
+	assert_eq(ledger.register_definition(original).outcome, "ok")
+	assert_eq(ledger.register_definition(original).outcome, "ok")
+	var changed: Dictionary = original.duplicate(true)
+	changed.maximum_stack = 3
+	assert_eq(ledger.register_definition(changed).outcome, "definition_conflict")
+	var invalid: Dictionary = original.duplicate(true)
+	invalid.unknown = true
+	assert_eq(ledger.register_definition(invalid).outcome, "invalid_definition")
+	assert_eq(ledger.get_definition(original.definition_id, original.definition_revision).definition.to_wire_dict(), original)
+
+
+func _definition_wire() -> Dictionary:
+	return {
+		"schema_version": 1, "definition_id": "definition:sword", "definition_revision": "edition:one",
+		"item_class": "sword", "slot": "right_hand", "category": "mundane", "maximum_stack": 2,
+		"binding_policy": "none", "base_effect": 10.0,
+	}

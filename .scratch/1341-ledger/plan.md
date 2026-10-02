@@ -23,3 +23,11 @@ Fingerprint operation kind, authenticated actor scope, operation ID, every logic
 
 ### Integer prerequisite evidence
 Actual Linux real-SQLite fixture passed: 1 selected script / 1 test, exact integer type/value roundtrip for 0, 9007199254740993 (2^53+1) and 9223372036854775807 after close/reopen. Source/test/runner hashes and verified owned XDG cleanup are retained in evidence/integer-foundation.json. This is a verified existing-engine prerequisite, not an invented TDD RED or ledger acceptance. No repository implementation exists yet. Public ownership preflight and runner shell/embedded-Python preparation passed before runtime. Fixtures were closed/removed; no live Canon database or dashboard used.
+
+## Definition persistence checkpoint
+
+Actual public-seam RED/GREEN on Linux: definition creation/reopen retained exact integer and effect types (RED 2 tests/2 assertion failures; GREEN 2 tests/0 failures); exact re-registration and pinned revision immutability (RED 3 tests/1 failure; GREEN 3 tests/0 failures). Fixtures and owned XDG directories cleaned on every run. Artifacts under build/validation/1341-ledger/definition-*. No item command or milestone acceptance is claimed.
+
+## Future crafting integration boundary
+
+A future closed apply_crafting_operation will own one transaction for all expected active input snapshots, output creation, receipt and revision changes. Private typed validation/DML helpers remain reusable inside that transaction; public create/retire wrappers must never be nested or called sequentially to claim atomic crafting. The specific ClaimPermitAuthority authorize_commit collaborator must re-read grants/membership and consume a server handle in the same managed store transaction before item DML. No generic caller SQL callback is exposed. This boundary is approved for later integration and is not implemented here.
