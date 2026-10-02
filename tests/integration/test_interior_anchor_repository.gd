@@ -105,3 +105,33 @@ func test_registration_replay_and_conflict_preserve_retained_anchor() -> void:
 	assert_eq(repository.register_anchor(conflict)["outcome"], "conflict")
 	assert_eq(repository.get_anchor(original["interior_id"])["anchor"].to_dict(), original)
 	assert_eq(repository.resolve_entry(_intent())["anchor"].to_dict(), original)
+
+
+func test_real_second_insert_failure_leaves_no_anchor_after_reopen() -> void:
+	# Owned fixture CHECK fails the real cell INSERT; no hidden trigger writes.
+	assert_eq(_store.query("""
+		CREATE TABLE interior_cells (
+			interior_id TEXT NOT NULL REFERENCES interior_anchors(interior_id),
+			cell_x INTEGER NOT NULL CHECK (cell_x <> 0), cell_y INTEGER NOT NULL, cell_z INTEGER NOT NULL,
+			bounds_min_json TEXT NOT NULL, bounds_max_json TEXT NOT NULL,
+			streaming_reference TEXT NOT NULL, revision INTEGER NOT NULL CHECK (revision = 1),
+			PRIMARY KEY(interior_id, cell_x, cell_y, cell_z)
+		);
+	""")["outcome"], "ok")
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var contract_script: Script = load("res://shared/interior_anchor_contract.gd")
+	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	var interior_id: String = contract_script.parse_server_descriptor(_descriptor())["anchor"].interior_id
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "transaction_failed")
+	assert_eq(repository.get_anchor(interior_id)["outcome"], "not_found")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "not_found")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_path)["outcome"], "ok")
+	_canon = CanonScript.new(_store)
+	_mutations = MutationsScript.new(_store, _canon)
+	repository = repository_script.new(_store, _canon, _mutations)
+	assert_eq(repository.get_anchor(interior_id)["outcome"], "not_found")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "not_found")
+	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
