@@ -85,7 +85,13 @@ except subprocess.CalledProcessError:
 if not source_clean_end: errors.append('source_not_clean_at_end')
 current=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
 if current!=revision: errors.append('head_changed_during_run')
-sources={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in ['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']}
+sources={}
+for p in ['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']:
+    try:
+        sources[p]=hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    except OSError:
+        sources[p]='NOT_OBSERVED'
+        errors.append('source_identity_not_observed:'+p)
 try:
     if json.loads((out/'source-start.json').read_text())!=sources: errors.append('source_changed_during_run')
 except (OSError,ValueError): errors.append('source_start_missing')
