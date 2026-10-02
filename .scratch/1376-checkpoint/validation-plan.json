@@ -16,6 +16,23 @@
       "artifacts": [
         "build/validation/checkpoint-report-controls.log"
       ]
+    },
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "GUT focused test_m4_checkpoint_attribution.gd with isolated state and committed source; native window pending",
+      "dependencies": [
+        "godot",
+        "sqlite"
+      ],
+      "tests": [
+        "tests/integration/test_m4_checkpoint_attribution.gd"
+      ],
+      "artifacts": [
+        "build/validation/checkpoint-focused/gut.xml",
+        "logs/experiments/exp_m4_checkpoint_<case>_<timestamp>.json"
+      ]
     }
   ]
 }
