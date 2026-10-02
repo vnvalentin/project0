@@ -152,3 +152,20 @@ func test_open_rejects_res_path() -> void:
 	var result: Dictionary = store.open("res://should_not_be_allowed.db")
 	assert_eq(result["outcome"], SqliteStoreScript.OUTCOME_OPEN_FAILED, "a res:// path is rejected outright")
 	assert_false(store.is_open(), "store is not open after a rejected res:// path")
+
+
+func test_ignored_query_error_rolls_back_even_when_body_returns_true() -> void:
+	var store: SqliteStore = SqliteStoreScript.new()
+	assert_eq(store.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(store.query("CREATE TABLE ignored_error_probe (id INTEGER PRIMARY KEY);")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var transaction_result: Dictionary = store.transaction(func() -> bool:
+		assert_eq(store.query("INSERT INTO ignored_error_probe (id) VALUES (1);")["outcome"], SqliteStoreScript.OUTCOME_OK)
+		assert_eq(store.query("INSERT INTO ignored_error_probe (id) VALUES (1);")["outcome"], SqliteStoreScript.OUTCOME_QUERY_FAILED)
+		return true
+	)
+	assert_eq(transaction_result["outcome"], SqliteStoreScript.OUTCOME_TRANSACTION_FAILED, "a query failure cannot be hidden by the callback")
+	store.close()
+	var reopened: SqliteStore = SqliteStoreScript.new()
+	assert_eq(reopened.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(reopened.query("SELECT id FROM ignored_error_probe;")["rows"].size(), 0, "no earlier write survives the failed transaction")
+	reopened.close()
