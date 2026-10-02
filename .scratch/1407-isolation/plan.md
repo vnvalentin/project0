@@ -24,7 +24,7 @@ Raw child output remains bounded transient pipe data. Before any persistence it 
 
 ## Lifecycle and failure semantics
 
-A dedicated Linux subreaper owns only its launched children and adopted descendants. New child process groups and bounded stream collection are followed by PID-bound signaling after waitid parent-custody qualification, reaping and an empty-owned-descendant check. No recycled numeric PID or unrelated process group is signaled. The sentinel remains held through teardown. Cleanup failure, timeout, unavailable logs or result retention fails closed. Every path attempts a structured local verdict; failed retention is explicitly unavailable and does not count console output as a retained file. A copied child/grandchild control proves cleanup on success, timeout and parent-first exit without Godot, real Git mutation or foreign processes.
+A dedicated Linux subreaper owns only its launched children and adopted descendants. New child process groups and bounded stream collection are followed by Coordinator cleanup uses PID-bound signaling after waitid parent-custody qualification, reaping and an empty-owned-descendant check. The unchanged Godot fixture uses its own direct-child process registry and synchronous numeric-PID checks/kills; that is a separate custody contract, not a coordinator pidfd claim. The sentinel remains held through teardown. Cleanup failure, timeout, unavailable logs or result retention fails closed. Every path attempts a structured local verdict; failed retention is explicitly unavailable and does not count console output as a retained file. A copied child/grandchild control proves cleanup on success, timeout and parent-first exit without Godot, real Git mutation or foreign processes.
 
 ## Validation and next action
 
@@ -41,3 +41,7 @@ Static review identified automatic desktop engine file logging as a capture boun
 ## Initial custody correction
 
 Independent review found that initial child-custody discovery could fail before the guarded result lifecycle. The countermeasure reserves evidence first, discovers custody inside the guard and preserves unknown custody explicitly. Unknown custody forbids child signaling and leaves cleanup unqualified. A copied unavailable-proc control must retain a failed structured verdict without signaling any child. This correction does not establish the inherited fixture internal-kill safety; that remains a separate execution blocker under coordinator investigation.
+
+## Inherited fixture custody prerequisite
+
+Primary Godot 4.3 Unix process-source review qualified the fixture direct-child registry, waitpid liveness and synchronous kill/reap sequence under default SIGCHLD disposition. A child that exits between the fixture check and kill remains an unreaped child and retains its PID; the coordinator does not reap that descendant while its fixture parent is alive. The runner requires the coordinator SIGCHLD disposition to be exactly default before any child execution, and never changes it to ignored or autoreap. Nondefault disposition fails closed with retained failure evidence and no engine start. This prerequisite is distinct from coordinator pidfd teardown and is not an application or assertion change. Detailed research remains local.

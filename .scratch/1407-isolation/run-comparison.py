@@ -225,6 +225,10 @@ def run(run_id):
         result['stage']='initial_child_custody'
         BASELINE_CHILDREN = set(owned_children())
         result['initial_child_custody']='OBSERVED'
+        result['stage']='child_signal_contract'
+        if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+            raise RuntimeError('sigchld_disposition_not_qualified')
+        result['sigchld_contract']='default_before_child_execution'
         if not hasattr(os, 'pidfd_open') or not hasattr(os, 'P_PIDFD') or not hasattr(signal, 'pidfd_send_signal'):
             raise RuntimeError('pid_bound_cleanup_not_supported')
         if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:

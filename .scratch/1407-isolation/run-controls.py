@@ -52,7 +52,7 @@ def main():
             if case in ['timeout','parent_first']:assert result['timed_out'],case
             if case=='oversized':assert result['oversized_output_discarded'],case
             records.append({'case':case,'passed':True})
-        cases=['initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
@@ -77,6 +77,8 @@ def main():
             m.stage_project=stage
             original_run=m.subprocess.run;original_output=m.subprocess.check_output
             original_pidfd=m.os.pidfd_open;original_signal=m.signal.pidfd_send_signal
+            original_getsignal=m.signal.getsignal
+            if case=='nondefault_sigchld':m.signal.getsignal=lambda sig:m.signal.SIG_IGN if sig==m.signal.SIGCHLD else original_getsignal(sig)
             if case=='initial_custody_unavailable':
                 def forbidden_signal(*args,**kwargs):raise AssertionError('unknown custody must not open pidfd or signal child')
                 m.os.pidfd_open=forbidden_signal;m.signal.pidfd_send_signal=forbidden_signal
@@ -122,6 +124,7 @@ def main():
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
                     assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable']),case
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
+                    if case=='nondefault_sigchld':assert result['stage']=='child_signal_contract' and not calls and identity_calls[0]==0
                     if case=='missing_assertion':assert all(child['public_assertion_verdict']=='failed' for mode in result['comparisons'] for child in mode['children'])
                     (output/(case+'-result.json')).write_text(json.dumps(result,indent=2)+'\n')
                 else:assert 'NOT_OBSERVED' in stream.getvalue()
@@ -130,10 +133,11 @@ def main():
             finally:
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
                 m.os.pidfd_open=original_pidfd;m.signal.pidfd_send_signal=original_signal
+                m.signal.getsignal=original_getsignal
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==22 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==23 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))
