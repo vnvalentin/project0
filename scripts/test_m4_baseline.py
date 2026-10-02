@@ -5,7 +5,7 @@ import unittest
 import subprocess
 import sys
 from run_m4_baseline import group_members, stop_owned_group
-from m4_baseline_report import evaluate, audit_worker_probe
+from m4_baseline_report import evaluate, audit_worker_probe, summarize_stage_timings
 
 class BaselineReportTests(unittest.TestCase):
     def test_empty_runtime_evidence_fails_closed(self):
@@ -54,6 +54,23 @@ class BaselineReportTests(unittest.TestCase):
         self.assertFalse(evaluate(observation, False)['passed'])
         observation['samples'].pop()
         self.assertFalse(evaluate(observation, True)['passed'])
+
+    def test_stage_evidence_preserves_nested_times_and_refuses_missing_observations(self):
+        sample = {'tick': 8, 'duration_ms': 20.0, 'physics_steps': 1,
+                  'stage_timings': {
+                      'server_physics_callback': {'calls': 1, 'duration_usec': 10000},
+                      'player_position_callback': {'calls': 2, 'duration_usec': 5000},
+                      'boundary_reentry_callback': {'calls': 0, 'duration_usec': 0},
+                      'journey_checkpoint': {'calls': 2, 'duration_usec': 4000}}}
+        summary = summarize_stage_timings({'samples': [sample]})
+        self.assertTrue(summary['qualified'])
+        self.assertEqual(summary['peak_sample']['stage_timings']['journey_checkpoint']['duration_usec'], 4000)
+        self.assertEqual(summary['stages']['server_physics_callback']['total_usec'], 10000)
+        self.assertEqual(summary['stages']['player_position_callback']['total_usec'], 5000)
+        self.assertNotIn('total_callback_usec', summary)  # Inclusive spans overlap.
+        del sample['stage_timings']['journey_checkpoint']
+        self.assertFalse(summarize_stage_timings({'samples': [sample]})['qualified'])
+        self.assertFalse(summarize_stage_timings({})['qualified'])
 
     def test_owned_cleanup_removes_descendant_after_leader_exits(self):
         code = "import subprocess,sys; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])"

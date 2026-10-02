@@ -30,6 +30,7 @@ class MovingBody extends CharacterBody3D:
 		steps += 1
 
 var _m4_canon_context: String = "server_lookup"
+var _m4_stages: Dictionary = {}
 var _m4_profiler: TickProfiler
 var _m4_report: Dictionary = {"samples": [], "crossings": [], "canon_reads": [], "errors": [], "isolation": {}}
 var _m4_bodies: Array[MovingBody] = []
@@ -181,20 +182,26 @@ func _boundary_has_canon(sector_id: String) -> bool:
 	return result
 
 func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
+	var stage_started: int = Time.get_ticks_usec()
 	var previous: String = _m4_canon_context
 	_m4_canon_context = "boundary_reentry"
 	super(peer_id, sector_id, position, trace)
 	_m4_canon_context = previous
+	_m4_record_stage("boundary_reentry_callback", stage_started)
 
 func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
+	var stage_started: int = Time.get_ticks_usec()
 	super(peer_id, updated_position)
+	_m4_record_stage("player_position_callback", stage_started)
 	var sector: String = SectorBoundaryDetectorScript.sector_id_for_position(updated_position)
 	if _m4_started and not _m4_finished and _m4_seen.has(peer_id) and _m4_seen[peer_id] != sector:
 		_m4_report["crossings"].append({"tick": Engine.get_physics_frames(), "peer": peer_id, "from": _m4_seen[peer_id], "to": sector})
 	_m4_seen[peer_id] = sector
 
 func _on_physics_frame() -> void:
+	var stage_started: int = Time.get_ticks_usec()
 	super()
+	_m4_record_stage("server_physics_callback", stage_started)
 	if _m4_listener != null:
 		while _m4_listener.is_connection_available():
 			_m4_connections.append(_m4_listener.take_connection())
@@ -208,6 +215,27 @@ func _on_physics_frame() -> void:
 	_m4_poll_workers()
 	if next_sample == 20:
 		_m4_inject_sector_fault()
+
+func _checkpoint_journey(peer_id: int, authoritative_position: Vector3) -> void:
+	var stage_started: int = Time.get_ticks_usec()
+	super(peer_id, authoritative_position)
+	_m4_record_stage("journey_checkpoint", stage_started)
+
+func _m4_record_stage(stage: String, started_usec: int) -> void:
+	var duration_usec: int = Time.get_ticks_usec() - started_usec
+	if not _m4_started or _m4_finished:
+		return
+	var record: Dictionary = _m4_stages.get(stage, {"calls": 0, "duration_usec": 0})
+	record["calls"] += 1
+	record["duration_usec"] += duration_usec
+	_m4_stages[stage] = record
+
+func _m4_take_stages() -> Dictionary:
+	var result: Dictionary = {}
+	for stage: String in ["server_physics_callback", "player_position_callback", "boundary_reentry_callback", "journey_checkpoint"]:
+		result[stage] = _m4_stages.get(stage, {"calls": 0, "duration_usec": 0})
+	_m4_stages = {}
+	return result
 
 func _m4_tick(frame_time: float, process_time: float, physics_time: float, physics_frame_time: float) -> void:
 	var observation_started: int = Time.get_ticks_usec()
@@ -258,7 +286,8 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 		_m4_report["errors"].append("multiple_physics_ticks_in_profiler_iteration")
 	var sample: Dictionary = {"tick": frame, "duration_ms": physics_time * 1000.0,
 		"engine_frame_ms": frame_time * 1000.0, "engine_process_ms": process_time * 1000.0,
-		"physics_step_seconds": physics_frame_time, "monotonic_usec": Time.get_ticks_usec(),
+		"physics_step_seconds": physics_frame_time, "physics_steps": step_count,
+		"stage_timings": _m4_take_stages(), "monotonic_usec": Time.get_ticks_usec(),
 		"unix_usec": int(Time.get_unix_time_from_system() * 1000000.0),
 		"peers": peers, "ready": ready, "sectors": active_sectors.size(), "active_sector_maps": active_sectors, "npcs": advanced_npcs,
 		"bodies": advanced_bodies, "triggers": active_triggers, "trigger_entries": _m4_trigger_entries}

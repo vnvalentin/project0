@@ -62,3 +62,28 @@ def audit_worker_probe(source: str) -> dict:
                 failures.append(name + ':' + token)
     return {'passed': not failures, 'functions': names, 'failures': failures,
             'scope': 'Added measured application callbacks only; existing Canon reads and native engine synchronization are separate.'}
+
+
+def summarize_stage_timings(observation: dict) -> dict:
+    """Diagnostic inclusive spans; never add nested callbacks or infer native time."""
+    names = ('server_physics_callback', 'player_position_callback',
+             'boundary_reentry_callback', 'journey_checkpoint')
+    samples = observation.get('samples', [])
+    valid = bool(samples)
+    totals = {name: {'calls': 0, 'total_usec': 0, 'max_iteration_usec': 0} for name in names}
+    for sample in samples:
+        stages = sample.get('stage_timings', {})
+        for name in names:
+            span = stages.get(name, {})
+            calls, duration = span.get('calls'), span.get('duration_usec')
+            if (not isinstance(calls, int) or calls < 0 or
+                    not isinstance(duration, int) or duration < 0 or
+                    (calls == 0 and duration != 0)):
+                valid = False
+                continue
+            totals[name]['calls'] += calls
+            totals[name]['total_usec'] += duration
+            totals[name]['max_iteration_usec'] = max(totals[name]['max_iteration_usec'], duration)
+    peak = max(samples, key=lambda sample: sample.get('duration_ms', -1)) if valid else None
+    return {'qualified': valid, 'stages': totals, 'peak_sample': peak,
+            'scope': 'Inclusive callback wall spans grouped by profiler iteration. Journey may nest inside physics/position; boundary may nest inside position. Do not sum spans or subtract unrelated process callbacks from native physics. Coalesced iterations cannot supply individual tick durations.'}

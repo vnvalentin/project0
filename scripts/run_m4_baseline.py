@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 import time
 
-from m4_baseline_report import evaluate, audit_worker_probe
+from m4_baseline_report import evaluate, audit_worker_probe, summarize_stage_timings
 
 ROOT = Path(__file__).resolve().parents[1]
 ERROR_MARKERS = ('SCRIPT ERROR:', 'Parse Error:', 'Compile Error:', 'Failed to load script')
@@ -370,6 +370,7 @@ def main():
         report['observation'] = observation
         if report['errors']:
             observation.setdefault('errors', []).extend(report['errors'])
+        report['stage_summary'] = summarize_stage_timings(observation)
         report['evaluation'] = evaluate(observation, cleanup)
         report['passed'] = report['evaluation']['passed'] and not report['errors'] and args.ticks == 1000
         report['completed_utc'] = datetime.now(timezone.utc).isoformat()
