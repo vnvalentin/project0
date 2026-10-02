@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": "https://github.com/vnvalentin/project0/issues/1353",
+  "scope": "Exact published 0.14.20 PCK in a universal Mac app, data-only dependency audit and unauthenticated public admission; standalone Character-to-world acceptance is separate",
+  "rollback": "Remove only newly owned staging/process/user state and candidate output; preserve the original app, evidence, external services and exact published PCK bytes.",
+  "steps": [
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_package.py --report build/validation/macos/package-controls-fourth-1353.json",
+      "dependencies": [
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/test_package.py"
+      ],
+      "artifacts": [
+        "build/validation/macos/package-controls-fourth-1353.json"
+      ]
+    },
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_published.py --report build/validation/macos/published-controls-review-1353.json",
+      "dependencies": [
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/test_published.py"
+      ],
+      "artifacts": [
+        "build/validation/macos/published-controls-review-1353.json"
+      ]
+    },
+    {
+      "suite": "macos-published",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/published.py --godot build/tools/godot/Godot.app/Contents/MacOS/Godot --template build/tools/godot/templates/macos.zip --version 0.14.20 --output dist/macos/1353-published-fifth --plan .scratch/macos-client/published-plan.json --report build/validation/macos/published-fifth-1353.json",
+      "dependencies": [
+        "godot-client",
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/published.py",
+        "scripts/macos/published_inventory.gd",
+        "scripts/macos/published_admission_probe.gd"
+      ],
+      "artifacts": [
+        "build/validation/macos/published-fifth-1353.json"
+      ]
+    }
+  ]
+}

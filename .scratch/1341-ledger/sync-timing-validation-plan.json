@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "bash .scratch/1341-ledger/run-sync-timing.sh <new-run-id>",
+      "dependencies": [
+        "godot",
+        "sqlite",
+        "strace"
+      ],
+      "tests": [
+        "tests/integration/test_jit_lifecycle_correlation.gd"
+      ],
+      "artifacts": [
+        "build/validation/1341-ledger/<run-id>/probe.json",
+        "build/validation/1341-ledger/<run-id>/probe.log",
+        "build/validation/1341-ledger/<run-id>/result.json",
+        "build/validation/1341-ledger/<run-id>/sync.trace"
+      ]
+    }
+  ],
+  "setup": "Owned synthetic public timing probe under existing strace with fsync/fdatasync only. No buffers, paths, credentials, live-process attachment or changed WAL/durability. Diagnostic timestamps correlate syscall duration to transaction windows. Shared host lock spans native command and cleanup; root grants window after M4.",
+  "cleanup": "Wrapper finally closes/removes synthetic DB and owned XDG state. Retain diagnostic trace/log/JSON on failure. No production process termination.",
+  "rollback": "Diagnostic records and wrapper only; no application changes, no threshold change or delivery acceptance relaxation."
+}

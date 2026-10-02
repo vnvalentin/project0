@@ -1,0 +1,21 @@
+{
+  "status": "failed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "51452b8432ace694873d1f957eeb2243a87c74fc",
+  "command": "bash .scratch/1341-ledger/run-focused.sh script-error-gate-red",
+  "import_exit": 0,
+  "exit_code": 0,
+  "script_errors_observed": true,
+  "selected_scripts_ran": 1,
+  "tests": 4,
+  "failures": 0,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "fbdc1faa641a7ece476d821ca7dab489f48790891cf955f8f2bf8a3e6326a1f2",
+    "tests/integration/test_item_ledger_repository.gd": "bbded92287d56cf6f9513fc9069c411cfd69031d22c88253ba6afb0b5931232d",
+    ".scratch/1341-ledger/run-focused.sh": "dd9dc282b6b2173373c95ca8fe4f73acfda180ba884e54cb71343cae1bb12866"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/script-error-gate-red"
+}

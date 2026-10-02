@@ -28,3 +28,7 @@ The runner owns a new evidence target and isolated temporary runtime state, with
 ## Correction checkpoint
 
 Owned copied controls and static qualification pass. Application, fixture and public rule-test source are unchanged. Detailed control evidence remains local and ignored. Independent exact-head Standards and Spec review and final coordinated native validation remain pending; no runtime or milestone acceptance is claimed.
+
+## Accepted-main integration
+
+The fixed accepted main revision is integrated. Its additive ledger and Mac support changes retain their own ownership boundaries. The authored-rule application, fixture, public tests and owned validation implementation are unchanged. Static qualification remains supporting evidence; independent exact-head review and coordinated native validation remain required.
