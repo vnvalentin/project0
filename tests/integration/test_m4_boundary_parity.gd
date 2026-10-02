@@ -24,7 +24,9 @@ func before_each() -> void:
 	_stores = []
 	_paths = []
 	_trace = {"issue": 1377, "evidence_scope": "isolated_linux_component", "engine": Engine.get_version_info()["string"],
-		"source_revision": OS.get_environment("M4_SOURCE_REVISION"), "case_id": "", "passed": false}
+		"source_revision": OS.get_environment("M4_SOURCE_REVISION"), "case_id": "", "passed": false,
+		"source_sha256": {"helper": FileAccess.get_sha256("res://scripts/m4_canon_evidence.gd"), "test": FileAccess.get_sha256("res://tests/integration/test_m4_boundary_parity.gd")},
+		"unsupported": ["repair_claim_permanent_flags", "persistent_in_flight_interaction_transfer", "native_persisted_occupancy_bitmask"]}
 	_had_canon = OS.has_environment("PROJECT0_CANON_DB_PATH")
 	_old_canon = OS.get_environment("PROJECT0_CANON_DB_PATH")
 
@@ -62,7 +64,8 @@ func after_each() -> void:
 func _open_store(relative_path: String) -> SqliteStore:
 	var path: String = ProjectSettings.globalize_path("user://" + relative_path)
 	for suffix: String in Evidence.SIDECARS:
-		assert_false(FileAccess.file_exists(path + suffix), "fresh owned target")
+		if FileAccess.file_exists(path + suffix):
+			return null # Never open or claim cleanup ownership of an existing path.
 	_paths.append(path)
 	var store: SqliteStore = Store.new()
 	_stores.append(store)
@@ -78,9 +81,15 @@ func _fixture(dedicated: bool) -> Dictionary:
 	else:
 		OS.unset_environment("PROJECT0_CANON_DB_PATH")
 	var accounts: SqliteStore = _open_store(account_path)
+	assert_not_null(accounts, "fresh accounts target required")
+	if accounts == null:
+		return {}
 	var selected: String = OS.get_environment("PROJECT0_CANON_DB_PATH").strip_edges()
 	# This is the documented server_main selection rule, exercised in both modes.
 	var store: SqliteStore = accounts if selected.is_empty() else _open_store(selected)
+	assert_not_null(store, "fresh Canon target required")
+	if store == null:
+		return {}
 	var canon: CanonRepository = Canon.new(store)
 	assert_eq(canon.ensure_schema()["outcome"], "ok")
 	var mutations: CanonMutationRepository = Mutations.new(store, canon)
@@ -129,6 +138,8 @@ func _finish_window(fixture: Dictionary, before: Dictionary) -> Dictionary:
 func _rejections(dedicated: bool) -> void:
 	_trace["case_id"] = "rejected_dedicated" if dedicated else "rejected_shared"
 	var fixture: Dictionary = _fixture(dedicated)
+	if fixture.is_empty():
+		return
 	var before: Dictionary = _before_window(fixture)
 	var service: CanonMutationService = fixture["service"]
 	var cases: Array[Dictionary] = [
@@ -165,6 +176,8 @@ func test_rejected_cross_sector_requests_preserve_configured_dedicated_store() -
 func test_negative_control_detects_an_actual_committed_write() -> void:
 	_trace["case_id"] = "control_committed_write"
 	var fixture: Dictionary = _fixture(true)
+	if fixture.is_empty():
+		return
 	var before: Dictionary = _before_window(fixture)
 	var result: Dictionary = fixture["service"].resolve_intent("m4-player", _intent({"expected_revision": 1, "client_seq": 2}))
 	assert_eq(result["status"], "accepted")
@@ -180,6 +193,8 @@ func test_negative_control_detects_an_actual_committed_write() -> void:
 func test_negative_control_never_treats_unobserved_sql_as_zero() -> void:
 	_trace["case_id"] = "control_unobserved_sql"
 	var fixture: Dictionary = _fixture(false)
+	if fixture.is_empty():
+		return
 	var before: Dictionary = _before_window(fixture)
 	assert_eq(fixture["store"].query("WITH probe AS (SELECT 1 AS n) SELECT n FROM probe;")["outcome"], "ok")
 	var verdict: Dictionary = _finish_window(fixture, before)
@@ -187,3 +202,19 @@ func test_negative_control_never_treats_unobserved_sql_as_zero() -> void:
 	assert_has(verdict["failures"], "sql_not_observed")
 	_trace["expected_control_failure"] = true
 	_trace["passed"] = not verdict["passed"] and verdict["failures"].has("sql_not_observed")
+
+
+func test_existing_target_is_neither_opened_nor_claimed_for_cleanup() -> void:
+	_trace["case_id"] = "control_existing_target"
+	var relative: String = "m4_sentinel_%s.db" % _stamp
+	var path: String = ProjectSettings.globalize_path("user://" + relative)
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	file.store_string("owned sentinel, not a SQLite store")
+	file.close()
+	var expected: String = FileAccess.get_sha256(path)
+	var result: SqliteStore = _open_store(relative)
+	assert_null(result, "existing path refuses open")
+	assert_false(_paths.has(path), "failed claim cannot delete existing target")
+	assert_eq(FileAccess.get_sha256(path), expected, "existing bytes untouched")
+	_trace["passed"] = result == null and not _paths.has(path) and FileAccess.get_sha256(path) == expected
+	_paths.append(path) # This test created the sentinel and owns its teardown.
