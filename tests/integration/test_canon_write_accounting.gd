@@ -89,3 +89,18 @@ func test_non_canon_writes_are_not_counted() -> void:
 	_store.query("CREATE TABLE other_table (id INTEGER PRIMARY KEY);")
 	_store.query_with_bindings("INSERT INTO other_table (id) VALUES (?);", [1])
 	assert_eq(_store.canon_write_counters()["attempted"], {"canon_sectors": 0, "canon_mutations": 0})
+
+
+func test_direct_statement_window_observes_insert_by_table() -> void:
+	_store.query("CREATE TABLE accounting_probe (id INTEGER PRIMARY KEY, value TEXT);")
+	assert_true(_store.has_method("start_dml_observation"), "explicit observation window public seam")
+	if not _store.has_method("start_dml_observation"):
+		return
+	var initial: Dictionary = _store.call("start_dml_observation")
+	assert_eq(initial["observation_status"], "OBSERVED")
+	_store.query_with_bindings("INSERT INTO accounting_probe (id, value) VALUES (?, ?);", [1, "a"])
+	var report: Dictionary = _store.call("dml_statement_counters")
+	assert_eq(report["observation_status"], "OBSERVED")
+	assert_eq(report["totals"]["attempted"]["insert"], 1)
+	assert_eq(report["by_table"]["accounting_probe"]["committed"]["insert"], 1)
+	assert_eq(initial["totals"]["attempted"]["insert"], 0, "prior snapshot is immutable")
