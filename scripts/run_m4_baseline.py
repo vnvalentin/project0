@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import re
+import tarfile
 import socket
 import subprocess
 import tempfile
@@ -60,7 +62,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ticks', type=int, choices=(60, 1000), default=1000)
     parser.add_argument('--godot', default='godot')
+    parser.add_argument('--server-image', required=True, help='Immutable locally cached sha256 image ID')
     args = parser.parse_args()
+    if not re.fullmatch(r'sha256:[0-9a-f]{64}', args.server_image):
+        parser.error('server-image must be an immutable SHA-256 image ID')
     os.chdir(ROOT)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     folder = ROOT / 'logs/experiments' / ('m4-1-' + stamp)
@@ -80,6 +85,8 @@ def main():
     owned = []
     files = []
     private = None
+    container_name = 'project0-m4-1376-' + stamp.lower()
+    container_created = False
     observation = {}
     try:
         if not report['structural_audit']['passed']:
@@ -87,6 +94,8 @@ def main():
         report['engine'] = subprocess.check_output([args.godot, '--version'], text=True).strip()
         if report['competing_engines_before']:
             raise RuntimeError('competing_project_engines')
+        if report['source_dirty']:
+            raise RuntimeError('uncommitted_source_cannot_define_runtime_artifact')
         private = Path(tempfile.mkdtemp(prefix='project0-m4-1376-'))
         private.chmod(0o700)
         env = {key: os.environ[key] for key in ('PATH', 'HOME', 'USER', 'LANG') if key in os.environ}
@@ -99,6 +108,31 @@ def main():
                     'M4_PRIVATE': str(private), 'M4_HTTP_PORT': str(available_port(socket.SOCK_STREAM)),
                     'M4_TICKS': str(args.ticks), 'M4_STOP': str(private / 'stop'),
                     'M4_OBSERVATION': str(folder / 'server-observation.json')})
+        archive = folder / 'source.tar'
+        subprocess.run(['git', 'archive', '--format=tar', '--output=' + str(archive), report['source']], check=True)
+        source = private / 'source'
+        source.mkdir()
+        with tarfile.open(archive) as bundle:
+            for member in bundle.getmembers():
+                if Path(member.name).is_absolute() or '..' in Path(member.name).parts or member.issym() or member.islnk():
+                    raise RuntimeError('unsafe_source_archive_member')
+            bundle.extractall(source)
+        report['source_archive_sha256'] = hashlib.sha256(archive.read_bytes()).hexdigest()
+        import_env = env | {'XDG_DATA_HOME': str(private / 'import-xdg')}
+        for attempt in range(2):
+            with (folder / ('artifact-import-%d.log' % attempt)).open('wb') as output:
+                subprocess.run([args.godot, '--headless', '--path', str(source), '--import'], env=import_env,
+                               stdout=output, stderr=subprocess.STDOUT, timeout=60, check=True)
+        if any(marker in (folder / 'artifact-import-1.log').read_text(errors='replace') for marker in ERROR_MARKERS):
+            raise RuntimeError('artifact_import_failed')
+        runtime_archive = folder / 'runtime-artifact.tar'
+        with tarfile.open(runtime_archive, 'w') as bundle:
+            bundle.add(source, arcname='app')
+        report['runtime_artifact_sha256'] = hashlib.sha256(runtime_archive.read_bytes()).hexdigest()
+        report['container'] = {'image_id': args.server_image, 'cpus': 4, 'memory_bytes': 2147483648,
+                               'entrypoint': 'tini -- godot --headless -s scripts/m4_load_server.gd',
+                               'source_mount': 'immutable committed archive plus qualified import cache',
+                               'peer_runtime': '10 headless host processes outside server cgroup'}
         # Every runtime path goes to this fresh private tree; no production env inheritance.
         def spawn(name, script, child_env, debug=False):
             stream = (folder / (name + '.log')).open('wb')
@@ -111,7 +145,35 @@ def main():
                                        start_new_session=True, stdin=subprocess.DEVNULL)
             owned.append(process)
             return process
-        server = spawn('server', 'scripts/m4_load_server.gd', env, True)
+        container_env = env | {'XDG_DATA_HOME': '/state/xdg-server', 'M4_PRIVATE': '/state',
+                               'M4_OBSERVATION': '/evidence/server-observation.json',
+                               'PROJECT0_SERVER_BIND_ADDRESS': '0.0.0.0', 'PROJECT0_HEALTH_FILE': '/state/health.json'}
+        env_file = private / 'server.env'
+        env_file.write_text(''.join(key + '=' + value + '\n' for key, value in container_env.items()
+                                    if key not in ('PATH', 'HOME', 'USER', 'LANG')))
+        env_file.chmod(0o600)
+        user = str(os.getuid()) + ':' + str(os.getgid())
+        engine = subprocess.check_output(['docker', 'run', '--rm', '--network', 'none', '--read-only',
+                   '--cpus', '1', '--memory', '256m', '--user', user, '--entrypoint', 'godot', args.server_image, '--version'], text=True).strip()
+        if engine != report['engine']:
+            raise RuntimeError('container_and_peer_engine_mismatch')
+        report['container']['engine'] = engine
+        command = ['docker', 'run', '--name', container_name, '--rm', '--read-only', '--no-healthcheck',
+                   '--cpus', '4', '--memory', '2g', '--pids-limit', '512', '--user', user,
+                   '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+                   '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m', '--env-file', str(env_file),
+                   '--publish', '127.0.0.1:' + env['PROJECT0_SERVER_PORT'] + ':' + env['PROJECT0_SERVER_PORT'] + '/udp',
+                   '--mount', 'type=bind,src=' + str(source) + ',dst=/app,readonly',
+                   '--mount', 'type=bind,src=' + str(private) + ',dst=/state',
+                   '--mount', 'type=bind,src=' + str(folder) + ',dst=/evidence',
+                   '--entrypoint', '/usr/bin/tini', args.server_image, '--', 'godot', '--headless',
+                   '--path', '/app', '--max-fps', '120', '--debug', '-s', 'scripts/m4_load_server.gd']
+        stream = (folder / 'server.log').open('wb')
+        files.append(stream)
+        server = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                  start_new_session=True)
+        owned.append(server)
+        container_created = True
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             observation = read_json(folder / 'server-observation.json')
@@ -158,6 +220,9 @@ def main():
     finally:
         if private is not None:
             (private / 'stop').touch(exist_ok=True)
+        if container_created:
+            subprocess.run(['docker', 'stop', '--time', '3', container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            subprocess.run(['docker', 'rm', '-f', container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
         for process in owned:
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -169,7 +234,9 @@ def main():
         for stream in files:
             stream.close()
         observation = read_json(folder / 'server-observation.json') or observation
-        for log in folder.glob('*.log'):
+        for log in [folder / 'server.log', *folder.glob('peer-*.log')]:
+            if not log.exists():
+                continue
             content = log.read_text(errors='replace')
             if any(marker in content for marker in ERROR_MARKERS):
                 report['errors'].append('runtime_script_error:' + log.name)
@@ -178,8 +245,9 @@ def main():
                 shutil.rmtree(private)
             except OSError:
                 report['errors'].append('private_cleanup_failed')
-        cleanup = all(process.poll() is not None for process in owned) and (private is None or not private.exists())
-        report['cleanup'] = {'processes_stopped': all(p.poll() is not None for p in owned),
+        container_absent = subprocess.run(['docker', 'container', 'inspect', '--format', '{{.Id}}', container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
+        cleanup = container_absent and all(process.poll() is not None for process in owned) and (private is None or not private.exists())
+        report['cleanup'] = {'container_removed': container_absent, 'processes_stopped': all(p.poll() is not None for p in owned),
                              'private_tree_removed': private is None or not private.exists(), 'verified': cleanup}
         observation.setdefault('isolation', {})['structural_nonblocking_verified'] = report['structural_audit']['passed']
         report['observation'] = observation
