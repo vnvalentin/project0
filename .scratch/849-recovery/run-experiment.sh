@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+label="${1:?unique label required}"
+mode="${2:-baseline}"
+[[ "$label" =~ ^[a-z0-9-]+$ ]] || exit 2
+[[ "$mode" == baseline || "$mode" == negative-control ]] || exit 2
+run_id="$(date -u +%Y%m%dT%H%M%SZ)-${label}-$$"
+result_dir="$PWD/build/validation/849-recovery/$run_id"
+test ! -e "$result_dir"
+mkdir -p "$result_dir"
+fixture_dir=""
+revision=NOT_OBSERVED
+prepare_exit=-1
+recover_exit=-1
+stage=setup
+engine_version=NOT_OBSERVED
+result_exit=1
+source_clean_start=false
+scan_phase_log() {
+  python3 - "$1" <<'PYSCAN'
+import re,sys
+from pathlib import Path
+text=Path(sys.argv[1]).read_text(errors='replace')
+raise SystemExit(1 if re.search(r'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script',text) else 0)
+PYSCAN
+}
+finish() {
+  trap - EXIT
+  set +e
+  case "$fixture_dir" in "") ;; /tmp/project0-849-recovery-*) rm -rf -- "$fixture_dir" ;; *) exit 2 ;; esac
+  cleanup=false
+  [[ -z "$fixture_dir" ]] || test ! -e "$fixture_dir"
+  [[ -z "$fixture_dir" || ! -e "$fixture_dir" ]] && cleanup=true
+  python3 - "$result_dir" "$run_id" "$revision" "$engine_version" "$prepare_exit" "$recover_exit" "$stage" "$cleanup" "$mode" "$result_exit" "$label" "$source_clean_start" <<'PY'
+import hashlib,json,subprocess,sys
+from pathlib import Path
+out,run_id,revision,engine,prep_exit,recover_exit,stage,cleanup,mode,exit_code,label,source_clean_start=sys.argv[1:]
+out=Path(out); errors=[]; phases={}
+def zero_counts(value):
+    if not isinstance(value,dict) or set(value)!={'attempted','committed','rolled_back','failed'}:
+        return False
+    for window in value.values():
+        if not isinstance(window,dict) or set(window)!={'insert','replace','update','delete'}:
+            return False
+        if any(type(count) is not int or count!=0 for count in window.values()):
+            return False
+    return True
+
+def observation_containers(value):
+    if not isinstance(value,dict) or not zero_counts(value.get('totals')):
+        return False
+    tables=value.get('by_table')
+    if not isinstance(tables,dict) or any(not isinstance(key,str) or not key or not zero_counts(counts) for key,counts in tables.items()):
+        return False
+    partial=value.get('partial_counts')
+    if not isinstance(partial,dict) or not zero_counts(partial.get('totals')):
+        return False
+    partial_tables=partial.get('by_table')
+    if not isinstance(partial_tables,dict) or any(not isinstance(key,str) or not key or not zero_counts(counts) for key,counts in partial_tables.items()):
+        return False
+    return value.get('previous_windows')==[]
+
+for phase in ['prepare','recover']:
+    try:
+        p=json.loads((out/(phase+'.json')).read_text())
+        if not isinstance(p,dict):
+            errors.append('invalid_phase_container:'+phase)
+            continue
+        if not isinstance(p.get('scenarios'),dict):
+            errors.append('invalid_scenarios_container:'+phase)
+            continue
+        if any(not isinstance(value,dict) for value in p['scenarios'].values()):
+            errors.append('invalid_scenario_container:'+phase)
+            continue
+        if type(p.get('schema_version')) is not int or p.get('schema_version')!=1 or type(p.get('issue')) is not int or p.get('issue')!=849 or p.get('phase')!=phase: errors.append('invalid_phase:'+phase)
+        if type(p.get('native_pid')) is not int or p['native_pid']<=0: errors.append('invalid_pid:'+phase)
+        if set(p.get('scenarios',{}))!={'valid','damaged'}: errors.append('incomplete_scenarios:'+phase)
+        phases[phase]=p
+    except (OSError,ValueError,TypeError): errors.append('missing_or_invalid_phase:'+phase)
+for log in ['import.log','prepare.log','recover.log']:
+    path=out/log
+    try:
+        if not path.is_file(): errors.append('missing_log:'+log)
+        elif any(m in path.read_text(errors='replace') for m in ['SCRIPT ERROR','Parse Error','Compile Error']): errors.append('script_error:'+log)
+    except OSError:
+        errors.append('log_not_observed:'+log)
+if cleanup!='true': errors.append('cleanup_unverified')
+if int(prep_exit)!=0 or phases.get('prepare',{}).get('status')!='passed' or phases.get('prepare',{}).get('errors')!=[]: errors.append('prepare_not_passed')
+expected_recover_errors=[] if mode=='baseline' else ['valid:canon_bytes_unchanged']
+expected_recover_exit=0 if mode=='baseline' else 1
+recover=phases.get('recover',{})
+if int(recover_exit)!=expected_recover_exit or recover.get('errors')!=expected_recover_errors or recover.get('status')!=('passed' if mode=='baseline' else 'failed'): errors.append('recovery_verdict_mismatch')
+if phases.get('prepare',{}).get('native_pid')==recover.get('native_pid'): errors.append('same_native_process')
+observations={}
+for scenario in ['valid','damaged']:
+    data=recover.get('scenarios',{}).get(scenario,{})
+    try:
+        obs=data['observation']
+        if not observation_containers(obs):
+            errors.append('invalid_observation_container:'+scenario)
+            continue
+        if obs['observation_status']!='OBSERVED' or obs['scope']!='direct_single_statements_through_this_store' or obs['native_row_effects']!='NOT_OBSERVED': errors.append('unsupported_observation:'+scenario)
+        for counts in [obs['totals'],*obs['by_table'].values()]:
+            if set(counts)!={'attempted','committed','rolled_back','failed'}: errors.append('incomplete_windows:'+scenario)
+            for window in counts.values():
+                if window!={'insert':0,'replace':0,'update':0,'delete':0}: errors.append('nonzero_or_incomplete_dml:'+scenario)
+        observations[scenario]=obs
+        for key in ['canon_utf8_bytes','canon_sha1','ordered_mutation_sha1','ordered_mutation_identities','anchor_sha1','cell_sha1']:
+            if data[key]!=phases['prepare']['scenarios'][scenario][key]: errors.append('retained_identity_mismatch:'+scenario+':'+key)
+        events=data['ordered_mutation_identities']
+        if not isinstance(events,list) or any(not isinstance(event,dict) for event in events):
+            errors.append('invalid_history_container:'+scenario)
+            continue
+        if any(type(event.get(key)) is not int or event[key]<0 for event in events for key in ['applied_revision','expected_revision','schema_version']):
+            errors.append('invalid_history_integer:'+scenario)
+            continue
+        if type(data.get('canon_utf8_bytes')) is not int or data['canon_utf8_bytes']<0:
+            errors.append('invalid_canon_byte_count:'+scenario)
+            continue
+        if len(events)!=2 or [e['applied_revision'] for e in events]!=[1,2] or [e['expected_revision'] for e in events]!=[0,1] or any(e['actor_player_id']!='fixture-character-owner' for e in events): errors.append('incomplete_history_identity:'+scenario)
+        wanted=('ok','idempotent') if scenario=='valid' else ('invalid_record','invalid_record')
+        if (data['resolution_outcome'],data['replay_outcome'])!=wanted: errors.append('public_recovery_outcome:'+scenario)
+    except (KeyError,TypeError,ValueError): errors.append('missing_or_invalid_observation:'+scenario)
+for phase in phases.values():
+    for key in ['generation','scene_assembly','physical_actor_authorization']:
+        if phase.get(key)!='NOT_OBSERVED': errors.append('unsupported_acceptance_claim:'+key)
+if revision=='NOT_OBSERVED': errors.append('initial_revision_not_observed')
+if source_clean_start!='true': errors.append('source_not_clean_at_start')
+def final_git_identity(arguments,error):
+    try:
+        return subprocess.check_output(['git',*arguments],text=True,stderr=subprocess.DEVNULL,timeout=10).strip()
+    except (OSError,subprocess.SubprocessError,UnicodeError):
+        errors.append(error)
+        return 'NOT_OBSERVED'
+
+final_status=final_git_identity(['status','--porcelain'],'source_status_not_observed')
+source_clean_end='NOT_OBSERVED' if final_status=='NOT_OBSERVED' else not final_status
+if source_clean_end is False: errors.append('source_not_clean_at_end')
+current=final_git_identity(['rev-parse','HEAD'],'final_revision_not_observed')
+if current!='NOT_OBSERVED' and current!=revision: errors.append('head_changed_during_run')
+sources={}
+for p in ['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']:
+    try:
+        sources[p]=hashlib.sha256(Path(p).read_bytes()).hexdigest()
+    except OSError:
+        sources[p]='NOT_OBSERVED'
+        errors.append('source_identity_not_observed:'+p)
+try:
+    if json.loads((out/'source-start.json').read_text())!=sources: errors.append('source_changed_during_run')
+except (OSError,ValueError): errors.append('source_start_missing')
+passed=not errors and int(exit_code)==0
+record={'schema_version':1,'issue':849,'run_id':run_id,'host':'192.168.1.254','revision':revision,'final_revision':current,'engine':engine,'command':'bash .scratch/849-recovery/run-experiment.sh '+label+' '+mode,'phase_command':'timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- <phase> <owned-expected-state> <owned-phase-report>','mode':mode,'status':'passed' if passed else 'failed','scope':'two-process Linux anchor recovery; no generation or scene assembly','negative_control_recovery_rejected':mode=='negative-control' and recover.get('status')=='failed','prepare_exit_code':int(prep_exit),'recover_exit_code':int(recover_exit),'stage':stage,'source_clean_start':source_clean_start=='true','source_clean_end':source_clean_end,'cleanup_verified':cleanup=='true','errors':errors,'native_pids':{k:v.get('native_pid') for k,v in phases.items()},'source_sha256':sources,'statement_observations':observations}
+record['result_retention']='OBSERVED'
+try:
+    (out/'experiment-result.json').write_text(json.dumps(record,indent=2)+'\n')
+except OSError:
+    record['status']='failed'
+    record['result_retention']='NOT_OBSERVED'
+    record['errors'].append('result_retention_not_observed')
+    print(json.dumps(record))
+    raise SystemExit(1)
+print(json.dumps({k:record[k] for k in ['status','run_id','mode','prepare_exit_code','recover_exit_code','cleanup_verified','errors','native_pids']}))
+raise SystemExit(0 if passed else 1)
+PY
+  evidence_exit=$?
+  exit "$evidence_exit"
+}
+trap finish EXIT
+stage=initial_identity
+if initial_revision="$(timeout --kill-after=1s 10s git rev-parse HEAD 2>/dev/null)"; then
+  [[ "$initial_revision" =~ ^[0-9a-f]{40}$ ]] || exit 1
+  revision="$initial_revision"
+else
+  exit 1
+fi
+stage=source_guard
+source_status="$(git status --porcelain)"
+[[ -z "$source_status" ]] || exit 1
+source_clean_start=true
+fixture_dir="$(mktemp -d /tmp/project0-849-recovery-XXXXXX)"
+export XDG_DATA_HOME="$fixture_dir/xdg"
+export DASHBOARD_RESULTS_DIR="$result_dir/dashboard"
+mkdir -p "$XDG_DATA_HOME" "$DASHBOARD_RESULTS_DIR"
+state_path="$fixture_dir/expected.json"
+python3 - "$result_dir/source-start.json" <<'PYHASH'
+import hashlib,json,sys
+from pathlib import Path
+paths=['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']
+Path(sys.argv[1]).write_text(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths},indent=2)+'\n')
+PYHASH
+stage=ownership
+python3 scripts/check_validation_ownership.py --plan .scratch/849-recovery/validation-plan.json --output "$result_dir/plan-ownership.json" > "$result_dir/preflight.log" 2>&1
+stage=import
+engine_version="$(/usr/local/bin/godot --version)"
+timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . --import > "$result_dir/import.log" 2>&1
+scan_phase_log "$result_dir/import.log"
+stage=prepare
+set +e
+timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- prepare "$state_path" "$result_dir/prepare.json" > "$result_dir/prepare.log" 2>&1
+prepare_exit=$?
+set -e
+[[ "$prepare_exit" -eq 0 ]] || exit "$prepare_exit"
+scan_phase_log "$result_dir/prepare.log"
+if [[ "$mode" == negative-control ]]; then
+  python3 - "$state_path" "$fixture_dir/negative-expected.json" <<'PY'
+import json,sys
+from pathlib import Path
+state=json.loads(Path(sys.argv[1]).read_text()); state['valid']['canon_bytes']+='\n'
+Path(sys.argv[2]).write_text(json.dumps(state)+'\n')
+PY
+  state_path="$fixture_dir/negative-expected.json"
+fi
+stage=recover
+set +e
+timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- recover "$state_path" "$result_dir/recover.json" > "$result_dir/recover.log" 2>&1
+recover_exit=$?
+set -e
+scan_phase_log "$result_dir/recover.log"
+result_exit=0
