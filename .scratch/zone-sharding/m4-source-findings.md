@@ -14,6 +14,19 @@ final architecture or claim runtime acceptance. The planning map in
 [PR #1378](https://github.com/vnvalentin/project0/pull/1378) defines the workload;
 its review/merge status remains separate from implementation acceptance.
 
+## Approved supported-state scope
+
+On 2026-10-02 the user chose to evaluate currently supported state and document
+unsupported fields, without implementing new gameplay before M4 closure.
+[The issue checkpoint records this correction](https://github.com/vnvalentin/project0/issues/205#issuecomment-5954712157).
+Exact supported Canon blueprint/mutation and reconstructed-state parity remains
+required. Persistent in-flight interactions, repair/claim flags and an occupancy
+bitmask representation are explicitly unsupported unless actual source and
+observations establish them. Unsupported state is a reported limitation, not a
+fabricated passing observation or a new gameplay prerequisite. This correction
+does not change workload, tick thresholds, boundary-crossing rate, isolation,
+cleanup or the container-artifact requirement.
+
 ## Evidence and decision gate
 
 The issue contract requires 10 active player connections, four adjacent active
@@ -31,7 +44,7 @@ requires a tested containerized single-runtime increment.
 | Required evidence | Current finding | Decision consequence |
 | --- | --- | --- |
 | Complete M4.1 workload, native host/engine, source identity, all 1,000 samples, crossings, isolation controls, cleanup | Measurements not supplied to this draft | Capacity and isolation outcome remain unknown. |
-| Complete M4.2 unilateral, concurrent and in-flight interaction parity, attempted Canon writes, database/sidecar hashes, cleanup | Measurements not supplied to this draft; current source lacks some requested state representations | Missing observations must fail closed; do not manufacture parity fields. |
+| Complete M4.2 supported unilateral/concurrent boundary and current interaction parity, attempted Canon writes, database/sidecar hashes, cleanup; explicit unsupported-state list | Measurements not supplied to this draft | Missing supported observations fail closed; unsupported representations are documented limitations under the approved scope. |
 | Same containerized artifact passes the complete profile | No artifact-bound result supplied | Source-checkout success would be supporting evidence only. |
 | Independent review and integrated validation | Not yet run for this draft | Neither #205 nor M4 is complete. |
 
@@ -134,8 +147,11 @@ execution profile and the unlock mutation synchronously. It persists an
 in-memory dictionary. It does not represent a retained uncommitted tether or
 line-of-sight lock that can be transferred between runtimes. The requested
 `REPAIRED`/`CLAIMED` bitfields and occupancy-bitmask parity are not established by
-this implementation. Absent state is a coverage gap, not an empty value that
-passes comparison. [Interaction source][interaction]
+this implementation. Under the approved scope these are explicit unsupported
+representations, not mandatory new gameplay. A supported-state report must not
+replace them with empty fields and count them as passing comparisons. Current
+synchronous interaction behavior can be evaluated at its public seam, without
+claiming persistent in-flight interaction transfer. [Interaction source][interaction]
 
 The residency reconciler computes nine desired sector coordinates and proposed
 evictions without a database handle, async execution, or Canon mutation. At the
@@ -220,14 +236,16 @@ No final choice yet. The evidence distinguishes these outcomes:
 3. Measured simulation capacity or sector-local cascading failure requires
    separation: define ownership and handoff topology, Canon write authority,
    tick translation and rollback before separately authorized implementation.
-4. Samples, required state, parity controls or container evidence are missing:
-   retain the current runtime, mark the decision blocked/awaiting evidence, and
-   name the missing acceptance work. Missing evidence alone does not justify a
-   process split or prove the single-runtime baseline adequate.
+4. Samples, required supported-state observations, parity controls or container
+   evidence are missing: retain the current runtime, mark the decision
+   blocked/awaiting evidence, and name the missing acceptance work. Missing
+   evidence alone does not justify a process split or prove the single-runtime
+   baseline adequate. Explicitly unsupported gameplay state is a limitation under
+   the approved scope, rather than a demand to implement it for M4.
 
-No ADR number is allocated while this choice remains unresolved. The final
-accepted decision should use the repository's `docs/adr/` convention and link
-this source analysis plus the actual M4 reports at their exact revisions.
+[ADR 0013](../../docs/adr/0013-evidence-led-world-scale.md) stages this conditional
+disposition with `status: proposed`. Accept it only after linking the actual M4
+reports and their exact source/container identities; proposed is not accepted.
 
 ## Validation and remaining work
 
