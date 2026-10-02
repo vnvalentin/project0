@@ -1,0 +1,22 @@
+{
+  "command": "godot --headless -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/integration/test_canon_write_accounting.gd -gdisable_colors -gexit",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "2753e8950289441b32c05812f20a241bb92d0fd8",
+  "import_exit": 0,
+  "exit_code": 1,
+  "selected_scripts_ran": 1,
+  "status": "failed",
+  "junit_suites": [
+    {
+      "name": "tests/integration/test_canon_write_accounting.gd",
+      "tests": "11",
+      "failures": "1",
+      "skipped": "0",
+      "time": "2.59194"
+    }
+  ],
+  "artifact_directory": "build/validation/1347-accounting/red-report-shape",
+  "owned_xdg_removed": true,
+  "source_binding": "base revision plus staged test/implementation; per-file hash not recorded"
+}
