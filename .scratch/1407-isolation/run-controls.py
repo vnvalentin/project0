@@ -61,17 +61,20 @@ def main():
         assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
-        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','consumer_override_changed','preparation_log_changed','helper_source_changed','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','consumer_override_changed','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         assert len(cases)==len(set(cases))
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();shutil.copy2(ROOT/'scripts/prepare_godot_project.py',root/'scripts/prepare_godot_project.py');(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
             (root/'project.godot').write_text('config/name="Project0"\n')
+            (root/'scripts/fixture.sh').write_text('#!/bin/sh\nexit 0\n');(root/'scripts/fixture.sh').chmod(0o755)
+            (root/'.scratch').mkdir();(root/'.scratch/fixture.txt').write_text('SYNTHETIC_EXCLUDED_STAGING_FIXTURE')
+            source_names=['project.godot','scripts/test_prediction_reconciliation.gd','scripts/prepare_godot_project.py','scripts/fixture.sh','.scratch/fixture.txt']
             calls=[];identity_calls=[0]
             def identity():
                 identity_calls[0]+=1
                 if case=='dirty_source':raise ValueError('copied dirty source')
-                return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [root/'project.godot',root/'scripts/test_prediction_reconciliation.gd',root/'scripts/prepare_godot_project.py']}}
+                return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [root/name for name in source_names]}}
             m.identity=identity
             if case=='initial_custody_unavailable':
                 def unavailable_children():raise OSError('copied proc unavailable')
@@ -110,7 +113,7 @@ def main():
                     command=commands[0];calls.append('prepare')
                     project=Path(command[command.index('--prepared-root')+1]);assert not project.exists()
                     project.mkdir()
-                    hashes={name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in ['project.godot','scripts/test_prediction_reconciliation.gd','scripts/prepare_godot_project.py']}
+                    hashes={name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in source_names if not name.startswith('.scratch/')}
                     for name in hashes:
                         target=project/name;target.parent.mkdir(parents=True,exist_ok=True)
                         shutil.copy2(root/name,target)
@@ -125,7 +128,12 @@ def main():
                     for name in ['bootstrap','qualification']:
                         log=report.parent/('prepare-'+name+'.log');log.write_text(('SCRIPT ERROR: preparation script error observed\n' if phase['script_error_observed'] else '')+'PREPARATION: '+json.dumps(phase,sort_keys=True)+'\n');receipt[name]['log']=str(log)
                         if case=='preparation_log_changed' and name=='qualification':log.write_text('SYNTHETIC_EXCLUDED_RAW_PREPARATION\n')
+                    if case=='wrong_preparation_source':receipt['source_revision']='b'*40
                     report.write_text(json.dumps(receipt))
+                    if case=='missing_preparation_report':report.unlink()
+                    if case=='altered_executable_mode':(project/'scripts/fixture.sh').chmod(0o644)
+                    if case=='unexpected_prepared_private_file':(project/'.scratch').mkdir();(project/'.scratch/fixture.txt').write_text('SYNTHETIC_EXCLUDED_STAGING_FIXTURE')
+                    if case=='changed_registry':(project/'.godot/extension_list.cfg').write_text('copied unknown registry')
                     if case=='helper_source_changed':
                         helper=root/'scripts/prepare_godot_project.py';helper.write_text(helper.read_text()+f'\nPath({str(root / "forbidden-helper-marker")!r}).write_text("copied unexpected execution")\n')
                     if case=='altered_staged_copy':(project/'scripts/test_prediction_reconciliation.gd').write_text('changed copied source')
@@ -135,6 +143,9 @@ def main():
                 # The unchanged harness derives nested server --path from res://.
                 assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').is_file()
                 calls.append('import' if '--import' in commands[0] else ('shared' if Path(envs[0]['HOME']).parent.parent.name=='shared' else 'distinct'))
+                assert (project/'scripts/fixture.sh').stat().st_mode & 0o100 and not (project/'.scratch').exists()
+                if case=='consumer_registry_changed' and calls[-1]=='distinct':(project/'.godot/extension_list.cfg').write_text('copied unknown consumer registry')
+                if case=='consumer_config_changed' and calls[-1]=='distinct':(project/'project.godot').write_text('copied unknown consumer configuration')
                 if case=='consumer_override_changed' and calls[-1]=='distinct':(project/'override.cfg').write_text('copied unknown consumer override')
                 output=[]
                 for env in envs:
@@ -162,7 +173,8 @@ def main():
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
-                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed','helper_source_changed']),case
+                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed']),case
+                    if case in ['valid','prepared_before_consumers']:assert [pair['mode'] for pair in result['comparisons']]==['shared','distinct'] and all(len(pair['children'])==2 for pair in result['comparisons'])
                     if case=='consumer_override_changed':assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir() and (Path(result['retained_stage'])/'project/override.cfg').read_text()=='copied unknown consumer override'
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
                     if case=='nondefault_sigchld':assert result['stage']=='child_signal_contract' and not calls and identity_calls[0]==0
@@ -182,7 +194,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if completed and len(records)==29 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if completed and len(records)==36 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))
