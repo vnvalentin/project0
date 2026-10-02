@@ -359,3 +359,77 @@ func test_corrupt_receipt_result_cannot_replace_the_original_accepted_result() -
 		assert_eq(changed_revision.outcome, "invalid_persisted_state", commands[index][0] + " must bind the retained revision to original expectations")
 		assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 		assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET result_revision = ? WHERE operation_id = ?;", [original.revision, original.operation_id]).outcome, "ok")
+
+
+func test_final_receipt_constraint_rolls_back_grant_and_claim_revision() -> void:
+	assert_eq(_store.query("CREATE TABLE permission_operation_receipts (actor_scope TEXT NOT NULL, operation_id TEXT NOT NULL CHECK(operation_id <> 'reject-final-audit'), request_fingerprint TEXT NOT NULL, request_json TEXT NOT NULL, result_revision INTEGER NOT NULL, target_id TEXT NOT NULL, PRIMARY KEY(actor_scope, operation_id));").outcome, "ok")
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var intent: Dictionary = {"schema_version": 1, "operation_id": "reject-final-audit", "plot_id": "plot-one", "expected_revision": 1, "action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1}
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.apply_permit("owner-one", intent).outcome, "transaction_failed")
+	var observation: Dictionary = _store.dml_statement_counters()
+	assert_eq(observation.observation_status, "OBSERVED")
+	assert_eq(observation.totals.attempted, {"insert": 2, "replace": 0, "update": 1, "delete": 0})
+	assert_eq(observation.totals.committed, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(observation.totals.rolled_back, {"insert": 1, "replace": 0, "update": 1, "delete": 0})
+	assert_eq(observation.totals.failed, {"insert": 1, "replace": 0, "update": 0, "delete": 0})
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	assert_eq(authority.get_claim("plot-one").claim.claim_revision, 1)
+	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "permission_denied")
+	assert_eq(_store.query("SELECT operation_id FROM permission_operation_receipts;").rows, [{"operation_id": "provision-one"}])
+	intent.operation_id = "healthy-after-rollback"
+	assert_eq(authority.apply_permit("owner-one", intent).outcome, "ok")
+	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "ok")
+
+
+func test_faction_access_requires_both_explicit_named_role_and_current_membership() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(authority.update_memberships("crafter-one", [{"kind": "faction_role", "id": "faction-one", "role": "artisan"}], 0, "join-artisans").outcome, "ok")
+	assert_eq(authority.update_memberships("guard-one", [{"kind": "faction_role", "id": "faction-one", "role": "guard"}], 0, "join-guards").outcome, "ok")
+	assert_eq(authority.begin_interaction("crafter-one", "plot-one", 9).outcome, "permission_denied")
+	assert_eq(authority.apply_permit("owner-one", {"schema_version": 1, "operation_id": "grant-artisans", "plot_id": "plot-one", "expected_revision": 1, "action": "grant", "subject": {"kind": "faction_role", "id": "faction-one", "role": "artisan"}, "permission_bits": 9}).outcome, "ok")
+	assert_eq(authority.begin_interaction("guard-one", "plot-one", 9).outcome, "permission_denied")
+	var started: Dictionary = authority.begin_interaction("crafter-one", "plot-one", 9)
+	assert_eq(started.outcome, "ok")
+	assert_eq(authority.update_memberships("crafter-one", [{"kind": "faction_role", "id": "faction-one", "role": "guard"}], 1, "change-role").outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.commit_interaction("crafter-one", started.interaction_id, func() -> bool: return true).outcome, "stale_authority")
+	assert_eq(authority.begin_interaction("crafter-one", "plot-one", 9).outcome, "permission_denied")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_explicit_steward_cannot_delegate_or_remove_rights_it_does_not_hold() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var grant: Dictionary = {"schema_version": 1, "operation_id": "grant-steward", "plot_id": "plot-one", "expected_revision": 1, "action": "grant", "subject": {"kind": "character", "id": "steward-one", "role": ""}, "permission_bits": 33}
+	assert_eq(authority.apply_permit("owner-one", grant).outcome, "ok")
+	grant.operation_id = "grant-builder"
+	grant.expected_revision = 2
+	grant.subject.id = "builder-one"
+	grant.permission_bits = 4
+	assert_eq(authority.apply_permit("owner-one", grant).outcome, "ok")
+	grant.operation_id = "steal-build"
+	grant.expected_revision = 3
+	grant.subject.id = "steward-one"
+	grant.permission_bits = 37
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.apply_permit("steward-one", grant).outcome, "permission_denied")
+	assert_eq(authority.apply_permit("steward-one", {"schema_version": 1, "operation_id": "remove-builder", "plot_id": "plot-one", "expected_revision": 3, "action": "revoke", "subject": {"kind": "character", "id": "builder-one", "role": ""}}).outcome, "permission_denied")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	grant.operation_id = "delegate-entry"
+	grant.subject.id = "visitor-one"
+	grant.permission_bits = 1
+	assert_eq(authority.apply_permit("steward-one", grant).outcome, "ok")
+	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "ok")
+	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 4).outcome, "permission_denied")
