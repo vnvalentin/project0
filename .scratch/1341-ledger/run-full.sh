@@ -23,6 +23,9 @@ python3 .scratch/1341-ledger/evidence_guard.py start "$result"
 set +e
 timeout --kill-after=15s 900s godot --headless --editor --path . --import --quit > "$result/import.log" 2>&1
 import_exit=$?
+set -e
+python3 .scratch/1341-ledger/evidence_guard.py qualify-import "$result" "$import_exit"
+set +e
 RESULT_DIR="$result" GUT_TIMEOUT_SECONDS=900 bash scripts/run_gut_validation.sh > "$result/full-runner.log" 2>&1
 suite_exit=$?
 bash scripts/check_record_sync.sh > "$result/record-sync.log" 2>&1
