@@ -194,6 +194,13 @@ states `Outcome:`, `Included issues:`, `Complete when:`, and `Dependency:` under
 a `### Slice M<N>.<n>: Name` heading. Keep issue milestone assignment and this
 mapping consistent. Shared context belongs in references, not duplicate work.
 
+Milestone descriptions have no `## Shared Context` section (user rule,
+[#1400](https://github.com/vnvalentin/project0/issues/1400)). An issue assigned
+to the milestone that relates to several slices is listed once, under
+`Included issues:` of the first slice it relates to. Context from outside the
+milestone, such as a Vision, Theme or roadmap decision, is cited on the first
+slice it relates to in a `Context:` line; that is a reference, not membership.
+
 An **issue** owns a bounded problem or work item, its acceptance criteria,
 evidence, owner, blockers and resolution. Reuse suitable existing issues; a
 slice group does not require a new wrapper issue or a particular issue label.
