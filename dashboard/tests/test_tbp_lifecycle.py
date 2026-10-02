@@ -307,8 +307,6 @@ Outcome: Verified update.
 Included issues:
 - #9
 Complete when: Update acceptance passes.
-## Shared Context
-- #10 Release continuity
 ## Required Scope Awaiting Slice Definition
 - Controller parity remains required.
 """
@@ -332,7 +330,8 @@ Complete when: Update acceptance passes.
     assert 'data-slice-id="A1"' in page
     assert 'data-slice-id="A2"' in page
     assert "Trusted First Install" in page and "Windows acceptance passes." not in page
-    assert "Shared context" in page and "Release continuity" in page
+    assert "Shared Context sections are not allowed" not in page
+    assert "Unmapped milestone work (3)" in page and "Release continuity" in page
     assert "Unmapped milestone work" in page and "Input parity" in page
     assert "Required scope awaiting Slice definition" in page
     assert "Controller parity remains required." in page
@@ -562,7 +561,27 @@ def test_bands_fenced_examples_and_other_sections_are_not_membership(monkeypatch
     page = _mapped_bands_page(monkeypatch, description, members)
     assert page.count('class="milestone-slice"') == 1
     assert "Slice delivery: 0/1 complete" in page
+    assert "Unmapped milestone work (2)" in page
+
+
+def test_bands_shared_context_section_is_a_mapping_warning_not_an_exemption(monkeypatch):
+    description = "Outcome: Safe entry.\n## Slice Mapping\n" + _mapped_slice_definition() + "## Shared Context\n- #9 Parent theme\n"
+    members = [{**_roadmap_issue(number, f"Issue {number}", []), "milestone_number": 1, "state": "closed"} for number in (7, 9)]
+    page = _mapped_bands_page(monkeypatch, description, members)
+    assert "Shared Context sections are not allowed" in page
+    assert "Unresolved scope or mapping requires attention." in page
     assert "Unmapped milestone work (1)" in page
+
+
+def test_slice_context_line_is_shown_without_creating_membership(monkeypatch):
+    definition = _mapped_slice_definition(evidence="Context: #495 Vision and authority boundaries.")
+    members = [{**_roadmap_issue(7, "Issue 7", []), "milestone_number": 1, "state": "closed"}]
+    _mapped_bands_page(monkeypatch, "Outcome: Safe entry.\n## Slice Mapping\n" + definition, members)
+    detail = render_roadmap(milestone_number="1", slice_id="A1")
+    assert "<dt>Context</dt><dd>#495 Vision and authority boundaries.</dd>" in detail
+    assert "Vision" not in detail.split("Included issues", 1)[1]
+    page = render_roadmap("delivery-a")
+    assert "Unresolved scope or mapping requires attention." not in page
 
 
 def test_bands_no_definition_does_not_infer_slices_from_labels(monkeypatch):
