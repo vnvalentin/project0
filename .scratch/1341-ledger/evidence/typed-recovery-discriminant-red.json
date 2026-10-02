@@ -1,0 +1,21 @@
+{
+  "status": "failed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "72d123000bbc6a2e6a6827d87df2b1b0cde9b5c5",
+  "command": "bash .scratch/1341-ledger/run-focused.sh typed-recovery-discriminant-red",
+  "import_exit": 0,
+  "exit_code": 1,
+  "script_errors_observed": false,
+  "selected_scripts_ran": 1,
+  "tests": 15,
+  "failures": 2,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "c85eec4b39dc051cb87ca13aebc686a3834b494c9573d4daa8702545de9b1921",
+    "tests/integration/test_item_ledger_repository.gd": "8c001fe11d43d369eef5184223da90a040d95ed8596a92d963e7b3d9b4957e6b",
+    ".scratch/1341-ledger/run-focused.sh": "dd9dc282b6b2173373c95ca8fe4f73acfda180ba884e54cb71343cae1bb12866"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/typed-recovery-discriminant-red"
+}

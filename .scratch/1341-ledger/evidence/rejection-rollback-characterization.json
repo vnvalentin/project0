@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "55874bc749a96d21180334dba5ddd12289104fb6",
+  "command": "bash .scratch/1341-ledger/run-focused.sh rejection-rollback-characterization",
+  "import_exit": 0,
+  "exit_code": 0,
+  "script_errors_observed": false,
+  "selected_scripts_ran": 1,
+  "tests": 10,
+  "failures": 0,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "e717710432b02ac865cf0ddc35eab357da638ca331d1f53c95fab946d35aa421",
+    "tests/integration/test_item_ledger_repository.gd": "c6e4cd6e5007ab10589ae4e131f0860c07aba1ad87ebe2fd734eb4c3467c207b",
+    ".scratch/1341-ledger/run-focused.sh": "dd9dc282b6b2173373c95ca8fe4f73acfda180ba884e54cb71343cae1bb12866"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/rejection-rollback-characterization"
+}
