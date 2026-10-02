@@ -439,6 +439,74 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(metadata["baseline"], "a" * 40)
                 self.assertIn(("git", "merge-base", "--is-ancestor", "a" * 40, "b" * 40), [call.args for call in commands.call_args_list])
 
+    def test_pull_request_metadata_uses_rest_and_preserves_source_identity(self):
+        candidate = "a" * 40
+        approved = "b" * 40
+        pull = {
+            "state": "open",
+            "head": {"sha": candidate, "repo": {"full_name": "owner/repo"}},
+            "base": {"sha": approved, "ref": "main", "repo": {"full_name": "owner/repo"}},
+            "labels": [{"name": "bug"}, {"name": "technical-debt"}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            event = Path(temporary) / "event.json"
+            event.write_text(json.dumps({"number": 42, "pull_request": {"head": {"sha": candidate}}}))
+            environment = {
+                "GITHUB_EVENT_PATH": str(event), "GITHUB_REPOSITORY": "owner/repo",
+                "GITHUB_SHA": candidate, "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/42/merge",
+            }
+            with patch.dict(self.routing.os.environ, environment), patch.object(self.routing.sys, "platform", "win32"), \
+                    patch.object(self.routing, "git_tree", return_value={"server/main.gd": "1" * 40}), \
+                    patch.object(self.routing, "command", side_effect=[candidate, approved, json.dumps(pull), ""]) as commands:
+                metadata = self.routing.metadata_from_event()
+
+        self.assertEqual(metadata["candidate"], candidate)
+        self.assertEqual(metadata["baseline"], approved)
+        self.assertEqual(metadata["labels"], ["bug", "technical-debt"])
+        calls = [call.args for call in commands.call_args_list]
+        self.assertIn(("gh", "api", "repos/owner/repo/pulls/42"), calls)
+        self.assertFalse(any(call[:2] == ("gh", "pr") for call in calls))
+
+    def test_pull_request_metadata_rejects_unapproved_rest_identity_before_tree_read(self):
+        candidate = "a" * 40
+        approved = "b" * 40
+        pull = {
+            "state": "open",
+            "head": {"sha": candidate, "repo": {"full_name": "owner/repo"}},
+            "base": {"sha": approved, "ref": "main", "repo": {"full_name": "owner/repo"}},
+            "labels": [],
+        }
+        invalid_pulls = []
+        for path, key, value in (
+            ((), "state", "closed"),
+            (("head",), "sha", "c" * 40),
+            (("head", "repo"), "full_name", "fork/repo"),
+            (("base",), "sha", "c" * 40),
+            (("base",), "ref", "release"),
+            (("base", "repo"), "full_name", "other/repo"),
+        ):
+            changed = copy.deepcopy(pull)
+            target = changed
+            for part in path:
+                target = target[part]
+            target[key] = value
+            invalid_pulls.append(changed)
+
+        for changed in invalid_pulls:
+            with self.subTest(pull=changed), tempfile.TemporaryDirectory() as temporary:
+                event = Path(temporary) / "event.json"
+                event.write_text(json.dumps({"number": 42, "pull_request": {"head": {"sha": candidate}}}))
+                environment = {
+                    "GITHUB_EVENT_PATH": str(event), "GITHUB_REPOSITORY": "owner/repo",
+                    "GITHUB_SHA": candidate, "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/42/merge",
+                }
+                with patch.dict(self.routing.os.environ, environment), patch.object(self.routing.sys, "platform", "win32"), \
+                        patch.object(self.routing, "git_tree") as trees, \
+                        patch.object(self.routing, "command", side_effect=[candidate, approved, json.dumps(changed)]):
+                    with self.assertRaisesRegex(ValueError, "stale, foreign, or unapproved PR source identity"):
+                        self.routing.metadata_from_event()
+                    trees.assert_not_called()
+
     def test_image_sources_reject_unapproved_main_history_before_tree_read(self):
         for event_name, ref in [("workflow_dispatch", "refs/heads/main"), ("push", "refs/tags/v1.0.0")]:
             with self.subTest(event=event_name), tempfile.TemporaryDirectory() as temporary:
