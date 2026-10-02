@@ -62,9 +62,10 @@ experience.
 - [ ] M4.1 records a complete, repeatable workload baseline and classifies
   capacity and isolation findings, including timing for the existing Canon-read
   path.
-- [ ] M4.2 evaluates unilateral, concurrent multi-entity, and in-flight
-  interaction crossings against the single-runtime reference and proves
-  rejected requests are write-free.
+- [ ] M4.2 evaluates unilateral, concurrent multi-entity, and supported
+  synchronous interaction boundary cases against the single-runtime reference,
+  proves rejected requests are write-free, and explicitly lists unsupported
+  gameplay fields without inventing values.
 - [ ] M4.3 records a reviewed decision and ADR. If one runtime passes, the
   containerized single-runtime increment passes the complete baseline. If
   evidence justifies process boundaries, the deployable architecture defines
@@ -112,12 +113,21 @@ read assumption is not evidence.
 ### Boundary and Canon Evidence
 
 Evaluate unilateral character crossing with active spatial references,
-concurrent multi-entity crossings, and in-flight uncommitted interaction
-transfer against the single-runtime reference. Match the exact raw canonical
-JSON blueprint and ordered committed mutation records plus reconstructed
-authoritative entity state: coordinates/transforms, entity GUIDs and structure
-anchor IDs, permanent state bitfields (`UNLOCKED`, `REPAIRED`, `CLAIMED`), static
-collider bounds, and occupancy bitmasks.
+concurrent multi-entity crossings, and supported synchronous spatial interaction
+at an adjacent-sector boundary against the single-runtime reference. Match the
+exact raw canonical JSON blueprint and ordered committed mutation records plus
+supported reconstructed authoritative entity state: coordinates/transforms,
+entity GUIDs and structure anchor IDs, unlocked state, destroyed-structure
+removal, static collision footprints/bounds, and deterministic occupancy encoding
+from the authoritative blocked-cell query.
+
+The user clarified on 2026-10-02 that this is an evaluation of supported runtime
+state. Repair/claim flags, retained in-flight tether or line-of-sight-lock transfer,
+and absent native persisted occupancy bitmasks must be explicitly reported as
+unsupported in the results and ADR. Do not infer false values or build fixture-only
+gameplay to satisfy them. These missing gameplay capabilities do not block M4
+closure; missing evidence for supported behavior still fails closed. The workload,
+timing, isolation, zero-write, cleanup, and container-package gates are unchanged.
 
 The current physical Canon tables are `canon_sectors` and `canon_mutations`.
 Compare actual schema fields and ordered revision data; do not use the former
