@@ -17,6 +17,22 @@ class BaselineReportTests(unittest.TestCase):
         mutated = source.replace('func _m4_poll_workers() -> void:', 'func _m4_poll_workers() -> void:\n\tWorkerThreadPool.wait_for_task_completion(1)')
         self.assertFalse(audit_worker_probe(mutated)['passed'])
 
+    def test_incomplete_and_nonfinite_tick_data_never_passes(self):
+        observation = {'configured_tick_rate': 30, 'elapsed_seconds': 1000 / 30,
+                       'crossings': [{}] * 100, 'canon_reads': [{'duration_usec': 50}], 'errors': [],
+                       'isolation': dict.fromkeys(('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed'), True),
+                       'samples': [{'tick': tick, 'duration_ms': 1.0, 'peers': 10, 'sectors': 4, 'npcs': 10, 'bodies': 15, 'triggers': 15} for tick in range(1000)]}
+        self.assertTrue(evaluate(observation, True)['passed'])
+        observation['samples'][500]['duration_ms'] = float('nan')
+        self.assertFalse(evaluate(observation, True)['passed'])
+        observation['samples'][500]['duration_ms'] = 1.0
+        observation['samples'][500]['tick'] = 499
+        self.assertFalse(evaluate(observation, True)['passed'])
+        observation['samples'][500]['tick'] = 500
+        self.assertFalse(evaluate(observation, False)['passed'])
+        observation['samples'].pop()
+        self.assertFalse(evaluate(observation, True)['passed'])
+
 if __name__ == '__main__':
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(BaselineReportTests)
     result = unittest.TextTestRunner(verbosity=2).run(suite)

@@ -21,11 +21,12 @@
       "suite": "m4-baseline",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "python3 scripts/run_m4_baseline.py --ticks 1000",
+      "command": "python3 scripts/run_m4_baseline.py --server-image sha256:937e863ee7288d569ce0d5a74d3d118f28e64e17056f7f9aac24fd40ee25cdec --ticks 1000",
       "dependencies": [
         "godot",
         "sqlite",
-        "python"
+        "python",
+        "docker"
       ],
       "tests": [
         "scripts/run_m4_baseline.py",

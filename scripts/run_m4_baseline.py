@@ -73,7 +73,7 @@ def main():
     report_path = ROOT / 'logs/experiments' / ('exp_m4_1_baseline_' + stamp + '.json')
     report = {'issue': 1376, 'kind': 'smoke' if args.ticks == 60 else 'baseline',
               'started_utc': stamp, 'host': socket.gethostname(), 'requested_ticks': args.ticks,
-              'command': ['python3', 'scripts/run_m4_baseline.py', '--ticks', str(args.ticks)],
+              'command': ['python3', 'scripts/run_m4_baseline.py', '--ticks', str(args.ticks), '--server-image', args.server_image],
               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True)),
               'engine': None,
@@ -221,8 +221,11 @@ def main():
         if private is not None:
             (private / 'stop').touch(exist_ok=True)
         if container_created:
-            subprocess.run(['docker', 'stop', '--time', '3', container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
-            subprocess.run(['docker', 'rm', '-f', container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            for command in (['docker', 'stop', '--time', '3', container_name], ['docker', 'rm', '-f', container_name]):
+                try:
+                    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+                except (OSError, subprocess.SubprocessError):
+                    report['errors'].append('container_cleanup_command_failed')
         for process in owned:
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -245,7 +248,11 @@ def main():
                 shutil.rmtree(private)
             except OSError:
                 report['errors'].append('private_cleanup_failed')
-        container_absent = subprocess.run(['docker', 'container', 'inspect', '--format', '{{.Id}}', container_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0
+        try:
+            inventory = subprocess.run(['docker', 'container', 'ls', '--all', '--filter', 'name=^/' + container_name + '$', '--format', '{{.Names}}'], capture_output=True, text=True, timeout=10)
+            container_absent = inventory.returncode == 0 and not inventory.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            container_absent = False
         cleanup = container_absent and all(process.poll() is not None for process in owned) and (private is None or not private.exists())
         report['cleanup'] = {'container_removed': container_absent, 'processes_stopped': all(p.poll() is not None for p in owned),
                              'private_tree_removed': private is None or not private.exists(), 'verified': cleanup}

@@ -1,166 +1,84 @@
 {
   "schema_version": 1,
   "hosts": {
-    "linux": [
-      "192.168.1.254",
-      "github-actions-linux"
-    ],
-    "windows": [
-      "SETSUJOKU",
-      "github-actions-windows"
-    ]
+    "linux": ["192.168.1.254", "github-actions-linux"],
+    "windows": ["SETSUJOKU", "github-actions-windows"]
   },
-  "test_roots": [
-    "tests",
-    "scripts",
-    "infra",
-    "dashboard",
-    "operator_console",
-    "native"
-  ],
-  "server_data_exceptions": [
-    "server/starting_town_hub_fixture.gd"
-  ],
-  "server_dependencies": [
-    "sqlite",
-    "canon",
-    "ollama"
-  ],
+  "test_roots": ["tests", "scripts", "infra", "dashboard", "operator_console", "native"],
+  "server_data_exceptions": ["server/starting_town_hub_fixture.gd"],
+  "server_dependencies": ["sqlite", "canon", "ollama"],
   "suites": {
     "godot-server": {
       "platform": "linux",
       "owner": "linux-server",
-      "dependencies": [
-        "godot",
-        "sqlite"
-      ],
+      "dependencies": ["godot", "sqlite"],
       "runner": "scripts/run_gut_validation.sh",
-      "tests": [
-        "tests/unit/test_*.gd",
-        "tests/integration/test_*.gd",
-        "scripts/test_*.gd",
-        "scripts/paired_server_fixture.gd"
-      ],
+      "tests": ["tests/unit/test_*.gd", "tests/integration/test_*.gd", "scripts/test_*.gd", "scripts/paired_server_fixture.gd"],
       "evidence": "supporting-headless"
     },
     "linux-services": {
       "platform": "linux",
       "owner": "linux-server",
-      "dependencies": [
-        "python",
-        "sqlite"
-      ],
+      "dependencies": ["python", "sqlite"],
       "runner": "python -m pytest infra/enrollment/tests infra/operator/tests dashboard/tests operator_console/tests",
-      "tests": [
-        "infra/*/tests/test_*.py",
-        "dashboard/tests/test_*.py",
-        "operator_console/tests/test_*.py"
-      ],
+      "tests": ["infra/*/tests/test_*.py", "dashboard/tests/test_*.py", "operator_console/tests/test_*.py"],
       "evidence": "supporting-component"
     },
     "linux-tooling": {
       "platform": "linux",
       "owner": "linux-tooling",
-      "dependencies": [
-        "python"
-      ],
+      "dependencies": ["python"],
       "runner": "python scripts/test_validation_ownership.py",
-      "tests": [
-        "scripts/test_*.py"
-      ],
+      "tests": ["scripts/test_*.py"],
       "evidence": "supporting-component"
     },
     "linux-shell": {
       "platform": "linux",
       "owner": "linux-tooling",
-      "dependencies": [
-        "bash"
-      ],
+      "dependencies": ["bash"],
       "runner": "bash <selected shell test>",
-      "tests": [
-        "scripts/test_runner_admission.sh",
-        "scripts/test_deploy_containers.sh",
-        "scripts/test_check_record_sync.sh"
-      ],
+      "tests": ["scripts/test_runner_admission.sh", "scripts/test_deploy_containers.sh", "scripts/test_check_record_sync.sh"],
       "evidence": "supporting-component"
     },
     "linux-container-tooling": {
       "platform": "linux",
       "owner": "linux-tooling",
-      "dependencies": [
-        "bash",
-        "docker",
-        "python"
-      ],
+      "dependencies": ["bash", "docker", "python"],
       "runner": "bash scripts/test_hosted_gut_container.sh",
-      "tests": [
-        "scripts/test_hosted_gut_container.sh"
-      ],
+      "tests": ["scripts/test_hosted_gut_container.sh"],
       "evidence": "supporting-component"
     },
     "windows-fixture": {
       "platform": "windows",
       "owner": "windows-tooling",
-      "dependencies": [
-        "go"
-      ],
+      "dependencies": ["go"],
       "runner": "go test scripts/generate_1100_fixture.go scripts/generate_1100_fixture_test.go",
-      "tests": [
-        "scripts/*_test.go"
-      ],
+      "tests": ["scripts/*_test.go"],
       "evidence": "supporting-component"
     },
     "windows-client": {
       "platform": "windows",
       "owner": "windows-client",
-      "dependencies": [
-        "godot-client",
-        "powershell"
-      ],
+      "dependencies": ["godot-client", "powershell"],
       "runner": "Windows owner selects an approved standalone package or client-only harness",
-      "tests": [
-        "scripts/test_*.ps1",
-        "scripts/check_windows_client_package.ps1",
-        "scripts/verify_standalone_package.ps1",
-        "scripts/run_paired_validation.ps1",
-        "scripts/run_shared_exploration_validation.ps1",
-        "scripts/run_coop_combat_validation.ps1",
-        "scripts/windows_shared_exploration_client.gd",
-        "scripts/windows_coop_combat_client.gd",
-        "scripts/windows_character_sheet_client.gd",
-        "scripts/client_package_inventory.gd",
-        "tests/fixtures/windows_client_packages.gd"
-      ],
+      "tests": ["scripts/test_*.ps1", "scripts/check_windows_client_package.ps1", "scripts/verify_standalone_package.ps1", "scripts/run_paired_validation.ps1", "scripts/run_shared_exploration_validation.ps1", "scripts/run_coop_combat_validation.ps1", "scripts/windows_shared_exploration_client.gd", "scripts/windows_coop_combat_client.gd", "scripts/windows_character_sheet_client.gd", "scripts/client_package_inventory.gd", "tests/fixtures/windows_client_packages.gd"],
       "evidence": "client-only-not-server-proof"
-    },
-    "windows-launcher": {
-      "platform": "windows",
-      "owner": "windows-launcher",
-      "dependencies": [
-        "go",
-        "powershell"
-      ],
-      "runner": "scripts/run_windows_launcher_validation.ps1",
-      "tests": [
-        "native/windows_launcher/*_test.go"
-      ],
-      "evidence": "launcher-only-not-gameplay-proof"
     },
     "m4-baseline": {
       "platform": "linux",
       "owner": "linux-server",
-      "dependencies": [
-        "godot",
-        "sqlite",
-        "python"
-      ],
-      "runner": "python3 scripts/run_m4_baseline.py",
-      "tests": [
-        "scripts/run_m4_baseline.py",
-        "scripts/m4_load_server.gd",
-        "scripts/m4_load_peer.gd"
-      ],
+      "dependencies": ["godot", "sqlite", "python", "docker"],
+      "runner": "python3 scripts/run_m4_baseline.py --server-image <immutable-image-id>",
+      "tests": ["scripts/run_m4_baseline.py", "scripts/m4_load_server.gd", "scripts/m4_load_peer.gd"],
       "evidence": "supporting-real-headless-load"
+    },
+    "windows-launcher": {
+      "platform": "windows",
+      "owner": "windows-launcher",
+      "dependencies": ["go", "powershell"],
+      "runner": "scripts/run_windows_launcher_validation.ps1",
+      "tests": ["native/windows_launcher/*_test.go"],
+      "evidence": "launcher-only-not-gameplay-proof"
     }
   }
 }
