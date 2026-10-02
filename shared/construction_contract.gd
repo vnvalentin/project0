@@ -10,6 +10,12 @@ const REQUEST_FIELDS: PackedStringArray = [
 ]
 
 
+const REQUEST_VERBS: PackedStringArray = [
+	"PLACE", "REMOVE", "ROTATE", "ANCHOR", "CONNECT", "REPAIR",
+	"UPGRADE", "CLAIM", "PERMIT", "BLUEPRINT", "MEASURE", "INSPECT",
+]
+
+
 static func parse_client_request(raw: Variant) -> Dictionary:
 	if not (raw is Dictionary):
 		return {"outcome": "invalid_request", "detail": "request must be an object", "request": null}
@@ -19,6 +25,8 @@ static func parse_client_request(raw: Variant) -> Dictionary:
 	for key: Variant in data:
 		if not (key is String) or not REQUEST_FIELDS.has(key):
 			return {"outcome": "invalid_request", "detail": "request keys must be strings", "request": null}
+	if not (data["verb"] is String) or not REQUEST_VERBS.has(data["verb"]):
+		return {"outcome": "invalid_request", "detail": "verb must belong to the closed request set", "request": null}
 	if not (data["orientation_degrees"] is int or data["orientation_degrees"] is float):
 		return {"outcome": "invalid_request", "detail": "orientation must be numeric", "request": null}
 	var request: Dictionary = data.duplicate(true)
