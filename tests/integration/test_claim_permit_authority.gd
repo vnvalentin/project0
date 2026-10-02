@@ -492,3 +492,55 @@ func test_corrupt_claim_and_membership_state_rejects_without_repair_writes() -> 
 	assert_eq(authority.update_memberships("member-one", [], 1, "do-not-repair").outcome, "invalid_persisted_state")
 	assert_eq(_store.query("SELECT subject_id FROM permission_memberships ORDER BY subject_id;").rows, [{"subject_id": "first"}, {"subject_id": "second"}])
 	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_closed_store_raw_transaction_and_restarted_handles_fail_closed() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("owner-one", "plot-one", 1)
+	assert_eq(_store.query("BEGIN;").outcome, "ok")
+	assert_false(_store.is_managed_transaction_active(), "arbitrary raw BEGIN does not establish the managed action boundary")
+	assert_eq(authority.authorize_commit("owner-one", started.interaction_id).outcome, "transaction_required")
+	assert_eq(_store.query("ROLLBACK;").outcome, "ok")
+	var abandoned: Dictionary = {"outcome": "not_called"}
+	assert_eq(_store.transaction(func() -> bool:
+		assert_true(_store.is_managed_transaction_active())
+		assert_eq(_store.query("ROLLBACK;").outcome, "ok")
+		assert_false(_store.is_managed_transaction_active(), "ended native transaction cannot authorize a commit")
+		abandoned.outcome = authority.authorize_commit("owner-one", started.interaction_id).outcome
+		return false
+	).outcome, "transaction_failed")
+	assert_eq(abandoned.outcome, "transaction_required")
+	_store.close()
+	assert_false(_store.is_managed_transaction_active())
+	assert_eq(authority.ensure_schema().outcome, "not_open")
+	assert_eq(authority.get_claim("plot-one").outcome, "not_open")
+	assert_eq(authority.begin_interaction("owner-one", "plot-one", 1).outcome, "not_open")
+	var absent: RefCounted = authority_script.new(null)
+	assert_eq(absent.ensure_schema().outcome, "not_open")
+	assert_eq(absent.register_claim("plot-one", "owner-one", "provision-one").outcome, "not_open")
+	assert_eq(absent.update_memberships("owner-one", [], 0, "membership-one").outcome, "not_open")
+	assert_eq(absent.apply_permit("owner-one", {}).outcome, "not_open")
+	assert_eq(absent.transfer_claim("owner-one", {}).outcome, "not_open")
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	assert_eq(authority.commit_interaction("owner-one", started.interaction_id, func() -> bool: return true).outcome, "interaction_not_found", "server interaction handles are never persisted")
+	assert_eq(authority.begin_interaction("owner-one", "plot-one", 1).outcome, "ok")
+
+
+func test_membership_set_order_does_not_change_an_accepted_operation() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	var members: Array = [{"kind": "party", "id": "party-one", "role": ""}, {"kind": "faction_role", "id": "faction-one", "role": "artisan"}]
+	var original: Dictionary = authority.update_memberships("member-one", members, 0, "one-membership-set")
+	assert_eq(original.outcome, "ok")
+	members.reverse()
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var replay: Dictionary = authority.update_memberships("member-one", members, 0, "one-membership-set")
+	assert_eq(replay.outcome, "duplicate_rejected")
+	assert_eq(replay.get("original_result"), original)
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
