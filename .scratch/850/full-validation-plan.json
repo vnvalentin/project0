@@ -43,6 +43,7 @@
         "tests/integration/test_login_gateway_assertions.gd",
         "tests/integration/test_login_loopback_http_endpoint.gd",
         "tests/integration/test_login_runtime.gd",
+        "tests/integration/test_m4_boundary_parity.gd",
         "tests/integration/test_mind_tool_interaction.gd",
         "tests/integration/test_monster_damages_player.gd",
         "tests/integration/test_monster_replication.gd",
