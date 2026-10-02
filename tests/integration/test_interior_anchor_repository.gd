@@ -52,7 +52,7 @@ func test_server_anchor_resolves_and_recovers_after_reopen() -> void:
 	assert_not_null(repository_script, "The server anchor repository public seam must exist")
 	if repository_script == null:
 		return
-	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	var repository: RefCounted = repository_script.new(_store)
 	assert_eq(repository.ensure_schema()["outcome"], "ok")
 	var descriptor: Dictionary = _descriptor()
 	var registered: Dictionary = repository.register_anchor(descriptor)
@@ -73,7 +73,7 @@ func test_server_anchor_resolves_and_recovers_after_reopen() -> void:
 	assert_eq(_store.open(_path)["outcome"], "ok")
 	_canon = CanonScript.new(_store)
 	_mutations = MutationsScript.new(_store, _canon)
-	repository = repository_script.new(_store, _canon, _mutations)
+	repository = repository_script.new(_store)
 	assert_eq(repository.get_anchor(anchor["interior_id"])["anchor"].to_dict(), anchor)
 	assert_eq(repository.resolve_entry(_intent())["anchor"].to_dict(), anchor)
 	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
@@ -103,7 +103,7 @@ func _intent() -> Dictionary:
 
 func test_registration_replay_and_conflict_preserve_retained_anchor() -> void:
 	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
-	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	var repository: RefCounted = repository_script.new(_store)
 	assert_eq(repository.ensure_schema()["outcome"], "ok")
 	var first: Dictionary = repository.register_anchor(_descriptor())
 	assert_eq(first["outcome"], "ok")
@@ -132,7 +132,7 @@ func test_real_second_insert_failure_leaves_no_anchor_after_reopen() -> void:
 	""")["outcome"], "ok")
 	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
 	var contract_script: Script = load("res://shared/interior_anchor_contract.gd")
-	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	var repository: RefCounted = repository_script.new(_store)
 	assert_eq(repository.ensure_schema()["outcome"], "ok")
 	var interior_id: String = contract_script.parse_server_descriptor(_descriptor())["anchor"].interior_id
 	assert_eq(repository.register_anchor(_descriptor())["outcome"], "transaction_failed")
@@ -143,7 +143,7 @@ func test_real_second_insert_failure_leaves_no_anchor_after_reopen() -> void:
 	assert_eq(_store.open(_path)["outcome"], "ok")
 	_canon = CanonScript.new(_store)
 	_mutations = MutationsScript.new(_store, _canon)
-	repository = repository_script.new(_store, _canon, _mutations)
+	repository = repository_script.new(_store)
 	assert_eq(repository.get_anchor(interior_id)["outcome"], "not_found")
 	assert_eq(repository.resolve_entry(_intent())["outcome"], "not_found")
 	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
@@ -151,7 +151,7 @@ func test_real_second_insert_failure_leaves_no_anchor_after_reopen() -> void:
 
 func test_missing_and_destroyed_exterior_references_do_not_register() -> void:
 	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
-	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	var repository: RefCounted = repository_script.new(_store)
 	assert_eq(repository.ensure_schema()["outcome"], "ok")
 	var missing_sector: Dictionary = _descriptor()
 	missing_sector["exterior_sector_id"] = "sector-9-9"
@@ -178,9 +178,9 @@ func test_separate_store_canon_cannot_qualify_registration() -> void:
 	assert_eq(other_canon.ensure_schema()["outcome"], "ok")
 	assert_eq(other_mutations.ensure_schema()["outcome"], "ok")
 	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
-	# Current injected seam permits the dangerous miscomposition; next cycle
-	# removes the injected Canon/mutation arguments rather than trusting callers.
-	var repository: RefCounted = repository_script.new(_other_store, _canon, _mutations)
+	# Canon exists only in the first store; the repository binds all reads
+	# to the empty second store through its one-store public constructor.
+	var repository: RefCounted = repository_script.new(_other_store)
 	assert_eq(repository.ensure_schema()["outcome"], "ok")
 	assert_eq(repository.register_anchor(_descriptor())["outcome"], "orphan_anchor")
 	assert_eq(repository.resolve_entry(_intent())["outcome"], "orphan_anchor")

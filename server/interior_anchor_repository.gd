@@ -5,16 +5,18 @@ class_name InteriorAnchorRepository
 const Contract: Script = preload("res://shared/interior_anchor_contract.gd")
 const Guid: Script = preload("res://shared/canon_entity_guid.gd")
 const Resolver: Script = preload("res://shared/canon_sector_resolver.gd")
+const Canon: Script = preload("res://server/canon_repository.gd")
+const Mutations: Script = preload("res://server/canon_mutation_repository.gd")
 
 var _store: SqliteStore
 var _canon: CanonRepository
 var _mutations: CanonMutationRepository
 
 
-func _init(store: SqliteStore, canon: CanonRepository, mutations: CanonMutationRepository) -> void:
+func _init(store: SqliteStore) -> void:
 	_store = store
-	_canon = canon
-	_mutations = mutations
+	_canon = Canon.new(store)
+	_mutations = Mutations.new(store, _canon)
 
 
 func ensure_schema() -> Dictionary:
