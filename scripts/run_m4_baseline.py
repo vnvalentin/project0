@@ -156,7 +156,7 @@ def main():
     report_path = ROOT / 'logs/experiments' / ('exp_m4_1_baseline_' + stamp + '.json')
     report = {'issue': 1376, 'kind': 'supported-load-measurement' if args.supported_load else ('smoke' if args.ticks == 60 else 'baseline'),
               'supported_load': args.supported_load,
-              'evaluation_scope': 'Supported capacity only; separate worker contention/isolation evidence required.' if args.supported_load else 'Includes fixture-selected 32-task CPU stress; this is not an observed production demand.',
+              'evaluation_scope': 'Supported capacity only; separate worker contention/isolation evidence required.' if args.supported_load else f'Includes {worker_count} fixture-selected synthetic worker tasks; this is not an observed production demand.',
               'started_utc': stamp, 'host': socket.gethostname(), 'requested_ticks': args.ticks,
               'diagnostic_workers': args.diagnostic_workers,
               'command': ['python3', 'scripts/run_m4_baseline.py', '--ticks', str(args.ticks), '--server-image', args.server_image],
