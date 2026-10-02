@@ -6,7 +6,7 @@
       "suite": "godot-server",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "XDG_DATA_HOME=<owned-run>/xdg timeout --kill-after=15s 900s godot --headless --import; XDG_DATA_HOME=<owned-run>/xdg timeout --kill-after=15s 180s godot --headless -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/integration/test_canon_write_accounting.gd -gjunit_xml_file=<owned-run>/gut.xml -gdisable_colors -gexit",
+      "command": "bash .scratch/1347-accounting/run-focused.sh <new-owned-run-id> (explicit single accounting test; isolated XDG; bounded import900/GUT180 seconds; finally cleanup)",
       "dependencies": [
         "godot",
         "sqlite"
