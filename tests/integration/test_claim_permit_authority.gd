@@ -116,3 +116,26 @@ func test_final_action_query_failure_rolls_back_and_cancel_releases_handle() -> 
 	var cancelled: Dictionary = authority.begin_interaction("owner-one", "plot-one", 2)
 	assert_eq(authority.cancel_interaction("owner-one", cancelled.interaction_id).outcome, "ok")
 	assert_eq(authority.commit_interaction("owner-one", cancelled.interaction_id, func() -> bool: return true).outcome, "interaction_not_found")
+
+
+func test_specific_commit_authorizer_requires_its_managed_transaction() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("owner-one", "plot-one", 1)
+	assert_true(authority.has_method("authorize_commit"), "closed item batches can use the specific final authorizer")
+	if not authority.has_method("authorize_commit"):
+		return
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.authorize_commit("owner-one", started.interaction_id).outcome, "transaction_required")
+	var check: Dictionary = {"outcome": "not_called"}
+	var transaction: Dictionary = _store.transaction(func() -> bool:
+		check.outcome = authority.authorize_commit("owner-one", started.interaction_id).outcome
+		return check.outcome == "ok"
+	)
+	assert_eq(check.outcome, "ok")
+	assert_eq(transaction.outcome, "ok")
+	var observation: Dictionary = _store.dml_statement_counters()
+	assert_eq(observation.observation_status, "OBSERVED")
+	assert_eq(observation.totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0}, "the authorizer only reads authority")

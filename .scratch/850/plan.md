@@ -32,3 +32,7 @@ First owner/visitor seam: RED one test failed on absent public seam; GREEN one t
 Explicit Party grant increment: RED two missing-method assertions; GREEN2/2 real SQLite public tests. Membership alone, a nonmember, and ungranted bits reject. Evidence build/validation/850/{red,green}-party-permit.{xml,log}. Final-commit checks and immutable audit receipts remain the next vertical increments.
 
 Final authority gate: RED one missing-seam assertion; GREEN5/5 public SQLite tests. Membership change after start returns stale_authority before the writer executes; cross-actor handle use, repeated completion, cancelled handles and ignored SQL failure are rejected/rolled back. Evidence build/validation/850/{red,green}-final-gate.{xml,log}. The callback is server-only, synchronous and uses the same store; nested transactions are explicitly unsupported.
+
+Batch composition refinement: closed item-operation batches may own the shared transaction and call authorize_commit(actor, server_handle), which requires SqliteStore.is_managed_transaction_active(), rechecks authority, consumes the actor-bound handle and performs no DML. commit_interaction remains a convenience for synchronous trusted server writers. No nesting or public arbitrary item/SQL mutation API is added.
+
+Batch authorizer RED missing specific seam; GREEN6/6 with direct-statement observation OBSERVED and all attempt counts zero for the authorization-only transaction. Outside managed transaction returns transaction_required. Evidence build/validation/850/{red,green}-batch-authorizer.{xml,log}.

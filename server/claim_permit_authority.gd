@@ -257,7 +257,31 @@ static func _exact_fields(value: Variant, fields: PackedStringArray) -> bool:
 ## transactions. Authenticated actor identity and the handle come from server
 ## interaction state. Grant and membership reads share the write transaction.
 func commit_interaction(actor_character_id: Variant, interaction_id: Variant, write_body: Callable) -> Dictionary:
-	if not _valid_id(actor_character_id) or not _valid_id(interaction_id) or not write_body.is_valid():
+	if not write_body.is_valid():
+		return _result("invalid_request")
+	if _store == null or not _store.is_open():
+		return _result("not_open")
+	var decision: Dictionary = _result("ok")
+	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var authorized: Dictionary = authorize_commit(actor_character_id, interaction_id)
+		if authorized.outcome != "ok":
+			decision.outcome = authorized.outcome
+			return false
+		var written: Variant = write_body.call()
+		return written is bool and written
+	)
+	return decision if decision.outcome != "ok" else _result(String(transaction.outcome))
+
+
+## Specific collaborator for closed item-operation batches. It performs only
+## authority reads and consumes a server-held handle. The caller owns the same
+## store's managed transaction and must abort it on any non-ok result.
+func authorize_commit(actor_character_id: Variant, interaction_id: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
+	if not _store.is_managed_transaction_active():
+		return _result("transaction_required")
+	if not _valid_id(actor_character_id) or not _valid_id(interaction_id):
 		return _result("invalid_request")
 	if not _interactions.has(interaction_id):
 		return _result("interaction_not_found")
@@ -265,22 +289,14 @@ func commit_interaction(actor_character_id: Variant, interaction_id: Variant, wr
 	if initial.actor_character_id != actor_character_id:
 		return _result("interaction_actor_mismatch")
 	_interactions.erase(interaction_id)
-	var decision: Dictionary = _result("ok")
-	var transaction: Dictionary = _store.transaction(func() -> bool:
-		var current: Dictionary = _permission_snapshot(actor_character_id, initial.plot_id)
-		if current.outcome != "ok":
-			decision.outcome = current.outcome
-			return false
-		if current.claim_revision != initial.claim_revision or current.membership_revision != initial.membership_revision:
-			decision.outcome = "stale_authority"
-			return false
-		if (current.permission_bits & initial.required_bits) != initial.required_bits:
-			decision.outcome = "permission_denied"
-			return false
-		var written: Variant = write_body.call()
-		return written is bool and written
-	)
-	return decision if decision.outcome != "ok" else _result(String(transaction.outcome))
+	var current: Dictionary = _permission_snapshot(actor_character_id, initial.plot_id)
+	if current.outcome != "ok":
+		return current
+	if current.claim_revision != initial.claim_revision or current.membership_revision != initial.membership_revision:
+		return _result("stale_authority")
+	if (current.permission_bits & initial.required_bits) != initial.required_bits:
+		return _result("permission_denied")
+	return _result("ok")
 
 
 ## Explicit teardown for disconnect/cancel paths; no persistent write.
