@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [{
+    "suite": "godot-server",
+    "platform": "linux",
+    "host": "192.168.1.254",
+    "command": "bash .scratch/849-recovery/run-experiment.sh <unique-label> [negative-control]",
+    "dependencies": ["godot", "sqlite"],
+    "tests": ["scripts/test_interior_anchor_process_recovery.gd"],
+    "artifacts": ["build/validation/849-recovery/<run-id>/experiment-result.json", "build/validation/849-recovery/<run-id>/prepare.json", "build/validation/849-recovery/<run-id>/recover.json", "build/validation/849-recovery/<run-id>/prepare.log", "build/validation/849-recovery/<run-id>/recover.log"]
+  }]
+}
