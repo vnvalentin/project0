@@ -34,6 +34,7 @@ var _is_open: bool = false
 var _canon_writes: Dictionary = {}
 var _pending_canon_writes: Array[String] = []
 var _in_transaction: bool = false
+var _transaction_query_failed: bool = false
 var _write_target: RegEx = RegEx.create_from_string("(?i)^\\s*(?:INSERT|REPLACE|UPDATE)(?:\\s+OR\\s+\\w+)?(?:\\s+INTO)?\\s+[\"`\\[]?(\\w+)")
 
 
@@ -144,6 +145,7 @@ func transaction(body: Callable) -> Dictionary:
 	if not _db.query("BEGIN;"):
 		return _result(OUTCOME_TRANSACTION_FAILED, "Failed to BEGIN transaction.", -1)
 	_in_transaction = true
+	_transaction_query_failed = false
 	_pending_canon_writes.clear()
 
 	var body_ok: bool = false
@@ -161,6 +163,10 @@ func transaction(body: Callable) -> Dictionary:
 	else:
 		had_error = true
 		body_detail = "Transaction body Callable is not valid."
+
+	if _transaction_query_failed:
+		had_error = true
+		body_detail = "A query failed inside the transaction."
 
 	if body_ok and not had_error:
 		if not _db.query("COMMIT;"):
@@ -185,6 +191,8 @@ func query_with_bindings(sql: String, bindings: Array = []) -> Dictionary:
 	if not _is_open:
 		return _result_rows(OUTCOME_NOT_OPEN, "Store is not open.", [])
 	if not _db.query_with_bindings(sql, bindings):
+		if _in_transaction:
+			_transaction_query_failed = true
 		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
 	_note_canon_write(sql, true)
@@ -201,6 +209,8 @@ func query(sql: String) -> Dictionary:
 	if not _is_open:
 		return _result_rows(OUTCOME_NOT_OPEN, "Store is not open.", [])
 	if not _db.query(sql):
+		if _in_transaction:
+			_transaction_query_failed = true
 		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
 	_note_canon_write(sql, true)
@@ -228,6 +238,7 @@ func _finish_canon_transaction(window: String) -> void:
 		_canon_writes[window][table] += 1
 	_pending_canon_writes.clear()
 	_in_transaction = false
+	_transaction_query_failed = false
 
 
 func _read_user_version(db: SQLite) -> int:
