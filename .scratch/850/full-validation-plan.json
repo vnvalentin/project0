@@ -33,6 +33,7 @@
         "tests/integration/test_first_playable_lore_flow.gd",
         "tests/integration/test_gameplay_admission.gd",
         "tests/integration/test_interior_anchor_repository.gd",
+        "tests/integration/test_item_ledger_repository.gd",
         "tests/integration/test_jit_lifecycle_correlation.gd",
         "tests/integration/test_jit_production_trace.gd",
         "tests/integration/test_journey_repository.gd",

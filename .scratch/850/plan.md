@@ -75,3 +75,7 @@ Accepted main is integrated. Static delivery checks passed after integration; ap
 ### Preparation gate correction status
 
 The owned preparation gate correction is prepared and reproducible source-only controls passed. Static delivery checks passed. Application behavior is unchanged. Detailed evidence remains local; independent review and native validation are pending. No slice or milestone acceptance is claimed.
+
+### Accepted integration status
+
+The accepted main integration is preserved with the owned evidence correction. The full validation inventory and static ownership checks are refreshed. Application behavior is unchanged by this correction; independent review and native validation remain pending. Detailed evidence stays local.
