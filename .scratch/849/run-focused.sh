@@ -10,7 +10,8 @@ mkdir -p "$result_dir"
 fixture_dir="$(mktemp -d "/tmp/project0-849-${label}.XXXXXX")"
 export XDG_DATA_HOME="$fixture_dir/xdg"
 export DASHBOARD_RESULTS_DIR="$PWD/$result_dir/dashboard"
-mkdir -p "$XDG_DATA_HOME" "$DASHBOARD_RESULTS_DIR"
+export PROJECT0_ANCHOR_EVIDENCE_DIR="$PWD/$result_dir/statement-observations"
+mkdir -p "$XDG_DATA_HOME" "$DASHBOARD_RESULTS_DIR" "$PROJECT0_ANCHOR_EVIDENCE_DIR"
 engine_version="$(/usr/local/bin/godot --version)"
 revision="$(git rev-parse HEAD)"
 exit_code=1
@@ -43,12 +44,21 @@ for suite in suites:
     except ValueError: errors.append('invalid_junit_counts')
 if cleanup!='true': errors.append('cleanup_not_verified')
 if int(code)!=0: errors.append('engine_exit_nonzero')
+observations={}
+for scenario in ["registration","resolution","reopen","replay-conflict","cell-rollback","rollback-reopen","missing-exterior","destroyed-exterior","separate-store","canon-read-failure","malformed-forged","corrupt-record","corrupt-reopen"]:
+    path=Path(result_dir)/"statement-observations"/(scenario+".json")
+    try:
+        entry=json.loads(path.read_text())
+        observation=entry["observation"]
+        if entry["scenario"]!=scenario or observation["observation_status"]!="OBSERVED" or observation["native_row_effects"]!="NOT_OBSERVED": errors.append("invalid_observation:"+scenario)
+        observations[scenario]=str(path)
+    except (OSError,ValueError,KeyError,TypeError): errors.append("missing_or_invalid_observation:"+scenario)
 passed=not errors
 sources={}
 for source in ['shared/interior_anchor_contract.gd','server/interior_anchor_repository.gd',selected,'tests/unit/test_interior_anchor_contract.gd','.scratch/849/run-focused.sh']:
     path=Path(source)
     if path.is_file(): sources[source]=hashlib.sha256(path.read_bytes()).hexdigest()
-record={'schema_version':1,'issue':849,'run_id':run_id,'host':'192.168.1.254','revision':revision,'engine':engine,'exit_code':int(code),'stage':stage,'cleanup_verified':cleanup=='true','status':'passed' if passed else 'failed','evidence_exit_code':0 if passed else 1,'evidence_errors':errors,'command':'timeout --kill-after=15s 180s /usr/local/bin/godot --headless -s addons/gut/gut_cmdln.gd -gselect=test_interior_anchor -gjunit_xml_file='+str(xml)+' -gdisable_colors -gexit','isolated_xdg':True,'isolated_dashboard_results':True,'suites':suites,'source_sha256':sources,'runtime_acceptance':'supporting Linux SQLite anchor component only'}
+record={'schema_version':1,'issue':849,'run_id':run_id,'host':'192.168.1.254','revision':revision,'engine':engine,'exit_code':int(code),'stage':stage,'cleanup_verified':cleanup=='true','status':'passed' if passed else 'failed','evidence_exit_code':0 if passed else 1,'evidence_errors':errors,'command':'timeout --kill-after=15s 180s /usr/local/bin/godot --headless -s addons/gut/gut_cmdln.gd -gselect=test_interior_anchor -gjunit_xml_file='+str(xml)+' -gdisable_colors -gexit','isolated_xdg':True,'isolated_dashboard_results':True,'suites':suites,'statement_observations':observations,'source_sha256':sources,'runtime_acceptance':'supporting Linux SQLite anchor component only'}
 (Path(result_dir)/'focused-result.json').write_text(json.dumps(record,indent=2)+'\n')
 print(json.dumps(record,indent=2))
 raise SystemExit(0 if passed else 1)
