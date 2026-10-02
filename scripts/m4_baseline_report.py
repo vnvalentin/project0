@@ -15,6 +15,12 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
     elapsed_valid = isinstance(elapsed, (int, float)) and math.isfinite(elapsed) and elapsed > 0
     crossings = observation.get('crossings', [])
     isolation = observation.get('isolation', {})
+    bodies = observation.get('body_activity', [])
+    entries = observation.get('entries_by_trigger', [])
+    background = observation.get('background', {})
+    results = background.get('results', [])
+    worker = observation.get('worker_probe', {})
+    worker_results = worker.get('results', [])
     checks = {
         'complete_tick_samples': complete,
         'finite_durations': finite,
@@ -25,6 +31,9 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
         'crossings_at_least_two_per_second': elapsed_valid and len(crossings) / elapsed >= 2,
         'canon_timing_observed': bool(observation.get('canon_reads')),
         'isolation_observed': all(isolation.get(k) is True for k in ('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed')),
+        'dynamic_activity_observed': len(bodies) == 15 and all(isinstance(b, dict) and isinstance(b.get('travel'), (int, float)) and math.isfinite(b['travel']) and b['travel'] > 0 and b.get('steps', 0) >= len(samples) for b in bodies) and len(entries) == 15 and all(isinstance(n, int) and n > 0 for n in entries),
+        'background_outcomes_observed': background.get('accepted_connections') == 4 and len(results) == 4 and {r.get('sector') for r in results} == {'sector-%d-10' % i for i in range(4)} and all(r.get('outcome') == 'timeout' for r in results),
+        'worker_activity_observed': worker.get('tasks') == 32 and worker.get('completed_before_window_end') == 32 and worker.get('peak_pending', 0) > 0 and worker.get('blocking_wait_calls_in_window') == 0 and worker.get('blocking_wait_usec_in_window') == 0 and len(worker_results) == 32 and all(r.get('iterations', 0) > 0 and r.get('thread_id') != worker.get('main_thread_id') for r in worker_results),
         'runtime_errors_absent': observation.get('errors') == [],
         'cleanup_verified': cleanup is True,
     }
