@@ -58,6 +58,41 @@ def competing_engines():
     return results
 
 
+def group_members(group_id):
+    members = []
+    for item in Path('/proc').iterdir():
+        if not item.name.isdigit():
+            continue
+        try:
+            fields = (item / 'stat').read_text().rsplit(')', 1)[1].split()
+            if int(fields[2]) == group_id and fields[0] != 'Z':
+                members.append(int(item.name))
+        except (OSError, ValueError, IndexError):
+            continue
+    return members
+
+
+def stop_owned_group(process):
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        if not group_members(process.pid):
+            break
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + 3
+        while group_members(process.pid) and time.monotonic() < deadline:
+            time.sleep(.02)
+    if process.poll() is None:
+        process.wait(timeout=3)
+    return not group_members(process.pid)
+
+
+def tree_fingerprints(root):
+    return {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted(root.rglob('*')) if path.is_file()}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ticks', type=int, choices=(60, 1000), default=1000)
@@ -74,8 +109,8 @@ def main():
     report = {'issue': 1376, 'kind': 'smoke' if args.ticks == 60 else 'baseline',
               'started_utc': stamp, 'host': socket.gethostname(), 'requested_ticks': args.ticks,
               'command': ['python3', 'scripts/run_m4_baseline.py', '--ticks', str(args.ticks), '--server-image', args.server_image],
-              'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-              'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True)),
+              'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True, timeout=15).strip(),
+              'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True, timeout=15)),
               'engine': None,
               'competing_engines_before': competing_engines(), 'errors': [], 'artifacts': str(folder.relative_to(ROOT))}
     report['source_hashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -87,11 +122,14 @@ def main():
     private = None
     container_name = 'project0-m4-1376-' + stamp.lower()
     container_created = False
+    probe_name = container_name + '-engine'
+    source = None
+    fingerprints = None
     observation = {}
     try:
         if not report['structural_audit']['passed']:
             raise RuntimeError('structural_probe_failed')
-        report['engine'] = subprocess.check_output([args.godot, '--version'], text=True).strip()
+        report['engine'] = subprocess.check_output([args.godot, '--version'], text=True, timeout=15).strip()
         if report['competing_engines_before']:
             raise RuntimeError('competing_project_engines')
         if report['source_dirty']:
@@ -109,7 +147,7 @@ def main():
                     'M4_TICKS': str(args.ticks), 'M4_STOP': str(private / 'stop'),
                     'M4_OBSERVATION': str(folder / 'server-observation.json')})
         archive = folder / 'source.tar'
-        subprocess.run(['git', 'archive', '--format=tar', '--output=' + str(archive), report['source']], check=True)
+        subprocess.run(['git', 'archive', '--format=tar', '--output=' + str(archive), report['source']], check=True, timeout=30)
         source = private / 'source'
         source.mkdir()
         with tarfile.open(archive) as bundle:
@@ -128,6 +166,8 @@ def main():
         runtime_archive = folder / 'runtime-artifact.tar'
         with tarfile.open(runtime_archive, 'w') as bundle:
             bundle.add(source, arcname='app')
+        fingerprints = tree_fingerprints(source)
+        write_json(folder / 'runtime-files-before.json', fingerprints)
         report['runtime_artifact_sha256'] = hashlib.sha256(runtime_archive.read_bytes()).hexdigest()
         report['container'] = {'image_id': args.server_image, 'cpus': 4, 'memory_bytes': 2147483648,
                                'entrypoint': 'tini -- godot --headless -s scripts/m4_load_server.gd',
@@ -137,7 +177,7 @@ def main():
         def spawn(name, script, child_env, debug=False):
             stream = (folder / (name + '.log')).open('wb')
             files.append(stream)
-            command = [args.godot, '--headless', '--path', str(ROOT), '--max-fps', '120']
+            command = [args.godot, '--headless', '--path', str(source), '--max-fps', '120']
             if debug:
                 command += ['--debug']
             command += ['-s', script]
@@ -153,8 +193,8 @@ def main():
                                     if key not in ('PATH', 'HOME', 'USER', 'LANG')))
         env_file.chmod(0o600)
         user = str(os.getuid()) + ':' + str(os.getgid())
-        engine = subprocess.check_output(['docker', 'run', '--rm', '--network', 'none', '--read-only',
-                   '--cpus', '1', '--memory', '256m', '--user', user, '--entrypoint', 'godot', args.server_image, '--version'], text=True).strip()
+        engine = subprocess.check_output(['docker', 'run', '--name', probe_name, '--rm', '--network', 'none', '--read-only',
+                   '--cpus', '1', '--memory', '256m', '--user', user, '--entrypoint', 'godot', args.server_image, '--version'], text=True, timeout=20).strip()
         if engine != report['engine']:
             raise RuntimeError('container_and_peer_engine_mismatch')
         report['container']['engine'] = engine
@@ -226,14 +266,11 @@ def main():
                     subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                 except (OSError, subprocess.SubprocessError):
                     report['errors'].append('container_cleanup_command_failed')
-        for process in owned:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait(timeout=3)
+        try:
+            subprocess.run(['docker', 'rm', '-f', probe_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            report['errors'].append('engine_probe_cleanup_command_failed')
+        group_cleanup = [stop_owned_group(process) for process in owned]
         for stream in files:
             stream.close()
         observation = read_json(folder / 'server-observation.json') or observation
@@ -243,8 +280,16 @@ def main():
             content = log.read_text(errors='replace')
             if any(marker in content for marker in ERROR_MARKERS):
                 report['errors'].append('runtime_script_error:' + log.name)
+        if source is not None and fingerprints is not None:
+            final_fingerprints = tree_fingerprints(source)
+            write_json(folder / 'runtime-files-after.json', final_fingerprints)
+            report['artifact_unchanged'] = final_fingerprints == fingerprints
+            if not report['artifact_unchanged']:
+                report['errors'].append('runtime_artifact_changed')
         if private is not None:
             try:
+                if not all(group_cleanup):
+                    raise OSError('owned_process_group_remains')
                 shutil.rmtree(private)
             except OSError:
                 report['errors'].append('private_cleanup_failed')
@@ -253,8 +298,8 @@ def main():
             container_absent = inventory.returncode == 0 and not inventory.stdout.strip()
         except (OSError, subprocess.SubprocessError):
             container_absent = False
-        cleanup = container_absent and all(process.poll() is not None for process in owned) and (private is None or not private.exists())
-        report['cleanup'] = {'container_removed': container_absent, 'processes_stopped': all(p.poll() is not None for p in owned),
+        cleanup = container_absent and all(group_cleanup) and all(process.poll() is not None for process in owned) and (private is None or not private.exists())
+        report['cleanup'] = {'container_removed': container_absent, 'process_groups_empty': all(group_cleanup), 'processes_stopped': all(p.poll() is not None for p in owned),
                              'private_tree_removed': private is None or not private.exists(), 'verified': cleanup}
         observation.setdefault('isolation', {})['structural_nonblocking_verified'] = report['structural_audit']['passed']
         report['observation'] = observation
