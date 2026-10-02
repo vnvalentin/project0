@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "issue": 951,
+  "passed": true,
+  "cases": [
+    {
+      "case": "valid",
+      "exit_code": 0,
+      "evidence_exit_code": 0,
+      "status": "passed",
+      "evidence_errors": [],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "dirty-start",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_start_not_qualified",
+        "source_not_clean_at_start",
+        "source_not_clean_at_end",
+        "junit_not_observed",
+        "selected_script_coverage_incomplete",
+        "log_not_observed:preflight.log",
+        "log_not_observed:import.log",
+        "log_not_observed:gut.log",
+        "log_not_observed:full-runner.log",
+        "standard_summary_not_observed",
+        "standard_summary_not_passing",
+        "engine_or_preparation_exit_nonzero"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "dirty-end",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_not_clean_at_end"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "changed-head",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "revision_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "changed-source",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "missing-start-identity",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_start_not_qualified",
+        "initial_revision_not_observed",
+        "final_revision_not_observed",
+        "junit_not_observed",
+        "selected_script_coverage_incomplete",
+        "log_not_observed:preflight.log",
+        "log_not_observed:import.log",
+        "log_not_observed:gut.log",
+        "log_not_observed:full-runner.log",
+        "standard_summary_not_observed",
+        "standard_summary_not_passing",
+        "engine_or_preparation_exit_nonzero"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "missing-end-identity",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "final_revision_not_observed",
+        "revision_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "missing-end-source",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_not_observed:server/workshop_station_contract.gd",
+        "source_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "nonmap-start-json",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_start_not_observed",
+        "source_start_not_qualified",
+        "revision_changed",
+        "source_changed",
+        "test_inventory_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "truncated-start-json",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_start_not_observed",
+        "source_start_not_qualified",
+        "revision_changed",
+        "source_changed",
+        "test_inventory_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "unreadable-start-json",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_start_not_observed",
+        "source_start_not_qualified",
+        "revision_changed",
+        "source_changed",
+        "test_inventory_changed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "malformed-start-fields",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "source_start_not_qualified"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "nonmap-summary",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "standard_summary_not_observed",
+        "standard_summary_not_passing"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "truncated-summary",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "standard_summary_not_observed",
+        "standard_summary_not_passing"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "unreadable-summary",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "standard_summary_not_observed",
+        "standard_summary_not_passing"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "cleanup-failure",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "cleanup_not_verified"
+      ],
+      "cleanup_verified": false,
+      "result_retention": "OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    },
+    {
+      "case": "retention-failure",
+      "exit_code": 1,
+      "evidence_exit_code": 1,
+      "status": "failed",
+      "evidence_errors": [
+        "result_retention_not_observed"
+      ],
+      "cleanup_verified": true,
+      "result_retention": "NOT_OBSERVED",
+      "verdict_captured": true,
+      "native_runtime_executed": false,
+      "actual_git_mutated": false,
+      "independent_control_cleanup_verified": true
+    }
+  ],
+  "copied_context_cleanup_verified": true,
+  "actual_selected_sources_preserved": true,
+  "native_runtime_executed": false,
+  "actual_git_mutated": false
+}
