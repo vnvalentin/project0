@@ -1,0 +1,31 @@
+{
+  "command": "godot --headless -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/integration/test_canon_write_accounting.gd -gdisable_colors -gexit",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "938c7677ae03c6da8f0288915aed44763656b8fb",
+  "import_exit": 0,
+  "exit_code": 0,
+  "selected_scripts_ran": 1,
+  "status": "passed",
+  "owned_xdg_removed": true,
+  "junit_suites": [
+    {
+      "name": "tests/integration/test_canon_write_accounting.gd",
+      "tests": "17",
+      "failures": "0",
+      "skipped": "0",
+      "time": "2.702066"
+    }
+  ],
+  "source_sha256": {
+    "server/sqlite_store.gd": "8f3949f70a8eb66d52be7a3073c8014fce7dadad5a58d35e3ae554bb58f750a3",
+    "server/sqlite_statement_observer.gd": "d8b59980fb0fc85ebed63f8357a72ac6358b110305637f8e967223dacdabd855",
+    "tests/integration/test_canon_write_accounting.gd": "c9df580d056807ff3e6fbcfbb37c4c47ef33fa80773c17efdae04ebb2ae4a075",
+    ".scratch/1347-accounting/run-focused.sh": "f360e6934a7663c00f7c696dd4d7f1d05865eafc84049803d16fc93546db1253",
+    "addons/godot-sqlite/gdsqlite.gdextension": "85c387e2eb9d87f15a741976d2706674960e2ceffb5289f3bf2b7acd8b60c99f"
+  },
+  "native_sqlite_sha256": {
+    "addons/godot-sqlite/bin/libgdsqlite.linux.template_release.x86_64.so": "09d73fac80382e172f4445b3da983e8db8e1317f0119188b99500832d660424a",
+    "addons/godot-sqlite/bin/libgdsqlite.linux.template_debug.x86_64.so": "d380b79c56073f63e41593ddbe3460977bb42b1ee03dddd0a80d334a0f79187a"
+  }
+}

@@ -92,6 +92,8 @@
         "tests/unit/test_house_allocator.gd",
         "tests/unit/test_identity_gate_and_movement.gd",
         "tests/unit/test_item_contract.gd",
+        "tests/unit/test_item_definition.gd",
+        "tests/unit/test_item_instance.gd",
         "tests/unit/test_jit_presentation_ack_tracker.gd",
         "tests/unit/test_journey_registry.gd",
         "tests/unit/test_kinetic_flow.gd",
