@@ -80,12 +80,11 @@ for phase in ['prepare','recover']:
     except (OSError,ValueError,TypeError): errors.append('missing_or_invalid_phase:'+phase)
 for log in ['import.log','prepare.log','recover.log']:
     path=out/log
-    if not path.is_file(): errors.append('missing_log:'+log)
-    else:
-        try:
-            if any(m in path.read_text(errors='replace') for m in ['SCRIPT ERROR','Parse Error','Compile Error']): errors.append('script_error:'+log)
-        except OSError:
-            errors.append('log_not_observed:'+log)
+    try:
+        if not path.is_file(): errors.append('missing_log:'+log)
+        elif any(m in path.read_text(errors='replace') for m in ['SCRIPT ERROR','Parse Error','Compile Error']): errors.append('script_error:'+log)
+    except OSError:
+        errors.append('log_not_observed:'+log)
 if cleanup!='true': errors.append('cleanup_unverified')
 if int(prep_exit)!=0 or phases.get('prepare',{}).get('status')!='passed' or phases.get('prepare',{}).get('errors')!=[]: errors.append('prepare_not_passed')
 expected_recover_errors=[] if mode=='baseline' else ['valid:canon_bytes_unchanged']
@@ -127,13 +126,18 @@ for phase in phases.values():
     for key in ['generation','scene_assembly','physical_actor_authorization']:
         if phase.get(key)!='NOT_OBSERVED': errors.append('unsupported_acceptance_claim:'+key)
 if source_clean_start!='true': errors.append('source_not_clean_at_start')
-try:
-    source_clean_end=not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
-except subprocess.CalledProcessError:
-    source_clean_end=False
-if not source_clean_end: errors.append('source_not_clean_at_end')
-current=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
-if current!=revision: errors.append('head_changed_during_run')
+def final_git_identity(arguments,error):
+    try:
+        return subprocess.check_output(['git',*arguments],text=True,stderr=subprocess.DEVNULL,timeout=10).strip()
+    except (OSError,subprocess.SubprocessError,UnicodeError):
+        errors.append(error)
+        return 'NOT_OBSERVED'
+
+final_status=final_git_identity(['status','--porcelain'],'source_status_not_observed')
+source_clean_end='NOT_OBSERVED' if final_status=='NOT_OBSERVED' else not final_status
+if source_clean_end is False: errors.append('source_not_clean_at_end')
+current=final_git_identity(['rev-parse','HEAD'],'final_revision_not_observed')
+if current!='NOT_OBSERVED' and current!=revision: errors.append('head_changed_during_run')
 sources={}
 for p in ['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']:
     try:
@@ -145,8 +149,16 @@ try:
     if json.loads((out/'source-start.json').read_text())!=sources: errors.append('source_changed_during_run')
 except (OSError,ValueError): errors.append('source_start_missing')
 passed=not errors and int(exit_code)==0
-record={'schema_version':1,'issue':849,'run_id':run_id,'host':'192.168.1.254','revision':revision,'engine':engine,'command':'bash .scratch/849-recovery/run-experiment.sh '+label+' '+mode,'phase_command':'timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- <phase> <owned-expected-state> <owned-phase-report>','mode':mode,'status':'passed' if passed else 'failed','scope':'two-process Linux anchor recovery; no generation or scene assembly','negative_control_recovery_rejected':mode=='negative-control' and recover.get('status')=='failed','prepare_exit_code':int(prep_exit),'recover_exit_code':int(recover_exit),'stage':stage,'source_clean_start':source_clean_start=='true','source_clean_end':source_clean_end,'cleanup_verified':cleanup=='true','errors':errors,'native_pids':{k:v.get('native_pid') for k,v in phases.items()},'source_sha256':sources,'statement_observations':observations}
-(out/'experiment-result.json').write_text(json.dumps(record,indent=2)+'\n')
+record={'schema_version':1,'issue':849,'run_id':run_id,'host':'192.168.1.254','revision':revision,'final_revision':current,'engine':engine,'command':'bash .scratch/849-recovery/run-experiment.sh '+label+' '+mode,'phase_command':'timeout --kill-after=10s 60s /usr/local/bin/godot --headless --path . -s scripts/test_interior_anchor_process_recovery.gd -- <phase> <owned-expected-state> <owned-phase-report>','mode':mode,'status':'passed' if passed else 'failed','scope':'two-process Linux anchor recovery; no generation or scene assembly','negative_control_recovery_rejected':mode=='negative-control' and recover.get('status')=='failed','prepare_exit_code':int(prep_exit),'recover_exit_code':int(recover_exit),'stage':stage,'source_clean_start':source_clean_start=='true','source_clean_end':source_clean_end,'cleanup_verified':cleanup=='true','errors':errors,'native_pids':{k:v.get('native_pid') for k,v in phases.items()},'source_sha256':sources,'statement_observations':observations}
+record['result_retention']='OBSERVED'
+try:
+    (out/'experiment-result.json').write_text(json.dumps(record,indent=2)+'\n')
+except OSError:
+    record['status']='failed'
+    record['result_retention']='NOT_OBSERVED'
+    record['errors'].append('result_retention_not_observed')
+    print(json.dumps(record))
+    raise SystemExit(1)
 print(json.dumps({k:record[k] for k in ['status','run_id','mode','prepare_exit_code','recover_exit_code','cleanup_verified','errors','native_pids']}))
 raise SystemExit(0 if passed else 1)
 PY
