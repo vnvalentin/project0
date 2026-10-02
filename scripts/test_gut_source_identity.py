@@ -49,6 +49,8 @@ with open(os.environ["FAKE_ENGINE_CALLS"], "a") as output:
     output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents}) + "\\n")
 if "--import" in sys.argv and os.environ.get("FAKE_IMPORT_SCRIPT_ERROR") == "1":
     print("SCRIPT ERROR: Parse Error: synthetic preparation failure")
+if "-s" in sys.argv and os.environ.get("FAKE_GUT_SCRIPT_ERROR") == "1":
+    print("SCRIPT ERROR: synthetic skipped runtime failure")
 for arg in sys.argv:
     if arg.startswith("-gjunit_xml_file="):
         Path(arg.split("=", 1)[1]).write_text('<testsuites><testsuite name="tests/unit/test_fixture.gd" tests="1" failures="0"/></testsuites>')
@@ -106,6 +108,15 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         self.assertEqual(summary["exit_code"], 1)
         self.assertTrue(summary["import_script_error_observed"])
         self.assertIn("synthetic preparation failure", (self.root / summary["import_log"]).read_text())
+
+    def test_standard_runner_rejects_gut_script_error_despite_complete_passing_junit(self):
+        self.env["FAKE_GUT_SCRIPT_ERROR"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["status"], "failed")
+        self.assertTrue(summary["gut_script_error_observed"])
+        self.assertEqual(summary["scripts_expected"], summary["scripts_ran"])
 
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)

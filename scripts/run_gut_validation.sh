@@ -137,6 +137,13 @@ elif [[ -n "$missing_scripts" ]]; then
   exit_code=1
 fi
 
+gut_script_error_observed=false
+if grep -Eq 'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script' "$LOG_FILE"; then
+  gut_script_error_observed=true
+  exit_code=1
+  echo "VALIDATION GATE ERROR: GUT emitted a script error despite its reported test result." | tee -a "$LOG_FILE"
+fi
+
 status="failed"
 if [[ "$exit_code" -eq 0 ]]; then
   status="passed"
@@ -151,6 +158,7 @@ cat > "$SUMMARY_FILE" <<EOF
   "timeout_seconds": $GUT_TIMEOUT_SECONDS,
   "scripts_expected": $scripts_expected,
   "scripts_ran": $scripts_ran,
+  "gut_script_error_observed": $gut_script_error_observed,
   "timestamp_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "junit_xml": "$JUNIT_FILE",
   "log": "$LOG_FILE"
