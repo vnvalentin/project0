@@ -51,7 +51,7 @@ def main():
             if case in ['timeout','parent_first']:assert result['timed_out'],case
             if case=='oversized':assert result['oversized_output_discarded'],case
             records.append({'case':case,'passed':True})
-        cases=['valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure']
+        cases=['valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
@@ -60,18 +60,32 @@ def main():
             def identity():
                 identity_calls[0]+=1
                 if case=='dirty_source':raise ValueError('copied dirty source')
-                return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{'copied':'hash'}}
+                return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [root/'project.godot',root/'scripts/test_prediction_reconciliation.gd']}}
             m.identity=identity
+            if case=='existing_override':(root/'override.cfg').write_text('copied existing override')
+            original_stage=m.stage_project
+            def stage(temporary,source):
+                project=original_stage(temporary,source)
+                if case=='altered_staged_copy':(project/'scripts/test_prediction_reconciliation.gd').write_text('changed copied source')
+                if case=='altered_logging_override':(project/'override.cfg').write_text('[debug]\nfile_logging/enable_file_logging.pc=true\n')
+                m.qualify_staged(project,source)
+                return project
+            m.stage_project=stage
             original_run=m.subprocess.run;original_output=m.subprocess.check_output
             def fake_run(command,**kwargs):
                 path=Path(command[-1]);path.write_text(json.dumps({'passed':True,'errors':[],'runtime_executed':False}))
                 return subprocess.CompletedProcess(command,0)
             def fake_output(command,**kwargs):
                 assert kwargs.get('timeout')==10
+                project=Path(command[command.index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
+                assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').read_bytes()==(root/'scripts/test_prediction_reconciliation.gd').read_bytes()
                 if case=='metadata_unavailable':raise OSError('copied metadata unavailable')
                 if case=='metadata_timeout':raise subprocess.TimeoutExpired(command,10)
                 return b'4.3.stable.copied\n'
             def observe(commands,envs,allowed,limit):
+                project=Path(commands[0][commands[0].index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
+                # The unchanged harness derives nested server --path from res://.
+                assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').is_file()
                 calls.append('import' if '--import' in commands[0] else 'harness')
                 output=[]
                 for env in envs:
@@ -109,7 +123,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==18 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==21 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))

@@ -18,6 +18,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 HARNESS = 'scripts/test_prediction_reconciliation.gd'
 TELEMETRY = 'fixture_telemetry/telemetry.db'
+LOGGING_OVERRIDE = '[debug]\nfile_logging/enable_file_logging=false\nfile_logging/enable_file_logging.pc=false\n'
 NOT = 'NOT_OBSERVED'
 BASELINE_CHILDREN = set()
 
@@ -36,6 +37,38 @@ def identity():
 
 def assertions():
     return set(re.findall(r'_assert\([^\n]+, "([^"]+)"\)', (ROOT/HARNESS).read_text()))
+
+
+
+def qualify_staged(project, source):
+    for name, expected in source['source_sha256'].items():
+        target = project/name
+        if target.is_symlink() or hashlib.sha256(target.read_bytes()).hexdigest()!=expected:
+            raise ValueError('staged_source_changed')
+    if (project/'override.cfg').read_text()!=LOGGING_OVERRIDE:
+        raise ValueError('logging_override_not_qualified')
+    files={p.relative_to(project).as_posix() for p in project.rglob('*') if p.is_file()}
+    if files!=set(source['source_sha256'])|{'override.cfg'}:
+        raise ValueError('unexpected_staged_file')
+
+
+def stage_project(temporary, source):
+    names=source['source_sha256']
+    if 'override.cfg' in names or (ROOT/'override.cfg').exists():
+        raise ValueError('existing_project_override')
+    project=temporary/'project';project.mkdir()
+    for name, expected in names.items():
+        path=Path(name)
+        if path.is_absolute() or '..' in path.parts or any(part in {'.git','build','logs','.aws','.codex'} for part in path.parts):
+            raise ValueError('private_or_unsafe_staging_path')
+        original=ROOT/path
+        if original.is_symlink() or not original.is_file():raise ValueError('unsafe_staging_source')
+        content=original.read_bytes()
+        if hashlib.sha256(content).hexdigest()!=expected:raise ValueError('staging_source_changed')
+        target=project/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(content)
+    (project/'override.cfg').write_text(LOGGING_OVERRIDE)
+    qualify_staged(project,source)
+    return project
 
 
 def minimal_environment(base, sentinel):
@@ -206,18 +239,22 @@ def run(run_id):
         if preflight.returncode or not isinstance(pre,dict) or pre.get('passed') is not True or pre.get('errors')!=[] or pre.get('runtime_executed') is not False:
             raise ValueError('preflight_not_qualified')
         temporary=Path(tempfile.mkdtemp(prefix='project0-1407.'))
+        result['stage']='safe_staging'
+        project=stage_project(temporary,result['source_start'])
+        result['staged_source_qualified']=True
+        result['engine_file_logging']='disabled_before_launch'
         sentinel=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         sentinel.bind(('127.0.0.1',0))
         port=sentinel.getsockname()[1]
         setup=temporary/'import';setup.mkdir()
         env=minimal_environment(setup,port)
         result['stage']='engine_metadata'
-        version=subprocess.check_output(['godot','--version'],env=env,cwd=ROOT,stderr=subprocess.DEVNULL,timeout=10).decode().strip()
+        version=subprocess.check_output(['godot','--path',str(project),'--version'],env=env,cwd=ROOT,stderr=subprocess.DEVNULL,timeout=10).decode().strip()
         if not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?\.[A-Za-z0-9.]+',version):
             raise ValueError('engine_not_qualified')
         result['engine']=version
         result['stage']='import'
-        imported=observe([['godot','--headless','--editor','--path',str(ROOT),'--import','--quit']],[env],allowed,120)[0]
+        imported=observe([['godot','--headless','--editor','--path',str(project),'--import','--quit']],[env],allowed,120)[0]
         if imported['exit_code']!=0 or imported['timed_out'] or imported['script_error_observed']:
             raise ValueError('import_not_qualified')
         for mode in ['shared','distinct']:
@@ -236,7 +273,7 @@ def run(run_id):
                 envs.append(env);targets.append(target/'telemetry.db')
             relationship='same' if targets[0].resolve()==targets[1].resolve() else 'distinct'
             if relationship!=('same' if mode=='shared' else 'distinct'):raise ValueError('treatment_not_qualified')
-            observed=observe([['godot','--headless','--path',str(ROOT),'-s',HARNESS]]*2,envs,allowed,60)
+            observed=observe([['godot','--headless','--path',str(project),'-s',HARNESS]]*2,envs,allowed,60)
             for record in observed:
                 record['public_assertion_verdict']='passed' if record['exit_code']==0 and record['all_pass'] and set(record['passed_assertions'])==allowed and not record['failed_assertions'] and not record['script_error_observed'] and not record['timed_out'] else 'failed'
             qualified=all(record['telemetry_ready'] for record in observed) and all(path.is_file() for path in targets)

@@ -33,3 +33,7 @@ Source/static checks, ownership preflight and copied negative controls precede i
 ## Root-cause learning
 
 The regression cause remains unresolved. Storage relationship, SQLite-lock classification and public assertion verdict are reported separately. Missing classification is NOT_OBSERVED; a passing diagnostic is not full regression acceptance. Detailed failure and outcome learning remain local under the user's disclosure instruction.
+
+## Capture-contract correction
+
+Static review identified automatic desktop engine file logging as a capture boundary outside the filtered pipe. No native execution or exposure occurred. Before any engine launch, the runner stages only qualified Git-tracked source into its new temporary project, rejects any existing settings override and unsafe/private path, verifies every copied byte against the source receipt, then adds only the exact two disabled file-logging settings, including the desktop feature override. Import, harness and nested server use that staged project. Altered copies or overrides fail closed. The original project and application assertions are unchanged. Primary contract: https://docs.godotengine.org/en/4.3/classes/class_projectsettings.html.
