@@ -39,6 +39,7 @@ func before_each() -> void:
 		"source_revision": OS.get_environment("M4_SOURCE_REVISION"), "case_id": "", "passed": false,
 		"source_sha256": {"helper": FileAccess.get_sha256("res://scripts/m4_canon_evidence.gd"), "test": FileAccess.get_sha256("res://tests/integration/test_m4_boundary_parity.gd")},
 		"unsupported": ["repair_claim_permanent_flags", "persistent_in_flight_interaction_transfer", "native_persisted_occupancy_bitmask"]}
+	_trace["store_observations"] = {}
 	_trace["source_identity"] = Evidence.source_identity(_trace["source_revision"])
 	assert_eq(_trace["source_identity"]["status"], "OBSERVED", "M4_SOURCE_REVISION must be the full lowercase commit SHA")
 	_had_canon = OS.has_environment("PROJECT0_CANON_DB_PATH")
@@ -133,8 +134,11 @@ func _fixture(dedicated: bool, label: String = "") -> Dictionary:
 			return {}
 	var service: CanonMutationService = Service.new(mutations, func() -> int: return 73)
 	assert_eq(service.resolve_intent("m4-player", _intent())["status"], "accepted", "known committed revision precedes rejection window")
-	_trace["store_selection"] = {"configured_canon_path": selected, "handle": "dedicated" if dedicated else "accounts_shared", "accounts_path": account_path}
-	return {"store": store, "canon": canon, "mutations": mutations, "service": service, "relative_path": selected if dedicated else account_path}
+	var fixture: Dictionary = {"store": store, "canon": canon, "mutations": mutations, "service": service,
+		"relative_path": selected if dedicated else account_path, "observation_id": label if not label.is_empty() else "fixture",
+		"configured_canon_path": selected, "handle": "dedicated" if dedicated else "accounts_shared", "accounts_path": account_path}
+	_retain_store_observation(fixture, Evidence.snapshot(store))
+	return fixture
 
 
 func _intent(overrides: Dictionary = {}) -> Dictionary:
@@ -271,9 +275,19 @@ func _seed_permanent_changes(fixture: Dictionary) -> void:
 		assert_eq(mutations.apply_mutation(event)["outcome"], "ok")
 
 
+func _retain_store_observation(fixture: Dictionary, raw: Dictionary) -> void:
+	assert_eq(raw["status"], "OBSERVED", "actual store path and journal observed")
+	var metadata: Dictionary = {"status": raw["status"], "active_path": raw.get("active_path", ""), "journal_mode": raw.get("journal_mode", ""),
+		"configured_canon_path": fixture["configured_canon_path"], "handle": fixture["handle"], "accounts_path": fixture["accounts_path"]}
+	_trace["store_observations"][fixture["observation_id"]] = metadata
+
+
 func _canonical_state(fixture: Dictionary) -> Dictionary:
 	var raw: Dictionary = Evidence.snapshot(fixture["store"])
-	assert_eq(raw["status"], "OBSERVED")
+	_retain_store_observation(fixture, raw)
+	if raw["status"] != "OBSERVED":
+		return {}
+	# Store identity is retained separately: it must differ between the two fixtures.
 	return {"blueprints": raw["blueprints"], "mutations": raw["mutations"], "reconstructed": Evidence.reconstructed_state(raw)}
 
 
@@ -425,3 +439,26 @@ func test_source_identity_rejects_missing_or_invalid_revision() -> void:
 	assert_eq(accepted["status"], "OBSERVED")
 	assert_eq(accepted["revision"], "41078c67a42553ca55b3e1e958f170421cfa4912")
 	_trace["passed"] = true
+
+
+func test_both_fixture_sources_retain_actual_path_handle_and_journal() -> void:
+	_trace["case_id"] = "control_fixture_observations"
+	var reference: Dictionary = _fixture(false, "_reference")
+	var crossed: Dictionary = _fixture(true, "_crossed")
+	if reference.is_empty() or crossed.is_empty():
+		return
+	_canonical_state(reference)
+	_canonical_state(crossed)
+	var observed: Dictionary = _trace.get("store_observations", {})
+	assert_eq(observed.size(), 2, "both fixture observations retained")
+	for entry: Dictionary in [
+		{"id": "_reference", "fixture": reference, "handle": "accounts_shared", "configured": ""},
+		{"id": "_crossed", "fixture": crossed, "handle": "dedicated", "configured": "m4_canon_%s_crossed.db" % _stamp},
+	]:
+		var metadata: Dictionary = observed.get(entry["id"], {})
+		assert_eq(metadata.get("status"), "OBSERVED")
+		assert_eq(metadata.get("handle"), entry["handle"])
+		assert_eq(metadata.get("configured_canon_path"), entry["configured"])
+		assert_eq(metadata.get("active_path"), ProjectSettings.globalize_path("user://" + entry["fixture"]["relative_path"]))
+		assert_eq(metadata.get("journal_mode"), "wal")
+	_trace["passed"] = observed.size() == 2
