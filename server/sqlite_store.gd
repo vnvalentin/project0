@@ -180,6 +180,13 @@ func is_open() -> bool:
 	return _is_open
 
 
+## True only inside this store's transaction helper while SQLite confirms its
+## transaction is still active. Server collaborators use this guard to share a
+## final authorization/write boundary without opening nested transactions.
+func is_managed_transaction_active() -> bool:
+	return _is_open and _in_transaction and _db.has_method("get_autocommit") and not bool(_db.call("get_autocommit"))
+
+
 ## Public seam. Returns the PRAGMA user_version currently recorded in the
 ## open database, or -1 if the store is not open.
 func get_user_version() -> int:
