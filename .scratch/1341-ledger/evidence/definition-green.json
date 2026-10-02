@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "83065767d586342129c8c5e03a472b1691c97468",
+  "command": "bash .scratch/1341-ledger/run-focused.sh definition-green",
+  "import_exit": 0,
+  "exit_code": 0,
+  "selected_scripts_ran": 1,
+  "tests": 2,
+  "failures": 0,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "0f84dd65e32e98bfe3bbbfa5716e8df3b2a9e9ee54749022abfffec4eb23891f",
+    "tests/integration/test_item_ledger_repository.gd": "7a7c5316bc336ec9a5af23fc2c2be8f80c940c4793361636252044792054f4f1",
+    ".scratch/1341-ledger/run-focused.sh": "0f46c4af3e9d4e6c71c2e08f9e6505a6e4f8a00bd0190102989cb4598386ada6"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/definition-green"
+}

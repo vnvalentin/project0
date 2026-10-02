@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "577923d572e46ccc6dce90fbb871a2e0e145323f",
+  "command": "bash .scratch/1341-ledger/run-focused.sh scoped-observation-artifacts",
+  "import_exit": 0,
+  "exit_code": 0,
+  "script_errors_observed": false,
+  "observation_errors": [],
+  "expected_tests": 15,
+  "errors": 0,
+  "skipped": 0,
+  "selected_scripts_ran": 1,
+  "tests": 15,
+  "failures": 0,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "818a4052a225f75b6cdac5cd9984d4df6915142f56496537d6831f9f31032050",
+    "tests/integration/test_item_ledger_repository.gd": "ccc00283848276c3bef55da01815c9fec310e1df94b4c78495183b29fc40d5ea",
+    ".scratch/1341-ledger/run-focused.sh": "3f76a8da214e066c769256b92cd36d22d59479a59dc50cc4e5678bbe80ffd429"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/scoped-observation-artifacts"
+}
