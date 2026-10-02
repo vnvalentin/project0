@@ -14,8 +14,11 @@ Validation: machine-readable plan alongside this note; focused GUT then full GUT
 
 ## Reproduction boundary
 
-Set `M4_SOURCE_REVISION="$(git rev-parse HEAD)"` as shown in the validation plan;
-the harness rejects absent or malformed source identity. Reports retain the
+For direct focused GUT invocation, set
+`M4_SOURCE_REVISION="$(git rev-parse HEAD)"` as shown in the validation plan;
+the harness rejects absent or malformed source identity. The standard GUT
+runner supplies the checkout HEAD automatically and rejects conflicting input.
+The hosted runner supplies its qualified host SHA explicitly to the image. Reports retain the
 source SHA and actual helper/test hashes. For exact-final evidence, use a clean
 committed worktree. Hold `flock /tmp/project0-m4-01a0fcfa-validation.lock` across
 setup, execution and cleanup, use a fresh owned `XDG_DATA_HOME`, and set
@@ -44,3 +47,29 @@ qualifies the host checkout HEAD and passes it explicitly through env -i. Direct
 M4 test invocation still refuses absent or invalid source identity. Tests create
 only temporary Git repos and fake external executables; cleanup owns that root.
 Rollback is reverting the runner changes and removing owned temporary fixtures.
+
+## Root-cause learning: standard command source identity
+
+Symptom: M4 parity requires a complete source SHA, but the standard GUT command
+did not supply one, and hosted env -i removed ambient values. Public seam:
+`scripts/run_gut_validation.sh` / `scripts/run_hosted_gut_container.sh`.
+Hypothesis and discriminating check: substitute only the external engine and
+container executable in an owned temporary Git checkout, then observe the
+source given to those command boundaries. The initial ordinary runner control
+failed (source absent); hosted propagation and refusal controls also failed.
+Confirmed root cause: missing source qualification/propagation in both runners.
+Existing focused tests missed this because their caller explicitly set the SHA.
+Countermeasure: derive HEAD in a checkout, refuse malformed/conflicting supplied
+identity before launch, and require complete host-provided identity for artifacts
+without Git. Hosted qualification occurs before any Docker operation and is
+passed through env -i. Direct parity missing/invalid identity checks remain.
+
+Regression evidence at code revision
+`3e7d3f20d863796d7cae2f9e3cd9c80d84df5cac`: seven public command controls passed,
+22 existing CI routing controls passed, Bash syntax and record sync passed,
+ownership plan/inventory passed. Reports are
+`build/validation/m4-source-identity-final.json`,
+`build/validation/m4-source-routing-final.json`, and
+`build/validation/m4-source-inventory-final.json`. Temporary fixture roots are
+removed by unittest cleanup. These are substituted command evidence; native
+parity, full GUT and independent reviews remain separate gates.

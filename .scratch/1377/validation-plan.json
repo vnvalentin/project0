@@ -23,15 +23,17 @@
       "suite": "linux-tooling",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "python3 scripts/test_gut_source_identity.py --report build/validation/m4-source-identity-tests.json",
+      "command": "python3 scripts/test_gut_source_identity.py --report build/validation/m4-source-identity-tests.json && python3 scripts/test_ci_validation_routing.py --report build/validation/m4-source-routing-final.json",
       "dependencies": [
         "python"
       ],
       "tests": [
-        "scripts/test_gut_source_identity.py"
+        "scripts/test_gut_source_identity.py",
+        "scripts/test_ci_validation_routing.py"
       ],
       "artifacts": [
-        "build/validation/m4-source-identity-tests.json"
+        "build/validation/m4-source-identity-tests.json",
+        "build/validation/m4-source-routing-final.json"
       ]
     }
   ]
