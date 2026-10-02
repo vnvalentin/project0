@@ -135,3 +135,44 @@ control also requires its documented `--report` argument; the initial missing
 argument failed before tests, and the corrected invocation passed with evidence.
 No native/import command ran and neither command-selection error was treated as
 a missing dependency or runtime failure.
+
+## Verified fixture and failure-compatibility constraints
+
+Source verification at `21b0e937d4e0075973da7d094ce857cddfb0afed` confirms the
+smallest fixture can extend the existing real Journey integration setup using
+ServerMainScript.new(), the constructor pattern already used by server-main
+orchestration tests. Do not launch _start_server or a backend/socket. Keep the
+controlled Player outside active scene processing to avoid incidental physics/RPC
+work; register object and every temporary database path for finally cleanup.
+
+The first position_updated callback alone does not checkpoint: when no prior
+position exists, the default last position is the supplied updated position,
+so distance is zero. Seed through the actual periodic server callback (last
+checkpoint time is zero), then use the Player public restore_authoritative_position
+and position_updated signal for a second position exceeding the existing one-unit
+threshold. Use current Unix timestamps for registry entry: periodic cleanup and
+restore/reclaim would expire literal historical timestamps. Assert public
+JourneyRepository.load_all after each save, then close/reopen and read before
+restore/reclaim modifies lifecycle/peer state. Do not manufacture RED with private
+spies or internal call counts; persistence compatibility may already pass.
+
+Minimal fixture disconnect/recovery uses public Registry.mark_disconnected and
+restore_records/enter. The server disconnect callback expects all production
+signal wiring and is outside this minimal fixture. Reopened persisted rows must
+be compared before restoration (which marks journeys disconnected in memory)
+and reclaim (which persists the new peer). Dedicated Canon storage gets its own
+registered path and WAL/SHM/journal cleanup alongside the journey store.
+
+Canon metadata failure and server checkpoint fallback are distinct contracts.
+The metadata getter must perform current store/read checks and return the
+existing not_open/query_failed/not_found outcome, never cached metadata success.
+The accepted server checkpoint path still synchronously saves the authoritative
+position when Canon is unavailable, with sector revision 0 and empty geometry
+hash. Preserve that durable save and fallback exactly; do not skip it, substitute
+stale derived metadata, or introduce a new failure policy in this optimization.
+
+The first qualified native RED depends on the M3-owned #1396 reviewed
+preparation-only interface and an explicit coordinated native-window release.
+The #1413 source-exclusion marker is merged, but that marker alone is insufficient
+to establish the required cold-registry preparation. No application/test edits,
+Godot execution or repeated unqualified import occur in this planning checkpoint.
