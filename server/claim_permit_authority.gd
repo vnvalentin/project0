@@ -27,6 +27,8 @@ func _init(store: SqliteStore) -> void:
 
 
 func ensure_schema() -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	var statements: Array[String] = [
 		"CREATE TABLE IF NOT EXISTS plot_claims (plot_id TEXT PRIMARY KEY, owner_character_id TEXT NOT NULL, claim_revision INTEGER NOT NULL CHECK(claim_revision > 0), registration_operation_id TEXT NOT NULL);",
 		"CREATE TABLE IF NOT EXISTS plot_permits (plot_id TEXT NOT NULL REFERENCES plot_claims(plot_id), subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL, subject_role TEXT NOT NULL, permission_bits INTEGER NOT NULL, PRIMARY KEY(plot_id, subject_kind, subject_id, subject_role));",
@@ -43,6 +45,8 @@ func ensure_schema() -> Dictionary:
 
 ## Trusted server provisioning, never a player ownership assertion.
 func register_claim(plot_id: Variant, owner_character_id: Variant, operation_id: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	if not _valid_id(plot_id) or not _valid_id(owner_character_id) or not _valid_id(operation_id):
 		return _result("invalid_request")
 	var actor_scope: String = JSON.stringify(["provision"])
@@ -75,6 +79,8 @@ func register_claim(plot_id: Variant, owner_character_id: Variant, operation_id:
 
 
 func get_claim(plot_id: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	if not _valid_id(plot_id):
 		return _result("invalid_request")
 	var query: Dictionary = _store.query_with_bindings(
@@ -85,13 +91,15 @@ func get_claim(plot_id: Variant) -> Dictionary:
 	if query.rows.is_empty():
 		return _result("not_found")
 	var claim: Dictionary = query.rows[0]
-	if not _valid_id(claim.owner_character_id) or not (claim.claim_revision is int) or claim.claim_revision <= 0:
+	if not _valid_id(claim.plot_id) or claim.plot_id != plot_id or not _valid_id(claim.owner_character_id) or not _valid_id(claim.registration_operation_id) or not _valid_revision(claim.claim_revision) or claim.claim_revision == 0:
 		return _result("invalid_persisted_state")
 	return {"outcome": "ok", "claim": claim.duplicate(true)}
 
 
 ## The returned handle is retained by server interaction state, not client input.
 func begin_interaction(actor_character_id: Variant, plot_id: Variant, required_bits: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	if not _valid_id(actor_character_id) or not _valid_id(plot_id) or not _valid_bits(required_bits):
 		return _result("invalid_request")
 	var observed: Dictionary = _permission_snapshot(actor_character_id, plot_id)
@@ -101,7 +109,10 @@ func begin_interaction(actor_character_id: Variant, plot_id: Variant, required_b
 		return _result("permission_denied")
 	if _interactions.size() >= MAX_INTERACTIONS:
 		return _result("interaction_limit")
-	var interaction_id: String = Crypto.new().generate_random_bytes(16).hex_encode()
+	var entropy: PackedByteArray = Crypto.new().generate_random_bytes(16)
+	var interaction_id: String = entropy.hex_encode()
+	if entropy.size() != 16 or _interactions.has(interaction_id):
+		return _result("interaction_entropy_unavailable")
 	_interactions[interaction_id] = {
 		"actor_character_id": actor_character_id, "plot_id": plot_id,
 		"required_bits": required_bits, "claim_revision": observed.claim_revision,
@@ -111,7 +122,13 @@ func begin_interaction(actor_character_id: Variant, plot_id: Variant, required_b
 
 
 static func _valid_id(value: Variant) -> bool:
-	return value is String and not value.is_empty() and value.length() <= MAX_ID_LENGTH and value.strip_edges() == value
+	if not (value is String) or value.is_empty() or value.length() > MAX_ID_LENGTH or value.strip_edges() != value:
+		return false
+	for index: int in range(value.length()):
+		var codepoint: int = value.unicode_at(index)
+		if codepoint < 32 or codepoint == 127:
+			return false
+	return true
 
 
 static func _valid_bits(value: Variant) -> bool:
@@ -124,6 +141,8 @@ static func _result(outcome: String) -> Dictionary:
 
 ## Trusted upstream membership projection. This is never a player command.
 func update_memberships(character_id: Variant, memberships: Variant, expected_revision: Variant, operation_id: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	if not _valid_id(character_id) or not _valid_id(operation_id) or not _valid_revision(expected_revision):
 		return _result("invalid_request")
 	if not (memberships is Array) or memberships.size() > MAX_MEMBERSHIPS:
@@ -152,7 +171,7 @@ func update_memberships(character_id: Variant, memberships: Variant, expected_re
 		if receipt.outcome != "not_found":
 			decision.merge(receipt, true)
 			return false
-		var current: Dictionary = _membership_revision(character_id)
+		var current: Dictionary = _membership_snapshot(character_id)
 		if current.outcome != "ok":
 			decision.outcome = current.outcome
 			return false
@@ -182,6 +201,8 @@ func update_memberships(character_id: Variant, memberships: Variant, expected_re
 
 ## Actor identity is supplied by authenticated server dispatch, never the intent.
 func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	if not (intent is Dictionary) or not (intent.get("action") is String) or intent.action not in ["grant", "revoke"]:
 		return _result("invalid_request")
 	var fields: PackedStringArray = ["schema_version", "operation_id", "plot_id", "expected_revision", "action", "subject"]
@@ -247,6 +268,8 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 ## Only the primary owner may transfer a plot. Existing explicit permits remain
 ## until revoked; the new claim revision invalidates every old interaction.
 func transfer_claim(actor_character_id: Variant, intent: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result("not_open")
 	if not _valid_id(actor_character_id) or not _exact_fields(intent, ["schema_version", "operation_id", "plot_id", "expected_revision", "new_owner_character_id"]):
 		return _result("invalid_request")
 	if not (intent.schema_version is int) or intent.schema_version != 1 or not _valid_revision(intent.expected_revision):
@@ -297,21 +320,38 @@ func _membership_revision(character_id: String) -> Dictionary:
 	return {"outcome": "ok", "revision": revision}
 
 
+func _membership_snapshot(character_id: String) -> Dictionary:
+	var revision: Dictionary = _membership_revision(character_id)
+	if revision.outcome != "ok":
+		return revision
+	var query: Dictionary = _store.query_with_bindings("SELECT subject_kind, subject_id, subject_role FROM permission_memberships WHERE character_id = ?;", [character_id])
+	if query.outcome != "ok":
+		return _result(String(query.outcome))
+	if query.rows.size() > MAX_MEMBERSHIPS or (revision.revision == 0 and not query.rows.is_empty()):
+		return _result("invalid_persisted_state")
+	var party_count: int = 0
+	for member: Dictionary in query.rows:
+		if not _valid_subject({"kind": member.subject_kind, "id": member.subject_id, "role": member.subject_role}) or member.subject_kind == "character":
+			return _result("invalid_persisted_state")
+		if member.subject_kind == "party":
+			party_count += 1
+	if party_count > 1:
+		return _result("invalid_persisted_state")
+	return {"outcome": "ok", "revision": revision.revision, "members": query.rows}
+
+
 func _permission_snapshot(actor_character_id: String, plot_id: String) -> Dictionary:
 	var observed: Dictionary = get_claim(plot_id)
 	if observed.outcome != "ok":
 		return observed
-	var membership: Dictionary = _membership_revision(actor_character_id)
+	var membership: Dictionary = _membership_snapshot(actor_character_id)
 	if membership.outcome != "ok":
 		return membership
-	var members: Dictionary = _store.query_with_bindings("SELECT subject_kind, subject_id, subject_role FROM permission_memberships WHERE character_id = ?;", [actor_character_id])
 	var grants: Dictionary = _store.query_with_bindings("SELECT subject_kind, subject_id, subject_role, permission_bits FROM plot_permits WHERE plot_id = ?;", [plot_id])
-	if members.outcome != "ok" or grants.outcome != "ok":
+	if grants.outcome != "ok":
 		return _result("query_failed")
 	var eligible: Dictionary = {_subject_key("character", actor_character_id, ""): true}
-	for member: Dictionary in members.rows:
-		if not _valid_subject({"kind": member.subject_kind, "id": member.subject_id, "role": member.subject_role}) or member.subject_kind == "character":
-			return _result("invalid_persisted_state")
+	for member: Dictionary in membership.members:
 		eligible[_subject_key(member.subject_kind, member.subject_id, member.subject_role)] = true
 	var bits: int = ALL_PERMISSIONS if observed.claim.owner_character_id == actor_character_id else 0
 	for grant: Dictionary in grants.rows:
@@ -323,7 +363,7 @@ func _permission_snapshot(actor_character_id: String, plot_id: String) -> Dictio
 
 
 static func _valid_subject(subject: Variant) -> bool:
-	if not _exact_fields(subject, ["kind", "id", "role"]) or not _valid_id(subject.id) or not (subject.role is String):
+	if not _exact_fields(subject, ["kind", "id", "role"]) or not _valid_id(subject.id) or not (subject.kind is String) or not (subject.role is String):
 		return false
 	if subject.kind == "faction_role":
 		return _valid_id(subject.role)

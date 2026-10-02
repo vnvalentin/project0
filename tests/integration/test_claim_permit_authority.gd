@@ -433,3 +433,62 @@ func test_explicit_steward_cannot_delegate_or_remove_rights_it_does_not_hold() -
 	assert_eq(authority.apply_permit("steward-one", grant).outcome, "ok")
 	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "ok")
 	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 4).outcome, "permission_denied")
+
+
+func test_closed_permission_inputs_reject_unknown_bits_fields_types_and_control_ids() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var valid: Dictionary = {"schema_version": 1, "operation_id": "permit-one", "plot_id": "plot-one", "expected_revision": 1, "action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1}
+	var cases: Array[Dictionary] = []
+	for bits: Variant in [0, -1, 64, 1.0]:
+		var bad_bits: Dictionary = valid.duplicate(true)
+		bad_bits.permission_bits = bits
+		cases.append(bad_bits)
+	var unknown: Dictionary = valid.duplicate(true)
+	unknown.client_owner = true
+	cases.append(unknown)
+	var wrong_kind_type: Dictionary = valid.duplicate(true)
+	wrong_kind_type.subject.kind = &"character"
+	cases.append(wrong_kind_type)
+	var control_id: Dictionary = valid.duplicate(true)
+	control_id.operation_id = "permit\nforged"
+	cases.append(control_id)
+	var fraction_revision: Dictionary = valid.duplicate(true)
+	fraction_revision.expected_revision = 1.0
+	cases.append(fraction_revision)
+	var unknown_version: Dictionary = valid.duplicate(true)
+	unknown_version.schema_version = 1.0
+	cases.append(unknown_version)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	for intent: Dictionary in cases:
+		assert_eq(authority.apply_permit("owner-one", intent).outcome, "invalid_request")
+	assert_eq(authority.register_claim("plot\nforged", "owner-one", "bad-plot").outcome, "invalid_request")
+	assert_eq(authority.update_memberships("member-one", [{"kind": "party", "id": "first", "role": ""}, {"kind": "party", "id": "second", "role": ""}], 0, "two-parties").outcome, "invalid_request")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_corrupt_claim_and_membership_state_rejects_without_repair_writes() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(authority.update_memberships("member-one", [], 0, "member-one").outcome, "ok")
+	assert_eq(_store.query("UPDATE plot_claims SET claim_revision = 1073741825;").outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.get_claim("plot-one").outcome, "invalid_persisted_state")
+	assert_eq(authority.begin_interaction("owner-one", "plot-one", 1).outcome, "invalid_persisted_state")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_store.query("UPDATE plot_claims SET claim_revision = 1;").outcome, "ok")
+	assert_eq(_store.query("INSERT INTO permission_memberships (character_id, subject_kind, subject_id, subject_role) VALUES ('member-one', 'party', 'first', '');").outcome, "ok")
+	assert_eq(_store.query("INSERT INTO permission_memberships (character_id, subject_kind, subject_id, subject_role) VALUES ('member-one', 'party', 'second', '');").outcome, "ok")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.begin_interaction("member-one", "plot-one", 1).outcome, "invalid_persisted_state")
+	assert_eq(authority.update_memberships("member-one", [], 1, "do-not-repair").outcome, "invalid_persisted_state")
+	assert_eq(_store.query("SELECT subject_id FROM permission_memberships ORDER BY subject_id;").rows, [{"subject_id": "first"}, {"subject_id": "second"}])
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
