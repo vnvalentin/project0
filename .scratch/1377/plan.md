@@ -73,3 +73,25 @@ ownership plan/inventory passed. Reports are
 `build/validation/m4-source-inventory-final.json`. Temporary fixture roots are
 removed by unittest cleanup. These are substituted command evidence; native
 parity, full GUT and independent reviews remain separate gates.
+
+## Final accepted-main integration and complete recipes
+
+Records-first integration checkpoint:
+https://github.com/vnvalentin/project0/issues/1377#issuecomment-5957487132
+Accepted main `9702827c918cbf34719e11123e349c20af76fc1f` was integrated without
+conflicts at `c654db80177853d66000cbffd2de8a6782ac2651`. Parity test/helper and
+runner code are unchanged by that merge. Earlier native observations retain
+their original source identities. Pending #1397 remains a final full-suite
+dependency; integrate its accepted merge before qualifying final native evidence.
+
+The JSON now declares the complete current unit/integration inventory and exact
+focused/full shell recipes. Each holds the session flock through EXIT cleanup,
+creates fresh owned XDG/config/cache/dashboard/test-state directories, binds
+the source SHA and retains output at explicit paths. Focused output is captured
+as `build/validation/m4-1377-focused/gut.{xml,log}`. Full GUT uses
+`RESULT_DIR=build/validation/m4-1377-full` and retains XML/log/summary there.
+Ownership preflight must pass before execution. A coordinated quiet window plus
+external process-ancestry monitoring, engine-error scan, exact XML coverage and
+all source-bound case verdicts/cleanup observations remain qualification gates.
+A passing static command control is not native execution. Record-sync and
+independent review remain required before merge or issue closure.
