@@ -229,3 +229,28 @@ func test_malformed_values_and_forged_entry_identity_are_rejected() -> void:
 		assert_eq(repository.resolve_entry(forged)["outcome"], "invalid_anchor", field)
 	assert_eq(repository.get_anchor(retained["interior_id"])["anchor"].to_dict(), retained)
 	assert_eq(repository.resolve_entry(_intent())["anchor"].to_dict(), retained)
+
+
+func test_stamped_canon_guid_is_bound_instead_of_legacy_derivation() -> void:
+	var stamped: Dictionary = _blueprint.duplicate(true)
+	stamped["sector_id"] = "sector-1-0"
+	stamped["structures"][0]["entity_guid"] = "e4c0d17b-697f-5a6c-a379-7dab847fca3b"
+	assert_eq(_canon.canonicalize_blueprint(stamped)["outcome"], "ok")
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	var descriptor: Dictionary = _descriptor()
+	descriptor["exterior_sector_id"] = "sector-1-0"
+	descriptor["exterior_entity_guid"] = stamped["structures"][0]["entity_guid"]
+	descriptor["entry_position"] = [440, 0, 0]
+	descriptor["bounds_min"] = [438, -1, -2]
+	descriptor["bounds_max"] = [442, 3, 2]
+	var first: Dictionary = repository.register_anchor(descriptor)
+	assert_eq(first["outcome"], "ok")
+	var intent: Dictionary = _intent()
+	intent["exterior_sector_id"] = "sector-1-0"
+	intent["exterior_entity_guid"] = descriptor["exterior_entity_guid"]
+	assert_eq(repository.resolve_entry(intent)["anchor"].to_dict(), first["anchor"].to_dict())
+	intent["exterior_entity_guid"] = GuidScript.derive("sector-1-0", "structure", "village_hall")
+	assert_eq(repository.resolve_entry(intent)["outcome"], "orphan_anchor")
+	assert_eq(_canon.get_canonical_sector("sector-1-0")["sector"]["blueprint"], stamped)

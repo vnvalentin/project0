@@ -95,3 +95,5 @@ Blank-reference TDD RED: build/validation/849/20261002T135905Z-blank-red-14094/f
 Blank-reference GREEN: build/validation/849/20261002T140254Z-blank-green-22200/focused-result.json. Two scripts/eight tests passed, cleanup verified. Identifier admission now rejects whitespace-only fields while preserving nonblank opaque spelling. No authoritative grant or plot verification was added.
 
 Independent identity/alias characterization: build/validation/849/20261002T140432Z-identity-28096/focused-result.json. Two scripts/nine tests passed; known independently computed UUIDv5 fixture matches, JSON parse/serialize parity holds, input/output arrays do not alias, and forged persisted identity/revision fails. Cleanup verified.
+
+Stamped Canon identity characterization: build/validation/849/20261002T140621Z-stamped-33884/focused-result.json. Two scripts/ten tests passed; a committed stamped structure GUID registers/resolves while its legacy derived identifier rejects, and base Canon is unchanged. Cleanup verified.
