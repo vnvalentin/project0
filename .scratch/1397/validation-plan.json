@@ -10,7 +10,7 @@
         "godot",
         "sqlite"
       ],
-      "command": "godot --headless -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/unit/test_sector_blueprint_repair.gd -glog=2 -gdisable_colors -gexit -gjunit_xml_file=build/validation/1397-focused/gut.xml",
+      "command": "(\nset -euo pipefail\nexec 9>/tmp/project0-m4-01a0fcfa-validation.lock\nflock -n 9\nstate_root=\"$(mktemp -d /tmp/project0-1397-validation.XXXXXX)\"\ntrap 'rm -rf -- \"$state_root\"' EXIT\nexport XDG_DATA_HOME=\"$state_root/data\" XDG_CONFIG_HOME=\"$state_root/config\" XDG_CACHE_HOME=\"$state_root/cache\"\nexport DASHBOARD_RESULTS_DIR=\"$state_root/dashboard\" PROJECT0_TEST_STATE_DIR=\"$state_root/runtime\"\nexport M4_SOURCE_REVISION=\"$(git rev-parse --verify HEAD)\"\n[[ \"$M4_SOURCE_REVISION\" =~ ^[0-9a-f]{40}$ ]]\nmkdir -p \"$PROJECT0_TEST_STATE_DIR\"\nmkdir -p build/validation/1397-focused\nset +e\ntimeout --kill-after=10s 180s godot --headless -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/unit/test_sector_blueprint_repair.gd -glog=2 -gdisable_colors -gexit -gjunit_xml_file=build/validation/1397-focused/gut.xml >build/validation/1397-focused/gut.log 2>&1\ncommand_status=$?\nset -e\nexit \"$command_status\"\n)",
       "tests": [
         "tests/unit/test_sector_blueprint_repair.gd"
       ],
@@ -27,7 +27,7 @@
         "godot",
         "sqlite"
       ],
-      "command": "bash scripts/run_gut_validation.sh",
+      "command": "(\nset -euo pipefail\nexec 9>/tmp/project0-m4-01a0fcfa-validation.lock\nflock -n 9\nstate_root=\"$(mktemp -d /tmp/project0-1397-validation.XXXXXX)\"\ntrap 'rm -rf -- \"$state_root\"' EXIT\nexport XDG_DATA_HOME=\"$state_root/data\" XDG_CONFIG_HOME=\"$state_root/config\" XDG_CACHE_HOME=\"$state_root/cache\"\nexport DASHBOARD_RESULTS_DIR=\"$state_root/dashboard\" PROJECT0_TEST_STATE_DIR=\"$state_root/runtime\"\nexport M4_SOURCE_REVISION=\"$(git rev-parse --verify HEAD)\"\n[[ \"$M4_SOURCE_REVISION\" =~ ^[0-9a-f]{40}$ ]]\nmkdir -p \"$PROJECT0_TEST_STATE_DIR\"\nRESULT_DIR=build/validation/1397-full GUT_TIMEOUT_SECONDS=900 bash scripts/run_gut_validation.sh\n)",
       "tests": [
         "tests/integration/test_account_auth_session.gd",
         "tests/integration/test_account_character_repository.gd",
@@ -188,6 +188,7 @@
       ],
       "artifacts": [
         "build/validation/1397-full/gut.xml",
+        "build/validation/1397-full/gut.log",
         "build/validation/1397-full/validation-summary.json"
       ]
     }
