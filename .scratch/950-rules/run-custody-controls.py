@@ -15,14 +15,14 @@ LANE = ROOT / '.scratch/950-rules'
 SOURCES = ['server/item_creation_profile.gd', 'tests/unit/test_item_creation_profile.gd',
            'tests/fixtures/item_creation_profile.gd', '.scratch/950-rules/run-focused.sh',
            '.scratch/950-rules/validation-plan.json', '.scratch/950-rules/validation-evidence.py']
-CASES = ['valid_delivery','valid_prepared_dirty','qualified_red','wrong_red_case',
+CASES = ['valid_delivery','valid_explicit_zero_errors','valid_prepared_dirty','qualified_red','wrong_red_case',
          'multiple_red_cases','unsupported_red_exit','red_without_failure','green_suite_failure',
          'import_nonzero','import_marker','dirty_start','dirty_end','changed_head','changed_source',
          'missing_start_identity','missing_end_identity','missing_end_source',
          'timeout_start_revision','timeout_start_status','timeout_end_revision','timeout_end_status',
          'engine_unavailable','engine_expired','nonmap_start','truncated_start','unreadable_start',
          'invalid_start_fields','nonmap_preflight','truncated_preflight','unreadable_preflight',
-         'invalid_junit','gut_marker','missing_case','invalid_counts','skipped_case','errored_case','unreadable_log','cleanup_failure','retention_failure','unexpected_result']
+         'invalid_junit','gut_marker','missing_case','invalid_counts','invalid_errors','nonzero_errors','root_nonzero_errors','root_invalid_errors','missing_tests','missing_failures','missing_skipped','root_error_node','skipped_case','errored_case','unreadable_log','cleanup_failure','retention_failure','unexpected_result']
 STUB = r'''#!/usr/bin/env python3
 import json,os,re,sys
 from pathlib import Path
@@ -59,7 +59,15 @@ elif name=='godot':
   if case=='wrong_red_case':bad=[names[0]]
   if case=='multiple_red_cases':bad=[names[0],names[-1]]
   if case=='red_without_failure':bad=[]
-  doc=ET.Element('testsuites');suite=ET.SubElement(doc,'testsuite',name='tests/unit/test_item_creation_profile.gd',tests=str(len(names)),failures=str(len(bad)),errors='0',skipped='0')
+  doc=ET.Element('testsuites');suite=ET.SubElement(doc,'testsuite',name='tests/unit/test_item_creation_profile.gd',tests=str(len(names)),failures=str(len(bad)),skipped='0',time='0.0')
+  doc.set('name','GutTests');doc.set('tests',str(len(names)));doc.set('failures',str(len(bad)))
+  if case=='valid_explicit_zero_errors':suite.set('errors','0')
+  if case=='invalid_errors':suite.set('errors','invalid')
+  if case=='nonzero_errors':suite.set('errors','1')
+  if case=='root_nonzero_errors':doc.set('errors','1')
+  if case=='root_invalid_errors':doc.set('errors','invalid')
+  if case=='root_error_node':ET.SubElement(doc,'error')
+  if case.startswith('missing_') and case[8:] in ['tests','failures','skipped']:del suite.attrib[case[8:]]
   for item in names:
    node=ET.SubElement(suite,'testcase',name=item)
    if item in bad:ET.SubElement(node,'failure').text='copied assertion'
@@ -144,7 +152,7 @@ if case=='unreadable_preflight':out.unlink();out.mkdir()
                     except ValueError:continue
                     if isinstance(value,dict) and value.get('issue')==950:verdict=value
             assert isinstance(verdict,dict),(case,'missing_structured_verdict',result.stderr)
-            good=case in ['valid_delivery','valid_prepared_dirty','qualified_red']
+            good=case in ['valid_delivery','valid_explicit_zero_errors','valid_prepared_dirty','qualified_red']
             assert result.returncode==(0 if good else 1),(case,result.returncode,result.stderr,verdict)
             assert verdict['evidence_exit_code']==result.returncode and verdict['status']==('expected_red' if red and good else 'passed' if good else 'failed'),case
             assert verdict['cleanup_verified']==(case!='cleanup_failure'),case

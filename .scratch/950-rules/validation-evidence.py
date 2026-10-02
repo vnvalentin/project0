@@ -153,11 +153,13 @@ def finish(directory, mode, binding, expected, stage, runner_exit, cleanup_exit,
     cases = []
     totals = {key: 'NOT_OBSERVED' for key in ['tests','failures','errors','skipped']}
     try:
-        suites = list(ET.parse(directory / 'gut.xml').iter('testsuite'))
+        document = ET.parse(directory / 'gut.xml').getroot()
+        suites = list(document.iter('testsuite'))
         if len(suites) != 1 or suites[0].get('name') != TEST:
             raise ValueError('unexpected_suite')
         for key in totals:
-            text = suites[0].get(key)
+            # Installed GUT omits errors; only that optional count may default.
+            text = suites[0].get(key, '0') if key == 'errors' else suites[0].get(key)
             if not isinstance(text, str) or not re.fullmatch(r'[0-9]+', text):
                 raise ValueError('invalid_counts')
             totals[key] = int(text)
@@ -165,7 +167,10 @@ def finish(directory, mode, binding, expected, stage, runner_exit, cleanup_exit,
         names = [case.get('name') for case in cases]
         if not qualified or len(cases) != expected or len(names) != len(set(names)) or set(names) != set(source['public_cases']) or totals['tests'] != expected:
             errors.append('invalid_coverage')
-        if totals['errors'] != 0 or totals['skipped'] != 0 or any(case.find('error') is not None or case.find('skipped') is not None for case in cases):
+        root_errors = document.get('errors', '0')
+        if not re.fullmatch(r'[0-9]+', root_errors):
+            raise ValueError('invalid_root_errors')
+        if totals['errors'] != 0 or int(root_errors) != 0 or totals['skipped'] != 0 or document.find('.//error') is not None or any(case.find('skipped') is not None for case in cases):
             errors.append('error_or_skip_observed')
         failed = [case.get('name') for case in cases if case.find('failure') is not None]
         if mode == 'red' and (totals['failures'] < 1 or not qualified or failed != [source['public_cases'][-1]] or suite_exit != '1'):

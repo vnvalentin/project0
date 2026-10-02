@@ -32,3 +32,7 @@ Owned copied controls and static qualification pass. Application, fixture and pu
 ## Accepted-main integration
 
 The fixed accepted main revision is integrated. Its additive ledger and Mac support changes retain their own ownership boundaries. The authored-rule application, fixture, public tests and owned validation implementation are unchanged. Static qualification remains supporting evidence; independent exact-head review and coordinated native validation remain required.
+
+## Exporter-contract correction
+
+Independent review found an evidence-parser mismatch with the installed GUT exporter. The owned correction follows the exporter contract and still rejects explicit error reports or error nodes. Reproducible controls must use exporter-shaped positive documents and malformed explicit-count negatives. Detailed outcomes remain local; application, fixture and public rule tests are outside this correction.
