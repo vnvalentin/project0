@@ -181,7 +181,10 @@ func test_closed_descriptor_rejects_invalid_geometry_and_returns_independent_val
 	parsed["station"].bounds_min = Vector3(-800, -1, -2)
 	var snapshot: Dictionary = area.station_snapshot()
 	snapshot["bounds_min"][0] = -700
-	assert_eq(area.station_snapshot(), _descriptor(), "Provisioning inputs and snapshots cannot mutate the retained volume value")
+	var expected: Dictionary = _descriptor()
+	expected["bounds_min"] = [-2.0, -1.0, -2.0]
+	expected["bounds_max"] = [2.0, 3.0, 2.0]
+	assert_eq(area.station_snapshot(), expected, "Independent snapshots retain normalized Vector3 float coordinates")
 
 
 func test_closed_client_intent_contains_only_version_and_station_reference() -> void:

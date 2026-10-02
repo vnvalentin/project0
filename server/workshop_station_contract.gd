@@ -54,6 +54,14 @@ static func parse_server_descriptor(input: Variant) -> Dictionary:
 	return {"outcome": "ok", "station": station}
 
 
+static func parse_intent(input: Variant) -> Dictionary:
+	if not input is Dictionary or input.size() != 2 or not input.has("schema_version") or not input.has("station_id"):
+		return {"outcome": "invalid_intent"}
+	if not (input["schema_version"] is int or input["schema_version"] is float) or input["schema_version"] != 1 or not valid_id(input["station_id"]):
+		return {"outcome": "invalid_intent"}
+	return {"outcome": "ok", "station_id": input["station_id"]}
+
+
 static func valid_id(value: Variant) -> bool:
 	return value is String and not value.is_empty() and value.length() <= MAX_ID_LENGTH and value.strip_edges() == value
 
