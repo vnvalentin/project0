@@ -288,8 +288,13 @@ def main():
             try:
                 report['container_cpu_stat'].append(owned_cpu_stat(owned_cgroup))
             except FileNotFoundError:
-                if server.poll() is None:
-                    raise RuntimeError('owned_cpu_stat_lost_while_running')
+                completed = read_json(folder / 'server-observation.json')
+                if completed.get('status') != 'complete':
+                    raise RuntimeError('owned_cpu_stat_lost_before_observation_complete')
+                # Docker may retire the exited container cgroup before its client exits.
+                # The complete observation is already atomic; retain the last CPU sample.
+                report['cpu_stat_end'] = 'cgroup_retired_after_complete_observation'
+                server.wait(timeout=5)
                 break
             if any(peer.poll() is not None for peer in owned[1:]):
                 raise RuntimeError('load_peer_exited_before_server')
