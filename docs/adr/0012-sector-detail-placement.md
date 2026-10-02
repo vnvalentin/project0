@@ -4,6 +4,9 @@ status: accepted
 
 # Server-Pinned Fine Detail Within Stable Sectors
 
+> Superseded for new sectors by [ADR 0013](0013-whole-sector-themed-places.md)
+> (2026-10-02). Existing v5 Canon keeps this placement contract.
+
 Issue [#1242](https://github.com/vnvalentin/project0/issues/1242) preserves
 [ADR 0003](0003-imperial-world-scale.md)'s 440-yard sector identities and bounded
 one-yard tiles. Blueprint schema v5 adds an explicit server-owned `detail_origin`
