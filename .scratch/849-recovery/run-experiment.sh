@@ -10,7 +10,7 @@ result_dir="$PWD/build/validation/849-recovery/$run_id"
 test ! -e "$result_dir"
 mkdir -p "$result_dir"
 fixture_dir=""
-revision="$(git rev-parse HEAD)"
+revision=NOT_OBSERVED
 prepare_exit=-1
 recover_exit=-1
 stage=setup
@@ -125,6 +125,7 @@ for scenario in ['valid','damaged']:
 for phase in phases.values():
     for key in ['generation','scene_assembly','physical_actor_authorization']:
         if phase.get(key)!='NOT_OBSERVED': errors.append('unsupported_acceptance_claim:'+key)
+if revision=='NOT_OBSERVED': errors.append('initial_revision_not_observed')
 if source_clean_start!='true': errors.append('source_not_clean_at_start')
 def final_git_identity(arguments,error):
     try:
@@ -166,6 +167,13 @@ PY
   exit "$evidence_exit"
 }
 trap finish EXIT
+stage=initial_identity
+if initial_revision="$(timeout --kill-after=1s 10s git rev-parse HEAD 2>/dev/null)"; then
+  [[ "$initial_revision" =~ ^[0-9a-f]{40}$ ]] || exit 1
+  revision="$initial_revision"
+else
+  exit 1
+fi
 stage=source_guard
 source_status="$(git status --porcelain)"
 [[ -z "$source_status" ]] || exit 1
