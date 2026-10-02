@@ -17,11 +17,13 @@ M4.2 component parity is accepted separately; it does not establish capacity.
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Source analysis: [M4.3 findings](../../.scratch/zone-sharding/m4-source-findings.md),
-reconciled at accepted main `521601a72e792e7a54c6b12c618f10eff48cadb0`.
+reconciled at accepted main `6a39f68f58388976710ff5a9fc49961ffc1a25b0`.
 The [initial checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685),
 [evidence amendment](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827)
-and [target proposal](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958697673)
-own this documentation work.
+[target proposal](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958697673),
+and [accepted-map diagnostic frontier](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958888901)
+own this documentation work. The planning map is accepted in PR #1378; its
+merge does not qualify capacity or this proposed architecture.
 
 ## Evidence required to accept
 
@@ -84,7 +86,7 @@ and [qualified native evidence](https://github.com/vnvalentin/project0/issues/13
 bind accepted component parity to `6bda74b00aea805e6c1dce2bb72ac5431930c075`:
 ten focused tests/case reports and 157/157 full scripts / 1,175 tests passed,
 with source/helper/test qualification, rejected-write/observation controls,
-zero error markers and verified owned cleanup. PR #1387 merged as accepted main
+zero error markers and verified owned cleanup. PR #1387 merged as
 `521601a72e792e7a54c6b12c618f10eff48cadb0`; #1377 is closed. This is supported
 same-runtime component evidence, not deployed cross-process handoff or capacity.
 The source findings retain prior diagnostics with their historical identities.
@@ -129,6 +131,16 @@ checkpoint reads immutable Canon, hashes its blueprint and copies schema_version
 into sector_revision, then updates JourneyRegistry and synchronously UPSERTs
 journeys. It does not replay mutations or rebuild runtime collision state.
 Preserve these identities and reclaim/lifecycle behavior explicitly.
+
+The next diagnostic uses harness-only Canon/Journey repository subclasses with
+unchanged public `CanonRepository.get_canonical_sector` and
+`JourneyRepository.save` `super()` calls under a proposed checkpoint-depth counter.
+Reuse the same qualified store handles, explicitly preserve server/coordinator/
+registry bindings and reject stale or missing observers. Observe Canon read/decode
+and journey save without copying the production pipeline. The findings specify
+positive delegated-path and negative binding/observation controls. Residual
+checkpoint time remains unassigned; this source plan is not runtime evidence.
+#205 stays awaiting the linked diagnostic and accepted architecture decision.
 
 Simulation captures immutable, epoch/sequence-bound checkpoint requests.
 A trusted game-owned executor may serialize persistence away from the physics
