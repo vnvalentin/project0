@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 import time
 
-from m4_baseline_report import evaluate, audit_worker_probe, summarize_stage_timings
+from m4_baseline_report import evaluate, audit_worker_probe, summarize_stage_timings, summarize_checkpoint_timings
 
 ROOT = Path(__file__).resolve().parents[1]
 ERROR_MARKERS = ('SCRIPT ERROR:', 'Parse Error:', 'Compile Error:', 'Failed to load script')
@@ -136,6 +136,7 @@ def parse_arguments(argv=None):
     parser.add_argument('--server-image', required=True, help='Immutable locally cached sha256 image ID')
     parser.add_argument('--crossing-span', type=int, choices=(1, 10), default=1, help='Explicit half-span around x440:1 high crossing stress,10 representative target')
     parser.add_argument('--supported-load', action='store_true', help='Explicit 1000-tick zero-synthetic-worker capacity measurement; never complete isolation acceptance')
+    parser.add_argument('--checkpoint-attribution', action='store_true', help='Explicit original-handle checkpoint diagnostic; requires supported load and span10')
     args = parser.parse_args(argv)
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', args.server_image):
         parser.error('server-image must be an immutable SHA-256 image ID')
@@ -143,6 +144,8 @@ def parse_arguments(argv=None):
         parser.error('diagnostic-workers requires --ticks 60')
     if args.supported_load and (args.ticks != 1000 or args.diagnostic_workers is not None):
         parser.error('supported-load requires --ticks 1000 and excludes diagnostic-workers')
+    if args.checkpoint_attribution and (not args.supported_load or args.crossing_span != 10):
+        parser.error('checkpoint-attribution requires supported-load and crossing-span10')
     args.worker_count = 0 if args.supported_load else (32 if args.diagnostic_workers is None else args.diagnostic_workers)
     return args
 
@@ -155,8 +158,8 @@ def main():
     folder = ROOT / 'logs/experiments' / ('m4-1-' + stamp)
     folder.mkdir(parents=True, exist_ok=False)
     report_path = ROOT / 'logs/experiments' / ('exp_m4_1_baseline_' + stamp + '.json')
-    report = {'issue': 1376, 'kind': 'supported-load-measurement' if args.supported_load else ('smoke' if args.ticks == 60 else 'baseline'),
-              'supported_load': args.supported_load,
+    report = {'issue': 1376, 'kind': 'checkpoint-attribution-diagnostic' if args.checkpoint_attribution else ('supported-load-measurement' if args.supported_load else ('smoke' if args.ticks == 60 else 'baseline')),
+              'supported_load': args.supported_load, 'checkpoint_attribution': args.checkpoint_attribution,
               'evaluation_scope': 'Supported capacity only; separate worker contention/isolation evidence required.' if args.supported_load else f'Includes {worker_count} fixture-selected synthetic worker tasks; this is not an observed production demand.',
               'started_utc': stamp, 'host': socket.gethostname(), 'requested_ticks': args.ticks,
               'diagnostic_workers': args.diagnostic_workers,
@@ -169,11 +172,14 @@ def main():
     report['command'] += ['--crossing-span', str(args.crossing_span)]
     if args.supported_load:
         report['command'].append('--supported-load')
+    if args.checkpoint_attribution:
+        report['command'].append('--checkpoint-attribution')
     if args.diagnostic_workers is not None:
         report['command'] += ['--diagnostic-workers', str(args.diagnostic_workers)]
     report['source_hashes'] = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
                                for p in [ROOT / 'scripts/m4_load_server.gd', ROOT / 'scripts/m4_load_peer.gd',
-                                         ROOT / 'scripts/run_m4_baseline.py', ROOT / 'scripts/m4_baseline_report.py']}
+                                         ROOT / 'scripts/run_m4_baseline.py', ROOT / 'scripts/m4_baseline_report.py',
+                                         ROOT / 'scripts/m4_checkpoint_attribution.gd']}
     report['structural_audit'] = audit_worker_probe((ROOT / 'scripts/m4_load_server.gd').read_text())
     owned = []
     files = []
@@ -209,6 +215,7 @@ def main():
                     'PROJECT0_OPERATOR_CONTROL_PORT': '0', 'PROJECT0_TICK_RATE': '30',
                     'PROJECT0_LLM_TOWN_AT_BOOT': '0', 'PROJECT0_CLIENT_LOGIN_SPLIT': '0', 'PROJECT0_CLIENT_HTTPS_LOGIN': '0',
                     'M4_PRIVATE': str(private), 'M4_HTTP_PORT': str(available_port(socket.SOCK_STREAM)),
+                    'M4_CHECKPOINT_ATTRIBUTION': '1' if args.checkpoint_attribution else '0',
                     'M4_TICKS': str(args.ticks), 'M4_WORKERS': str(worker_count), 'M4_CROSSING_SPAN': str(args.crossing_span), 'M4_STOP': str(private / 'stop'),
                     'M4_OBSERVATION': str(folder / 'server-observation.json')})
         archive = folder / 'source.tar'
@@ -388,7 +395,9 @@ def main():
         if report['errors']:
             observation.setdefault('errors', []).extend(report['errors'])
         report['stage_summary'] = summarize_stage_timings(observation)
-        report['evaluation'] = evaluate(observation, cleanup, supported_load=args.supported_load)
+        if args.checkpoint_attribution:
+            report['checkpoint_summary'] = summarize_checkpoint_timings(observation.get('checkpoint_attribution', {}))
+        report['evaluation'] = evaluate(observation, cleanup, supported_load=args.supported_load, checkpoint_attribution=args.checkpoint_attribution)
         report['passed'] = report['evaluation']['passed'] and not report['errors'] and args.ticks == 1000
         report['completed_utc'] = datetime.now(timezone.utc).isoformat()
         write_json(report_path, report)

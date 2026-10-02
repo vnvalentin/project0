@@ -2,7 +2,7 @@
 import math
 
 
-def evaluate(observation: dict, cleanup: bool, supported_load: bool = False) -> dict:
+def evaluate(observation: dict, cleanup: bool, supported_load: bool = False, checkpoint_attribution: bool = False) -> dict:
     samples = observation.get('samples', [])
     complete = len(samples) == 1000 and all(isinstance(s, dict) for s in samples)
     ticks = [s.get('tick') for s in samples] if complete else []
@@ -38,6 +38,8 @@ def evaluate(observation: dict, cleanup: bool, supported_load: bool = False) -> 
         'callback_stage_evidence_qualified': summarize_stage_timings(observation)['qualified'],
         'cleanup_verified': cleanup is True,
     }
+    if checkpoint_attribution:
+        checks['checkpoint_child_evidence_qualified'] = summarize_checkpoint_timings(observation.get('checkpoint_attribution', {}))['qualified']
     return {'passed': all(checks.values()) and not supported_load, 'checks': checks,
             'acceptance_exclusions': ['supported_load_requires_independent_contention_isolation'] if supported_load else [],
             'failed_checks': [k for k, value in checks.items() if not value],

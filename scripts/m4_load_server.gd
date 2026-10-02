@@ -1,6 +1,7 @@
 extends "res://server/server_main.gd"
 ## #1376 isolated workload. Production admissions, movement, Canon and NPCs stay real.
 ## EngineProfiler supplies complete engine physics work, not tick wall periods.
+const CheckpointObserver: Script = preload("res://scripts/m4_checkpoint_attribution.gd")
 const Issuer: Script = preload("res://server/assertion_issuer.gd")
 const SECTORS: Array[String] = ["sector-0-0", "sector-1-0", "sector-0-1", "sector-1-1"]
 
@@ -29,6 +30,8 @@ class MovingBody extends CharacterBody3D:
 		travel += before.distance_to(position)
 		steps += 1
 
+var _m4_checkpoint_observer: Object = null
+var _m4_checkpoint_samples: Array[Dictionary] = []
 var _m4_canon_context: String = "server_lookup"
 var _m4_stages: Dictionary = {}
 var _m4_profiler: TickProfiler
@@ -84,6 +87,12 @@ func _start_server() -> void:
 	await super()
 	if _canon_repository == null:
 		return
+	if OS.get_environment("M4_CHECKPOINT_ATTRIBUTION") == "1":
+		_m4_checkpoint_observer = CheckpointObserver.new()
+		if not _m4_checkpoint_observer.install(self):
+			_m4_report["errors"].append("checkpoint_observer_binding_failed")
+			quit(1)
+			return
 	for index: int in range(4):
 		var blueprint: Dictionary = _m4_blueprint(index)
 		var result: Dictionary = _canon_repository.canonicalize_blueprint(blueprint)
@@ -235,7 +244,12 @@ func _observe_frontier_stay(peer_id: int, position: Vector3) -> void:
 
 func _checkpoint_journey(peer_id: int, authoritative_position: Vector3) -> void:
 	var stage_started: int = Time.get_ticks_usec()
+	var checkpoint_started: int = -1
+	if _m4_checkpoint_observer != null and _m4_started and not _m4_finished:
+		checkpoint_started = _m4_checkpoint_observer.begin_checkpoint()
 	super(peer_id, authoritative_position)
+	if checkpoint_started >= 0:
+		_m4_checkpoint_observer.end_checkpoint(checkpoint_started)
 	_m4_record_stage("journey_checkpoint", stage_started)
 
 func _m4_record_stage(stage: String, started_usec: int) -> void:
@@ -308,6 +322,11 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 		"unix_usec": int(Time.get_unix_time_from_system() * 1000000.0),
 		"peers": peers, "ready": ready, "sectors": active_sectors.size(), "active_sector_maps": active_sectors, "npcs": advanced_npcs,
 		"bodies": advanced_bodies, "triggers": active_triggers, "trigger_entries": _m4_trigger_entries}
+	if _m4_checkpoint_observer != null:
+		var checkpoint_sample: Dictionary = _m4_checkpoint_observer.take_iteration()
+		checkpoint_sample["tick"] = frame
+		checkpoint_sample["physics_steps"] = step_count
+		_m4_checkpoint_samples.append(checkpoint_sample)
 	_m4_report["samples"].append(sample)
 	var count: int = _m4_report["samples"].size()
 	var observer_usec: int = Time.get_ticks_usec() - observation_started
@@ -360,6 +379,9 @@ func _m4_healthy_rows() -> Array:
 
 func _m4_finish() -> void:
 	_m4_finished = true
+	if _m4_checkpoint_observer != null:
+		_m4_report["checkpoint_attribution"] = {"bindings": _m4_checkpoint_observer.binding_evidence(), "samples": _m4_checkpoint_samples,
+			"scope": "Unchanged public repository super calls, original store handles, measured checkpoint depth only. Mutation/interaction services retain their original Canon reference and are outside these checkpoint child observations."}
 	_m4_report["elapsed_seconds"] = float(Time.get_ticks_usec() - _m4_start_usec) / 1000000.0
 	for task: int in _m4_worker_tasks:
 		_m4_join_worker(task)

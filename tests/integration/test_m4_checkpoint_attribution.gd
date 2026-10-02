@@ -1,5 +1,6 @@
 extends GutTest
 ## #1376 real isolated public-repository controls; no capacity claim.
+const SourceEvidence: Script = preload("res://scripts/m4_canon_evidence.gd")
 const Observer: Script = preload("res://scripts/m4_checkpoint_attribution.gd")
 const Store: Script = preload("res://server/sqlite_store.gd")
 const Canon: Script = preload("res://server/canon_repository.gd")
@@ -30,7 +31,8 @@ func before_each() -> void:
 	_trace = {"issue": 1376, "kind": "isolated_checkpoint_component", "source_revision": OS.get_environment("M4_SOURCE_REVISION"),
 		"helper_sha256": FileAccess.get_sha256("res://scripts/m4_checkpoint_attribution.gd"),
 		"test_sha256": FileAccess.get_sha256("res://tests/integration/test_m4_checkpoint_attribution.gd")}
-	assert_eq(_trace["source_revision"].length(), 40, "runner supplies committed source identity")
+	_trace["source_identity"] = SourceEvidence.source_identity(_trace["source_revision"])
+	assert_eq(_trace["source_identity"]["status"], "OBSERVED", "standard runner derives HEAD or rejects malformed/conflicting supplied source")
 
 func after_each() -> void:
 	for store: SqliteStore in _stores:

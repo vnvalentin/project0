@@ -29,6 +29,7 @@ var _journey: WeakRef
 var _original_canon_store: SqliteStore
 var _original_journey_store: SqliteStore
 var _depth: int = 0
+var _observed_bindings: Dictionary = {}
 var _iteration: Dictionary = _empty_iteration()
 
 func install(host: Object) -> bool:
@@ -61,22 +62,27 @@ func binding_evidence() -> Dictionary:
 		return {}
 	var coordinator: Object = host.get("_canon_generation_coordinator")
 	var registry: Object = host.get("_journey_registry")
-	return {"server_canon": host.get("_canon_repository") == canon,
+	var current: Dictionary = {"server_canon": host.get("_canon_repository") == canon,
 		"server_journey": host.get("_journey_repository") == journey,
 		"coordinator": coordinator != null and coordinator.get("_canonicalize") == Callable(canon, "canonicalize_blueprint"),
 		"registry": registry != null and registry.get("_repository") == journey,
 		"canon_store_original": canon.get("_store") == _original_canon_store and _original_canon_store.is_open(),
 		"journey_store_original": journey.get("_store") == _original_journey_store and _original_journey_store.is_open()}
+	for name: String in current:
+		current[name] = current[name] and _observed_bindings.get(name, true)
+	return current
 
 func bindings_qualified() -> bool:
 	var bindings: Dictionary = binding_evidence()
 	return bindings.size() == 6 and bindings.values().all(func(value: Variant) -> bool: return value == true)
 
 func begin_checkpoint() -> int:
+	_observed_bindings = binding_evidence()
 	_depth += 1
 	return Time.get_ticks_usec()
 
 func end_checkpoint(started: int) -> void:
+	_observed_bindings = binding_evidence()
 	_iteration["checkpoint_calls"] += 1
 	_iteration["duration_usec"] += Time.get_ticks_usec() - started
 	_depth -= 1

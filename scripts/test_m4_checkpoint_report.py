@@ -1,9 +1,24 @@
 """#1376 public diagnostic qualification; missing attribution is never zero work."""
 import copy
 import unittest
-from m4_baseline_report import summarize_checkpoint_timings
+from m4_baseline_report import summarize_checkpoint_timings, evaluate
+from run_m4_baseline import parse_arguments
 
 class CheckpointReportTests(unittest.TestCase):
+    def test_diagnostic_mode_is_explicit_and_requires_target_supported_load(self):
+        image=['--server-image','sha256:'+'a'*64]
+        self.assertFalse(parse_arguments(image).checkpoint_attribution)
+        args=parse_arguments(image+['--supported-load','--crossing-span','10','--checkpoint-attribution'])
+        self.assertTrue(args.checkpoint_attribution)
+        self.assertEqual(args.worker_count,0)
+        for flags in (['--checkpoint-attribution'], ['--supported-load','--checkpoint-attribution']):
+            with self.assertRaises(SystemExit):
+                parse_arguments(image+flags)
+        result=evaluate({},True,checkpoint_attribution=True)
+        self.assertFalse(result['checks']['checkpoint_child_evidence_qualified'])
+        self.assertIn('checkpoint_child_evidence_qualified',result['failed_checks'])
+        self.assertNotIn('checkpoint_child_evidence_qualified',evaluate({},True)['checks'])
+
     def test_child_observations_require_real_bindings_and_preserve_residual_scope(self):
         record={'bindings':dict.fromkeys(('server_canon','server_journey','coordinator','registry','canon_store_original','journey_store_original'),True),
                 'samples':[{'checkpoint_calls':1,'duration_usec':1000,'canon_read':{'calls':1,'duration_usec':600},'journey_save':{'calls':1,'duration_usec':300}}]}
