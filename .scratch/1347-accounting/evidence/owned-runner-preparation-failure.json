@@ -1,0 +1,10 @@
+{
+  "status": "failed",
+  "run": "green-owned-runner",
+  "runner_exit": 1,
+  "result_json": "NOT_OBSERVED",
+  "cause": "invalid embedded Python selected-script expression after preparation transformation",
+  "owned_xdg_removed": true,
+  "artifacts": "build/validation/1347-accounting/green-owned-runner/",
+  "runtime_acceptance": "not evaluated"
+}

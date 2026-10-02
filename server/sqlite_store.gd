@@ -28,6 +28,10 @@ const OUTCOME_TRANSACTION_FAILED: String = "transaction_failed"
 const CANON_WRITE_TABLES: PackedStringArray = ["canon_sectors", "canon_mutations"]
 const CANON_WRITE_WINDOWS: PackedStringArray = ["attempted", "committed", "rolled_back", "failed"]
 
+const StatementObserverScript: Script = preload("res://server/sqlite_statement_observer.gd")
+
+var _statement_observer: RefCounted = StatementObserverScript.new()
+var _connection_id: int = 0
 var _db: SQLite = null
 var _db_path_user_uri: String = ""
 var _is_open: bool = false
@@ -51,6 +55,58 @@ func _init() -> void:
 ## statements count as committed).
 func canon_write_counters() -> Dictionary:
 	return _canon_writes.duplicate(true)
+
+
+## #1347 public seam. Explicitly start after schema setup. Qualification observes
+## schema metadata only. Unsupported coverage is evidence failure, never a ban
+## on production SQL. Native row effects/other connections are not observed.
+func start_dml_observation() -> Dictionary:
+	if not _is_open or _in_transaction:
+		_statement_observer.invalidate("window_start_requires_open_idle_connection")
+		var report: Dictionary = _statement_observer.report()
+		report["reasons"].append("window_start_requires_open_idle_connection")
+		return report
+	var tables: Array[String] = []
+	var reasons: Array[String] = []
+	if not _db.has_method("get_autocommit") or not bool(_db.call("get_autocommit")):
+		reasons.append("autocommit_scope_not_observed")
+	if not _db.query("PRAGMA database_list;"):
+		reasons.append("schema_qualification_failed")
+	else:
+		for database: Dictionary in _db.query_result:
+			if str(database["name"]) not in ["main", "temp"]:
+				reasons.append("attached_database")
+	if not _db.query("SELECT 'main' AS schema_name, name, type, sql FROM sqlite_master UNION ALL SELECT 'temp' AS schema_name, name, type, sql FROM sqlite_temp_master;"):
+		reasons.append("schema_qualification_failed")
+	else:
+		var schema: Array = _db.query_result.duplicate(true)
+		for entry: Dictionary in schema:
+			if entry["schema_name"] != "main":
+				reasons.append("temporary_schema")
+				continue
+			var table: String = str(entry["name"])
+			if entry["type"] in ["trigger", "view"]:
+				reasons.append("trigger_or_view_schema")
+			elif entry["type"] == "table":
+				if RegEx.create_from_string("(?i)^CREATE\\s+VIRTUAL\\s+TABLE").search(str(entry["sql"])) != null:
+					reasons.append("virtual_table_schema")
+				if RegEx.create_from_string("^[A-Za-z_][A-Za-z0-9_]*$").search(table) == null:
+					reasons.append("unsupported_schema_identifier")
+					continue
+				tables.append(table.to_lower())
+				if not _db.query('PRAGMA foreign_key_list("%s");' % table):
+					reasons.append("schema_qualification_failed")
+				else:
+					for foreign_key: Dictionary in _db.query_result:
+						if foreign_key["on_update"] not in ["NO ACTION", "RESTRICT"] or foreign_key["on_delete"] not in ["NO ACTION", "RESTRICT"]:
+							reasons.append("foreign_key_side_effects")
+	return _statement_observer.start(_connection_id, tables, reasons)
+
+
+## Snapshot only: neither this window nor existing Canon counters are reset.
+## Prior windows remain visible, including any incomplete coverage verdict.
+func dml_statement_counters() -> Dictionary:
+	return _statement_observer.report()
 
 
 ## Public seam. Opens (creating on first use) the SQLite database at
@@ -103,6 +159,7 @@ func open(relative_path: String) -> Dictionary:
 	_db = db
 	_db_path_user_uri = db_uri
 	_is_open = true
+	_connection_id += 1
 	return _result(OUTCOME_OK, "Opened '%s' at user_version=%d." % [db_uri, current_version], current_version)
 
 
@@ -110,6 +167,7 @@ func open(relative_path: String) -> Dictionary:
 func close() -> Dictionary:
 	if not _is_open:
 		return _result(OUTCOME_NOT_OPEN, "Store is not open.", -1)
+	_statement_observer.invalidate("connection_closed")
 	_db.close_db()
 	_db = null
 	_db_path_user_uri = ""
@@ -170,13 +228,16 @@ func transaction(body: Callable) -> Dictionary:
 
 	if body_ok and not had_error:
 		if not _db.query("COMMIT;"):
-			_db.query("ROLLBACK;")
+			var rolled_back: bool = _db.query("ROLLBACK;")
+			_statement_observer.finish_transaction("rolled_back" if rolled_back else "unknown")
 			_finish_canon_transaction("rolled_back")
 			return _result(OUTCOME_TRANSACTION_FAILED, "COMMIT failed; rolled back.", -1)
+		_statement_observer.finish_transaction("committed")
 		_finish_canon_transaction("committed")
 		return _result(OUTCOME_OK, "Committed.", -1)
 
-	_db.query("ROLLBACK;")
+	var rolled_back: bool = _db.query("ROLLBACK;")
+	_statement_observer.finish_transaction("rolled_back" if rolled_back else "unknown")
 	_finish_canon_transaction("rolled_back")
 	return _result(OUTCOME_TRANSACTION_FAILED, body_detail if body_detail != "" else "Transaction rolled back.", -1)
 
@@ -193,8 +254,10 @@ func query_with_bindings(sql: String, bindings: Array = []) -> Dictionary:
 	if not _db.query_with_bindings(sql, bindings):
 		if _in_transaction:
 			_transaction_query_failed = true
+		_note_statement(sql, false)
 		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
+	_note_statement(sql, true)
 	_note_canon_write(sql, true)
 	return _result_rows(OUTCOME_OK, "", _db.query_result.duplicate(true))
 
@@ -211,10 +274,19 @@ func query(sql: String) -> Dictionary:
 	if not _db.query(sql):
 		if _in_transaction:
 			_transaction_query_failed = true
+		_note_statement(sql, false)
 		_note_canon_write(sql, false)
 		return _result_rows(OUTCOME_QUERY_FAILED, _db.error_message, [])
+	_note_statement(sql, true)
 	_note_canon_write(sql, true)
 	return _result_rows(OUTCOME_OK, "", _db.query_result.duplicate(true))
+
+
+func _note_statement(sql: String, succeeded: bool) -> void:
+	var native_transaction: bool = _in_transaction
+	if _db.has_method("get_autocommit"):
+		native_transaction = not bool(_db.call("get_autocommit"))
+	_statement_observer.observe(sql, succeeded, native_transaction)
 
 
 func _note_canon_write(sql: String, succeeded: bool) -> void:
