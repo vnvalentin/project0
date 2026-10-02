@@ -43,7 +43,7 @@ TDD starts with one failing public-seam repository test, then the smallest imple
 
 ## Dependency and ownership boundaries
 
-Own: shared/interior_anchor_contract.gd, server/interior_anchor_repository.gd, tests/unit/test_interior_anchor_contract.gd, tests/integration/test_interior_anchor_repository.gd, docs/adr/0013-interior-anchor-and-cell-persistence.md, .scratch/849 planning/validation evidence references.
+Own: shared/interior_anchor_contract.gd, server/interior_anchor_repository.gd, tests/unit/test_interior_anchor_contract.gd, tests/integration/test_interior_anchor_repository.gd, docs/adr/0016-interior-anchor-and-cell-persistence.md, .scratch/849 planning/validation evidence references.
 Do not edit SqliteStore, #1341 item contracts, existing workshop experiment files, clients, Windows launcher/packaging, Canon base or mutation repositories.
 
 Plot ID existence/ownership and CLAIM/PERMIT evaluation depend on #850. Active Area3D initialization/final-commit binding and station authority depend on #951/#1347. Streaming references are persisted identity data, not loading/geometry assembly. This increment does not publish player entry, grants, station actions or loot/crafting behavior. #849 remains open for the remaining acceptance and integration.
@@ -83,3 +83,7 @@ Approved SDD adjustment: InteriorAnchorRepository(store) will construct CanonRep
 Root-cause learning: cross-store composition red report build/validation/849/20261002T135402Z-cross-store-red-65457/focused-result.json (five tests ran, two assertions failed, cleanup verified). Symptom/public seam: injecting Canon/mutation repositories from store A into InteriorAnchorRepository writing store B admitted and resolved a target absent from B. Hypothesis/check: seed Canon only in A, create empty Canon tables in B, attempt registration/resolution through the mixed constructor. Confirmed cause: caller-owned repositories can read a different transaction/handle. Existing tests used only same-store composition and missed it. Countermeasure: simplify constructor to one SqliteStore and internally bind the existing Canon/mutation repositories to it. No live consumer or database was involved; regression will re-run the two-store public seam after the API change. Plot authority and runtime entry remain unresolved integrations.
 
 Cross-store green regression: build/validation/849/20261002T135449Z-cross-store-green-1833/focused-result.json. Five tests passed, including separate-store registration/resolution rejection; exit0, cleanup verified. Constructor now owns both existing read repositories bound to the supplied store. No private Canon dependency or SqliteStore change was added.
+
+Canon-read-failure characterization: build/validation/849/20261002T135533Z-read-failure-3680/focused-result.json. Six tests passed; owned missing history table yielded query_failed on registration/resolution, no anchor was returned, base Canon preserved and cleanup verified. No fallback revision getter is used.
+
+ADR identity corrected to0016 at coordinator request to preserve the unrelated active Mac0013 and other M3 ADR identities. Only the owned anchor ADR/links changed.

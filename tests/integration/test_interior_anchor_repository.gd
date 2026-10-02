@@ -184,3 +184,17 @@ func test_separate_store_canon_cannot_qualify_registration() -> void:
 	assert_eq(repository.ensure_schema()["outcome"], "ok")
 	assert_eq(repository.register_anchor(_descriptor())["outcome"], "orphan_anchor")
 	assert_eq(repository.resolve_entry(_intent())["outcome"], "orphan_anchor")
+
+
+func test_failed_canon_history_read_does_not_guess_revision_zero() -> void:
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	# Owned fixture fault: Canon exists but its history lookup cannot execute.
+	assert_eq(_store.query("DROP TABLE canon_mutations;")["outcome"], "ok")
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "query_failed")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "query_failed")
+	var contract_script: Script = load("res://shared/interior_anchor_contract.gd")
+	var interior_id: String = contract_script.parse_server_descriptor(_descriptor())["anchor"].interior_id
+	assert_eq(repository.get_anchor(interior_id)["outcome"], "not_found")
+	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
