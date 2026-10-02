@@ -15,7 +15,7 @@ LANE = ROOT / '.scratch/950-rules'
 SOURCES = ['server/item_creation_profile.gd', 'tests/unit/test_item_creation_profile.gd',
            'tests/fixtures/item_creation_profile.gd', '.scratch/950-rules/run-focused.sh',
            '.scratch/950-rules/validation-plan.json', '.scratch/950-rules/validation-evidence.py']
-CASES = ['valid_delivery','valid_explicit_zero_errors','valid_prepared_dirty','qualified_red','wrong_red_case',
+CASES = ['partial_runtime_setup','valid_delivery','valid_explicit_zero_errors','valid_prepared_dirty','qualified_red','wrong_red_case',
          'multiple_red_cases','unsupported_red_exit','red_without_failure','green_suite_failure',
          'import_nonzero','import_marker','dirty_start','dirty_end','changed_head','changed_source',
          'missing_start_identity','missing_end_identity','missing_end_source',
@@ -42,6 +42,10 @@ elif name=='timeout':
  while args and args[0].startswith('--'):args=args[1:]
  if case=='engine_expired' and args[0]=='10s' and args[1:]==['godot','--version']:sys.exit(124)
  args=args[1:];os.execvp(args[0],args)
+elif name=='mkdir':
+ if case=='partial_runtime_setup' and sys.argv[-1].endswith('/user-data'):
+  Path(sys.argv[-1]).mkdir(parents=True);sys.exit(3)
+ os.execv('/bin/mkdir',['mkdir',*sys.argv[1:]])
 elif name=='rm':
  if case=='cleanup_failure':sys.exit(1)
  os.execv('/bin/rm',['rm',*sys.argv[1:]])
@@ -125,7 +129,7 @@ def main():
             for name in SOURCES:
                 target=root/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,target)
             bins=root/'bin';bins.mkdir()
-            for name in ['git','godot','timeout','rm']:
+            for name in ['git','godot','timeout','rm','mkdir']:
                 tool=bins/name;tool.write_text(STUB);tool.chmod(0o700)
             hook=root/'hooks';hook.mkdir();(hook/'sitecustomize.py').write_text(HOOK)
             scripts=root/'scripts';scripts.mkdir()
@@ -157,7 +161,7 @@ if case=='unreadable_preflight':out.unlink();out.mkdir()
             assert verdict['evidence_exit_code']==result.returncode and verdict['status']==('expected_red' if red and good else 'passed' if good else 'failed'),case
             assert verdict['cleanup_verified']==(case!='cleanup_failure'),case
             assert verdict['result_retention']==('NOT_OBSERVED' if case in ['retention_failure','unexpected_result'] else 'OBSERVED'),case
-            if case in ['import_nonzero','import_marker','dirty_start','missing_start_identity','timeout_start_revision','timeout_start_status','engine_unavailable','engine_expired','nonmap_preflight','truncated_preflight','unreadable_preflight']:
+            if case in ['partial_runtime_setup','import_nonzero','import_marker','dirty_start','missing_start_identity','timeout_start_revision','timeout_start_status','engine_unavailable','engine_expired','nonmap_preflight','truncated_preflight','unreadable_preflight']:
                 assert not (root/'gut-called').exists(),(case,'unexpected_GUT_execution')
             if case in ['import_nonzero','import_marker']:assert verdict['suite_exit']=='NOT_OBSERVED'
             records.append({'case':case,'passed':True,'exit':result.returncode,'structured_verdict_captured':True,

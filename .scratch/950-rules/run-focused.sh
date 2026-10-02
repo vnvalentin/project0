@@ -6,9 +6,8 @@ run="${1:?new run id}"; mode="${2:?red or green}"; expected="${3:-1}"; binding="
 [[ "$binding" != delivery || "$mode" == green ]] || exit 2
 result="$PWD/build/validation/950-rules/$run"
 test ! -e "$result"
-mkdir -p "$result/user-data"
-export XDG_DATA_HOME="$result/user-data" DASHBOARD_RESULTS_DIR="$result/dashboard"
-stage=source_start; import_code=NOT_OBSERVED; suite_code=NOT_OBSERVED; engine=NOT_OBSERVED
+mkdir -p "$result"
+stage=runtime_setup; import_code=NOT_OBSERVED; suite_code=NOT_OBSERVED; engine=NOT_OBSERVED
 cleanup() {
   local runner_exit=$? cleanup_exit=0 evidence_exit=0
   trap - EXIT
@@ -19,6 +18,9 @@ cleanup() {
   exit "$evidence_exit"
 }
 trap cleanup EXIT
+mkdir -p "$result/user-data"
+export XDG_DATA_HOME="$result/user-data" DASHBOARD_RESULTS_DIR="$result/dashboard"
+stage=source_start
 python3 .scratch/950-rules/validation-evidence.py start "$result" "$mode" "$binding" "$expected"
 stage=preflight
 python3 scripts/check_validation_ownership.py --plan .scratch/950-rules/validation-plan.json --output "$result/preflight.json" > "$result/preflight.log" 2>&1

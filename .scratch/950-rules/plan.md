@@ -36,3 +36,7 @@ The fixed accepted main revision is integrated. Its additive ledger and Mac supp
 ## Exporter-contract correction
 
 Independent review found an evidence-parser mismatch with the installed GUT exporter. The owned correction follows the exporter contract and still rejects explicit error reports or error nodes. Reproducible controls must use exporter-shaped positive documents and malformed explicit-count negatives. Detailed outcomes remain local; application, fixture and public rule tests are outside this correction.
+
+## Setup-finalization correction
+
+Independent review found that partial owned runtime-directory setup could precede finalizer installation. The correction installs cleanup immediately after the evidence-directory reservation and before runtime-state setup. A copied partial-setup failure control must retain a failed structured verdict and verify teardown. Detailed outcomes remain local; application source remains unchanged.
