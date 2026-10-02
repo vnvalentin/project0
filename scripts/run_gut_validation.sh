@@ -6,6 +6,7 @@ GUT_TIMEOUT_SECONDS="${GUT_TIMEOUT_SECONDS:-900}"
 RESULT_DIR="${RESULT_DIR:-build/validation}"
 JUNIT_FILE="${RESULT_DIR}/gut.xml"
 LOG_FILE="${RESULT_DIR}/gut.log"
+IMPORT_LOG="${RESULT_DIR}/import.log"
 SUMMARY_FILE="${RESULT_DIR}/validation-summary.json"
 DASHBOARD_RESULTS_DIR="${DASHBOARD_RESULTS_DIR:-}"
 if [[ -z "$DASHBOARD_RESULTS_DIR" && -d "/apps/project0/dashboard/repo" ]]; then
@@ -71,7 +72,30 @@ fi
 # Reimport/compile from a clean cache before running so a stale GDScript class
 # cache cannot silently drop a test script from the run and still report green
 # (DT-007). A skipped script must never be mistaken for a passing suite.
-timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless --import >/dev/null 2>&1 || true
+set +e
+timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless --import >"$IMPORT_LOG" 2>&1
+import_exit_code=$?
+set -e
+import_script_error_observed=false
+if grep -Eq 'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script' "$IMPORT_LOG"; then
+  import_script_error_observed=true
+fi
+if [[ "$import_exit_code" -ne 0 || "$import_script_error_observed" == true ]]; then
+  python3 - "$SUMMARY_FILE" "$IMPORT_LOG" "$import_exit_code" "$import_script_error_observed" <<'PYREPORT'
+import json,sys
+from pathlib import Path
+summary,log,code,marker=sys.argv[1:]
+code=int(code)
+Path(summary).write_text(json.dumps({
+    "runner":"GUT", "status":"failed", "stage":"import", "exit_code":1,
+    "import_exit_code":code, "import_script_error_observed":marker=="true",
+    "timed_out":code in (124,137), "scripts_ran":0, "gut_execution":"NOT_OBSERVED",
+    "import_log":log,
+},indent=2)+"\n")
+PYREPORT
+  echo "VALIDATION GATE ERROR: import preparation failed; selected tests were not run." >&2
+  exit 1
+fi
 
 set +e
 timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless \

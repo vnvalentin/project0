@@ -17,3 +17,5 @@ The hypothesis is that the first process compiles typed server scripts before Go
 3. A bounded Linux native fixture verifies the cold-start behavior only after the focused control is green. Full GUT and record sync remain final delivery gates and are not represented by a focused pass.
 
 Detailed runtime evidence and root-cause learning remain local under the user's disclosure instruction. Public records carry scope, status, dependencies, and next actions only.
+
+Preparation reporting uses the owning Linux runtime's existing Python interpreter to encode JSON paths safely. No package installation is authorized or required; a missing reporter remains an execution blocker.
