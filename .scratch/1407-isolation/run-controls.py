@@ -40,6 +40,7 @@ def main():
         assert env['PROJECT0_SERVER_HOST']==env['PROJECT0_SERVER_BIND_ADDRESS']=='127.0.0.1' and env['PROJECT0_SERVER_PORT']=='12345'
         records.append({'case':'minimal_environment','passed':True})
         assert ctypes.CDLL(None).prctl(36,1,0,0,0)==0
+        m.BASELINE_CHILDREN=set(m.owned_children())
         for case,script,limit in [
             ('success',"print('PASS: safe assertion');print('ALL PASS')",2),
             ('timeout',"import time;time.sleep(30)",0.2),
@@ -51,7 +52,7 @@ def main():
             if case in ['timeout','parent_first']:assert result['timed_out'],case
             if case=='oversized':assert result['oversized_output_discarded'],case
             records.append({'case':case,'passed':True})
-        cases=['valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
@@ -62,6 +63,9 @@ def main():
                 if case=='dirty_source':raise ValueError('copied dirty source')
                 return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [root/'project.godot',root/'scripts/test_prediction_reconciliation.gd']}}
             m.identity=identity
+            if case=='initial_custody_unavailable':
+                def unavailable_children():raise OSError('copied proc unavailable')
+                m.owned_children=unavailable_children
             if case=='existing_override':(root/'override.cfg').write_text('copied existing override')
             original_stage=m.stage_project
             def stage(temporary,source):
@@ -112,7 +116,8 @@ def main():
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
-                    assert result['cleanup_verified']==(case!='cleanup_failure'),case
+                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable']),case
+                    if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
                     if case=='missing_assertion':assert all(child['public_assertion_verdict']=='failed' for mode in result['comparisons'] for child in mode['children'])
                     (output/(case+'-result.json')).write_text(json.dumps(result,indent=2)+'\n')
                 else:assert 'NOT_OBSERVED' in stream.getvalue()
@@ -123,7 +128,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==21 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==22 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))

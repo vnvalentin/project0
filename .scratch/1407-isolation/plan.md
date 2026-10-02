@@ -37,3 +37,7 @@ The regression cause remains unresolved. Storage relationship, SQLite-lock class
 ## Capture-contract correction
 
 Static review identified automatic desktop engine file logging as a capture boundary outside the filtered pipe. No native execution or exposure occurred. Before any engine launch, the runner stages only qualified Git-tracked source into its new temporary project, rejects any existing settings override and unsafe/private path, verifies every copied byte against the source receipt, then adds only the exact two disabled file-logging settings, including the desktop feature override. Import, harness and nested server use that staged project. Altered copies or overrides fail closed. The original project and application assertions are unchanged. Primary contract: https://docs.godotengine.org/en/4.3/classes/class_projectsettings.html.
+
+## Initial custody correction
+
+Independent review found that initial child-custody discovery could fail before the guarded result lifecycle. The countermeasure reserves evidence first, discovers custody inside the guard and preserves unknown custody explicitly. Unknown custody forbids child signaling and leaves cleanup unqualified. A copied unavailable-proc control must retain a failed structured verdict without signaling any child. This correction does not establish the inherited fixture internal-kill safety; that remains a separate execution blocker under coordinator investigation.

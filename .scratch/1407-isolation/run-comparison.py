@@ -20,7 +20,7 @@ HARNESS = 'scripts/test_prediction_reconciliation.gd'
 TELEMETRY = 'fixture_telemetry/telemetry.db'
 LOGGING_OVERRIDE = '[debug]\nfile_logging/enable_file_logging=false\nfile_logging/enable_file_logging.pc=false\n'
 NOT = 'NOT_OBSERVED'
-BASELINE_CHILDREN = set()
+BASELINE_CHILDREN = None
 
 
 def identity():
@@ -109,6 +109,8 @@ def owned_children():
 
 
 def teardown(processes):
+    if BASELINE_CHILDREN is None:
+        return False
     deadline = time.monotonic()+5
     while time.monotonic()<deadline:
         children = [pid for pid in owned_children() if pid not in BASELINE_CHILDREN]
@@ -209,16 +211,20 @@ def retain(path, result):
 
 def run(run_id):
     global BASELINE_CHILDREN
-    BASELINE_CHILDREN = set(owned_children())
+    BASELINE_CHILDREN = None
     os.chdir(ROOT)
     result_dir = ROOT/'build/validation/1407-isolation'/run_id
     result_dir.mkdir(parents=True, exist_ok=False)
     result = {'schema_version':1,'issue':1407,'status':'failed','stage':'setup',
               'source_start':NOT,'source_end':NOT,'comparisons':[], 'cleanup_verified':False,
+              'initial_child_custody':NOT,
               'acceptance':'diagnostic only; full regression and root cause NOT_OBSERVED'}
     temporary = None
     sentinel = None
     try:
+        result['stage']='initial_child_custody'
+        BASELINE_CHILDREN = set(owned_children())
+        result['initial_child_custody']='OBSERVED'
         if not hasattr(os, 'pidfd_open') or not hasattr(os, 'P_PIDFD') or not hasattr(signal, 'pidfd_send_signal'):
             raise RuntimeError('pid_bound_cleanup_not_supported')
         if ctypes.CDLL(None, use_errno=True).prctl(36, 1, 0, 0, 0) != 0:
