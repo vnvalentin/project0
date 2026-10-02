@@ -87,3 +87,21 @@ func _intent() -> Dictionary:
 		"exterior_sector_id": "sector-0-0",
 		"exterior_entity_guid": GuidScript.derive("sector-0-0", "structure", "village_hall"),
 	}
+
+
+func test_registration_replay_and_conflict_preserve_retained_anchor() -> void:
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	var first: Dictionary = repository.register_anchor(_descriptor())
+	assert_eq(first["outcome"], "ok")
+	var original: Dictionary = first["anchor"].to_dict()
+	var replay: Dictionary = repository.register_anchor(_descriptor())
+	assert_eq(replay["outcome"], "idempotent")
+	if replay.has("anchor"):
+		assert_eq(replay["anchor"].to_dict(), original)
+	var conflict: Dictionary = _descriptor()
+	conflict["plot_id"] = "another-server-plot-reference"
+	assert_eq(repository.register_anchor(conflict)["outcome"], "conflict")
+	assert_eq(repository.get_anchor(original["interior_id"])["anchor"].to_dict(), original)
+	assert_eq(repository.resolve_entry(_intent())["anchor"].to_dict(), original)
