@@ -23,7 +23,7 @@
       ]
     }
   ],
-  "setup": "Clean committed source and passing static preflight; exact reviewed engine query from an owned empty directory, qualified two-phase preparation into a new source copy preserving modes, restored configuration then controlled logging override; fresh minimal-environment child fixtures with held loopback sentinel and shared versus distinct owned telemetry targets.",
-  "cleanup": "Whole-runner lock; PID-bound subreaper teardown and empty-descendant verification; fresh source/configuration/registry/override custody verification before removing only the owned temporary root. Unknown custody preserves the stage with failed cleanup qualification and retained structured evidence.",
+  "setup": "Clean committed source and passing static preflight; exact reviewed engine query from an owned empty directory, qualified two-phase preparation into a new source copy preserving modes, restored configuration then controlled logging override; fresh minimal-environment child fixtures with held loopback sentinel and shared versus distinct owned telemetry targets. Bind a qualified source-associated generated import-sidecar manifest before consumers; only observed authored texture/font import families and owned cache destinations qualify.",
+  "cleanup": "Whole-runner lock; PID-bound subreaper teardown and empty-descendant verification; fresh source/configuration/registry/override custody verification before removing only the owned temporary root. Unknown custody preserves the stage with failed cleanup qualification and retained structured evidence. Recheck sidecar content hashes and exact inventory against the initial manifest; unqualified generated state retains the stage.",
   "rollback": "Remove additive owned experiment only; no application, assertions, production storage or host settings change."
 }
