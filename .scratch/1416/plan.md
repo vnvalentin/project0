@@ -25,6 +25,10 @@ The classifier calls `gh pr view`, a GraphQL-backed command. Local `gh pr view 1
 
 Change only the PR metadata lookup and its routing tests. Do not weaken identity checks or alter the workflow gates. No change to PR #1403's product evaluator, runner migration, or the separate #850/#951 work.
 
+## ADR rationale
+
+No ADR is needed: this replaces one GitHub CLI metadata transport with its REST equivalent and preserves the existing routing contract, ownership boundary, and workflow policy. It introduces no new architecture or persistent data.
+
 ## Validation and rollback
 
 Run the focused `scripts/test_ci_validation_routing.py` suite on Linux host `192.168.1.254` under the `linux-tooling` owner with `python3`, using `.scratch/1416/validation-plan.json`. The host has no `python` executable. Then use the exact-head Actions run to verify source identity and actual test coverage. Revert the branch/PR to roll back; no product runtime state is touched.
