@@ -24,6 +24,11 @@ TELEMETRY = 'fixture_telemetry/telemetry.db'
 LOGGING_OVERRIDE = '[debug]\nfile_logging/enable_file_logging=false\nfile_logging/enable_file_logging.pc=false\n'
 NOT = 'NOT_OBSERVED'
 BASELINE_CHILDREN = None
+# Only authored import families observed in the qualified project are admitted.
+ASSET_IMPORTS = {'.png': ('texture','CompressedTexture2D','.ctex'),
+                 '.svg': ('texture','CompressedTexture2D','.ctex'),
+                 '.ttf': ('font_data_dynamic','FontFile','.fontdata'),
+                 '.fnt': ('font_data_bmfont','FontFile','.fontdata')}
 
 
 def identity():
@@ -75,7 +80,50 @@ def qualify_phase_evidence(path,report):
         if log.read_text()!='\n'.join(lines)+'\n':raise ValueError('preparation_log_not_qualified')
 
 
-def preparation_receipt(path,project,source,logging=False):
+def ordinary_staged_file(project,relative):
+    if relative.is_absolute() or '..' in relative.parts:raise ValueError('generated_path_not_qualified')
+    parent=project
+    for component in relative.parent.parts:
+        parent/=component
+        if not stat.S_ISDIR(parent.lstat().st_mode):raise ValueError('generated_parent_not_qualified')
+    target=project/relative
+    if not stat.S_ISREG(target.lstat().st_mode):raise ValueError('generated_file_not_qualified')
+    return target
+
+
+def sidecar_field(section,name):
+    values=re.findall(r'^\s*'+re.escape(name)+r'\s*=(.*)$',section,re.M)
+    if len(values)!=1:raise ValueError('generated_metadata_not_qualified')
+    return json.loads(values[0])
+
+
+def qualify_sidecar(project,target,expected):
+    name=target.relative_to(project).as_posix()
+    asset=name[:-len('.import')]
+    rule=ASSET_IMPORTS.get(Path(asset).suffix)
+    if asset not in expected or rule is None:raise ValueError('unexpected_staged_file')
+    ordinary_staged_file(project,Path(asset))
+    target=ordinary_staged_file(project,Path(name))
+    if target.stat().st_size>65536:raise ValueError('generated_metadata_not_qualified')
+    payload=target.read_bytes();text=payload.decode('utf-8')
+    headers=re.findall(r'^\[([^]\n]+)\]\s*$',text,re.M)
+    if headers!=['remap','deps','params']:raise ValueError('generated_metadata_not_qualified')
+    def section(name):
+        return re.findall(r'^\['+name+r'\]\s*\n(.*?)(?=^\[|\Z)',text,re.M|re.S)[0]
+    remap=section('remap');deps=section('deps')
+    importer,resource_type,cache_extension=rule
+    destination=sidecar_field(remap,'path')
+    if (sidecar_field(remap,'importer')!=importer or sidecar_field(remap,'type')!=resource_type or
+        sidecar_field(deps,'source_file')!='res://'+asset or sidecar_field(deps,'dest_files')!=[destination] or
+        re.search(r'^\s*path\.',remap,re.M) or not isinstance(destination,str)):
+        raise ValueError('generated_metadata_not_qualified')
+    pattern=r'res://\.godot/imported/'+re.escape(Path(asset).name)+r'-[0-9a-f]{32}'+re.escape(cache_extension)
+    if not re.fullmatch(pattern,destination):raise ValueError('generated_destination_not_qualified')
+    ordinary_staged_file(project,Path(destination.removeprefix('res://')))
+    return {'source_asset':asset,'source_sha256':expected[asset],'sha256':hashlib.sha256(payload).hexdigest()}
+
+
+def preparation_receipt(path,project,source,logging=False,generated_sidecars=None):
     if path.is_symlink() or not path.is_file():raise ValueError('preparation_report_unavailable')
     if path.stat().st_size>1024*1024:raise ValueError('preparation_report_unavailable')
     report=json.loads(path.read_text())
@@ -85,11 +133,11 @@ def preparation_receipt(path,project,source,logging=False):
         report.get('source_custody_qualified') is not True or report.get('configuration_custody_lost') is not False):
         raise ValueError('preparation_receipt_not_qualified')
     qualify_phase_evidence(path,report)
-    qualify_staged(project,source,report,logging)
+    report['generated_sidecars']=qualify_staged(project,source,report,logging,generated_sidecars)
     return report
 
 
-def qualify_staged(project,source,report,logging):
+def qualify_staged(project,source,report,logging,generated_sidecars=None):
     if project.is_symlink() or not project.is_dir():raise ValueError('staged_project_not_qualified')
     contract=preparation_contract(source)
     expected={name:value for name,value in source['source_sha256'].items() if not contract.excluded(Path(name))}
@@ -117,13 +165,17 @@ def qualify_staged(project,source,report,logging):
         if override.is_symlink() or not override.is_file() or override.read_text()!=LOGGING_OVERRIDE:
             raise ValueError('logging_override_not_qualified')
     elif override.exists() or override.is_symlink():raise ValueError('unexpected_project_override')
-    # Generated import/cache state is permitted only in the helper's declared roots.
+    # Imported sidecars are source-associated snapshots, never a suffix exemption.
+    sidecars={}
     for target in project.rglob('*'):
         name=target.relative_to(project).as_posix()
         if target.is_symlink():raise ValueError('unexpected_staged_symlink')
         if not target.is_dir() and not target.is_file():raise ValueError('unexpected_staged_object')
         if target.is_file() and name not in expected and name!='override.cfg' and target.relative_to(project).parts[0] not in {'.godot','.preparation-runtime'}:
-            raise ValueError('unexpected_staged_file')
+            if not name.endswith('.import'):raise ValueError('unexpected_staged_file')
+            sidecars[name]=qualify_sidecar(project,target,expected)
+    if generated_sidecars is not None and sidecars!=generated_sidecars:raise ValueError('generated_custody_changed')
+    return sidecars
 
 
 def minimal_environment(base, sentinel):
@@ -285,6 +337,7 @@ def run(run_id):
     logging=False
     report_path=None
     project=None
+    generated_sidecars=None
     try:
         result['stage']='initial_child_custody'
         BASELINE_CHILDREN = set(owned_children())
@@ -338,6 +391,8 @@ def run(run_id):
         preparation_attempted=True
         prepared=observe([command],[env],allowed,420)[0]
         receipt=preparation_receipt(report_path,project,result['source_start'])
+        generated_sidecars=receipt['generated_sidecars']
+        result['generated_sidecars']=generated_sidecars
         result['preparation']={'report':str(report_path),'status':receipt.get('status'),
             'source_sha256':receipt['source_sha256'],'bootstrap':receipt.get('bootstrap'),'qualification':receipt.get('qualification')}
         if (prepared['exit_code']!=0 or prepared['timed_out'] or prepared['script_error_observed'] or
@@ -351,7 +406,7 @@ def run(run_id):
                 raise ValueError('preparation_phase_not_qualified')
         with (project/'override.cfg').open('x') as stream:stream.write(LOGGING_OVERRIDE)
         logging=True
-        qualify_staged(project,result['source_start'],receipt,True)
+        qualify_staged(project,result['source_start'],receipt,True,generated_sidecars)
         result['staged_source_qualified']=True
         result['engine_file_logging']='disabled_during_preparation_and_before_consumers'
         for mode in ['shared','distinct']:
@@ -377,8 +432,9 @@ def run(run_id):
             result['comparisons'].append({'mode':mode,'telemetry_path_relationship':relationship if qualified else NOT,
                 'telemetry_path_qualified':qualified,'children':observed})
             if not qualified:raise ValueError('telemetry_path_not_observed')
+            preparation_receipt(report_path,project,result['source_start'],logging,generated_sidecars)
         result['stage']='consumer_custody'
-        preparation_receipt(report_path,project,result['source_start'],logging)
+        preparation_receipt(report_path,project,result['source_start'],logging,generated_sidecars)
         result['stage']='source_end'
         result['source_end']=identity()
         if result['source_start']!=result['source_end']:raise ValueError('source_changed')
@@ -398,8 +454,9 @@ def run(run_id):
             result['process_cleanup_verified']=False
         if preparation_attempted:
             try:
+                if generated_sidecars is None:raise ValueError('generated_custody_not_observed')
                 if identity()!=result['source_start']:raise ValueError('cleanup_source_changed')
-                preparation_receipt(report_path,project,result['source_start'],logging)
+                preparation_receipt(report_path,project,result['source_start'],logging,generated_sidecars)
             except (OSError, ValueError, UnicodeError, RuntimeError, subprocess.SubprocessError):
                 custody=False
                 result['retained_stage']=str(temporary)
