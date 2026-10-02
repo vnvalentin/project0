@@ -18,6 +18,7 @@ const MAX_PIN_LENGTH: int = 128
 var _wire: Dictionary
 
 
+## Internal constructor: server consumers use the validating from_wire_dict factory.
 func _init(wire: Dictionary) -> void:
 	_wire = wire.duplicate(true)
 
