@@ -12,6 +12,17 @@ if [[ "$mode" != "full" && "$mode" != "--probe" ]]; then
 fi
 
 root="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# The source mount may have no usable Git metadata inside the image. Qualify
+# identity on the host and pass only that value through the empty environment.
+source_revision="$(git -C "$root" rev-parse --verify HEAD 2>/dev/null || true)"
+if [[ ! "$source_revision" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "VALIDATION GATE ERROR: hosted GUT requires a full host checkout HEAD." >&2
+  exit 2
+fi
+if [[ ${M4_SOURCE_REVISION+x} && "$M4_SOURCE_REVISION" != "$source_revision" ]]; then
+  echo "VALIDATION GATE ERROR: supplied M4 source revision differs from host checkout HEAD." >&2
+  exit 2
+fi
 image="ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
 install -d -m 2775 "$root/build/validation/runtime" "$root/.godot" "$root/logs/experiments"
 container="project0-hosted-gut-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}"
@@ -45,7 +56,7 @@ docker run --rm --name "$container" --label "project0.hosted-gut=$label" \
   -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home \
   XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache \
   TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard \
-  PROJECT0_TEST_STATE_DIR=build/validation/runtime \
+  PROJECT0_TEST_STATE_DIR=build/validation/runtime M4_SOURCE_REVISION="$source_revision" \
   "${container_command[@]}"
 container_status=$?
 set -e

@@ -12,6 +12,7 @@ const ProvisionalSectorGeneratorScript: Script = preload("res://server/provision
 const CanonGenerationCoordinatorScript: Script = preload("res://server/canon_generation_coordinator.gd")
 const CanonRepositoryScript: Script = preload("res://server/canon_repository.gd")
 const SectorDetailGenerationScript: Script = preload("res://server/sector_detail_generation.gd")
+const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 var _network_client: Node
 
 
@@ -29,9 +30,13 @@ func after_all() -> void:
 class FrontierServer extends "res://server/server_main.gd":
 	var presentations: Array[Dictionary] = []
 	var frontier_now: int = 0
+	var fixed_usec: int = -1
 
 	func _frontier_now_msec() -> int:
 		return frontier_now
+
+	func _frontier_now_usec() -> int:
+		return fixed_usec if fixed_usec >= 0 else super()
 
 	func _send_sector_blueprint(peer_id: int, blueprint: Dictionary, ingress: Vector3, trace: Dictionary) -> void:
 		presentations.append({"peer_id": peer_id, "blueprint": blueprint, "ingress": ingress, "trace": trace})
@@ -106,9 +111,16 @@ class FakeMutationRepository extends RefCounted:
 	var revision: int = 0
 	var reads: int = 0
 
-	func list_mutations(_sector_id: String) -> Dictionary:
+	func list_mutations(sector_id: String) -> Dictionary:
 		reads += 1
-		return {"outcome": outcome, "mutations": [] if revision == 0 else [{"applied_revision": revision, "mutation_kind": "loot"}]}
+		var rows: Array = []
+		for applied: int in range(1, revision + 1):
+			rows.append({
+				"event_id": "evt-%d" % applied, "sector_id": sector_id, "mutation_kind": "loot", "payload": {},
+				"target_guid": CanonEntityGuidScript.derive(sector_id, CanonEntityGuidScript.ENTITY_CLASS_SPAWN_POINT, "spawn-a"),
+				"schema_version": 1, "expected_revision": applied - 1, "applied_revision": applied,
+			})
+		return {"outcome": outcome, "mutations": rows}
 
 
 func _frontier_server(town: Dictionary = {}) -> FrontierServer:
@@ -170,10 +182,83 @@ func _destination_trace(server: FrontierServer) -> Dictionary:
 	return server.presentations.back()["trace"]
 
 
+func test_town_footprint_is_hub_and_surrounding_grid_stays_generated() -> void:
+	var town: Dictionary = {"schema_version": 1, "sector_id": "starting_town_hub", "origin": {"x": 0, "y": 0}, "tiles": [
+		{"x": -3, "y": -3, "kind": "floor"},
+		{"x": 0, "y": 0, "kind": "floor"},
+	]}
+	var server: FrontierServer = _frontier_server(town)
+	assert_eq(server._frontier_sector_at(Vector3(-3.0, 1.0, -3.0)), "starting_town_hub", "town tiles below the grid origin stay in the hub")
+	assert_eq(server._frontier_sector_at(Vector3(0.0, 1.0, 0.0)), "starting_town_hub")
+	assert_eq(server._frontier_sector_at(Vector3(30.0, 1.0, 0.0)), "sector-0-0", "off-footprint grid space is a generated sector")
+	assert_eq(server._frontier_sector_at(Vector3(-30.0, 1.0, -30.0)), "sector--1--1")
+	server.free()
+
+
 func _ack_event(trace: Dictionary) -> Dictionary:
 	var payload: Dictionary = trace.duplicate(true)
 	payload.erase("event_type")
 	return {"event_type": "client_presentation_ack", "schema_version": 1, "payload": payload}
+
+
+func test_presented_canon_reload_records_one_structured_event_without_generation() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server._reload_sector_from_boundary(7, "sector-0-0", state.position, JitTraceContextScript.root(7, "sector-0-0"))
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 1, "one successful re-entry records one reload event")
+	if events.size() == 1:
+		var presented: Dictionary = server.presentations.back()["trace"]
+		assert_eq(events[0]["event_type"], "CANON_SECTOR_RELOADED")
+		assert_eq(events[0]["sector_id"], "sector-0-0")
+		assert_eq(events[0]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_eq(events[0]["spatial_guid"], presented["spatial_guid"])
+		assert_false(String(events[0]["spatial_guid"]).is_empty())
+	assert_eq(server.content_generation_count(), 0, "Canon re-entry issues no content generation")
+	server.free()
+
+
+func test_unpresented_canon_reload_records_no_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	server._frontier_bindings.erase(7)
+	server._reload_sector_from_boundary(7, "sector-0-0", Vector3(439.99, 1, 10), JitTraceContextScript.root(7, "sector-0-0"))
+	assert_eq(server.canon_reload_events().size(), 0, "a reload that presents nothing is not reported as successful")
+	server.free()
+
+
+func test_frontier_generation_request_is_counted() -> void:
+	var server: FrontierServer = _frontier_server()
+	_destination_trace(server)
+	assert_eq(server.content_generation_count(), server._provisional_sector_generator.requests.size())
+	assert_eq(server.content_generation_count(), 1)
+	server.free()
+
+
+func test_reclaimed_hub_entry_records_one_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	state.position = Vector3(0.01, 1, 0)
+	server._on_journey_evidence("reclaim", {"journey_id": "journey-returning", "character_id": "", "peer_id": 7})
+	server._on_player_state_character_bound(7, "Tester", {})
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 1, "a returning player's hub entry is one Canon re-entry")
+	if events.size() == 1:
+		assert_eq(events[0]["sector_id"], "starting_town_hub")
+		assert_eq(events[0]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_false(String(events[0]["spatial_guid"]).is_empty())
+	server._on_player_state_character_bound(7, "Tester", {})
+	assert_eq(server.canon_reload_events().size(), 1, "a later bind without a new reclaim adds no event")
+	assert_eq(server.content_generation_count(), 0)
+	server.free()
+
+
+func test_fresh_hub_entry_records_no_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	server._player_states[7].position = Vector3(0.01, 1, 0)
+	server._on_journey_evidence("entry", {"journey_id": "journey-new", "character_id": "", "peer_id": 7})
+	server._on_player_state_character_bound(7, "Tester", {})
+	assert_eq(server.canon_reload_events().size(), 0)
+	server.free()
 
 
 func test_live_frontier_prepares_once_holds_then_releases_without_telemetry() -> void:
@@ -343,7 +428,9 @@ func test_changed_revision_reentry_rejects_old_token_and_accepts_new_child() -> 
 	server._canon_mutation_service = FakeMutationService.new()
 	server._on_canon_mutation_intent(7, {"sector_id": "sector-1-0"})
 	assert_false(server._frontier_position_ready(7, Vector3(441, 1, 10)), "mutation clears already granted readiness")
-	server._canon_repository.blueprint = _frontier_blueprint("sector-1-0")
+	var mutated: Dictionary = _frontier_blueprint("sector-1-0")
+	mutated["spawn_points"] = [{"spawn_id": "spawn-a", "x": 1, "y": 1}]
+	server._canon_repository.blueprint = mutated
 	var reentry: Dictionary = JitTraceContextScript.child(old_trace, "canon_reentry")
 	server._reload_sector_from_boundary(7, "sector-1-0", Vector3(440.1, 1, 10), reentry)
 	var fresh: Dictionary = server.presentations.back()["trace"]
@@ -672,6 +759,162 @@ func test_timeout_fallback_commits_canon_and_holds_until_matching_ack() -> void:
 		var database_path: String = ProjectSettings.globalize_path("user://%s%s" % [database, suffix])
 		if FileAccess.file_exists(database_path):
 			DirAccess.remove_absolute(database_path)
+	server.free()
+
+
+func test_timeout_fallback_records_one_stage_timed_ready_per_peer() -> void:
+	var server: FrontierServer = _frontier_server()
+	var sink: FakeTelemetrySink = FakeTelemetrySink.new()
+	server._telemetry_sink = sink
+	var states: Array[Node] = [server._player_states[7], _add_frontier_peer(server, 8)]
+	var database: String = "test_stage_timing_%d_%d.db" % [Time.get_ticks_usec(), randi()]
+	var store: RecoverableCanonStore = RecoverableCanonStore.new()
+	store.fail_writes = false
+	assert_eq(store.open(database)["outcome"], "ok")
+	var repository: CanonRepository = CanonRepositoryScript.new(store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	server._canon_repository = repository
+	server._sector_boundary_detector.set_canon_lookup(func(sector_id: String) -> bool:
+		return repository.get_canonical_sector(sector_id)["outcome"] == "ok"
+	)
+	var coordinator: CanonGenerationCoordinator = CanonGenerationCoordinatorScript.new()
+	coordinator.set_canonicalize_callback(repository.canonicalize_blueprint)
+	server._canon_generation_coordinator = coordinator
+	var ollama: CountingOllamaServer = CountingOllamaServer.new()
+	ollama.respond_at_all = false
+	add_child_autofree(ollama)
+	var port: int = ollama.start()
+	assert_gt(port, 0)
+	server._provisional_sector_generator.free()
+	var generator: ProvisionalSectorGenerator = ProvisionalSectorGeneratorScript.new()
+	generator.ollama_host = "http://127.0.0.1:%d" % port
+	generator.request_timeout_sec = 0.1
+	add_child_autofree(generator)
+	generator.provisional_sector_ready.connect(server._on_provisional_sector_ready)
+	server._provisional_sector_generator = generator
+	for index: int in states.size():
+		states[index].set_physics_process(false)
+		states[index].apply_input_intent([7, 8][index], Vector2(1, 0), 1)
+		states[index]._physics_process(1.0 / 60.0)
+	await generator.provisional_sector_ready
+	await wait_process_frames(1)
+	assert_eq(server.presentations.size(), 2, "both waiting peers receive the committed sector")
+	assert_eq(server.frontier_ready_events().size(), 0, "no readiness record before an ACK")
+	for presentation: Dictionary in server.presentations:
+		server._on_client_telemetry_batch_received(15 - int(presentation["peer_id"]), [_ack_event(presentation["trace"])], 1)
+	assert_eq(server.frontier_ready_events().size(), 0, "a wrong-peer ACK records nothing")
+	for presentation: Dictionary in server.presentations:
+		server._on_client_telemetry_batch_received(int(presentation["peer_id"]), [_ack_event(presentation["trace"])], 2)
+		server._on_client_telemetry_batch_received(int(presentation["peer_id"]), [_ack_event(presentation["trace"])], 3)
+	var events: Array = server.frontier_ready_events()
+	assert_eq(events.size(), 2, "one record per peer journey; duplicate ACKs add none")
+	assert_eq(events.map(func(event: Dictionary) -> int: return int(event["peer_id"])), [7, 8])
+	for event: Dictionary in events:
+		var stages: Dictionary = event["stages"]
+		assert_eq(event["event_type"], "FRONTIER_SECTOR_READY")
+		assert_eq(event["sector_id"], "sector-1-0")
+		assert_eq(event["path"], "generated")
+		assert_eq(stages["request_outcome"], "timeout")
+		assert_true(stages["fallback_selected"])
+		assert_eq(stages["source"], "fallback")
+		assert_gt(float(stages["generation_duration_ms"]), 0.0)
+		assert_true(stages.has("deadline_overshoot_ms"))
+		assert_gt(float(stages["canon_commit_ms"]), 0.0, "real SQLite commit time is measured")
+		assert_true(float(stages["detail_ms"]) >= 0.0 and float(stages["presentation_ms"]) >= 0.0)
+		assert_true(float(event["total_ms"]) >= float(stages["generation_duration_ms"]) + float(stages["presentation_ms"]), "the trigger clock precedes generation")
+	var commits: Array = sink.envelopes.filter(func(envelope: Dictionary) -> bool: return envelope["event_type"] == "canon_db_commit")
+	assert_eq(commits.size(), 1)
+	if commits.size() == 1:
+		assert_gt(float(commits[0]["payload"]["duration_ms"]), 0.0, "the Canon commit span carries its real duration")
+	assert_eq(sink.envelopes.filter(func(envelope: Dictionary) -> bool: return envelope["event_type"] == "frontier.sector_ready").size(), 2)
+	ollama.stop()
+	store.close()
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		var database_path: String = ProjectSettings.globalize_path("user://%s%s" % [database, suffix])
+		if FileAccess.file_exists(database_path):
+			DirAccess.remove_absolute(database_path)
+	server.free()
+
+
+func test_held_reentry_retry_records_one_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server._prepare_frontier_position(7, state.position)
+	server.frontier_now = 1000
+	server._prepare_frontier_position(7, state.position)
+	server.frontier_now = 2000
+	server._prepare_frontier_position(7, state.position)
+	assert_eq(server.presentations.size(), 3, "an unacknowledged presentation is retried")
+	assert_eq(server.canon_reload_events().size(), 1, "retries of one held entry are one re-entry")
+	_add_frontier_peer(server, 8)
+	server._prepare_frontier_position(8, state.position)
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 2, "a second player's entry is its own re-entry")
+	if events.size() == 2:
+		assert_eq(events[1]["peer_id"], 8)
+	server.free()
+
+
+func test_ready_peer_pushing_detail_edge_records_no_extra_reload_event() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server._prepare_frontier_position(7, state.position)
+	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
+	assert_true(server._frontier_position_ready(7, state.position))
+	for retry_time: int in [1000, 2000]:
+		server.frontier_now = retry_time
+		server._resolve_frontier_movement(7, state.position, Vector3(430, 1, 10))
+	assert_eq(server.canon_reload_events().size(), 1, "pushing against the connected-detail edge is not a re-entry")
+	server.free()
+
+
+func test_return_to_still_ready_canon_sector_records_one_reload_event_per_return() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	var inside: Vector3 = state.position
+	var outside: Vector3 = Vector3(440.5, 1, 10)
+	server._prepare_frontier_position(7, inside)
+	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
+	server._on_player_state_position_updated(7, inside)
+	assert_eq(server.canon_reload_events().size(), 1, "the prepared entry is the only event for this stay")
+	server._on_player_state_position_updated(7, outside)
+	assert_eq(server.canon_reload_events().size(), 1, "a first entry into another sector is not a re-entry")
+	server._on_player_state_position_updated(7, inside)
+	var events: Array = server.canon_reload_events()
+	assert_eq(events.size(), 2, "returning while still ready is one re-entry")
+	if events.size() == 2:
+		assert_eq(events[1]["sector_id"], "sector-0-0")
+		assert_eq(events[1]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_eq(events[1]["spatial_guid"], events[0]["spatial_guid"])
+	server._on_player_state_position_updated(7, inside + Vector3(0, 0, 0.5))
+	assert_eq(server.canon_reload_events().size(), 2, "moving within the sector is not a re-entry")
+	server._on_player_state_position_updated(7, outside)
+	server._on_player_state_position_updated(7, inside)
+	assert_eq(server.canon_reload_events().size(), 3, "each return is its own re-entry")
+	server.free()
+
+
+func test_canon_reload_ready_record_keeps_first_trigger_across_retries() -> void:
+	var server: FrontierServer = _frontier_server()
+	var state: Node = server._player_states[7]
+	server.fixed_usec = 1_000
+	server._prepare_frontier_position(7, state.position)
+	assert_eq(server.presentations.size(), 1, "Canon re-entry is presented")
+	server.frontier_now = 1000
+	server.fixed_usec = 1_001_000
+	server._prepare_frontier_position(7, state.position)
+	assert_eq(server.frontier_ready_events().size(), 0, "a retry without an ACK records nothing")
+	server.fixed_usec = 2_001_000
+	server._on_client_telemetry_batch_received(7, [_ack_event(server.presentations.back()["trace"])], 1)
+	var events: Array = server.frontier_ready_events()
+	assert_eq(events.size(), 1)
+	if events.size() == 1:
+		assert_eq(events[0]["path"], "canon")
+		assert_eq(events[0]["sector_id"], "sector-0-0")
+		assert_eq(events[0]["journey_id"], server._frontier_bindings[7]["journey"])
+		assert_eq(float(events[0]["stages"]["canon_lookup_ms"]), 0.0)
+		assert_eq(float(events[0]["stages"]["presentation_ms"]), 2000.0, "presentation runs from the first send")
+		assert_eq(float(events[0]["total_ms"]), 2000.0, "a retry does not restart the trigger clock")
 	server.free()
 
 

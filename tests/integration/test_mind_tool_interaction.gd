@@ -121,7 +121,68 @@ func test_physical_profiles_change_execution_without_changing_solution_permissio
 	assert_ne(agile["execution_ticks"], heavy["execution_ticks"], "physical profiles change execution timing")
 
 
+func test_reach_is_inclusive_two_yards_on_the_ground_plane() -> void:
+	var at_limit: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 2.0), {}, _intent())
+	assert_eq(at_limit["status"], EnvironmentalServiceScript.STATUS_ACCEPTED, "2.0 yd on the ground from a y=1 Character origin is in reach")
+
+
+func test_reach_just_beyond_two_yards_is_rejected_without_a_write() -> void:
+	var beyond: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 2.01), {}, _intent())
+	assert_eq(beyond["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 0)
+
+
 func test_unsupported_verb_cannot_mutate_gate() -> void:
 	var result: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 0.0, 1.0), {}, _intent("solve_riddle"))
 	assert_eq(result["reason"], EnvironmentalServiceScript.REASON_INVALID_INTENT)
 	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 0)
+
+
+func _unlock_once() -> void:
+	assert_eq(_service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 1.0), {}, _intent())["reason"], CanonMutationRepositoryScript.OUTCOME_OK)
+
+
+func test_already_unlocked_valid_request_succeeds_without_a_canon_write() -> void:
+	_unlock_once()
+	var before: Dictionary = _store.canon_write_counters()
+	for request: Array in [["character-2", 1], [ACTOR, 1]]:
+		var result: Dictionary = _service.resolve_intent(request[0], Vector3(0.0, 1.0, 1.5), {}, _intent(InteractionScript.VERB_LOCK_PICK, request[1]))
+		assert_eq(result["status"], EnvironmentalServiceScript.STATUS_ACCEPTED, "%s gets a successful already-unlocked result" % request[0])
+		assert_eq(result["reason"], EnvironmentalServiceScript.REASON_ALREADY_UNLOCKED)
+		assert_eq(result["applied_revision"], 1, "reports the committed unlock revision")
+	assert_eq(_store.canon_write_counters()["attempted"], before["attempted"], "no Canon INSERT/UPDATE in the no-op window")
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 1)
+
+
+func test_already_unlocked_gate_still_enforces_reach_and_line_of_sight() -> void:
+	_unlock_once()
+	assert_eq(_service.resolve_intent("character-2", Vector3(0.0, 1.0, 3.0), {}, _intent())["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
+	var blocked: Dictionary = _service.resolve_intent("character-2", Vector3(0.0, 1.0, 1.0), {}, _intent(), func(_from: Vector3, _to: Vector3) -> bool: return false)
+	assert_eq(blocked["reason"], EnvironmentalServiceScript.REASON_NO_LINE_OF_SIGHT)
+
+
+func test_open_is_rejected_while_the_gate_is_locked_without_a_write() -> void:
+	var before: Dictionary = _store.canon_write_counters()
+	var result: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 1.0), {}, _intent(InteractionScript.VERB_OPEN))
+	assert_eq(result["reason"], EnvironmentalServiceScript.REASON_GATE_LOCKED)
+	assert_false(_service.is_open(_target_guid()))
+	assert_eq(_store.canon_write_counters()["attempted"], before["attempted"])
+
+
+func test_open_after_unlock_is_runtime_only_and_idempotent() -> void:
+	_unlock_once()
+	var before: Dictionary = _store.canon_write_counters()
+	var opened: Dictionary = _service.resolve_intent("character-2", Vector3(0.0, 1.0, 1.5), {}, _intent(InteractionScript.VERB_OPEN))
+	assert_eq([opened["status"], opened["reason"]], [EnvironmentalServiceScript.STATUS_ACCEPTED, EnvironmentalServiceScript.REASON_OPENED])
+	assert_eq(opened["structure_cell"], [0, 0])
+	assert_true(_service.is_open(_target_guid()))
+	var again: Dictionary = _service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 1.5), {}, _intent(InteractionScript.VERB_OPEN, 2))
+	assert_eq(again["reason"], EnvironmentalServiceScript.REASON_ALREADY_OPEN)
+	assert_eq(_store.canon_write_counters()["attempted"], before["attempted"], "opening never writes Canon")
+	assert_eq(_mutations.get_sector_revision("sector-0-0")["revision"], 1)
+
+
+func test_open_still_enforces_reach() -> void:
+	_unlock_once()
+	assert_eq(_service.resolve_intent(ACTOR, Vector3(0.0, 1.0, 3.0), {}, _intent(InteractionScript.VERB_OPEN))["reason"], EnvironmentalServiceScript.REASON_OUT_OF_REACH)
+	assert_false(_service.is_open(_target_guid()))

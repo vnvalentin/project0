@@ -77,3 +77,32 @@ func test_line_of_sight_ignores_target_cell_but_rejects_intermediate_wall() -> v
 	})
 	assert_true(map.has_line_of_sight(Vector3(-2.0, 0.0, 0.0), Vector3(0.0, 0.0, 0.0)), "the target cell itself does not block interaction")
 	assert_false(map.has_line_of_sight(Vector3(-2.0, 0.0, 0.0), Vector3(2.0, 0.0, 0.0)), "an intermediate wall blocks line of sight")
+
+
+func test_line_of_sight_through_the_target_structures_own_footprint_is_clear() -> void:
+	var map: Object = SectorCollisionMapScript.new({
+		"tiles": [{"x": -3, "y": 0, "kind": "wall"}],
+		"structures": [
+			{"structure_id": "gate", "kind": "locked_gate", "x": 0, "y": 0},
+			{"structure_id": "well", "kind": "well", "x": 0, "y": 2},
+		],
+	})
+	assert_true(map.has_line_of_sight(Vector3(-1.5, 1.0, 0.0), Vector3(0.0, 0.0, 0.0)), "a side ray through the gate's own footprint sees the gate")
+	assert_false(map.has_line_of_sight(Vector3(0.0, 1.0, 3.4), Vector3(0.0, 0.0, 0.0)), "a different structure still blocks")
+	assert_false(map.has_line_of_sight(Vector3(-4.0, 1.0, 0.0), Vector3(0.0, 0.0, 0.0)), "a wall in front of the gate still blocks")
+
+
+func test_opening_a_structure_clears_only_its_own_cells() -> void:
+	var map: Object = SectorCollisionMapScript.new({
+		"tiles": [{"x": 1, "y": 0, "kind": "wall"}],
+		"structures": [
+			{"structure_id": "gate", "kind": "locked_gate", "x": 0, "y": 0},
+			{"structure_id": "well", "kind": "well", "x": 0, "y": 2},
+		],
+	})
+	assert_eq(map.open_structure_at(Vector2i(0, 0)), 2, "gate cells (-1,0) and (0,0) open; (1,0) is also a wall")
+	assert_false(map.is_blocked(Vector2i(-1, 0)))
+	assert_false(map.is_blocked(Vector2i(0, 0)))
+	assert_true(map.is_blocked(Vector2i(1, 0)), "a wall under the footprint stays solid")
+	assert_true(map.is_blocked(Vector2i(0, 2)), "another structure stays solid")
+	assert_eq(map.open_structure_at(Vector2i(5, 5)), 0, "no structure, nothing opens")

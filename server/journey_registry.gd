@@ -5,6 +5,7 @@ class_name JourneyRegistry
 ## only a validated server-side Character identity can claim it.
 
 const OUTCOME_OK: String = "ok"
+const CanonEntityGuidScript: Script = preload("res://shared/canon_entity_guid.gd")
 const REASON_INVALID_CHARACTER: String = "invalid_character"
 const REASON_CHARACTER_ACTIVE: String = "character_active"
 const REASON_JOURNEY_EXPIRED: String = "journey_expired"
@@ -13,7 +14,6 @@ const RECLAIM_WINDOW_SECONDS: int = 300
 
 var _journeys_by_id: Dictionary = {}
 var _journey_id_by_character: Dictionary = {}
-var _next_id: int = 1
 var _repository: Object = null
 signal evidence(kind: String, payload: Dictionary)
 
@@ -46,8 +46,6 @@ func restore_records(records: Array) -> Dictionary:
 		restored["lifecycle_status"] = "disconnected"
 		_journeys_by_id[journey_id] = restored
 		_journey_id_by_character[character_id] = journey_id
-		var numeric_id: int = int(journey_id.trim_prefix("journey-"))
-		_next_id = maxi(_next_id, numeric_id + 1)
 	return {"outcome": OUTCOME_OK, "detail": "Restored %d journey record(s)." % _journeys_by_id.size()}
 
 
@@ -57,7 +55,7 @@ func enter(character_id: String, peer_id: int, now_unix: int, initial_position: 
 	_cleanup_expired(now_unix)
 	var journey_id: String = String(_journey_id_by_character.get(character_id, ""))
 	if journey_id.is_empty():
-		journey_id = _new_journey_id()
+		journey_id = _new_journey_id(character_id)
 		_journeys_by_id[journey_id] = {
 			"journey_id": journey_id,
 			"character_id": character_id,
@@ -149,10 +147,12 @@ func _cleanup_expired(now_unix: int) -> void:
 	cleanup(now_unix)
 
 
-func _new_journey_id() -> String:
-	var journey_id: String = "journey-%d" % _next_id
-	_next_id += 1
-	return journey_id
+## RFC 4122 v5 under a Project0 journey namespace; the random nonce keeps ids
+## unique across restarts without a persisted counter.
+func _new_journey_id(character_id: String) -> String:
+	var namespace_uuid: String = CanonEntityGuidScript.uuid_v5(CanonEntityGuidScript.NAMESPACE_URL_UUID, "project0:journey")
+	var nonce: String = Crypto.new().generate_random_bytes(16).hex_encode()
+	return CanonEntityGuidScript.uuid_v5(namespace_uuid, "%s/%s" % [character_id, nonce])
 
 
 func _persist(journey_id: String) -> Dictionary:

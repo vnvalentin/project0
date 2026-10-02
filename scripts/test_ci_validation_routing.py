@@ -79,8 +79,28 @@ class RoutingTests(unittest.TestCase):
         }
         plan = self.routing.route(metadata)
         self.assertEqual(plan["artifact_contract"], "reviewed")
+        # Changed Linux inputs must be validated at the candidate, never the baseline (#1322).
+        self.assertEqual(plan["linux_ref"], metadata["candidate"])
+        self.assertEqual(plan["input_digest"], self.routing.digest(
+            {path: blob for path, blob in metadata["candidate_tree"].items()}))
+        metadata["candidate_tree"]["tests/integration/test_new_seam.gd"] = "6" * 40
+        plan = self.routing.route(metadata)
+        self.assertIn("tests/integration/test_new_seam.gd",
+                      self.routing.planned_expected_tests(metadata, plan)["godot"],
+                      "a candidate-validated plan expects the candidate's own tests (#1345)")
+
+    def test_contract_with_identical_linux_inputs_may_reuse_baseline(self):
+        metadata = copy.deepcopy(self.metadata)
+        metadata["labels"] = ["platform:windows-required"]
+        metadata["baseline_tree"] = {"server/main.gd": "1" * 40}
+        metadata["candidate_tree"]["client/network_client.gd"] = "3" * 40
+        metadata["baseline_tree"]["client/network_client.gd"] = "3" * 40
+        metadata["candidate_tree"]["scripts/run_shared_exploration_validation.ps1"] = "5" * 40
+        plan = self.routing.route(metadata)
         self.assertEqual(plan["linux_ref"], metadata["baseline"])
-        self.assertEqual(plan["input_digest"], self.routing.digest({"server/main.gd": "2" * 40}))
+        self.assertEqual(self.routing.planned_expected_tests(metadata, plan),
+                         self.routing.expected_tests(metadata["baseline_tree"], True),
+                         "a reused-baseline plan expects the baseline's tests")
 
     def test_client_change_rejects_missing_artifact_contract(self):
         metadata = copy.deepcopy(self.metadata)

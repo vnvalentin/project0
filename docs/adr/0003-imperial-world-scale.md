@@ -4,6 +4,10 @@ status: accepted
 
 # Imperial world scale: one world unit is one yard
 
+> Partially superseded by [ADR 0013](0013-whole-sector-themed-places.md) (2026-10-02):
+> a Sector's fine detail no longer covers only a bounded ±48 sub-area. All other
+> decisions below stand.
+
 Project0 adopts an explicit **Imperial** world scale anchored at **1 world unit =
 1 yard**, with a three-tier spatial model — **world unit → Tile → Sector** — where a
 Sector is a ≈¼-mile region. This replaces the previously implicit, inconsistent scale

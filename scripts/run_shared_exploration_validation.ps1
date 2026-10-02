@@ -138,14 +138,14 @@ try {
     do {
         if ($processes['a'].HasExited -or $processes['b'].HasExited) { throw 'client exited during movement observation' }
         $a = Read-Json (Join-Path $root a.json); $b = Read-Json (Join-Path $root b.json)
-        $result.phases.movement = @{ a = $a; b = $b; verified = $false }
-        $aPosition = if ($a) { $a.remote_players.b.position } else { $null }
-        $bPosition = if ($b) { $b.remote_players.a.position } else { $null }
-        if (Test-Moved $baselineA $aPosition -and Test-Moved $baselineB $bPosition) {
-            $result.phases.movement.verified = $true
+        $aFrontier = if ($a) { $a.frontier } else { $null }
+        $bFrontier = if ($b) { $b.frontier } else { $null }
+        $result.phases.frontier = @{ a = $aFrontier; b = $bFrontier; verified = $false }
+        if ($aFrontier -and $bFrontier -and $aFrontier.geometry_ready -and $bFrontier.geometry_ready -and $aFrontier.crossed -and $bFrontier.crossed) {
+            $result.phases.frontier.verified = $true
             break
         }
-        if ($clock.Elapsed.TotalSeconds -gt 20) { throw 'movement evidence missing' }
+        if ($clock.Elapsed.TotalSeconds -gt 140) { throw 'generated frontier evidence missing' }
         Start-Sleep -Milliseconds 100
     } while ($true)
     Stop-Client 'a' (Join-Path $root stop-a)

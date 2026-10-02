@@ -98,6 +98,11 @@ func remember_canon_trace(sector_id: String, trace: Dictionary) -> void:
 	_trace_by_sector[sector_id] = trace.duplicate(true)
 
 
+## Slice 1367: the last presentation context for a sector, empty when none is retained.
+func retained_trace(sector_id: String) -> Dictionary:
+	return _trace_by_sector.get(sector_id, {}).duplicate(true)
+
+
 ## Clears a disconnected peer's transition state so a future connection with
 ## the same peer id is evaluated from its new authoritative position.
 func forget_peer(peer_id: int) -> void:

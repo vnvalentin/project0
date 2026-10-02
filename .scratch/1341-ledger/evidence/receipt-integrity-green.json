@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "7cd58af81c082a4d83ec3864b38abf4a77d90fa0",
+  "command": "bash .scratch/1341-ledger/run-focused.sh receipt-integrity-green",
+  "import_exit": 0,
+  "exit_code": 0,
+  "script_errors_observed": false,
+  "observation_errors": [],
+  "expected_tests": 17,
+  "errors": 0,
+  "skipped": 0,
+  "selected_scripts_ran": 1,
+  "tests": 17,
+  "failures": 0,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "5baa2756e4d9393f0c47ddbfbc3523e6ed7013c8f4e1a250376d7cd1c48f9adf",
+    "tests/integration/test_item_ledger_repository.gd": "5173f1b85347e0acce1f278ce52777b8009269fce281447b1388a700af19d109",
+    ".scratch/1341-ledger/run-focused.sh": "61b2608c60a16382d954db1020d7ecdfbf6fcd9ca260b1c37e74497d9cf9bb6f"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/receipt-integrity-green"
+}

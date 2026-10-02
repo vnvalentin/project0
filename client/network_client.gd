@@ -85,6 +85,8 @@ signal canon_mutation_intent_received(sender_peer_id: int, intent: Dictionary)
 ## this relay never validates reach, visibility, profile, or outcome.
 signal environmental_interaction_resolution_received(resolution: Dictionary)
 signal environmental_interaction_intent_received(sender_peer_id: int, intent: Dictionary)
+## Slice 1343: the server refused entry to a quarantined Canon sector.
+signal sector_entry_denied(denial: Dictionary)
 
 ## Slice 094: emitted on the owning client when the server replicates its
 ## Player's authoritative HP (on monster damage or the provisional full-HP
@@ -945,6 +947,13 @@ func receive_environmental_interaction_resolution(resolution: Dictionary) -> voi
 	environmental_interaction_resolution_received.emit(resolution)
 
 
+@rpc("authority", "call_remote", "reliable")
+func receive_sector_entry_denied(denial: Dictionary) -> void:
+	push_warning("NetworkClient: sector entry denied (sector_id=%s reason_code=%s failure_class=%s)." % [
+		denial.get("sector_id", ""), denial.get("reason_code", ""), denial.get("failure_class", "")])
+	sector_entry_denied.emit(denial)
+
+
 ## RPC target: called by the server on every connected peer for every
 ## confirmed CombatEvent.HIT, including the attacker's own. Relayed via a
 ## signal so client/target_dummy.gd decides how to render feedback — this
@@ -1090,6 +1099,11 @@ func receive_sector_blueprint(blueprint: Dictionary, ingress: Vector3 = Vector3.
 		push_error("NetworkClient: cannot render sector blueprint, no current_scene")
 		return
 	_render_sector_blueprint_into_scene(gameplay_root, blueprint, ingress, trace)
+
+
+## The most recently presented sector blueprint (server-built, Canon overlay applied).
+func latest_sector_blueprint() -> Dictionary:
+	return _latest_sector_blueprint.duplicate(true)
 
 
 func render_pending_sector_blueprint() -> void:

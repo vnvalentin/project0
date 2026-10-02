@@ -24,11 +24,16 @@ const REASON_OUT_OF_REACH: String = "out_of_reach"
 const REASON_NO_LINE_OF_SIGHT: String = "no_line_of_sight"
 const REASON_LINE_OF_SIGHT_UNAVAILABLE: String = "line_of_sight_unavailable"
 const REASON_ALREADY_UNLOCKED: String = "already_unlocked"
+const REASON_GATE_LOCKED: String = "gate_locked"
+const REASON_OPENED: String = "opened"
+const REASON_ALREADY_OPEN: String = "already_open"
 
 var _canon: CanonRepository = null
 var _mutations: CanonMutationRepository = null
 var _clock: Callable = Callable()
 var _line_of_sight: Callable = Callable()
+## Server-runtime open posture by target GUID; deliberately not persisted.
+var _open_gates: Dictionary = {}
 
 
 ## line_of_sight receives actor and target world positions and must return bool.
@@ -60,16 +65,26 @@ func resolve_intent(
 		return _rejected(REASON_TARGET_NOT_FOUND, client_seq)
 	if target["kind"] != "locked_gate":
 		return _rejected(REASON_TARGET_NOT_LOCKED_GATE, client_seq)
-	if _is_unlocked(intent["sector_id"], intent["target_guid"]):
-		return _rejected(REASON_ALREADY_UNLOCKED, client_seq)
 	var target_position: Vector3 = target["position"]
-	if actor_position.distance_to(target_position) > MAX_REACH:
+	# Ground-plane reach: the Character origin sits above the ground-level gate point.
+	if Vector2(actor_position.x - target_position.x, actor_position.z - target_position.z).length() > MAX_REACH:
 		return _rejected(REASON_OUT_OF_REACH, client_seq)
 	var visibility_query: Callable = line_of_sight_override if line_of_sight_override.is_valid() else _line_of_sight
 	if not visibility_query.is_valid():
 		return _rejected(REASON_LINE_OF_SIGHT_UNAVAILABLE, client_seq)
 	if not bool(visibility_query.call(actor_position, target_position)):
 		return _rejected(REASON_NO_LINE_OF_SIGHT, client_seq)
+	# A committed unlock answers later valid requests without a new mutation.
+	var committed_revision: int = _committed_unlock_revision(intent["sector_id"], intent["target_guid"])
+	if intent["verb"] == InteractionScript.VERB_OPEN:
+		if committed_revision <= 0:
+			return _rejected(REASON_GATE_LOCKED, client_seq)
+		var already_open: bool = _open_gates.has(intent["target_guid"])
+		_open_gates[intent["target_guid"]] = true
+		return {"status": STATUS_ACCEPTED, "reason": REASON_ALREADY_OPEN if already_open else REASON_OPENED, "client_seq": client_seq,
+			"applied_revision": committed_revision, "structure_cell": [int(target_position.x), int(target_position.z)]}
+	if committed_revision > 0:
+		return {"status": STATUS_ACCEPTED, "reason": REASON_ALREADY_UNLOCKED, "client_seq": client_seq, "applied_revision": committed_revision}
 
 	var execution: Dictionary = execution_profile(physical_outputs)
 	var event_id: String = _event_id(actor_player_id, client_seq)
@@ -134,16 +149,21 @@ func _find_target(sector_id: String, target_guid: String) -> Dictionary:
 	return {}
 
 
-func _is_unlocked(sector_id: String, target_guid: String) -> bool:
+func is_open(target_guid: String) -> bool:
+	return _open_gates.has(target_guid)
+
+
+## Applied revision of the committed unlock for the target, or 0 when none.
+func _committed_unlock_revision(sector_id: String, target_guid: String) -> int:
 	if _mutations == null:
-		return false
+		return 0
 	var history: Dictionary = _mutations.list_mutations(sector_id)
 	if history["outcome"] != CanonMutationRepositoryScript.OUTCOME_OK:
-		return false
+		return 0
 	for mutation: Dictionary in history["mutations"]:
 		if mutation["target_guid"] == target_guid and mutation["mutation_kind"] == MUTATION_KIND_UNLOCK_GATE and bool(mutation["payload"].get("unlocked", false)):
-			return true
-	return false
+			return int(mutation["applied_revision"])
+	return 0
 
 
 func _event_id(actor_player_id: String, client_seq: int) -> String:

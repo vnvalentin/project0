@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "4cc1c2a48095b5328bc873b7ea7644c3beac8b81",
+  "command": "bash .scratch/1341-ledger/run-focused.sh definition-numeric-type-red",
+  "import_exit": 0,
+  "exit_code": 0,
+  "script_errors_observed": false,
+  "selected_scripts_ran": 1,
+  "tests": 11,
+  "failures": 0,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "e717710432b02ac865cf0ddc35eab357da638ca331d1f53c95fab946d35aa421",
+    "tests/integration/test_item_ledger_repository.gd": "6a878c7c11262030438d3db64404b84257799d20b4d1aa6439926731d2736713",
+    ".scratch/1341-ledger/run-focused.sh": "dd9dc282b6b2173373c95ca8fe4f73acfda180ba884e54cb71343cae1bb12866"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/definition-numeric-type-red",
+  "interpretation": "existing behavior characterization; no RED claimed"
+}

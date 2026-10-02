@@ -101,14 +101,14 @@ def route(metadata):
         if windows_tooling(path) and not windows:
             raise ValueError("Windows tooling requires platform:windows-required")
     linux_inputs = {path: blob for path, blob in candidate_tree.items() if not windows_tooling(path)}
-    routed_inputs = linux_inputs
-    if windows:
-        baseline_inputs = {path: blob for path, blob in baseline_tree.items() if not windows_tooling(path)}
-        if linux_inputs != baseline_inputs and not contract:
-            raise ValueError("mixed Windows/Linux inputs: source hash mismatch")
-        routed_inputs = baseline_inputs
+    baseline_inputs = {path: blob for path, blob in baseline_tree.items() if not windows_tooling(path)}
+    if windows and linux_inputs != baseline_inputs and not contract:
+        raise ValueError("mixed Windows/Linux inputs: source hash mismatch")
+    # Baseline reuse is only sound when Linux inputs are byte-identical; any Linux change is validated at the candidate.
+    reuse_baseline = windows and linux_inputs == baseline_inputs
+    routed_inputs = baseline_inputs if reuse_baseline else linux_inputs
     return {"schema_version": 1, "candidate": metadata["candidate"],
-            "baseline": metadata["baseline"], "linux_ref": metadata["baseline"] if windows else metadata["candidate"],
+            "baseline": metadata["baseline"], "linux_ref": metadata["baseline"] if reuse_baseline else metadata["candidate"],
             "windows_ref": metadata["candidate"], "windows_required": windows,
             "artifact_contract": contract.get("name") if contract else None,
             "input_digest": digest(routed_inputs), "changed_paths": changed,
@@ -224,6 +224,13 @@ def expected_tests(tree, windows_required=False):
                     + ["scripts/generate_1100_fixture_test.go", "scripts/test_prepare_windows_experiment_1100.ps1"]
                     + (["scripts/test_build_current_deployment.ps1", "scripts/test_windows_client_validation.ps1"] if windows_required else []),
     }
+
+
+def planned_expected_tests(metadata, plan):
+    # Expect the tests of the tree the jobs execute: the baseline only when it is reused (#1345).
+    reused = plan["linux_ref"] == metadata["baseline"] != metadata["candidate"]
+    tree = metadata["baseline_tree"] if reused else metadata["candidate_tree"]
+    return expected_tests(tree, plan["windows_required"])
 
 
 def launcher_tests(directory):
@@ -377,9 +384,7 @@ def main():
         if args.action == "plan":
             metadata = metadata_from_event()
             plan = route(metadata)
-            expected_tree = (metadata["baseline_tree"] if plan["windows_required"]
-                             else metadata["candidate_tree"])
-            plan["expected_tests"] = expected_tests(expected_tree, plan["windows_required"])
+            plan["expected_tests"] = planned_expected_tests(metadata, plan)
             args.plan.parent.mkdir(parents=True, exist_ok=True)
             args.plan.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
             if os.environ.get("GITHUB_OUTPUT"):

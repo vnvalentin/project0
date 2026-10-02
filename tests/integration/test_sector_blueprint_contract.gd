@@ -7,6 +7,7 @@ const SectorBlueprintSchemaScript: Script = preload("res://shared/sector_bluepri
 const SectorBlueprintServiceScript: Script = preload("res://server/sector_blueprint_service.gd")
 const FixturesScript: Script = preload("res://scripts/sector_blueprint_fixtures.gd")
 const FakeOllamaHttpServerScript: Script = preload("res://scripts/fake_ollama_http_server.gd")
+const LocalLLMClientScript: Script = preload("res://shared/local_llm_client.gd")
 const EXPECTED_FALLBACK: Dictionary = {
 	"schema_version": 1,
 	"sector_id": "sector-9-4",
@@ -98,6 +99,8 @@ func test_jit_environment_cannot_extend_three_second_cutoff() -> void:
 	assert_eq(result["provenance"]["generation_budget_ms"], 3000.0)
 	assert_eq(result["detail"], "JIT generation deadline exceeded (result=13)")
 	assert_between(elapsed_ms, 2900.0, 3150.0, "3s deadline plus explicit 150ms scheduler tolerance, not hard real-time proof")
+	assert_lte(float(result["timing"]["generation_duration_ms"]), 3000.0, "#551 strict cutoff: hand-off at or before 3000 ms")
+	assert_eq(float(result["timing"]["deadline_overshoot_ms"]), 0.0)
 	await wait_seconds(0.35)
 	assert_eq(fake_server.request_count, 1, "zero retries")
 	assert_eq(fake_server.disconnect_count, 1, "timeout closes the pending HTTP connection")
@@ -108,6 +111,7 @@ func test_jit_environment_cannot_extend_three_second_cutoff() -> void:
 
 
 func test_jit_response_before_at_and_after_absolute_deadline() -> void:
+	var cutoff_usec: int = 3000000 - LocalLLMClientScript.DEADLINE_FRAME_MARGIN_USEC
 	for offset_usec: int in [-1, 0, 1]:
 		var fake_server: Node = FakeOllamaHttpServerScript.new()
 		var port: int = fake_server.start()
@@ -116,14 +120,37 @@ func test_jit_response_before_at_and_after_absolute_deadline() -> void:
 		var service: Node = _make_service(port)
 		var clock: Array[int] = [1000000]
 		service.clock_usec = func() -> int: return clock[0]
-		fake_server.response_sent.connect(func() -> void: clock[0] = 3000000 + offset_usec)
+		fake_server.response_sent.connect(func() -> void: clock[0] = cutoff_usec + offset_usec)
 		var result: Dictionary = await service.request_sector_blueprint("precise deadline", "sector-0-0", 1000000)
-		assert_eq(result["request_outcome"], "validated" if offset_usec < 0 else "timeout")
+		assert_eq(result["request_outcome"], "validated" if offset_usec < 0 else "timeout", "a response is accepted only with a frame of margin left")
 		assert_eq(result["source"], "llm" if offset_usec < 0 else "fallback")
 		assert_eq(result["provenance"]["generation_deadline_usec"], 3000000)
 		assert_eq(fake_server.request_count, 1)
 		assert_eq(fake_server.response_count, 1, "real HTTP response sent, late acceptance still rejected")
-		assert_eq(result["timing"]["generation_duration_ms"], 2000.0 + float(offset_usec) / 1000.0)
+		assert_eq(result["timing"]["generation_duration_ms"], float(cutoff_usec + offset_usec - 1000000) / 1000.0)
+		assert_eq(result["timing"]["deadline_overshoot_ms"], 0.0, "hand-off never lands after the deadline")
+		fake_server.stop()
+
+
+func test_schema_rejected_model_output_cascades_through_pass_1_then_pass_2() -> void:
+	var repairable: Dictionary = {"schema_version": 3, "sector_id": "sector-9-4", "origin": {"x": 0, "y": 0},
+		"tiles": [{"x": 0, "y": 0, "kind": "floor"}, {"x": 1, "y": 0, "kind": "lava_pit"}, {"x": 1.4, "y": 0, "kind": "path"}]}
+	var unrepairable: Dictionary = {"schema_version": 3, "sector_id": "sector-9-4", "origin": {"x": 0, "y": 0},
+		"tiles": [{"x": 0, "y": 0, "kind": "lava_pit"}]}
+	var expectations: Array = [[repairable, "pass_1", 2], [unrepairable, "pass_2", 1]]
+	for expectation: Array in expectations:
+		var fake_server: Node = FakeOllamaHttpServerScript.new()
+		var port: int = fake_server.start()
+		add_child_autofree(fake_server)
+		fake_server.next_response_body = JSON.stringify({"response": JSON.stringify(expectation[0])})
+		var result: Dictionary = await _make_service(port).request_sector_blueprint("repair cascade", "sector-9-4")
+		assert_eq(result["request_outcome"], "validated", "the model answered in time")
+		assert_eq(result["validation_outcome"], "unsupported_kind", "the original rejection is preserved")
+		assert_eq(result["source"], "fallback")
+		assert_eq(result["fallback_pass"], expectation[1])
+		assert_eq(result["candidate_validation_outcome"], "valid", "only an independently valid candidate is delivered")
+		assert_eq(result["blueprint"]["tiles"].size(), expectation[2])
+		assert_eq(fake_server.request_count, 1, "repair never retries the model")
 		fake_server.stop()
 
 
@@ -142,7 +169,7 @@ func test_jit_preserves_short_explicit_timeout_under_large_environment() -> void
 	var result: Dictionary = await service.request_sector_blueprint("short deadline")
 	assert_eq(result["request_outcome"], "timeout")
 	assert_eq(result["provenance"]["generation_budget_ms"], 50.0)
-	assert_between(result["timing"]["generation_duration_ms"], 50.0, 200.0)
+	assert_between(result["timing"]["generation_duration_ms"], 50.0 - float(LocalLLMClientScript.DEADLINE_FRAME_MARGIN_USEC) / 1000.0, 50.0, "the short budget is honored, not extended")
 	assert_eq(fake_server.request_count, 1)
 	fake_server.stop()
 
