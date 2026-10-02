@@ -2,6 +2,7 @@
 """Private supporting fixture comparison; raw child output is never persisted."""
 import ctypes
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import re
 import selectors
 import shutil
 import signal
+import stat
 import socket
 import subprocess
 import sys
@@ -41,35 +43,57 @@ def assertions():
 
 
 
-def qualify_staged(project, source):
-    for name, expected in source['source_sha256'].items():
-        target = project/name
-        if target.is_symlink() or hashlib.sha256(target.read_bytes()).hexdigest()!=expected:
+def preparation_contract():
+    path=ROOT/'scripts/prepare_godot_project.py'
+    if path.is_symlink() or not path.is_file():raise ValueError('preparation_helper_unavailable')
+    spec=importlib.util.spec_from_file_location('owned_preparation_contract',path)
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+    return module
+
+
+def preparation_receipt(path,project,source):
+    if path.is_symlink() or not path.is_file():raise ValueError('preparation_report_unavailable')
+    report=json.loads(path.read_text())
+    if (not isinstance(report,dict) or report.get('schema_version')!=1 or
+        report.get('source_revision')!=source['revision'] or report.get('prepared_root')!=str(project) or
+        report.get('prepared_root_created') is not True or report.get('configuration_restored') is not True or
+        report.get('source_custody_qualified') is not True or report.get('configuration_custody_lost') is not False):
+        raise ValueError('preparation_receipt_not_qualified')
+    qualify_staged(project,source,report,False)
+    return report
+
+
+def qualify_staged(project,source,report,logging):
+    contract=preparation_contract()
+    expected={name:value for name,value in source['source_sha256'].items() if not contract.excluded(Path(name))}
+    if (report.get('source_manifest')!=expected or report.get('source_inventory_kind')!='git-tracked' or
+        report.get('source_sha256')!=hashlib.sha256(json.dumps(expected,sort_keys=True).encode()).hexdigest() or
+        report.get('configuration_original_sha256')!=expected.get('project.godot') or HARNESS not in expected):
+        raise ValueError('preparation_source_not_qualified')
+    for name,digest in expected.items():
+        target=project/name;original=ROOT/name
+        if (target.is_symlink() or not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest()!=digest or
+            bool(target.stat().st_mode & stat.S_IXUSR)!=bool(original.stat().st_mode & stat.S_IXUSR)):
             raise ValueError('staged_source_changed')
-    if (project/'override.cfg').read_text()!=LOGGING_OVERRIDE:
-        raise ValueError('logging_override_not_qualified')
-    files={p.relative_to(project).as_posix() for p in project.rglob('*') if p.is_file()}
-    if files!=set(source['source_sha256'])|{'override.cfg'}:
-        raise ValueError('unexpected_staged_file')
-
-
-def stage_project(temporary, source):
-    names=source['source_sha256']
-    if 'override.cfg' in names or (ROOT/'override.cfg').exists():
-        raise ValueError('existing_project_override')
-    project=temporary/'project';project.mkdir()
-    for name, expected in names.items():
-        path=Path(name)
-        if path.is_absolute() or '..' in path.parts or any(part in {'.git','build','logs','.aws','.codex'} for part in path.parts):
-            raise ValueError('private_or_unsafe_staging_path')
-        original=ROOT/path
-        if original.is_symlink() or not original.is_file():raise ValueError('unsafe_staging_source')
-        content=original.read_bytes()
-        if hashlib.sha256(content).hexdigest()!=expected:raise ValueError('staging_source_changed')
-        target=project/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(content)
-    (project/'override.cfg').write_text(LOGGING_OVERRIDE)
-    qualify_staged(project,source)
-    return project
+        parent=target.parent
+        while parent!=project:
+            if parent.is_symlink():raise ValueError('staged_parent_not_qualified')
+            parent=parent.parent
+    if project.is_symlink():raise ValueError('staged_project_not_qualified')
+    registry=project/'.godot/extension_list.cfg'
+    if (registry.parent.is_symlink() or registry.is_symlink() or not registry.is_file() or
+        registry.read_bytes()!=contract.REGISTRY):raise ValueError('prepared_registry_not_qualified')
+    override=project/'override.cfg'
+    if logging:
+        if override.is_symlink() or not override.is_file() or override.read_text()!=LOGGING_OVERRIDE:
+            raise ValueError('logging_override_not_qualified')
+    elif override.exists() or override.is_symlink():raise ValueError('unexpected_project_override')
+    # Generated import/cache state is permitted only in the helper's declared roots.
+    for target in project.rglob('*'):
+        name=target.relative_to(project).as_posix()
+        if target.is_symlink():raise ValueError('unexpected_staged_symlink')
+        if target.is_file() and name not in expected and name!='override.cfg' and target.relative_to(project).parts[0] not in {'.godot','.preparation-runtime'}:
+            raise ValueError('unexpected_staged_file')
 
 
 def minimal_environment(base, sentinel):
@@ -257,24 +281,40 @@ def run(run_id):
         if preflight.returncode or not isinstance(pre,dict) or pre.get('passed') is not True or pre.get('errors')!=[] or pre.get('runtime_executed') is not False:
             raise ValueError('preflight_not_qualified')
         temporary=Path(tempfile.mkdtemp(prefix='project0-1407.'))
-        result['stage']='safe_staging'
-        project=stage_project(temporary,result['source_start'])
-        result['staged_source_qualified']=True
-        result['engine_file_logging']='disabled_before_launch'
+        project=temporary/'project'
+        if (ROOT/'override.cfg').exists() or (ROOT/'override.cfg').is_symlink():raise ValueError('existing_project_override')
         sentinel=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         sentinel.bind(('127.0.0.1',0))
         port=sentinel.getsockname()[1]
-        setup=temporary/'import';setup.mkdir()
-        env=minimal_environment(setup,port)
+        setup=temporary/'metadata';setup.mkdir()
+        environment=temporary/'preparation-environment';environment.mkdir()
+        env=minimal_environment(environment,port)
         result['stage']='engine_metadata'
-        version=subprocess.check_output(['godot','--path',str(project),'--version'],env=env,cwd=ROOT,stderr=subprocess.DEVNULL,timeout=10,preexec_fn=reset_child_sigchld).decode().strip()
-        if version != '4.3.stable.official.77dcf97d8':
-            raise ValueError('engine_not_qualified')
+        version=subprocess.check_output(['godot','--path',str(setup),'--version'],env=env,cwd=setup,stderr=subprocess.DEVNULL,timeout=10,preexec_fn=reset_child_sigchld).decode().strip()
+        if version != '4.3.stable.official.77dcf97d8':raise ValueError('engine_not_qualified')
         result['engine']=version
-        result['stage']='import'
-        imported=observe([['godot','--headless','--editor','--path',str(project),'--import','--quit']],[env],allowed,120)[0]
-        if imported['exit_code']!=0 or imported['timed_out'] or imported['script_error_observed']:
-            raise ValueError('import_not_qualified')
+        result['stage']='preparation'
+        report_path=result_dir/'preparation.json'
+        command=[sys.executable,str(ROOT/'scripts/prepare_godot_project.py'),'--source-root',str(ROOT),
+                 '--prepared-root',str(project),'--godot','godot','--source-revision',result['source_start']['revision'],
+                 '--timeout-seconds','120','--report',str(report_path)]
+        prepared=observe([command],[env],allowed,420)[0]
+        receipt=preparation_receipt(report_path,project,result['source_start'])
+        result['preparation']={'report':str(report_path),'status':receipt.get('status'),
+            'source_sha256':receipt['source_sha256'],'bootstrap':receipt.get('bootstrap'),'qualification':receipt.get('qualification')}
+        if (prepared['exit_code']!=0 or prepared['timed_out'] or prepared['script_error_observed'] or
+            receipt.get('status')!='passed' or receipt.get('exit_code')!=0):raise ValueError('preparation_not_qualified')
+        for phase in ['bootstrap','qualification']:
+            observed=receipt.get(phase)
+            log=result_dir/('prepare-'+phase+'.log')
+            if (not isinstance(observed,dict) or observed.get('status')!='passed' or observed.get('exit_code')!=0 or
+                observed.get('timed_out') is not False or observed.get('script_error_observed') is not False or
+                observed.get('output_valid') is not True or observed.get('log')!=str(log) or log.is_symlink() or not log.is_file()):
+                raise ValueError('preparation_phase_not_qualified')
+        with (project/'override.cfg').open('x') as stream:stream.write(LOGGING_OVERRIDE)
+        qualify_staged(project,result['source_start'],receipt,True)
+        result['staged_source_qualified']=True
+        result['engine_file_logging']='disabled_during_preparation_and_before_consumers'
         for mode in ['shared','distinct']:
             result['stage']=mode
             mode_dir=temporary/mode;mode_dir.mkdir()

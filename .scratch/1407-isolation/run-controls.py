@@ -61,29 +61,29 @@ def main():
         assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
-        cases=['nondefault_sigchld','initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
-            (root/'scripts').mkdir();(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
+            (root/'scripts').mkdir();shutil.copy2(ROOT/'scripts/prepare_godot_project.py',root/'scripts/prepare_godot_project.py');(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
             (root/'project.godot').write_text('config/name="Project0"\n')
             calls=[];identity_calls=[0]
             def identity():
                 identity_calls[0]+=1
                 if case=='dirty_source':raise ValueError('copied dirty source')
-                return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [root/'project.godot',root/'scripts/test_prediction_reconciliation.gd']}}
+                return {'revision':('b' if case=='changed_source' and identity_calls[0]>1 else 'a')*40,'source_sha256':{p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in [root/'project.godot',root/'scripts/test_prediction_reconciliation.gd',root/'scripts/prepare_godot_project.py']}}
             m.identity=identity
             if case=='initial_custody_unavailable':
                 def unavailable_children():raise OSError('copied proc unavailable')
                 m.owned_children=unavailable_children
             if case=='existing_override':(root/'override.cfg').write_text('copied existing override')
-            original_stage=m.stage_project
+            original_stage=getattr(m,'stage_project',None)
             def stage(temporary,source):
                 project=original_stage(temporary,source)
                 if case=='altered_staged_copy':(project/'scripts/test_prediction_reconciliation.gd').write_text('changed copied source')
                 if case=='altered_logging_override':(project/'override.cfg').write_text('[debug]\nfile_logging/enable_file_logging.pc=true\n')
                 m.qualify_staged(project,source)
                 return project
-            m.stage_project=stage
+            if original_stage is not None:m.stage_project=stage
             original_run=m.subprocess.run;original_output=m.subprocess.check_output
             original_pidfd=m.os.pidfd_open;original_signal=m.signal.pidfd_send_signal
             original_getsignal=m.signal.getsignal
@@ -96,16 +96,41 @@ def main():
                 return subprocess.CompletedProcess(command,0)
             def fake_output(command,**kwargs):
                 assert kwargs.get('timeout')==10 and kwargs.get('preexec_fn') is m.reset_child_sigchld
-                project=Path(command[command.index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
-                assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').read_bytes()==(root/'scripts/test_prediction_reconciliation.gd').read_bytes()
+                project=Path(command[command.index('--path')+1]);assert project!=root
+                if (project/'project.godot').exists():
+                    assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
+                    assert (project/'scripts/test_prediction_reconciliation.gd').read_bytes()==(root/'scripts/test_prediction_reconciliation.gd').read_bytes()
+                else:assert not list(project.iterdir())
                 if case=='metadata_unavailable':raise OSError('copied metadata unavailable')
                 if case=='metadata_timeout':raise subprocess.TimeoutExpired(command,10)
                 return b'4.7.2.stable.official.synthetic\n' if case=='unsupported_engine' else b'4.3.stable.official.77dcf97d8\n'
             def observe(commands,envs,allowed,limit):
+                if '--prepared-root' in commands[0]:
+                    command=commands[0];calls.append('prepare')
+                    project=Path(command[command.index('--prepared-root')+1]);assert not project.exists()
+                    project.mkdir()
+                    hashes={name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in ['project.godot','scripts/test_prediction_reconciliation.gd','scripts/prepare_godot_project.py']}
+                    for name in hashes:
+                        target=project/name;target.parent.mkdir(parents=True,exist_ok=True)
+                        shutil.copy2(root/name,target)
+                    (project/'.godot').mkdir();(project/'.godot/extension_list.cfg').write_text('res://addons/godot-sqlite/gdsqlite.gdextension\n')
+                    report=Path(command[command.index('--report')+1])
+                    phase={'status':'failed' if case in ['import_failure','import_marker'] else 'passed','exit_code':1 if case=='import_failure' else 0,'timed_out':False,'script_error_observed':case=='import_marker','non_script_error_observed':False,'output_valid':True}
+                    receipt={'schema_version':1,'status':'passed','exit_code':0,'source_revision':'a'*40,'prepared_root':str(project),
+                        'bootstrap':dict(phase),'qualification':dict(phase),'configuration_restored':True,'source_custody_qualified':True,
+                        'configuration_custody_lost':False,'prepared_root_created':True,'source_manifest':hashes,
+                        'source_sha256':hashlib.sha256(json.dumps(hashes,sort_keys=True).encode()).hexdigest(),
+                        'source_inventory_kind':'git-tracked','configuration_original_sha256':hashes['project.godot']}
+                    for name in ['bootstrap','qualification']:
+                        log=report.parent/('prepare-'+name+'.log');log.write_text('PREPARATION: synthetic canonical phase\n');receipt[name]['log']=str(log)
+                    report.write_text(json.dumps(receipt))
+                    if case=='altered_staged_copy':(project/'scripts/test_prediction_reconciliation.gd').write_text('changed copied source')
+                    if case=='altered_logging_override':(project/'override.cfg').write_text('copied unknown override')
+                    return [{'exit_code':0,'timed_out':False,'script_error_observed':False}]
                 project=Path(commands[0][commands[0].index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
                 # The unchanged harness derives nested server --path from res://.
                 assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').is_file()
-                calls.append('import' if '--import' in commands[0] else 'harness')
+                calls.append('import' if '--import' in commands[0] else ('shared' if Path(envs[0]['HOME']).parent.parent.name=='shared' else 'distinct'))
                 output=[]
                 for env in envs:
                     if '--import' not in commands[0]:
@@ -127,7 +152,7 @@ def main():
                 stream=io.StringIO()
                 with contextlib.redirect_stdout(stream):code=m.run('control')
                 path=root/'build/validation/1407-isolation/control/result.json'
-                expected=0 if case in ['valid','missing_assertion'] else 1
+                expected=0 if case in ['valid','prepared_before_consumers','missing_assertion'] else 1
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
@@ -138,7 +163,8 @@ def main():
                     if case=='missing_assertion':assert all(child['public_assertion_verdict']=='failed' for mode in result['comparisons'] for child in mode['children'])
                     (output/(case+'-result.json')).write_text(json.dumps(result,indent=2)+'\n')
                 else:assert 'NOT_OBSERVED' in stream.getvalue()
-                if case in ['dirty_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker']:assert 'harness' not in calls,case
+                if case=='prepared_before_consumers':assert calls==['prepare','shared','distinct'],case
+                if case in ['dirty_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker']:assert not any(call in ['shared','distinct'] for call in calls),case
                 records.append({'case':case,'passed':True})
             finally:
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
@@ -147,7 +173,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==25 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==26 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))
