@@ -49,9 +49,11 @@ start=json.loads((p/'source-start.json').read_text())
 end_hashes={x:hashlib.sha256(Path(x).read_bytes()).hexdigest() if Path(x).exists() else 'ABSENT' for x in start['hashes']}
 if start['hashes']!=end_hashes or start['status']!=subprocess.check_output(['git','status','--porcelain'],text=True) or (p/'revision.txt').read_text().strip()!=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip():problems.append('source_changed_during_validation')
 if int(sys.argv[3])!=0:problems.append('import_failed')
-if mode=='red' and (f!=1 or int(sys.argv[4])!=1):problems.append('expected_red_missing')
+failed_cases=[c.get('name') for suite in ss for c in suite.findall('testcase') if c.find('failure') is not None]
+expected_failure=re.findall(r'^func (test_\w+)\(',Path('tests/unit/test_item_creation_profile.gd').read_text(),re.M)[-1]
+if mode=='red' and (f<1 or failed_cases!=[expected_failure] or int(sys.argv[4])!=1):problems.append('expected_red_missing')
 if mode=='green' and (f or int(sys.argv[4])!=0):problems.append('green_failed')
-v={'status':'failed' if problems else 'expected_red' if mode=='red' else 'passed','host':'192.168.1.254','revision':(p/'revision.txt').read_text().strip(),'engine':subprocess.check_output(['godot','--version'],text=True).strip(),'command':'bash .scratch/950-rules/run-focused.sh '+p.name+' '+mode,'tests':n,'failures':f,'errors':e,'skipped':k,'import_exit':int(sys.argv[3]),'suite_exit':int(sys.argv[4]),'validation_errors':problems,'source_sha256':{str(x):hashlib.sha256(x.read_bytes()).hexdigest() for x in [Path('tests/unit/test_item_creation_profile.gd'),Path('tests/fixtures/item_creation_profile.gd'),Path('.scratch/950-rules/run-focused.sh')]} }
+v={'status':'failed' if problems else 'expected_red' if mode=='red' else 'passed','host':'192.168.1.254','revision':(p/'revision.txt').read_text().strip(),'engine':subprocess.check_output(['godot','--version'],text=True).strip(),'command':'bash .scratch/950-rules/run-focused.sh '+p.name+' '+mode+' '+sys.argv[5],'tests':n,'failures':f,'errors':e,'skipped':k,'import_exit':int(sys.argv[3]),'suite_exit':int(sys.argv[4]),'validation_errors':problems,'source_sha256':{str(x):hashlib.sha256(x.read_bytes()).hexdigest() for x in [Path('tests/unit/test_item_creation_profile.gd'),Path('tests/fixtures/item_creation_profile.gd'),Path('.scratch/950-rules/run-focused.sh')]} }
 (p/'result.json').write_text(json.dumps(v,indent=2)+'\n')
 if problems:sys.exit(1)
 PY
