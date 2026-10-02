@@ -9,29 +9,20 @@ run_id="$(date -u +%Y%m%dT%H%M%SZ)-${label}-$$"
 result_dir="$PWD/build/validation/849-recovery/$run_id"
 test ! -e "$result_dir"
 mkdir -p "$result_dir"
-fixture_dir="$(mktemp -d /tmp/project0-849-recovery-XXXXXX)"
-export XDG_DATA_HOME="$fixture_dir/xdg"
-export DASHBOARD_RESULTS_DIR="$result_dir/dashboard"
-mkdir -p "$XDG_DATA_HOME" "$DASHBOARD_RESULTS_DIR"
-state_path="$fixture_dir/expected.json"
+fixture_dir=""
 revision="$(git rev-parse HEAD)"
 prepare_exit=-1
 recover_exit=-1
-stage=ownership
+stage=setup
 engine_version=NOT_OBSERVED
 result_exit=1
-python3 - "$result_dir/source-start.json" <<'PYHASH'
-import hashlib,json,sys
-from pathlib import Path
-paths=['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']
-Path(sys.argv[1]).write_text(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths},indent=2)+'\n')
-PYHASH
 finish() {
   trap - EXIT
   set +e
-  case "$fixture_dir" in /tmp/project0-849-recovery-*) rm -rf -- "$fixture_dir" ;; *) exit 2 ;; esac
+  case "$fixture_dir" in "") ;; /tmp/project0-849-recovery-*) rm -rf -- "$fixture_dir" ;; *) exit 2 ;; esac
   cleanup=false
-  test ! -e "$fixture_dir" && cleanup=true
+  [[ -z "$fixture_dir" ]] || test ! -e "$fixture_dir"
+  [[ -z "$fixture_dir" || ! -e "$fixture_dir" ]] && cleanup=true
   python3 - "$result_dir" "$run_id" "$revision" "$engine_version" "$prepare_exit" "$recover_exit" "$stage" "$cleanup" "$mode" "$result_exit" "$label" <<'PY'
 import hashlib,json,subprocess,sys
 from pathlib import Path
@@ -93,6 +84,18 @@ PY
   exit "$evidence_exit"
 }
 trap finish EXIT
+fixture_dir="$(mktemp -d /tmp/project0-849-recovery-XXXXXX)"
+export XDG_DATA_HOME="$fixture_dir/xdg"
+export DASHBOARD_RESULTS_DIR="$result_dir/dashboard"
+mkdir -p "$XDG_DATA_HOME" "$DASHBOARD_RESULTS_DIR"
+state_path="$fixture_dir/expected.json"
+python3 - "$result_dir/source-start.json" <<'PYHASH'
+import hashlib,json,sys
+from pathlib import Path
+paths=['scripts/test_interior_anchor_process_recovery.gd','.scratch/849-recovery/run-experiment.sh','.scratch/849-recovery/validation-plan.json','server/interior_anchor_repository.gd','shared/interior_anchor_contract.gd','server/sqlite_store.gd','server/canon_repository.gd','server/canon_mutation_repository.gd','server/canon_sector_integrity.gd']
+Path(sys.argv[1]).write_text(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths},indent=2)+'\n')
+PYHASH
+stage=ownership
 python3 scripts/check_validation_ownership.py --plan .scratch/849-recovery/validation-plan.json --output "$result_dir/plan-ownership.json" > "$result_dir/preflight.log" 2>&1
 stage=import
 engine_version="$(/usr/local/bin/godot --version)"
