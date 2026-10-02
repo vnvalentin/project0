@@ -2,7 +2,7 @@
 import math
 
 
-def evaluate(observation: dict, cleanup: bool, supported_load: bool = False) -> dict:
+def evaluate(observation: dict, cleanup: bool, supported_load: bool = False, checkpoint_attribution: bool = False) -> dict:
     samples = observation.get('samples', [])
     complete = len(samples) == 1000 and all(isinstance(s, dict) for s in samples)
     ticks = [s.get('tick') for s in samples] if complete else []
@@ -38,6 +38,8 @@ def evaluate(observation: dict, cleanup: bool, supported_load: bool = False) -> 
         'callback_stage_evidence_qualified': summarize_stage_timings(observation)['qualified'],
         'cleanup_verified': cleanup is True,
     }
+    if checkpoint_attribution:
+        checks['checkpoint_child_evidence_qualified'] = summarize_checkpoint_timings(observation.get('checkpoint_attribution', {}), samples)['qualified']
     return {'passed': all(checks.values()) and not supported_load, 'checks': checks,
             'acceptance_exclusions': ['supported_load_requires_independent_contention_isolation'] if supported_load else [],
             'failed_checks': [k for k, value in checks.items() if not value],
@@ -89,3 +91,55 @@ def summarize_stage_timings(observation: dict) -> dict:
     peak = max(samples, key=lambda sample: sample.get('duration_ms', -1)) if valid else None
     return {'qualified': valid, 'stages': totals, 'peak_sample': peak,
             'scope': 'Inclusive callback wall spans grouped by profiler iteration. Telemetry may nest inside frontier/position; journey may nest inside physics/position; boundary and frontier-stay may nest inside position. Do not sum spans or subtract unrelated process callbacks from native physics. Coalesced iterations cannot supply individual tick durations.'}
+
+
+def summarize_checkpoint_timings(record: dict, baseline_samples: list | None = None) -> dict:
+    """Explicit experiment qualification; residual is inclusive, never hash time."""
+    required = ('server_canon', 'server_journey', 'coordinator', 'registry',
+                'canon_store_original', 'journey_store_original')
+    bindings = record.get('bindings', {})
+    valid = all(bindings.get(name) is True for name in required)
+    samples = record.get('samples', [])
+    valid = valid and isinstance(samples, list) and bool(samples)
+    baseline = baseline_samples if isinstance(baseline_samples, list) else []
+    valid = valid and len(samples) == len(baseline) and bool(baseline)
+    seen_ticks = set()
+    qualified_samples = []
+    total_calls = 0
+    for index, sample in enumerate(samples if isinstance(samples, list) else []):
+        if not isinstance(sample, dict):
+            valid = False
+            continue
+        calls, duration = sample.get('checkpoint_calls'), sample.get('duration_usec')
+        if type(calls) is not int or calls < 0 or type(duration) is not int or duration < 0:
+            valid = False
+            continue
+        total_calls += calls
+        parent = baseline[index] if index < len(baseline) and isinstance(baseline[index], dict) else {}
+        tick, steps = sample.get('tick'), sample.get('physics_steps')
+        span = parent.get('stage_timings', {}).get('journey_checkpoint', {})
+        parent_calls, parent_duration = span.get('calls'), span.get('duration_usec')
+        if (type(tick) is not int or tick in seen_ticks or type(steps) is not int or steps < 1
+                or tick != parent.get('tick') or steps != parent.get('physics_steps')
+                or type(parent_calls) is not int or calls != parent_calls
+                or type(parent_duration) is not int or duration > parent_duration):
+            valid = False
+        seen_ticks.add(tick)
+        child_total = 0
+        for name in ('canon_read', 'journey_save'):
+            span = sample.get(name, {})
+            if not isinstance(span, dict):
+                valid = False
+                continue
+            count, child = span.get('calls'), span.get('duration_usec')
+            if type(count) is not int or count != calls or type(child) is not int or child < 0 or (count == 0 and child != 0):
+                valid = False
+                continue
+            child_total += child
+        if child_total > duration or (calls == 0 and duration != 0):
+            valid = False
+            continue
+        qualified_samples.append(sample | {'inclusive_residual_usec': duration - child_total})
+    return {'qualified': valid and total_calls > 0, 'checkpoint_calls': total_calls,
+            'samples': qualified_samples,
+            'scope': 'Original-handle delegated public child calls during checkpoint scope only. Residual includes serialization/hash, registry/bookkeeping and scheduling; it is not independently measured hash time. Native per-tick timing qualification remains separate.'}
