@@ -76,6 +76,10 @@ def main():
                 return project
             m.stage_project=stage
             original_run=m.subprocess.run;original_output=m.subprocess.check_output
+            original_pidfd=m.os.pidfd_open;original_signal=m.signal.pidfd_send_signal
+            if case=='initial_custody_unavailable':
+                def forbidden_signal(*args,**kwargs):raise AssertionError('unknown custody must not open pidfd or signal child')
+                m.os.pidfd_open=forbidden_signal;m.signal.pidfd_send_signal=forbidden_signal
             def fake_run(command,**kwargs):
                 path=Path(command[-1]);path.write_text(json.dumps({'passed':True,'errors':[],'runtime_executed':False}))
                 return subprocess.CompletedProcess(command,0)
@@ -125,6 +129,7 @@ def main():
                 records.append({'case':case,'passed':True})
             finally:
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
+                m.os.pidfd_open=original_pidfd;m.signal.pidfd_send_signal=original_signal
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
