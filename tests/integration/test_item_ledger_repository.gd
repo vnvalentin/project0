@@ -105,6 +105,7 @@ func test_creation_atomically_persists_identity_receipt_and_exclusive_revisions(
 	assert_eq(counts.observation_status, "OBSERVED")
 	assert_eq(counts.totals.committed.insert, 4)
 	assert_eq(counts.by_table.canon_item_instances.committed.insert, 1)
+	_record_observation("creation")
 	_store.close()
 	_store = StoreScript.new()
 	assert_eq(_store.open(_relative_path).outcome, "ok")
@@ -138,6 +139,7 @@ func test_retirement_is_atomic_irreversible_and_preserves_original_success_recei
 	assert_eq(counters.observation_status, "OBSERVED")
 	assert_eq(counters.totals.committed.update, 3)
 	assert_eq(counters.totals.committed.insert, 1)
+	_record_observation("retirement")
 	_store.close()
 	_store = StoreScript.new()
 	assert_eq(_store.open(_relative_path).outcome, "ok")
@@ -164,10 +166,10 @@ func test_retirement_is_atomic_irreversible_and_preserves_original_success_recei
 	assert_eq(ledger.retire_instance("character:one", "operation:retire-other", original, 2, 2, "destroyed", 10).outcome, "stale_instance")
 	retry.acquisition.operation_id = "operation:revive"
 	assert_eq(ledger.create_instance("character:one", "operation:revive", retry, 2, 2).outcome, "identity_exists")
-	_assert_no_writes()
+	_assert_no_writes("retirement-retry-zero")
 
 
-func _assert_no_writes() -> void:
+func _assert_no_writes(scenario: String) -> void:
 	var counts: Dictionary = _store.dml_statement_counters()
 	assert_eq(counts.observation_status, "OBSERVED")
 	if counts.observation_status != "OBSERVED":
@@ -176,6 +178,7 @@ func _assert_no_writes() -> void:
 		for operation: String in ["insert", "replace", "update", "delete"]:
 			assert_eq(counts.totals[window][operation], 0, "%s/%s" % [window, operation])
 
+	_record_observation(scenario)
 
 func test_malformed_unpinned_carried_and_terminal_creation_reject_without_writes() -> void:
 	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
@@ -202,7 +205,7 @@ func test_malformed_unpinned_carried_and_terminal_creation_reject_without_writes
 	assert_eq(ledger.create_instance("character:one", "operation:create", noninitial, 0, 0).outcome, "invalid_creation")
 	assert_eq(ledger.create_instance("character:one", "operation:create", _instance_wire(), 0.0, 0).outcome, "invalid_command")
 	assert_eq(ledger.create_instance(" ", "operation:create", _instance_wire(), 0, 0).outcome, "invalid_command")
-	_assert_no_writes()
+	_assert_no_writes("malformed-zero")
 
 
 func test_replay_binds_all_logical_intent_and_rejections_leave_record_unchanged() -> void:
@@ -237,7 +240,7 @@ func test_replay_binds_all_logical_intent_and_rejections_leave_record_unchanged(
 	stale.quantity = 2
 	assert_eq(ledger.retire_instance("character:one", "operation:retire", stale, 1, 1, "consumed", 10).outcome, "stale_instance")
 	assert_eq(ledger.get_instance(original.instance_id).instance.to_wire_dict(), original)
-	_assert_no_writes()
+	_assert_no_writes("replay-zero")
 
 
 func test_actor_scoped_keys_and_exact_loot_position_indices_survive_reopen() -> void:
@@ -261,7 +264,7 @@ func test_actor_scoped_keys_and_exact_loot_position_indices_survive_reopen() -> 
 	assert_eq(ledger.list_owner(loot.owner).instances.size(), 1)
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(ledger.create_instance("character:other", "operation:create", loot, 0, 0), created)
-	_assert_no_writes()
+	_assert_no_writes("loot-retry-zero")
 
 
 func test_real_receipt_failure_rolls_back_creation_and_all_revisions() -> void:
@@ -280,6 +283,7 @@ func test_real_receipt_failure_rolls_back_creation_and_all_revisions() -> void:
 	assert_eq(counts.totals.rolled_back.insert, 3)
 	assert_eq(counts.totals.committed.insert, 0)
 	assert_eq(counts.by_table.canon_item_operations.failed.insert, 1)
+	_record_observation("create-rollback")
 	_store.close()
 	_store = StoreScript.new()
 	assert_eq(_store.open(_relative_path).outcome, "ok")
@@ -306,6 +310,7 @@ func test_real_receipt_failure_preserves_active_identity_during_retirement() -> 
 	assert_eq(counts.totals.rolled_back.update, 3)
 	assert_eq(counts.totals.failed.insert, 1)
 	assert_eq(counts.totals.committed.update, 0)
+	_record_observation("retire-rollback")
 	_store.close()
 	_store = StoreScript.new()
 	assert_eq(_store.open(_relative_path).outcome, "ok")
@@ -338,7 +343,7 @@ func test_definition_revision_rejects_effect_numeric_type_changes_without_writes
 	altered.base_effect = 10.0
 	assert_eq(ledger.register_definition(altered).outcome, "definition_conflict")
 	assert_true(ledger.get_definition(original.definition_id, original.definition_revision).definition.to_wire_dict().base_effect is int)
-	_assert_no_writes()
+	_assert_no_writes("definition-type-zero")
 
 
 func test_read_failures_are_explicit_errors_instead_of_revision_zero() -> void:
@@ -351,7 +356,7 @@ func test_read_failures_are_explicit_errors_instead_of_revision_zero() -> void:
 	assert_eq(state.outcome, "query_failed")
 	assert_eq(state.revision, -1)
 	assert_eq(ledger.create_instance("character:one", "operation:create", _instance_wire(), 0, 0).outcome, "query_failed")
-	_assert_no_writes()
+	_assert_no_writes("read-failure-zero")
 
 
 func test_fractional_authoritative_storage_is_preserved_and_rejected_after_reopen() -> void:
@@ -372,7 +377,7 @@ func test_fractional_authoritative_storage_is_preserved_and_rejected_after_reope
 	assert_eq(ledger.get_instance(original.instance_id).outcome, "corrupt_record")
 	assert_eq(ledger.list_owner(original.owner).outcome, "corrupt_record")
 	assert_eq(ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "destroyed", 100).outcome, "corrupt_record")
-	_assert_no_writes()
+	_assert_no_writes("corrupt-quantity-zero")
 	var stored: Dictionary = _store.query_with_bindings("SELECT quantity FROM canon_item_instances WHERE instance_id = ?;", [original.instance_id])
 	assert_eq(stored.rows[0].quantity, 1.5, "recovery never repairs or truncates authoritative values")
 
@@ -403,14 +408,14 @@ func test_revisions_above_json_precision_advance_exactly_and_overflow_rejects() 
 	assert_eq(_store.query_with_bindings("UPDATE canon_item_locations SET revision = ?;", [9223372036854775807]).outcome, "ok")
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(ledger.retire_instance("character:one", "operation:overflow", next, 9223372036854775807, 9223372036854775807, "destroyed", 100).outcome, "revision_overflow")
-	_assert_no_writes()
+	_assert_no_writes("revision-overflow-1")
 	assert_eq(_store.query_with_bindings("UPDATE canon_item_owners SET revision = ?;", [high + 2]).outcome, "ok")
 	assert_eq(_store.query_with_bindings("UPDATE canon_item_locations SET revision = ?;", [high + 2]).outcome, "ok")
 	assert_eq(_store.query_with_bindings("UPDATE canon_item_instances SET instance_revision = ? WHERE instance_id = ?;", [9223372036854775807, next.instance_id]).outcome, "ok")
 	next.instance_revision = 9223372036854775807
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(ledger.retire_instance("character:one", "operation:overflow-instance", next, high + 2, high + 2, "destroyed", 100).outcome, "revision_overflow")
-	_assert_no_writes()
+	_assert_no_writes("revision-overflow-2")
 
 
 func test_inconsistent_live_storage_discriminants_fail_closed_without_repairs() -> void:
@@ -423,7 +428,23 @@ func test_inconsistent_live_storage_discriminants_fail_closed_without_repairs() 
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(ledger.get_instance(original.instance_id).outcome, "corrupt_record")
 	assert_eq(ledger.list_owner(original.owner).outcome, "corrupt_record")
-	_assert_no_writes()
+	_assert_no_writes("corrupt-discriminant-zero")
+
+
+func _record_observation(scenario: String) -> void:
+	# Only approved task metadata is retained; never SQL, bindings or DB contents.
+	var directory: String = OS.get_environment("PROJECT0_LEDGER_EVIDENCE_DIR")
+	if directory.is_empty():
+		return
+	var prefix: String = ProjectSettings.globalize_path("res://build/validation/1341-ledger/")
+	assert_true(directory.begins_with(prefix) and not directory.split("/").has(".."), "owned evidence destination")
+	if not directory.begins_with(prefix) or directory.split("/").has(".."):
+		return
+	var file: FileAccess = FileAccess.open(directory.path_join(scenario + ".json"), FileAccess.WRITE)
+	assert_not_null(file)
+	if file != null:
+		file.store_string(JSON.stringify({"schema_version": 1, "issue": 1341, "scenario": scenario, "observation": _store.dml_statement_counters()}, "\t") + "\n")
+		file.close()
 
 
 func _instance_wire() -> Dictionary:

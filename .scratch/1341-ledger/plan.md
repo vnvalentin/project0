@@ -51,3 +51,7 @@ Definition numeric-type boundary characterization passed11tests: int-to-float ch
 ## Typed recovery and revision bounds checkpoint
 
 Public discriminant RED:15tests/2assertion failures, no script errors; getter/list omitted inactive terminal fields from an active row. GREEN:15tests/0failures after explicit live/terminal and address-discriminant validation. Recovery preserves corrupt authoritative values and returns corrupt_record, without coercion or repair. Read errors yield query_failed/revision-1, never guessed revision0. Exact item/owner/location revisions2^53+1 increment correctly; owner/location and instance signed-int64 overflow reject before DML. A retired address accepts a different GUID while the old identity remains reserved. Fixture and owned XDG cleanup verified. Artifacts typed-recovery-discriminant-{red,green}/; no milestone/runtime integration claim.
+
+## Scoped observation custody
+
+Focused15/15 passed with no errors/skips/script diagnostics and all14 required observation artifacts. Each retained JSON contains only the approved statement observer's scope, counters, qualification verdict and unsupported native-row-effect claim, never SQL/bindings/database rows. Owned runner now checks actual test-function count, complete selected suite, errors/skips and every required observation. Artifacts scoped-observation-artifacts/observations/. XDG teardown verified.
