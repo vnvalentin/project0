@@ -46,7 +46,7 @@ errors=sum(int(s.attrib.get('errors',0)) for s in selected)
 skipped=sum(int(s.attrib.get('skipped',0)) for s in selected)
 expected_tests=len(re.findall(r'^func test_',Path('tests/integration/test_item_ledger_repository.gd').read_text(),re.M))
 observation_errors=[]
-for scenario in ['creation','retirement','retirement-retry-zero','malformed-zero','replay-zero','loot-retry-zero','create-rollback','retire-rollback','definition-type-zero','read-failure-zero','corrupt-quantity-zero','revision-overflow-1','revision-overflow-2','corrupt-discriminant-zero']:
+for scenario in ['creation','retirement','retirement-retry-zero','malformed-zero','replay-zero','loot-retry-zero','create-rollback','retire-rollback','definition-type-zero','read-failure-zero','corrupt-quantity-zero','revision-overflow-1','revision-overflow-2','corrupt-discriminant-zero'] + [kind+'-receipt-'+field+'-zero' for kind in ['create','retire'] for field in ['operation_kind','instance_id','instance_revision','owner_revision','location_revision']]:
  try:
   observation=json.loads((p/'observations'/(scenario+'.json')).read_text())
   if observation['scenario']!=scenario or observation['observation']['observation_status']!='OBSERVED' or observation['observation']['native_row_effects']!='NOT_OBSERVED': observation_errors.append(scenario)

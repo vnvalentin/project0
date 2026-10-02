@@ -51,7 +51,7 @@ try:
  if summary['status']!='passed' or summary['scripts_expected']!=len(expected) or summary['scripts_ran']!=len(expected):problems.append('standard_summary_not_passing')
 except (OSError,ValueError,KeyError):summary={};problems.append('invalid_standard_summary')
 observations={}
-for scenario in ['creation','retirement','retirement-retry-zero','malformed-zero','replay-zero','loot-retry-zero','create-rollback','retire-rollback','definition-type-zero','read-failure-zero','corrupt-quantity-zero','revision-overflow-1','revision-overflow-2','corrupt-discriminant-zero']:
+for scenario in ['creation','retirement','retirement-retry-zero','malformed-zero','replay-zero','loot-retry-zero','create-rollback','retire-rollback','definition-type-zero','read-failure-zero','corrupt-quantity-zero','revision-overflow-1','revision-overflow-2','corrupt-discriminant-zero'] + [kind+'-receipt-'+field+'-zero' for kind in ['create','retire'] for field in ['operation_kind','instance_id','instance_revision','owner_revision','location_revision']]:
  try:
   observed=json.loads((p/'observations'/(scenario+'.json')).read_text())
   if observed['scenario']!=scenario or observed['observation']['observation_status']!='OBSERVED' or observed['observation']['native_row_effects']!='NOT_OBSERVED':problems.append('invalid_observation:'+scenario)

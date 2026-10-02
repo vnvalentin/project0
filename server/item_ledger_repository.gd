@@ -142,7 +142,7 @@ func create_instance(actor: String, operation_id: String, wire: Variant, owner_r
 			work.merge(_command_result("capacity_not_configured", "carried capacity requires an authored profile"), true)
 			return false
 		var fingerprint: String = _fingerprint("create", actor, operation_id, data, validated.definition, owner_revision, location_revision, "")
-		var replay: Dictionary = _find_receipt(actor, operation_id, fingerprint)
+		var replay: Dictionary = _find_receipt(actor, operation_id, fingerprint, _receipt_expectation("create", actor, operation_id, data, owner_revision, location_revision))
 		if replay.outcome != "not_found":
 			work.merge(replay, true)
 			return replay.outcome == "ok"
@@ -194,7 +194,7 @@ func retire_instance(actor: String, operation_id: String, wire: Variant, owner_r
 			work.merge(_command_result("capacity_not_configured", "carried capacity requires an authored profile"), true)
 			return false
 		var fingerprint: String = _fingerprint("retire", actor, operation_id, data, validated.definition, owner_revision, location_revision, reason)
-		var replay: Dictionary = _find_receipt(actor, operation_id, fingerprint)
+		var replay: Dictionary = _find_receipt(actor, operation_id, fingerprint, _receipt_expectation("retire", actor, operation_id, data, owner_revision, location_revision))
 		if replay.outcome != "not_found":
 			work.merge(replay, true)
 			return replay.outcome == "ok"
@@ -369,7 +369,7 @@ func _read_revision(sql: String, bindings: Array) -> Dictionary:
 	return _revision_result("ok", "", selected.rows[0].revision)
 
 
-func _find_receipt(actor: String, operation_id: String, fingerprint: String) -> Dictionary:
+func _find_receipt(actor: String, operation_id: String, fingerprint: String, expected: Dictionary) -> Dictionary:
 	var selected: Dictionary = _store.query_with_bindings("SELECT * FROM canon_item_operations WHERE actor_character_id = ? AND operation_id = ?;", [actor, operation_id])
 	if selected.outcome != "ok":
 		return _command_result("query_failed", selected.detail)
@@ -380,7 +380,10 @@ func _find_receipt(actor: String, operation_id: String, fingerprint: String) -> 
 		return _command_result("operation_conflict", "operation key already committed with different intent")
 	if not _revision(row.instance_revision) or not _revision(row.owner_revision) or not _revision(row.location_revision) or row.operation_kind not in ["create", "retire"] or not _identifier(row.instance_id):
 		return _command_result("corrupt_record", "receipt fields are invalid")
-	return _command_result("ok", "", _new_receipt(row.operation_kind, row.actor_character_id, row.operation_id, row.instance_id, row.instance_revision, row.owner_revision, row.location_revision))
+	var retained: Dictionary = _new_receipt(row.operation_kind, row.actor_character_id, row.operation_id, row.instance_id, row.instance_revision, row.owner_revision, row.location_revision)
+	if expected.is_empty() or var_to_bytes(_canonical(retained)) != var_to_bytes(_canonical(expected)):
+		return _command_result("corrupt_record", "receipt result does not match its pinned request")
+	return _command_result("ok", "", retained)
 
 
 func _insert_receipt(receipt: Dictionary, fingerprint: String) -> bool:
@@ -440,6 +443,14 @@ static func _address(owner: Variant, location: Variant) -> bool:
 
 static func _address_bindings(owner: Dictionary, location: Dictionary) -> Array:
 	return [owner.kind, owner.id, location.kind, location.get("slot", ""), location.get("source_id", ""), location.get("index", -1)]
+
+
+## Derive only deterministic committed-result fields from original intent, not
+## current item state. A maximum expected revision cannot have a success receipt.
+static func _receipt_expectation(kind: String, actor: String, operation_id: String, data: Dictionary, owner_revision: int, location_revision: int) -> Dictionary:
+	if owner_revision == 9223372036854775807 or location_revision == 9223372036854775807 or (kind == "retire" and data.instance_revision == 9223372036854775807):
+		return {}
+	return _new_receipt(kind, actor, operation_id, data.instance_id, data.instance_revision + 1 if kind == "retire" else 0, owner_revision + 1, location_revision + 1)
 
 
 static func _new_receipt(kind: String, actor: String, operation_id: String, instance_id: String, instance_revision: int, owner_revision: int, location_revision: int) -> Dictionary:

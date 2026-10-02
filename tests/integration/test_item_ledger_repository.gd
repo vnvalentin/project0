@@ -447,6 +447,46 @@ func _record_observation(scenario: String) -> void:
 		file.close()
 
 
+func test_create_retry_rejects_corrupted_typed_receipt_results_after_reopen() -> void:
+	_assert_receipt_integrity("create")
+
+
+func test_retire_retry_rejects_corrupted_typed_receipt_results_after_reopen() -> void:
+	_assert_receipt_integrity("retire")
+
+
+func _assert_receipt_integrity(kind: String) -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var created: Dictionary = ledger.create_instance("character:one", "operation:create", original, 0, 0)
+	assert_eq(created.outcome, "ok")
+	var committed: Dictionary = created
+	if kind == "retire":
+		committed = ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "destroyed", 100)
+		assert_eq(committed.outcome, "ok")
+	var retained: Dictionary = ledger.get_instance(original.instance_id).instance.to_wire_dict()
+	for change: Dictionary in [{"operation_kind": "retire" if kind == "create" else "create"}, {"instance_id": "instance:forged"}, {"instance_revision": 7}, {"owner_revision": 7}, {"location_revision": 7}]:
+		var altered: Dictionary = committed.receipt.duplicate(true)
+		altered.merge(change, true)
+		# Owned fault changes valid typed result fields without changing request fingerprint.
+		assert_eq(_store.query_with_bindings("UPDATE canon_item_operations SET operation_kind = ?, instance_id = ?, instance_revision = ?, owner_revision = ?, location_revision = ? WHERE actor_character_id = ? AND operation_id = ?;", [altered.operation_kind, altered.instance_id, altered.instance_revision, altered.owner_revision, altered.location_revision, altered.actor_character_id, altered.operation_id]).outcome, "ok")
+		_store.close()
+		_store = StoreScript.new()
+		assert_eq(_store.open(_relative_path).outcome, "ok")
+		ledger = LedgerScript.new(_store)
+		assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+		var retried: Dictionary = ledger.create_instance("character:one", "operation:create", original, 0, 0) if kind == "create" else ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "destroyed", 200)
+		assert_eq(retried.outcome, "corrupt_record", str(change))
+		assert_null(retried.receipt)
+		assert_eq(ledger.get_instance(original.instance_id).instance.to_wire_dict(), retained)
+		_assert_no_writes(kind + "-receipt-" + change.keys()[0] + "-zero")
+		var row: Dictionary = _store.query_with_bindings("SELECT operation_kind, instance_id, instance_revision, owner_revision, location_revision FROM canon_item_operations WHERE actor_character_id = ? AND operation_id = ?;", [altered.actor_character_id, altered.operation_id]).rows[0]
+		for field: String in row:
+			assert_eq(row[field], altered[field], "corruption is preserved, never automatically repaired")
+
+
 func _instance_wire() -> Dictionary:
 	return {
 		"schema_version": 1, "instance_id": "instance:sword", "definition_id": "definition:sword",
