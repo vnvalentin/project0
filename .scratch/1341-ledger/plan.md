@@ -55,3 +55,7 @@ Public discriminant RED:15tests/2assertion failures, no script errors; getter/li
 ## Scoped observation custody
 
 Focused15/15 passed with no errors/skips/script diagnostics and all14 required observation artifacts. Each retained JSON contains only the approved statement observer's scope, counters, qualification verdict and unsupported native-row-effect claim, never SQL/bindings/database rows. Owned runner now checks actual test-function count, complete selected suite, errors/skips and every required observation. Artifacts scoped-observation-artifacts/observations/. XDG teardown verified.
+
+## Final validation preparation
+
+Full ownership plan explicitly inventories155 current GUT scripts, including the new ledger suite, and passed the static preflight before runtime. Owned full runner shell syntax and both embedded Python programs compile. Full runner enforces exact recursive script coverage, positive suite tests, no failures/errors/skips, no Godot script-error markers, successful standard runner summary/record-sync and all14 scoped observation artifacts. It isolates XDG and dashboard state and verifies finally cleanup. This preparation does not claim the full suite ran. Coordinator owns serialized full-suite slot and both independent reviews.
