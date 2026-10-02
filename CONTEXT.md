@@ -211,3 +211,9 @@ server-authoritative, generated, canon-persisted content`.
 When evidence conflicts or is incomplete, preserve the source evidence, surface
 the ambiguity, and define whether the affected action is blocked, retried, or
 sent for review. Never silently guess.
+
+## Spatial permission language
+
+- **Plot claim**: The authoritative ownership relationship between one primary Character and a server-recognized plot. A claim is distinct from presence within the plot.
+- **Permit**: An explicit grant of named plot rights to a Character, Party, or faction role. Membership makes a matching group grant eligible; membership alone is not a permit.
+- **Steward**: A Character acting through an explicit permit-administration grant, limited to the rights it holds. Stewardship does not transfer primary ownership.
