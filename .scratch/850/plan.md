@@ -28,3 +28,5 @@ Linux 192.168.1.254 through verified okami.tail02bdf2.ts.net only. Existing Godo
 No unexpected defect yet. New-seam absence is the planned first RED; later failures will be recorded with public-seam evidence and corrected before completion.
 
 First owner/visitor seam: RED one test failed on absent public seam; GREEN one test passed with real SQLite. Evidence build/validation/850/{red,green}-owner.{xml,log}. No fixture databases remained. This is only the first vertical increment; explicit permits, final checks, audit and replay remain in progress.
+
+Explicit Party grant increment: RED two missing-method assertions; GREEN2/2 real SQLite public tests. Membership alone, a nonmember, and ungranted bits reject. Evidence build/validation/850/{red,green}-party-permit.{xml,log}. Final-commit checks and immutable audit receipts remain the next vertical increments.
