@@ -21,9 +21,12 @@ class TimedStore extends SqliteStore:
 		return result
 
 	func transaction(body: Callable) -> Dictionary:
+		var wall_started: float = Time.get_unix_time_from_system()
 		var started: int = Time.get_ticks_usec()
 		var result: Dictionary = super.transaction(body)
-		measured_calls.append({"operation": "TRANSACTION", "method": "transaction", "elapsed_ms": float(Time.get_ticks_usec() - started) / 1000.0, "outcome": result.outcome})
+		var elapsed_ms: float = float(Time.get_ticks_usec() - started) / 1000.0
+		var wall_ended: float = Time.get_unix_time_from_system()
+		measured_calls.append({"operation": "TRANSACTION", "method": "transaction", "elapsed_ms": elapsed_ms, "wall_start_s": wall_started, "wall_end_s": wall_ended, "outcome": result.outcome})
 		return result
 
 
