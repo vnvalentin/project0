@@ -111,3 +111,19 @@ static func source_identity(revision: String) -> Dictionary:
 		if not "0123456789abcdef".contains(character):
 			return {"status": "NOT_OBSERVED", "reason": "source_revision_invalid"}
 	return {"status": "OBSERVED", "revision": revision}
+
+
+## The caller retains cleanup ownership after creation, including write failure.
+static func create_sentinel(path: String, content: String, owned_paths: Array[String]) -> Dictionary:
+	for suffix: String in SIDECARS:
+		if FileAccess.file_exists(path + suffix) or DirAccess.dir_exists_absolute(path + suffix):
+			return {"status": "NOT_OBSERVED", "reason": "sentinel_target_exists"}
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return {"status": "NOT_OBSERVED", "reason": "sentinel_open_failed"}
+	owned_paths.append(path) # Claim only our new file, before any write can fail.
+	file.store_string(content)
+	file.flush()
+	var written: bool = file.get_error() == OK
+	file.close()
+	return {"status": "OBSERVED" if written else "NOT_OBSERVED", "reason": "" if written else "sentinel_write_failed"}

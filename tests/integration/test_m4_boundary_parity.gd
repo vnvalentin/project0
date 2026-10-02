@@ -241,16 +241,24 @@ func test_existing_target_is_neither_opened_nor_claimed_for_cleanup() -> void:
 	_trace["case_id"] = "control_existing_target"
 	var relative: String = "m4_sentinel_%s.db" % _stamp
 	var path: String = ProjectSettings.globalize_path("user://" + relative)
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	file.store_string("owned sentinel, not a SQLite store")
-	file.close()
+	if FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path):
+		fail_test("sentinel control requires a fresh owned target")
+		return
+	var created: Dictionary = Evidence.create_sentinel(path, "owned sentinel, not a SQLite store", _paths)
+	assert_eq(created["status"], "OBSERVED", "created sentinel owned for cleanup")
+	if created["status"] != "OBSERVED":
+		return
 	var expected: String = FileAccess.get_sha256(path)
+	var refused_ownership: Array[String] = []
+	var refused: Dictionary = Evidence.create_sentinel(path, "must not replace existing bytes", refused_ownership)
+	assert_eq(refused["status"], "NOT_OBSERVED", "existing sentinel refuses overwrite")
+	assert_true(refused_ownership.is_empty(), "refused creation claims no ownership")
+	assert_eq(FileAccess.get_sha256(path), expected, "existing sentinel bytes untouched")
 	var result: SqliteStore = _open_store(relative)
-	assert_null(result, "existing path refuses open")
-	assert_false(_paths.has(path), "failed claim cannot delete existing target")
-	assert_eq(FileAccess.get_sha256(path), expected, "existing bytes untouched")
-	_trace["passed"] = result == null and not _paths.has(path) and FileAccess.get_sha256(path) == expected
-	_paths.append(path) # This test created the sentinel and owns its teardown.
+	assert_null(result, "existing path refuses store open")
+	assert_eq(_paths.count(path), 1, "only successful sentinel creation owns teardown")
+	assert_eq(FileAccess.get_sha256(path), expected, "existing bytes untouched by store admission")
+	_trace["passed"] = refused["status"] == "NOT_OBSERVED" and refused_ownership.is_empty() and result == null and _paths.count(path) == 1 and FileAccess.get_sha256(path) == expected
 
 
 func _seed_permanent_changes(fixture: Dictionary) -> void:
