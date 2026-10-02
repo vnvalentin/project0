@@ -43,6 +43,17 @@ fi
 
 mkdir -p "$RESULT_DIR"
 
+record_bootstrap_failure() {
+  python3 - "$SUMMARY_FILE" <<'PYREPORT'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({
+    "runner":"GUT", "status":"failed", "stage":"bootstrap", "exit_code":2,
+    "scripts_ran":0, "gut_execution":"NOT_OBSERVED",
+},indent=2)+"\n")
+PYREPORT
+}
+
 if ! command -v timeout >/dev/null 2>&1; then
   echo "VALIDATION GATE ERROR: GNU timeout is required to bound the GUT process." | tee -a "$LOG_FILE"
   exit 1
@@ -56,16 +67,19 @@ extension_declaration="addons/godot-sqlite/gdsqlite.gdextension"
 extension_registry=".godot/extension_list.cfg"
 if [[ ! -f "$extension_declaration" || -L "$extension_declaration" || -L .godot || -L "$extension_registry" ]]; then
   echo "VALIDATION GATE ERROR: server extension bootstrap requires ordinary owned source/cache paths." >&2
+  record_bootstrap_failure
   exit 2
 fi
-mkdir -p .godot || exit 2
+mkdir -p .godot || { record_bootstrap_failure; exit 2; }
 if [[ -e "$extension_registry" ]]; then
   if [[ ! -f "$extension_registry" ]] || ! cmp -s "$extension_registry" <(printf '%s\n' "res://$extension_declaration"); then
     echo "VALIDATION GATE ERROR: extension registry differs from the reviewed server declaration." >&2
+    record_bootstrap_failure
     exit 2
   fi
 elif ! (set -C; printf '%s\n' "res://$extension_declaration" > "$extension_registry"); then
   echo "VALIDATION GATE ERROR: extension registry preparation failed." >&2
+  record_bootstrap_failure
   exit 2
 fi
 

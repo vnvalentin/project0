@@ -118,6 +118,21 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         self.assertTrue(summary["gut_script_error_observed"])
         self.assertEqual(summary["scripts_expected"], summary["scripts_ran"])
 
+    def test_unknown_registry_replaces_stale_pass_with_failed_preparation(self):
+        cache = self.root / ".godot"
+        cache.mkdir()
+        (cache / "extension_list.cfg").write_text("res://unreviewed.gdextension\n")
+        summary_path = self.root / "build/validation/validation-summary.json"
+        summary_path.parent.mkdir(parents=True)
+        summary_path.write_text('{"status":"passed"}')
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        self.assertFalse(self.engine_calls.exists())
+        summary = json.loads(summary_path.read_text())
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["stage"], "bootstrap")
+        self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
+
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)
         self.assertEqual(result.returncode, 2)
