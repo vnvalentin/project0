@@ -139,3 +139,33 @@ func test_specific_commit_authorizer_requires_its_managed_transaction() -> void:
 	var observation: Dictionary = _store.dml_statement_counters()
 	assert_eq(observation.observation_status, "OBSERVED")
 	assert_eq(observation.totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0}, "the authorizer only reads authority")
+
+
+func test_revoked_character_permit_rejects_final_commit_with_zero_write_attempts() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(authority.apply_permit("owner-one", {
+		"schema_version": 1, "operation_id": "permit-one", "plot_id": "plot-one", "expected_revision": 1,
+		"action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1,
+	}).outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("visitor-one", "plot-one", 1)
+	assert_eq(started.outcome, "ok")
+	assert_eq(_store.query("CREATE TABLE action_probe (id INTEGER PRIMARY KEY);").outcome, "ok")
+	assert_eq(authority.apply_permit("owner-one", {
+		"schema_version": 1, "operation_id": "revoke-one", "plot_id": "plot-one", "expected_revision": 2,
+		"action": "revoke", "subject": {"kind": "character", "id": "visitor-one", "role": ""},
+	}).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var calls: Array[int] = [0]
+	var result: Dictionary = authority.commit_interaction("visitor-one", started.interaction_id, func() -> bool:
+		calls[0] += 1
+		return _store.query("INSERT INTO action_probe (id) VALUES (1);").outcome == "ok"
+	)
+	assert_eq(result.outcome, "stale_authority")
+	assert_eq(calls[0], 0)
+	var observation: Dictionary = _store.dml_statement_counters()
+	assert_eq(observation.observation_status, "OBSERVED")
+	assert_eq(observation.totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_store.query("SELECT id FROM action_probe;").rows.size(), 0)

@@ -154,14 +154,18 @@ func update_memberships(character_id: Variant, memberships: Variant, expected_re
 
 ## Actor identity is supplied by authenticated server dispatch, never the intent.
 func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
-	var fields: PackedStringArray = ["schema_version", "operation_id", "plot_id", "expected_revision", "action", "subject", "permission_bits"]
+	if not (intent is Dictionary) or not (intent.get("action") is String) or intent.action not in ["grant", "revoke"]:
+		return _result("invalid_request")
+	var fields: PackedStringArray = ["schema_version", "operation_id", "plot_id", "expected_revision", "action", "subject"]
+	if intent.action == "grant":
+		fields.append("permission_bits")
 	if not _valid_id(actor_character_id) or not _exact_fields(intent, fields):
 		return _result("invalid_request")
-	if not (intent.schema_version is int) or intent.schema_version != 1 or intent.action != "grant":
+	if not (intent.schema_version is int) or intent.schema_version != 1:
 		return _result("invalid_request")
 	if not _valid_id(intent.operation_id) or not _valid_id(intent.plot_id) or not _valid_revision(intent.expected_revision):
 		return _result("invalid_request")
-	if not _valid_subject(intent.subject) or not _valid_bits(intent.permission_bits):
+	if not _valid_subject(intent.subject) or (intent.action == "grant" and not _valid_bits(intent.permission_bits)):
 		return _result("invalid_request")
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
@@ -172,15 +176,23 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 		if current.claim_revision != intent.expected_revision or current.claim_revision >= MAX_REVISION:
 			decision.outcome = "revision_mismatch"
 			return false
-		if (current.permission_bits & ADMINISTER_PERMITS) == 0 or (current.permission_bits & intent.permission_bits) != intent.permission_bits:
+		if (current.permission_bits & ADMINISTER_PERMITS) == 0 or (intent.action == "grant" and (current.permission_bits & intent.permission_bits) != intent.permission_bits):
 			decision.outcome = "permission_denied"
 			return false
 		var subject: Dictionary = intent.subject
 		var existing: Dictionary = _store.query_with_bindings("SELECT permission_bits FROM plot_permits WHERE plot_id = ? AND subject_kind = ? AND subject_id = ? AND subject_role = ?;", [intent.plot_id, subject.kind, subject.id, subject.role])
 		if existing.outcome != "ok":
 			return false
+		if not existing.rows.is_empty() and (current.permission_bits & existing.rows[0].permission_bits) != existing.rows[0].permission_bits:
+			decision.outcome = "permission_denied"
+			return false
 		var grant_write: Dictionary
-		if existing.rows.is_empty():
+		if intent.action == "revoke":
+			if existing.rows.is_empty():
+				decision.outcome = "permit_not_found"
+				return false
+			grant_write = _store.query_with_bindings("DELETE FROM plot_permits WHERE plot_id = ? AND subject_kind = ? AND subject_id = ? AND subject_role = ?;", [intent.plot_id, subject.kind, subject.id, subject.role])
+		elif existing.rows.is_empty():
 			grant_write = _store.query_with_bindings("INSERT INTO plot_permits (plot_id, subject_kind, subject_id, subject_role, permission_bits) VALUES (?, ?, ?, ?, ?);", [intent.plot_id, subject.kind, subject.id, subject.role, intent.permission_bits])
 		else:
 			grant_write = _store.query_with_bindings("UPDATE plot_permits SET permission_bits = ? WHERE plot_id = ? AND subject_kind = ? AND subject_id = ? AND subject_role = ?;", [intent.permission_bits, intent.plot_id, subject.kind, subject.id, subject.role])

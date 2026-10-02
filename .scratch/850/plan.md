@@ -36,3 +36,5 @@ Final authority gate: RED one missing-seam assertion; GREEN5/5 public SQLite tes
 Batch composition refinement: closed item-operation batches may own the shared transaction and call authorize_commit(actor, server_handle), which requires SqliteStore.is_managed_transaction_active(), rechecks authority, consumes the actor-bound handle and performs no DML. commit_interaction remains a convenience for synchronous trusted server writers. No nesting or public arbitrary item/SQL mutation API is added.
 
 Batch authorizer RED missing specific seam; GREEN6/6 with direct-statement observation OBSERVED and all attempt counts zero for the authorization-only transaction. Outside managed transaction returns transaction_required. Evidence build/validation/850/{red,green}-batch-authorizer.{xml,log}.
+
+Permit revocation: RED retained the formerly admitted action after unsupported revoke; GREEN7/7. Revocation changes the claim revision; final rejection is stale_authority before writer invocation. New #1347 counters report OBSERVED with zero INSERT/REPLACE/UPDATE/DELETE attempts for rejection. Evidence build/validation/850/{red,green}-revoked-permit.{xml,log}.
