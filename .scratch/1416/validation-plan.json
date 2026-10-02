@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": 1416,
+  "steps": [
+    {
+      "suite": "linux-tooling",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "python3 scripts/test_ci_validation_routing.py --report build/validation/ci-routing-1416/routing-tests.json",
+      "dependencies": ["python"],
+      "tests": ["scripts/test_ci_validation_routing.py"],
+      "artifacts": ["build/validation/ci-routing-1416/routing-tests.json"]
+    }
+  ],
+  "setup": "Run from a fresh exact-branch source clone on the assigned Linux host; no dependency installation or shared service is needed.",
+  "cleanup": "Retain the JSON report outside the temporary clone, then remove only that owned clone.",
+  "rollback": "Revert the issue-1416 code/test PR; no persistent runtime state is modified."
+}
