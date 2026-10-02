@@ -61,7 +61,7 @@ def main():
         assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
-        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','consumer_override_changed','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();shutil.copy2(ROOT/'scripts/prepare_godot_project.py',root/'scripts/prepare_godot_project.py');(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
@@ -86,7 +86,7 @@ def main():
             if original_stage is not None:m.stage_project=stage
             original_run=m.subprocess.run;original_output=m.subprocess.check_output
             original_pidfd=m.os.pidfd_open;original_signal=m.signal.pidfd_send_signal
-            original_getsignal=m.signal.getsignal
+            original_getsignal=m.signal.getsignal;original_mkdtemp=m.tempfile.mkdtemp
             if case=='nondefault_sigchld':m.signal.getsignal=lambda sig:m.signal.SIG_IGN if sig==m.signal.SIGCHLD else original_getsignal(sig)
             if case=='initial_custody_unavailable':
                 def forbidden_signal(*args,**kwargs):raise AssertionError('unknown custody must not open pidfd or signal child')
@@ -131,6 +131,7 @@ def main():
                 # The unchanged harness derives nested server --path from res://.
                 assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').is_file()
                 calls.append('import' if '--import' in commands[0] else ('shared' if Path(envs[0]['HOME']).parent.parent.name=='shared' else 'distinct'))
+                if case=='consumer_override_changed' and calls[-1]=='distinct':(project/'override.cfg').write_text('copied unknown consumer override')
                 output=[]
                 for env in envs:
                     if '--import' not in commands[0]:
@@ -147,6 +148,7 @@ def main():
             if case=='retention_failure':
                 def retain(path,result):path.mkdir();return original_retain(path,result)
                 m.retain=retain
+            m.tempfile.mkdtemp=lambda **kwargs:original_mkdtemp(dir=temporary,**kwargs)
             m.subprocess.run=fake_run;m.subprocess.check_output=fake_output
             try:
                 stream=io.StringIO()
@@ -156,7 +158,8 @@ def main():
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
-                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable']),case
+                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override']),case
+                    if case=='consumer_override_changed':assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir() and (Path(result['retained_stage'])/'project/override.cfg').read_text()=='copied unknown consumer override'
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
                     if case=='nondefault_sigchld':assert result['stage']=='child_signal_contract' and not calls and identity_calls[0]==0
                     if case=='unsupported_engine':assert result['stage']=='engine_metadata' and not calls
@@ -169,11 +172,11 @@ def main():
             finally:
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
                 m.os.pidfd_open=original_pidfd;m.signal.pidfd_send_signal=original_signal
-                m.signal.getsignal=original_getsignal
+                m.signal.getsignal=original_getsignal;m.tempfile.mkdtemp=original_mkdtemp
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==26 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==27 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))

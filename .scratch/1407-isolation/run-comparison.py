@@ -51,7 +51,7 @@ def preparation_contract():
     return module
 
 
-def preparation_receipt(path,project,source):
+def preparation_receipt(path,project,source,logging=False):
     if path.is_symlink() or not path.is_file():raise ValueError('preparation_report_unavailable')
     report=json.loads(path.read_text())
     if (not isinstance(report,dict) or report.get('schema_version')!=1 or
@@ -59,7 +59,7 @@ def preparation_receipt(path,project,source):
         report.get('prepared_root_created') is not True or report.get('configuration_restored') is not True or
         report.get('source_custody_qualified') is not True or report.get('configuration_custody_lost') is not False):
         raise ValueError('preparation_receipt_not_qualified')
-    qualify_staged(project,source,report,False)
+    qualify_staged(project,source,report,logging)
     return report
 
 
@@ -247,10 +247,14 @@ def run(run_id):
     result_dir.mkdir(parents=True, exist_ok=False)
     result = {'schema_version':1,'issue':1407,'status':'failed','stage':'setup',
               'source_start':NOT,'source_end':NOT,'comparisons':[], 'cleanup_verified':False,
-              'initial_child_custody':NOT,
+              'initial_child_custody':NOT,'process_cleanup_verified':False,'retained_stage':NOT,
               'acceptance':'diagnostic only; full regression and root cause NOT_OBSERVED'}
     temporary = None
     sentinel = None
+    preparation_attempted=False
+    logging=False
+    report_path=None
+    project=None
     try:
         result['stage']='initial_child_custody'
         BASELINE_CHILDREN = set(owned_children())
@@ -298,6 +302,7 @@ def run(run_id):
         command=[sys.executable,str(ROOT/'scripts/prepare_godot_project.py'),'--source-root',str(ROOT),
                  '--prepared-root',str(project),'--godot','godot','--source-revision',result['source_start']['revision'],
                  '--timeout-seconds','120','--report',str(report_path)]
+        preparation_attempted=True
         prepared=observe([command],[env],allowed,420)[0]
         receipt=preparation_receipt(report_path,project,result['source_start'])
         result['preparation']={'report':str(report_path),'status':receipt.get('status'),
@@ -312,6 +317,7 @@ def run(run_id):
                 observed.get('output_valid') is not True or observed.get('log')!=str(log) or log.is_symlink() or not log.is_file()):
                 raise ValueError('preparation_phase_not_qualified')
         with (project/'override.cfg').open('x') as stream:stream.write(LOGGING_OVERRIDE)
+        logging=True
         qualify_staged(project,result['source_start'],receipt,True)
         result['staged_source_qualified']=True
         result['engine_file_logging']='disabled_during_preparation_and_before_consumers'
@@ -338,6 +344,8 @@ def run(run_id):
             result['comparisons'].append({'mode':mode,'telemetry_path_relationship':relationship if qualified else NOT,
                 'telemetry_path_qualified':qualified,'children':observed})
             if not qualified:raise ValueError('telemetry_path_not_observed')
+        result['stage']='consumer_custody'
+        preparation_receipt(report_path,project,result['source_start'],logging)
         result['stage']='source_end'
         result['source_end']=identity()
         if result['source_start']!=result['source_end']:raise ValueError('source_changed')
@@ -348,12 +356,27 @@ def run(run_id):
         result['status']='failed'
         result['failure_class']='stage_not_qualified'
     finally:
+        empty=False
+        custody=True
         try:
             empty=teardown([])
-            if temporary is not None:shutil.rmtree(temporary)
-            result['cleanup_verified']=empty and (temporary is None or not temporary.exists())
+            result['process_cleanup_verified']=empty
         except (OSError, RuntimeError):
+            result['process_cleanup_verified']=False
+        if preparation_attempted:
+            try:
+                if identity()!=result['source_start']:raise ValueError('cleanup_source_changed')
+                preparation_receipt(report_path,project,result['source_start'],logging)
+            except (OSError, ValueError, UnicodeError, RuntimeError, subprocess.SubprocessError):
+                custody=False
+                result['retained_stage']=str(temporary)
+        try:
+            if temporary is not None and custody and empty:shutil.rmtree(temporary)
+            result['cleanup_verified']=empty and custody and (temporary is None or not temporary.exists())
+            if temporary is not None and temporary.exists():result['retained_stage']=str(temporary)
+        except OSError:
             result['cleanup_verified']=False
+            result['retained_stage']=str(temporary)
         if sentinel is not None:sentinel.close()
         if not result['cleanup_verified']:result['status']='failed'
     return retain(result_dir/'result.json',result)
