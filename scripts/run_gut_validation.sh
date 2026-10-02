@@ -91,18 +91,25 @@ timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless --imp
 import_exit_code=$?
 set -e
 import_script_error_observed=false
+import_log_scan_failed=false
 if grep -Eq 'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script' "$IMPORT_LOG"; then
   import_script_error_observed=true
+else
+  scan_exit=$?
+  if [[ "$scan_exit" -gt 1 ]]; then
+    import_log_scan_failed=true
+  fi
 fi
-if [[ "$import_exit_code" -ne 0 || "$import_script_error_observed" == true ]]; then
-  python3 - "$SUMMARY_FILE" "$IMPORT_LOG" "$import_exit_code" "$import_script_error_observed" <<'PYREPORT'
+if [[ "$import_exit_code" -ne 0 || "$import_script_error_observed" == true || "$import_log_scan_failed" == true ]]; then
+  python3 - "$SUMMARY_FILE" "$IMPORT_LOG" "$import_exit_code" "$import_script_error_observed" "$import_log_scan_failed" <<'PYREPORT'
 import json,sys
 from pathlib import Path
-summary,log,code,marker=sys.argv[1:]
+summary,log,code,marker,scan_failed=sys.argv[1:]
 code=int(code)
 Path(summary).write_text(json.dumps({
     "runner":"GUT", "status":"failed", "stage":"import", "exit_code":1,
     "import_exit_code":code, "import_script_error_observed":marker=="true",
+    "import_log_scan_failed":scan_failed=="true",
     "timed_out":code in (124,137), "scripts_ran":0, "gut_execution":"NOT_OBSERVED",
     "import_log":log,
 },indent=2)+"\n")
@@ -152,10 +159,18 @@ elif [[ -n "$missing_scripts" ]]; then
 fi
 
 gut_script_error_observed=false
+gut_log_scan_failed=false
 if grep -Eq 'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script' "$LOG_FILE"; then
   gut_script_error_observed=true
   exit_code=1
   echo "VALIDATION GATE ERROR: GUT emitted a script error despite its reported test result." | tee -a "$LOG_FILE"
+else
+  scan_exit=$?
+  if [[ "$scan_exit" -gt 1 ]]; then
+    gut_log_scan_failed=true
+    exit_code=1
+    echo "VALIDATION GATE ERROR: GUT script-error evidence could not be read." >&2
+  fi
 fi
 
 status="failed"
@@ -173,6 +188,7 @@ cat > "$SUMMARY_FILE" <<EOF
   "scripts_expected": $scripts_expected,
   "scripts_ran": $scripts_ran,
   "gut_script_error_observed": $gut_script_error_observed,
+  "gut_log_scan_failed": $gut_log_scan_failed,
   "timestamp_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "junit_xml": "$JUNIT_FILE",
   "log": "$LOG_FILE"

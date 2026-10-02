@@ -133,6 +133,24 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         self.assertEqual(summary["stage"], "bootstrap")
         self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
 
+    def test_marker_scan_failure_cannot_qualify_import_or_gut(self):
+        self.write_executable("grep", '''#!/usr/bin/python3
+import os, sys
+last = sys.argv[-1]
+if "-Eq" in sys.argv and last.endswith(os.environ["FAKE_SCAN_FAILURE"]):
+    sys.exit(2)
+os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
+''')
+        for log in ("import.log", "gut.log"):
+            with self.subTest(log=log):
+                self.env["FAKE_SCAN_FAILURE"] = log
+                result = self.run_command("run_gut_validation.sh")
+                self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+                summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+                self.assertEqual(summary["status"], "failed")
+                key = "import_log_scan_failed" if log == "import.log" else "gut_log_scan_failed"
+                self.assertTrue(summary[key])
+
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)
         self.assertEqual(result.returncode, 2)
