@@ -507,6 +507,53 @@ class RoutingTests(unittest.TestCase):
                         self.routing.metadata_from_event()
                     trees.assert_not_called()
 
+    def test_pull_request_metadata_fails_closed_on_malformed_rest_response(self):
+        candidate = "a" * 40
+        approved = "b" * 40
+        malformed_pulls = [
+            [],
+            {},
+            {"state": "open", "base": {"sha": approved, "ref": "main", "repo": {"full_name": "owner/repo"}},
+             "labels": []},
+            {"state": "open", "head": {"sha": candidate, "repo": {"full_name": "owner/repo"}},
+             "base": {"sha": approved, "ref": "main", "repo": {"full_name": "owner/repo"}}},
+            {"state": "open", "head": {"sha": candidate, "repo": {"full_name": "owner/repo"}},
+             "base": {"sha": approved, "ref": "main", "repo": {"full_name": "owner/repo"}},
+             "labels": [None]},
+        ]
+        for changed in malformed_pulls:
+            with self.subTest(pull=changed), tempfile.TemporaryDirectory() as temporary:
+                event = Path(temporary) / "event.json"
+                event.write_text(json.dumps({"number": 42, "pull_request": {"head": {"sha": candidate}}}))
+                environment = {
+                    "GITHUB_EVENT_PATH": str(event), "GITHUB_REPOSITORY": "owner/repo",
+                    "GITHUB_SHA": candidate, "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/42/merge",
+                }
+                with patch.dict(self.routing.os.environ, environment), patch.object(self.routing.sys, "platform", "win32"), \
+                        patch.object(self.routing, "git_tree") as trees, \
+                        patch.object(self.routing, "command", side_effect=[candidate, approved, json.dumps(changed)]):
+                    with self.assertRaises(ValueError):
+                        self.routing.metadata_from_event()
+                    trees.assert_not_called()
+
+    def test_pull_request_metadata_aborts_when_rest_request_fails(self):
+        candidate = "a" * 40
+        approved = "b" * 40
+        with tempfile.TemporaryDirectory() as temporary:
+            event = Path(temporary) / "event.json"
+            event.write_text(json.dumps({"number": 42, "pull_request": {"head": {"sha": candidate}}}))
+            environment = {
+                "GITHUB_EVENT_PATH": str(event), "GITHUB_REPOSITORY": "owner/repo",
+                "GITHUB_SHA": candidate, "GITHUB_EVENT_NAME": "pull_request", "GITHUB_REF": "refs/pull/42/merge",
+            }
+            with patch.dict(self.routing.os.environ, environment), patch.object(self.routing.sys, "platform", "win32"), \
+                    patch.object(self.routing, "git_tree") as trees, \
+                    patch.object(self.routing, "command", side_effect=[candidate, approved,
+                        subprocess.CalledProcessError(1, ["gh", "api", "repos/owner/repo/pulls/42"])]):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.routing.metadata_from_event()
+                trees.assert_not_called()
+
     def test_image_sources_reject_unapproved_main_history_before_tree_read(self):
         for event_name, ref in [("workflow_dispatch", "refs/heads/main"), ("push", "refs/tags/v1.0.0")]:
             with self.subTest(event=event_name), tempfile.TemporaryDirectory() as temporary:
