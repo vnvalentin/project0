@@ -341,6 +341,91 @@ func test_definition_revision_rejects_effect_numeric_type_changes_without_writes
 	_assert_no_writes()
 
 
+func test_read_failures_are_explicit_errors_instead_of_revision_zero() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	assert_eq(_store.query("DROP TABLE canon_item_owners;").outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var state: Dictionary = ledger.get_owner_revision(_instance_wire().owner)
+	assert_eq(state.outcome, "query_failed")
+	assert_eq(state.revision, -1)
+	assert_eq(ledger.create_instance("character:one", "operation:create", _instance_wire(), 0, 0).outcome, "query_failed")
+	_assert_no_writes()
+
+
+func test_fractional_authoritative_storage_is_preserved_and_rejected_after_reopen() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	assert_eq(ledger.create_instance("character:one", "operation:create", original, 0, 0).outcome, "ok")
+	# Owned corruption fixture only: disable CHECK while introducing a fractional quantity.
+	assert_eq(_store.query("PRAGMA ignore_check_constraints = ON;").outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_instances SET quantity = ? WHERE instance_id = ?;", [1.5, original.instance_id]).outcome, "ok")
+	assert_eq(_store.query("PRAGMA ignore_check_constraints = OFF;").outcome, "ok")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.get_instance(original.instance_id).outcome, "corrupt_record")
+	assert_eq(ledger.list_owner(original.owner).outcome, "corrupt_record")
+	assert_eq(ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "destroyed", 100).outcome, "corrupt_record")
+	_assert_no_writes()
+	var stored: Dictionary = _store.query_with_bindings("SELECT quantity FROM canon_item_instances WHERE instance_id = ?;", [original.instance_id])
+	assert_eq(stored.rows[0].quantity, 1.5, "recovery never repairs or truncates authoritative values")
+
+
+func test_revisions_above_json_precision_advance_exactly_and_overflow_rejects() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	assert_eq(ledger.create_instance("character:one", "operation:create", original, 0, 0).outcome, "ok")
+	var high: int = 9007199254740993
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_owners SET revision = ?;", [high]).outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_locations SET revision = ?;", [high]).outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_instances SET instance_revision = ?;", [high]).outcome, "ok")
+	var expected: Dictionary = ledger.get_instance(original.instance_id).instance.to_wire_dict()
+	assert_eq(expected.instance_revision, high)
+	var retired: Dictionary = ledger.retire_instance("character:one", "operation:retire", expected, high, high, "merged", 100)
+	assert_eq(retired.outcome, "ok")
+	assert_eq(retired.receipt.instance_revision, high + 1)
+	assert_eq(retired.receipt.owner_revision, high + 1)
+	assert_eq(retired.receipt.location_revision, high + 1)
+	assert_true(retired.receipt.instance_revision is int)
+	var next: Dictionary = original.duplicate(true)
+	next.instance_id = "instance:next"
+	next.acquisition.operation_id = "operation:next"
+	assert_eq(ledger.create_instance("character:one", "operation:next", next, high + 1, high + 1).outcome, "ok", "new GUID can reuse a retired address")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_owners SET revision = ?;", [9223372036854775807]).outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_locations SET revision = ?;", [9223372036854775807]).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.retire_instance("character:one", "operation:overflow", next, 9223372036854775807, 9223372036854775807, "destroyed", 100).outcome, "revision_overflow")
+	_assert_no_writes()
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_owners SET revision = ?;", [high + 2]).outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_locations SET revision = ?;", [high + 2]).outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_instances SET instance_revision = ? WHERE instance_id = ?;", [9223372036854775807, next.instance_id]).outcome, "ok")
+	next.instance_revision = 9223372036854775807
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.retire_instance("character:one", "operation:overflow-instance", next, high + 2, high + 2, "destroyed", 100).outcome, "revision_overflow")
+	_assert_no_writes()
+
+
+func test_inconsistent_live_storage_discriminants_fail_closed_without_repairs() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	assert_eq(ledger.create_instance("character:one", "operation:create", original, 0, 0).outcome, "ok")
+	assert_eq(_store.query_with_bindings("UPDATE canon_item_instances SET terminal_tick = ? WHERE instance_id = ?;", [100, original.instance_id]).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(ledger.get_instance(original.instance_id).outcome, "corrupt_record")
+	assert_eq(ledger.list_owner(original.owner).outcome, "corrupt_record")
+	_assert_no_writes()
+
+
 func _instance_wire() -> Dictionary:
 	return {
 		"schema_version": 1, "instance_id": "instance:sword", "definition_id": "definition:sword",

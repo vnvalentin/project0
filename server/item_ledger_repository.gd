@@ -291,10 +291,16 @@ func _instance_from_row(row: Dictionary) -> Dictionary:
 	var location: Variant = null
 	var terminal: Variant = null
 	if row.terminal_reason == null:
+		if row.terminal_tick != null or row.terminal_operation_id != null:
+			return _instance_result("corrupt_record", "active record retains terminal metadata")
 		owner = {"kind": row.owner_kind, "id": row.owner_id}
 		if row.location_kind == "equipped":
+			if row.source_id != null or row.location_index != null:
+				return _instance_result("corrupt_record", "equipped record retains another address type")
 			location = {"kind": row.location_kind, "slot": row.slot}
 		elif row.location_kind == "loot_position":
+			if row.slot != null:
+				return _instance_result("corrupt_record", "loot record retains an equipment address")
 			location = {"kind": row.location_kind, "source_id": row.source_id, "index": row.location_index}
 		else:
 			return _instance_result("corrupt_record", "unsupported persisted address")
