@@ -17,11 +17,12 @@ M4.2 component parity is accepted separately; it does not establish capacity.
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Source analysis: [M4.3 findings](../../.scratch/zone-sharding/m4-source-findings.md),
-reconciled at accepted main `6a39f68f58388976710ff5a9fc49961ffc1a25b0`.
+reconciled at accepted main `424a71092d8f4b91fecdcf962aa19faa5a4c9510`.
 The [initial checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685),
 [evidence amendment](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827)
 [target proposal](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958697673),
-and [accepted-map diagnostic frontier](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958888901)
+[accepted-map diagnostic frontier](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958888901),
+and [accepted baseline integration](https://github.com/vnvalentin/project0/issues/205#issuecomment-5959023851)
 own this documentation work. The planning map is accepted in PR #1378; its
 merge does not qualify capacity or this proposed architecture.
 
@@ -113,7 +114,14 @@ Known single-step maxima are 548.826 ms / 83.827 ms. Coalescing leaves exact P99
 unavailable; conservative first-1,000-tick nearest-rank P99 lower bounds
 48.679 ms / 55.558 ms nevertheless establish failure. Source/package custody,
 required callback stages, bounded fault/worker controls and cleanup are qualified.
-Final full GUT remains pending; #1376 timing is blocked and M4 is not complete.
+[Final baseline delivery](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5958967441)
+is qualified at `4d355401f61e3e6da79341b7aa7779649cd8bff2`: native full
+157-script/1,175-test GUT, all ten parity cases, source/cleanup, controls, record
+sync, both final independent reviews and hosted CI passed. PR #1386 merged at
+`424a71092d8f4b91fecdcf962aa19faa5a4c9510`; application/harness blobs are
+unchanged from benchmark source `746e8a2e8c42d8e3db26351c8adea50c9c646401`.
+The benchmark keeps its original identity and failed verdict. Research final-head
+native validation/reviews remain separate; #1376 timing is blocked and M4 is not complete.
 
 At the supported peak, three journey checkpoints took 534.269 ms inside
 537.523 ms position callbacks, with zero telemetry calls and zero observed
@@ -126,7 +134,8 @@ The earlier frontier-associated tail remains a separate measured limit.
 Retain one simulation and Canon authority; do not select zone sharding from
 these observations. The next candidate is a bounded off-tick checkpoint lane
 inside the existing game persistence authority. First measure unchanged public
-child seams for canonical read/decode/hash versus journey save. The current
+child seams for canonical read/decode versus journey save; residual blueprint
+serialization/hash work remains unassigned. The current
 checkpoint reads immutable Canon, hashes its blueprint and copies schema_version
 into sector_revision, then updates JourneyRegistry and synchronously UPSERTs
 journeys. It does not replay mutations or rebuild runtime collision state.

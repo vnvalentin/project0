@@ -4,13 +4,14 @@ Status: proposed; tested single-runtime capacity failed; bounded checkpoint-boun
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Milestone/group: Milestone 4 / M4.3.
-Source baseline: `6a39f68f58388976710ff5a9fc49961ffc1a25b0` (accepted main).
+Source baseline: `424a71092d8f4b91fecdcf962aa19faa5a4c9510` (accepted main).
 Prior investigation baseline: `75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae`; all cited source files
 were compared as committed objects and are byte-identical at accepted main.
 Records-first amendments: [initial reconciliation](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685),
 [accepted-parity/full-failure reconciliation](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827),
 [target failure and candidate boundary](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958697673),
-[accepted map and diagnostic frontier](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958888901).
+[accepted map and diagnostic frontier](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958888901),
+[accepted baseline integration](https://github.com/vnvalentin/project0/issues/205#issuecomment-5959023851).
 Research date: 2026-10-02.
 
 This note maps the current implementation and the decisions needed after
@@ -18,7 +19,7 @@ This note maps the current implementation and the decisions needed after
 [M4.2](https://github.com/vnvalentin/project0/issues/1377). It does not select a
 final architecture or claim runtime acceptance. The planning map in
 [PR #1378](https://github.com/vnvalentin/project0/pull/1378) defines the workload;
-it merged as accepted main `6a39f68f58388976710ff5a9fc49961ffc1a25b0`.
+it merged at `6a39f68f58388976710ff5a9fc49961ffc1a25b0`.
 Planning acceptance remains separate from implementation and capacity acceptance.
 
 ## Approved supported-state scope
@@ -97,7 +98,7 @@ request path is bounded timeout fallback, not arbitrary successful generated
 candidates. Neither fast ticks nor suspension by `await` proves zero native-engine
 blocking or scheduling starvation. The structural assertion for new paths and
 any measured lock/wait result must name their actual observation boundary.
-[Deadline continuation source](https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/shared/local_llm_client.gd#L151-L164)
+[Deadline continuation source](https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/shared/local_llm_client.gd#L151-L164)
 
 [M4.2 final acceptance](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5958365467)
 and [qualified native evidence](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5958474826)
@@ -185,8 +186,18 @@ synchronization. Four async generation timeouts/fallback evaluations completed
 per run; this does not qualify arbitrary successful generated candidates.
 Callback stages and cleanup were qualified. Runner errors were empty; observation
 errors recorded coalesced physics iterations. Both commands returned acceptance
-failure. Final full GUT remains a delivery gate; #1376 stays timing-blocked and
-M4 is not complete. The independent missing-stage gate fix remains resolved.
+failure. #1376 stays timing-blocked and M4 is not complete. The independent
+missing-stage gate fix remains resolved.
+
+[The final baseline delivery checkpoint](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5958967441)
+binds `4d355401f61e3e6da79341b7aa7779649cd8bff2`: native full GUT passed
+157/157 scripts and 1,175 tests with zero failures/errors and error markers; all
+ten parity cases, record sync, six controls, final independent reviews, source
+and cleanup qualification passed, alongside hosted CI. PR #1386 merged at
+`424a71092d8f4b91fecdcf962aa19faa5a4c9510`. Application/harness blobs remain
+identical to benchmark source `746e8a2e8c42d8e3db26351c8adea50c9c646401`;
+the delivery gate does not relabel those failed measurements or close #1376.
+A new final-research native gate and independent reviews remain separately owned.
 
 ## Checkpoint source and smallest candidate boundary
 
@@ -535,8 +546,8 @@ baseline does not make this candidate lane an accepted or measured solution.
 ## Validation and remaining work
 
 This is a source-bound research artifact. Document/link review and whitespace
-validation apply locally; Linux ownership preflight, full GUT, record sync,
-independent Standards/Spec review and final-revision evidence remain root-owned
+validation apply locally; Linux ownership preflight, final-research full GUT,
+record sync, independent Standards/Spec review and final-revision evidence remain root-owned
 delivery gates. No product/runtime test was run as part of this source research.
 The documentation behavior check is: given historical diagnostics, accepted
 component parity and failed full target profiles, when this decision is read,
@@ -549,39 +560,41 @@ Rollback for this artifact is reverting its documentation commit.
 Documentation learning: the final anchor audit initially refused the ADR because
 its diagnostic summary omitted the exact public Canon method name. The summary
 now names both unchanged repository seams explicitly; the final audit must pass
-before this revision is shared. No runtime conclusion follows from that check.
+before this revision is shared. The accepted baseline commit was initially absent
+from local Git objects; fetching that exact verified merge supplied it before
+integration without a reset. Neither preparation check supplies runtime evidence.
 
-[runtime]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/docs/SYSTEMS-SPECIFICATION.md#deployment-and-interaction-boundary
-[player]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_player_state.gd
-[tick]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L1604-L1636
-[generator]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/provisional_sector_generator.gd
-[coordinator]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/canon_generation_coordinator.gd
-[canon]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/canon_repository.gd#L21-L113
-[mutations]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/canon_mutation_repository.gd#L58-L163
-[boundary]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/sector_boundary_detector.gd
-[frontier]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L1292-L1335
-[stores]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L369-L489
-[compose]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/deploy/compose.yml#L16-L144
-[admission]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L647-L650
-[health]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_health.gd#L24-L46
-[service]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/sector_blueprint_service.gd#L93-L144
-[placement]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/sector_detail_generation.gd
-[retry]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L1268-L1289
-[completion]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L1110-L1158
-[workers]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/.scratch/container-platform/issues/06-worker-extension-contract.md
-[sqlite]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/sqlite_store.gd#L116-L241
-[interaction]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/environmental_interaction_service.gd#L31-L118
-[residency]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/shared/sector_residency_reconciler.gd
-[residency-test]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/tests/integration/test_sector_residency_canon_preservation.gd
-[deploy-adr]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/docs/adr/0011-stable-compose-deployment-authority.md
-[deploy]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/scripts/deploy_containers.sh
-[migration]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/.scratch/container-platform/issues/05-migration-update-and-rollback.md
+[runtime]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/docs/SYSTEMS-SPECIFICATION.md#deployment-and-interaction-boundary
+[player]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_player_state.gd
+[tick]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L1604-L1636
+[generator]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/provisional_sector_generator.gd
+[coordinator]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/canon_generation_coordinator.gd
+[canon]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/canon_repository.gd#L21-L113
+[mutations]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/canon_mutation_repository.gd#L58-L163
+[boundary]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/sector_boundary_detector.gd
+[frontier]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L1292-L1335
+[stores]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L369-L489
+[compose]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/deploy/compose.yml#L16-L144
+[admission]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L647-L650
+[health]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_health.gd#L24-L46
+[service]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/sector_blueprint_service.gd#L93-L144
+[placement]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/sector_detail_generation.gd
+[retry]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L1268-L1289
+[completion]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L1110-L1158
+[workers]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/.scratch/container-platform/issues/06-worker-extension-contract.md
+[sqlite]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/sqlite_store.gd#L116-L241
+[interaction]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/environmental_interaction_service.gd#L31-L118
+[residency]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/shared/sector_residency_reconciler.gd
+[residency-test]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/tests/integration/test_sector_residency_canon_preservation.gd
+[deploy-adr]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/docs/adr/0011-stable-compose-deployment-authority.md
+[deploy]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/scripts/deploy_containers.sh
+[migration]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/.scratch/container-platform/issues/05-migration-update-and-rollback.md
 
-[frontier-callback]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L1030-L1078
-[telemetry]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/telemetry_sink.gd#L104-L157
-[trace]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/shared/jit_trace_context.gd#L28-L57
+[frontier-callback]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L1030-L1078
+[telemetry]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/telemetry_sink.gd#L104-L157
+[trace]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/shared/jit_trace_context.gd#L28-L57
 
-[checkpoint]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/server_main.gd#L1639-L1664
-[canon-read]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/canon_repository.gd#L98-L113
-[journey-registry]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/journey_registry.gd#L113-L125
-[journey-persistence]: https://github.com/vnvalentin/project0/blob/6a39f68f58388976710ff5a9fc49961ffc1a25b0/server/journey_repository.gd#L48-L62
+[checkpoint]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/server_main.gd#L1639-L1664
+[canon-read]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/canon_repository.gd#L98-L113
+[journey-registry]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/journey_registry.gd#L113-L125
+[journey-persistence]: https://github.com/vnvalentin/project0/blob/424a71092d8f4b91fecdcf962aa19faa5a4c9510/server/journey_repository.gd#L48-L62
