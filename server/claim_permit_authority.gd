@@ -251,3 +251,45 @@ static func _exact_fields(value: Variant, fields: PackedStringArray) -> bool:
 		if not (key is String) or not fields.has(key):
 			return false
 	return true
+
+
+## The action writer must use this same store, synchronously, without nested
+## transactions. Authenticated actor identity and the handle come from server
+## interaction state. Grant and membership reads share the write transaction.
+func commit_interaction(actor_character_id: Variant, interaction_id: Variant, write_body: Callable) -> Dictionary:
+	if not _valid_id(actor_character_id) or not _valid_id(interaction_id) or not write_body.is_valid():
+		return _result("invalid_request")
+	if not _interactions.has(interaction_id):
+		return _result("interaction_not_found")
+	var initial: Dictionary = _interactions[interaction_id]
+	if initial.actor_character_id != actor_character_id:
+		return _result("interaction_actor_mismatch")
+	_interactions.erase(interaction_id)
+	var decision: Dictionary = _result("ok")
+	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var current: Dictionary = _permission_snapshot(actor_character_id, initial.plot_id)
+		if current.outcome != "ok":
+			decision.outcome = current.outcome
+			return false
+		if current.claim_revision != initial.claim_revision or current.membership_revision != initial.membership_revision:
+			decision.outcome = "stale_authority"
+			return false
+		if (current.permission_bits & initial.required_bits) != initial.required_bits:
+			decision.outcome = "permission_denied"
+			return false
+		var written: Variant = write_body.call()
+		return written is bool and written
+	)
+	return decision if decision.outcome != "ok" else _result(String(transaction.outcome))
+
+
+## Explicit teardown for disconnect/cancel paths; no persistent write.
+func cancel_interaction(actor_character_id: Variant, interaction_id: Variant) -> Dictionary:
+	if not _valid_id(actor_character_id) or not _valid_id(interaction_id):
+		return _result("invalid_request")
+	if not _interactions.has(interaction_id):
+		return _result("interaction_not_found")
+	if _interactions[interaction_id].actor_character_id != actor_character_id:
+		return _result("interaction_actor_mismatch")
+	_interactions.erase(interaction_id)
+	return _result("ok")

@@ -30,3 +30,5 @@ No unexpected defect yet. New-seam absence is the planned first RED; later failu
 First owner/visitor seam: RED one test failed on absent public seam; GREEN one test passed with real SQLite. Evidence build/validation/850/{red,green}-owner.{xml,log}. No fixture databases remained. This is only the first vertical increment; explicit permits, final checks, audit and replay remain in progress.
 
 Explicit Party grant increment: RED two missing-method assertions; GREEN2/2 real SQLite public tests. Membership alone, a nonmember, and ungranted bits reject. Evidence build/validation/850/{red,green}-party-permit.{xml,log}. Final-commit checks and immutable audit receipts remain the next vertical increments.
+
+Final authority gate: RED one missing-seam assertion; GREEN5/5 public SQLite tests. Membership change after start returns stale_authority before the writer executes; cross-actor handle use, repeated completion, cancelled handles and ignored SQL failure are rejected/rolled back. Evidence build/validation/850/{red,green}-final-gate.{xml,log}. The callback is server-only, synchronous and uses the same store; nested transactions are explicitly unsupported.

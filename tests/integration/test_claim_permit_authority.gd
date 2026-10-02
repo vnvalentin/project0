@@ -54,3 +54,65 @@ func test_party_membership_requires_an_explicit_matching_permit() -> void:
 	assert_eq(authority.begin_interaction("member-one", "plot-one", 1).outcome, "ok")
 	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "permission_denied")
 	assert_eq(authority.begin_interaction("member-one", "plot-one", 2).outcome, "permission_denied", "a permit grants only its explicit bits")
+
+
+func test_membership_change_after_start_rejects_before_any_action_write() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(authority.update_memberships("member-one", [{"kind": "party", "id": "party-one", "role": ""}], 0, "membership-one").outcome, "ok")
+	assert_eq(authority.apply_permit("owner-one", {
+		"schema_version": 1, "operation_id": "permit-one", "plot_id": "plot-one", "expected_revision": 1,
+		"action": "grant", "subject": {"kind": "party", "id": "party-one", "role": ""}, "permission_bits": 1,
+	}).outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("member-one", "plot-one", 1)
+	assert_eq(started.outcome, "ok")
+	assert_eq(_store.query("CREATE TABLE action_probe (id INTEGER PRIMARY KEY);").outcome, "ok")
+	assert_eq(authority.update_memberships("member-one", [], 1, "membership-left").outcome, "ok")
+	assert_true(authority.has_method("commit_interaction"), "final authority transaction seam exists")
+	if not authority.has_method("commit_interaction"):
+		return
+	var calls: Array[int] = [0]
+	var result: Dictionary = authority.commit_interaction("member-one", started.interaction_id, func() -> bool:
+		calls[0] += 1
+		return _store.query("INSERT INTO action_probe (id) VALUES (1);").outcome == "ok"
+	)
+	assert_eq(result.outcome, "stale_authority")
+	assert_eq(calls[0], 0, "revocation is checked before calling any action writer")
+	assert_eq(_store.query("SELECT id FROM action_probe;").rows.size(), 0)
+
+
+func test_owner_final_gate_commits_once_and_rejects_another_actor() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(_store.query("CREATE TABLE action_probe (id INTEGER PRIMARY KEY);").outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("owner-one", "plot-one", 2)
+	var writer: Callable = func() -> bool:
+		return _store.query("INSERT INTO action_probe (id) VALUES (1);").outcome == "ok"
+	assert_eq(authority.commit_interaction("visitor-one", started.interaction_id, writer).outcome, "interaction_actor_mismatch")
+	assert_eq(_store.query("SELECT id FROM action_probe;").rows.size(), 0)
+	assert_eq(authority.commit_interaction("owner-one", started.interaction_id, writer).outcome, "ok")
+	assert_eq(authority.commit_interaction("owner-one", started.interaction_id, writer).outcome, "interaction_not_found")
+	assert_eq(_store.query("SELECT id FROM action_probe;").rows, [{"id": 1}])
+
+
+func test_final_action_query_failure_rolls_back_and_cancel_releases_handle() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(_store.query("CREATE TABLE action_probe (id INTEGER PRIMARY KEY);").outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("owner-one", "plot-one", 2)
+	var result: Dictionary = authority.commit_interaction("owner-one", started.interaction_id, func() -> bool:
+		_store.query("INSERT INTO action_probe (id) VALUES (1);")
+		_store.query("INSERT INTO action_probe (id) VALUES (1);")
+		return true
+	)
+	assert_eq(result.outcome, "transaction_failed")
+	assert_eq(_store.query("SELECT id FROM action_probe;").rows.size(), 0)
+	var cancelled: Dictionary = authority.begin_interaction("owner-one", "plot-one", 2)
+	assert_eq(authority.cancel_interaction("owner-one", cancelled.interaction_id).outcome, "ok")
+	assert_eq(authority.commit_interaction("owner-one", cancelled.interaction_id, func() -> bool: return true).outcome, "interaction_not_found")
