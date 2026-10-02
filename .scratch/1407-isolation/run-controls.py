@@ -62,6 +62,8 @@ def main():
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
         cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font','orphan_generated_sidecar','nonasset_generated_sidecar','foreign_generated_source_file','foreign_generated_destination','sidecar_wrong_importer','sidecar_symlink','sidecar_changed_after_shared','sidecar_added_after_shared','sidecar_removed_after_shared','sidecar_parent_changed_after_shared','sidecar_missing_cache','consumer_override_changed','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        receipt_cases=['generated_receipt_unavailable','generated_receipt_partial','generated_receipt_readback_unavailable','generated_receipt_changed_after_shared','generated_receipt_symlink_after_shared','generated_receipt_removed_after_shared']
+        cases+=receipt_cases
         assert len(cases)==len(set(cases))
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
@@ -92,7 +94,7 @@ def main():
             if original_stage is not None:m.stage_project=stage
             original_run=m.subprocess.run;original_output=m.subprocess.check_output
             original_pidfd=m.os.pidfd_open;original_signal=m.signal.pidfd_send_signal
-            original_getsignal=m.signal.getsignal;original_mkdtemp=m.tempfile.mkdtemp;original_bytes=Path.read_bytes
+            original_getsignal=m.signal.getsignal;original_mkdtemp=m.tempfile.mkdtemp;original_bytes=Path.read_bytes;original_open=Path.open
             if case=='nondefault_sigchld':m.signal.getsignal=lambda sig:m.signal.SIG_IGN if sig==m.signal.SIGCHLD else original_getsignal(sig)
             if case=='initial_custody_unavailable':
                 def forbidden_signal(*args,**kwargs):raise AssertionError('unknown custody must not open pidfd or signal child')
@@ -141,6 +143,7 @@ def main():
                         if case=='preparation_log_changed' and name=='qualification':log.write_text('SYNTHETIC_EXCLUDED_RAW_PREPARATION\n')
                     if case=='wrong_preparation_source':receipt['source_revision']='b'*40
                     report.write_text(json.dumps(receipt))
+                    if case=='generated_receipt_unavailable':(report.parent/'generated-sidecars.json').mkdir()
                     if case in generated_cases and case!='sidecar_added_after_shared':
                         sidecar,cache=write_sidecar(project)
                         if case=='orphan_generated_sidecar':sidecar.rename(project/'fixtures/missing.png.import')
@@ -175,6 +178,12 @@ def main():
                 if case=='consumer_config_changed' and calls[-1]=='distinct':(project/'project.godot').write_text('copied unknown consumer configuration')
                 if case=='consumer_override_changed' and calls[-1]=='distinct':(project/'override.cfg').write_text('copied unknown consumer override')
                 if calls[-1]=='shared':
+                    receipt_path=root/'build/validation/1407-isolation/control/generated-sidecars.json'
+                    if case=='generated_receipt_changed_after_shared':
+                        receipt=json.loads(receipt_path.read_text());receipt['prepared_root']='SYNTHETIC_FOREIGN_ROOT';receipt_path.write_text(json.dumps(receipt))
+                    if case=='generated_receipt_symlink_after_shared':
+                        moved=receipt_path.with_suffix('.original');receipt_path.rename(moved);receipt_path.symlink_to(moved)
+                    if case=='generated_receipt_removed_after_shared':receipt_path.unlink()
                     sidecar=project/'fixtures/icon.png.import'
                     if case=='sidecar_changed_after_shared':sidecar.write_text(sidecar.read_text()+'; synthetic changed state\n')
                     if case=='sidecar_added_after_shared':write_sidecar(project)
@@ -196,10 +205,24 @@ def main():
             if case=='retention_failure':
                 def retain(path,result):path.mkdir();return original_retain(path,result)
                 m.retain=retain
+            @contextlib.contextmanager
+            def partial_receipt(path,*args,**kwargs):
+                with original_open(path,*args,**kwargs) as stream:
+                    class PartialWrite:
+                        def write(self,payload):
+                            stream.write(payload[:len(payload)//2]);raise OSError('copied partial receipt retention')
+                    yield PartialWrite()
+            def guarded_open(path,*args,**kwargs):
+                mode=args[0] if args else kwargs.get('mode','r')
+                if case=='generated_receipt_partial' and path.name=='generated-sidecars.json' and mode=='xb':
+                    return partial_receipt(path,*args,**kwargs)
+                return original_open(path,*args,**kwargs)
             def guarded_bytes(path):
+                if case=='generated_receipt_readback_unavailable' and path.name=='generated-sidecars.json':raise OSError('copied receipt readback unavailable')
+                if case=='generated_receipt_symlink_after_shared' and path.name=='generated-sidecars.json' and path.is_symlink():raise AssertionError('receipt read before ordinary custody qualification')
                 if case=='prepared_parent_symlink' and prepared_project[0] is not None and path.parent==prepared_project[0]/'scripts':raise AssertionError('source read before parent custody qualification')
                 return original_bytes(path)
-            Path.read_bytes=guarded_bytes
+            Path.read_bytes=guarded_bytes;Path.open=guarded_open
             m.tempfile.mkdtemp=lambda **kwargs:original_mkdtemp(dir=temporary,**kwargs)
             m.subprocess.run=fake_run;m.subprocess.check_output=fake_output
             try:
@@ -210,7 +233,7 @@ def main():
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
-                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink','orphan_generated_sidecar','nonasset_generated_sidecar','foreign_generated_source_file','foreign_generated_destination','sidecar_wrong_importer','sidecar_symlink','sidecar_changed_after_shared','sidecar_added_after_shared','sidecar_removed_after_shared','sidecar_parent_changed_after_shared','sidecar_missing_cache']),case
+                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink','orphan_generated_sidecar','nonasset_generated_sidecar','foreign_generated_source_file','foreign_generated_destination','sidecar_wrong_importer','sidecar_symlink','sidecar_changed_after_shared','sidecar_added_after_shared','sidecar_removed_after_shared','sidecar_parent_changed_after_shared','sidecar_missing_cache'] and case not in receipt_cases),case
                     if case in ['valid','prepared_before_consumers','normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font']:assert [pair['mode'] for pair in result['comparisons']]==['shared','distinct'] and all(len(pair['children'])==2 for pair in result['comparisons'])
                     if case=='consumer_override_changed':assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir() and (Path(result['retained_stage'])/'project/override.cfg').read_text()=='copied unknown consumer override'
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
@@ -225,17 +248,20 @@ def main():
                     assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir(),case
                     assert calls==(['prepare','shared'] if case.endswith('_after_shared') else ['prepare']),case
                 if case in ['normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font']:assert len(result['generated_sidecars'])==1 and all(record['source_sha256']==result['source_start']['source_sha256'][record['source_asset']] for record in result['generated_sidecars'].values()),case
+                if case in receipt_cases:
+                    assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir(),case
+                    assert calls==(['prepare','shared'] if case.endswith('_after_shared') else ['prepare']),case
                 if case in ['dirty_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker']:assert not any(call in ['shared','distinct'] for call in calls),case
                 records.append({'case':case,'passed':True})
             finally:
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
                 m.os.pidfd_open=original_pidfd;m.signal.pidfd_send_signal=original_signal
-                m.signal.getsignal=original_getsignal;m.tempfile.mkdtemp=original_mkdtemp;Path.read_bytes=original_bytes
+                m.signal.getsignal=original_getsignal;m.tempfile.mkdtemp=original_mkdtemp;Path.read_bytes=original_bytes;Path.open=original_open
         completed=True
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if completed and len(records)==52 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if completed and len(records)==58 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))
