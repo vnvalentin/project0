@@ -24,7 +24,7 @@ Raw child output remains bounded transient pipe data. Before any persistence it 
 
 ## Lifecycle and failure semantics
 
-A dedicated Linux subreaper owns only its launched children and adopted descendants. New child process groups and bounded stream collection are followed by termination, reaping and an empty-owned-descendant check. The sentinel remains held through teardown. Cleanup failure, timeout, unavailable logs or result retention fails closed. Every path attempts a structured local verdict; failed retention is explicitly unavailable and does not count console output as a retained file. A copied child/grandchild control proves cleanup on success, timeout and parent-first exit without Godot, real Git mutation or foreign processes.
+A dedicated Linux subreaper owns only its launched children and adopted descendants. New child process groups and bounded stream collection are followed by PID-bound signaling after waitid parent-custody qualification, reaping and an empty-owned-descendant check. No recycled numeric PID or unrelated process group is signaled. The sentinel remains held through teardown. Cleanup failure, timeout, unavailable logs or result retention fails closed. Every path attempts a structured local verdict; failed retention is explicitly unavailable and does not count console output as a retained file. A copied child/grandchild control proves cleanup on success, timeout and parent-first exit without Godot, real Git mutation or foreign processes.
 
 ## Validation and next action
 
