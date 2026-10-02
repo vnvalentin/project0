@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "issue": 951,
+  "host": "192.168.1.254",
+  "revision": "647322d5d30e885dac0b24b5dc16877a089f9356",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "mode": "focused",
+  "stage": "focused-gut",
+  "command": "bash .scratch/951/run-validation.sh red-closed-intent focused",
+  "exit_code": 1,
+  "evidence_exit_code": 1,
+  "status": "failed",
+  "evidence_errors": [
+    "suite_not_passing",
+    "engine_or_preparation_exit_nonzero"
+  ],
+  "script_failure_markers": [],
+  "expected_scripts": [
+    "tests/integration/test_workshop_station_authority.gd"
+  ],
+  "suites": [
+    {
+      "name": "tests/integration/test_workshop_station_authority.gd",
+      "tests": "8",
+      "failures": "2",
+      "skipped": "0",
+      "time": "0.308935"
+    }
+  ],
+  "cleanup_verified": true,
+  "isolated_xdg": true,
+  "isolated_dashboard_results": true,
+  "artifact_directory": "/data/code/project0-m3-951-20261002/build/validation/951/20261002T150219Z-red-closed-intent-15899",
+  "source_sha256": {
+    "server/admitted_player_state.gd": "39c483b9f282e486318ae2656d604e1ef009a50512987afc757d4cbff201aa59",
+    "server/workshop_station_contract.gd": "6dd2e8360cb0eb4d978285808eb4b54245bb78fe8f284c4ceab006e65bf9be98",
+    "server/workshop_character_sensor.gd": "a97202feb9cac293a065eb865206fae000a65b6aac76e4769074b0e56749f5e3",
+    "server/workshop_station_volume.gd": "9ac1b17655236497ba149648be789670304ab794fd02e75941ed13124580fd3b",
+    "tests/integration/test_workshop_station_authority.gd": "77668d0ba1ba746c7b5bdb1e535e11f39cf19b6b85db4a2938145f945133cd93",
+    ".scratch/951/run-validation.sh": "333f1b6b5405e661b21fe51527c191a4fb6d2244891bd8b6bae885425e662b18"
+  },
+  "runtime_acceptance": "bounded station authority component only; full workshop NOT_OBSERVED"
+}

@@ -199,14 +199,23 @@ def metadata_from_event():
             "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(baseline)}
     else:
         raise ValueError("unsupported event")
-    pull = json.loads(command("gh", "pr", "view", str(number), "--repo", repository,
-                             "--json", "headRefOid,baseRefOid,baseRefName,labels,isCrossRepository,state"))
-    if (pull["headRefOid"] != candidate or pull["baseRefOid"] != approved or pull["baseRefName"] != "main"
-            or pull["isCrossRepository"] or pull["state"] != "OPEN"):
+    pull = json.loads(command("gh", "api", f"repos/{repository}/pulls/{number}"))
+    if not isinstance(pull, dict):
+        raise ValueError("stale, foreign, or unapproved PR source identity")
+    head = pull.get("head")
+    base = pull.get("base")
+    labels = pull.get("labels")
+    if (not isinstance(head, dict) or not isinstance(base, dict)
+            or not isinstance(head.get("repo"), dict) or not isinstance(base.get("repo"), dict)
+            or not isinstance(labels, list)
+            or any(not isinstance(label, dict) or not isinstance(label.get("name"), str) for label in labels)
+            or head.get("sha") != candidate or base.get("sha") != approved or base.get("ref") != "main"
+            or head["repo"].get("full_name") != repository or base["repo"].get("full_name") != repository
+            or pull.get("state") != "open"):
         raise ValueError("stale, foreign, or unapproved PR source identity")
     command("git", "merge-base", "--is-ancestor", approved, candidate)
     return {"candidate": candidate, "baseline": approved, "approved_baseline": approved,
-            "labels": [label["name"] for label in pull["labels"]],
+            "labels": [label["name"] for label in labels],
             "artifact_contract": artifact_contract,
             "candidate_tree": git_tree(candidate), "baseline_tree": git_tree(approved)}
 
