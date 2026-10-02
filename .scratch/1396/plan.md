@@ -18,7 +18,7 @@ The hypothesis is that the first process compiles typed server scripts before Go
 
 Detailed runtime evidence and root-cause learning remain local under the user's disclosure instruction. Public records carry scope, status, dependencies, and next actions only.
 
-Preparation reporting uses the owning Linux runtime's existing Python interpreter to encode JSON paths safely. No package installation is authorized or required; a missing reporter remains an execution blocker.
+Preparation reporting uses the owning Linux runtime's existing Python interpreter to encode JSON paths safely. The native host uses its existing interpreter. Hosted qualification supplies the same declared tooling in a validation-only image layer; physical-host package installation remains outside this work. A missing reporter remains an execution blocker until the owning runtime is qualified.
 
 ## Reusable preparation and isolated source
 
@@ -39,3 +39,9 @@ The original checkout is validated but never seeded or rewritten. Git-backed sou
 Unknown effective settings, including an introduced override file, prevent the next import and preserve staged changes. Missing, malformed, or unqualified preparation evidence prevents caller teardown and replaces any prior passing summary with a failed lifecycle result.
 
 Generated JSON experiment artifacts are retained at the established original `logs/experiments` destination through an exclusive, collision-rejecting copy and complete readback before staging is removed. Other artifact types, symlinks, destination collisions, and unavailable evidence fail closed and preserve the staged root. Relative dashboard and executable paths remain anchored to the original root. Dashboard publication follows lifecycle qualification, so teardown failure cannot publish a pass.
+
+## Hosted tooling prerequisite
+
+Hosted qualification builds a local validation-only image layer from the existing digest-pinned Godot image. That layer declares Python3 (standard-library reporting/preparation) and Git (read-only committed source binding) as tooling dependencies. Build-time package acquisition uses the declared Debian repository; the consumer retains network isolation, read-only source and root filesystem, non-root identity, dropped capabilities, and narrowly writable result paths. The production server Dockerfile, physical host package set, published images and deployments are unchanged. No dependency installation occurs during the validation test process.
+
+The hosted command records and propagates a failed image build before launching any consumer. It uses a fixed local validation tag and does not publish the image. Rollback reverts the validation Dockerfile and hosted runner selection together; source/helper changes must also be reverted if restoring a validation runtime without the declared interpreter. Focused synthetic commands cover build selection, failure propagation and no-consumer-on-build-failure. Native image/dependency and full-GUT checks run only on the owning Linux machine after plan preflight. Final review binds the resulting complete source revision.

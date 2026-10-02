@@ -10,9 +10,30 @@
       "platform": "linux",
       "host": "192.168.1.254",
       "command": "python3 scripts/test_gut_source_identity.py --report build/validation/1396-bootstrap/source-identity.json",
-      "dependencies": ["python"],
-      "tests": ["scripts/test_gut_source_identity.py"],
-      "artifacts": ["build/validation/1396-bootstrap/source-identity.json"]
+      "dependencies": [
+        "python"
+      ],
+      "tests": [
+        "scripts/test_gut_source_identity.py"
+      ],
+      "artifacts": [
+        "build/validation/1396-bootstrap/source-identity.json"
+      ]
+    },
+    {
+      "suite": "linux-tooling",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "python3 scripts/test_ci_validation_routing.py --report build/validation/1396-bootstrap/ci-routing-controls.json",
+      "dependencies": [
+        "python"
+      ],
+      "tests": [
+        "scripts/test_ci_validation_routing.py"
+      ],
+      "artifacts": [
+        "build/validation/1396-bootstrap/ci-routing-controls.json"
+      ]
     }
   ]
 }
