@@ -1222,9 +1222,9 @@ def _delivery_hybrid_summary(record: dict, issue_feed: dict) -> dict:
         counts[state] += 1
         if state == "new":
             refinement = True
-    shared_text = "\n".join(plan["sections"].get("shared context", []))
-    shared = {int(number) for number in re.findall(r"#([1-9][0-9]*)\b", shared_text)}
-    if any(issue["number"] not in membership and issue["number"] not in shared for issue in record["issues"]):
+    if "shared context" in plan["sections"]:
+        refinement = True
+    if any(issue["number"] not in membership for issue in record["issues"]):
         refinement = True
     if "required scope awaiting slice definition" in plan["sections"]:
         refinement = True
@@ -1383,13 +1383,13 @@ def _milestone_slice_plan(description: str) -> dict:
                                "outcome": "", "complete when": "", "dependency": "",
                                "outcome evidence": "", "capability owner": "",
                                "supporting recovery coverage": "", "owning epic": "",
-                               "members": [], "warnings": []}
+                               "context": "", "members": [], "warnings": []}
                     plan["slices"].append(current)
             continue
         if current is not None:
             match = re.match(
                 r"^(Outcome|Included issues|Complete when|Dependency|Outcome evidence|"
-                r"Capability owner|Supporting recovery coverage|Owning Epic):\s*(.*)$",
+                r"Capability owner|Supporting recovery coverage|Owning Epic|Context):\s*(.*)$",
                 line,
                 re.I,
             )
@@ -1566,14 +1566,11 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
             f'<a class="slice-description-link" href="{esc(detail_url)}" '
             f'aria-label="View Slice {esc(group["id"])} description">View Slice description</a></details>'
         )
-    shared_text = "\n".join(plan["sections"].get("shared context", []))
-    shared = [int(number) for number in re.findall(r"#([1-9][0-9]*)\b", shared_text)]
-    unmapped = [issue["number"] for issue in record["issues"] if issue["number"] not in membership and issue["number"] not in shared]
+    unmapped = [issue["number"] for issue in record["issues"] if issue["number"] not in membership]
     extras = []
-    if shared:
-        extras.append(f'<details class="milestone-context"><summary>Shared context</summary>{_milestone_member_list(shared, by_number)}</details>')
-    if set(shared) & membership.keys():
-        extras.append('<p class="milestone-mapping-warning">Shared context overlaps Slice membership.</p>')
+    shared_section = "shared context" in plan["sections"]
+    if shared_section:
+        extras.append('<p class="milestone-mapping-warning">Shared Context sections are not allowed: list a shared issue on the first Slice it relates to, under Included issues or Context.</p>')
     if unmapped:
         extras.append(f'<details class="milestone-context"><summary>Unmapped milestone work ({len(unmapped)})</summary>{_milestone_member_list(unmapped, by_number)}</details>')
     scope = "\n".join(plan["sections"].get("required scope awaiting slice definition", [])).strip()
@@ -1587,7 +1584,7 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
         f'Slice delivery: {counts["done"]}/{len(plan["slices"])} complete'
         if plan["slices"] else "Outcome acceptance: not defined"
     )
-    attention = '<p class="milestone-mapping-warning">Unresolved scope or mapping requires attention.</p>' if scope or unmapped or any(group["warnings"] for group in plan["slices"]) else ""
+    attention = '<p class="milestone-mapping-warning">Unresolved scope or mapping requires attention.</p>' if scope or unmapped or shared_section or any(group["warnings"] for group in plan["slices"]) else ""
     return (
         f'<details class="milestone-band" data-milestone="{record["number"]}"><summary><h3>{esc(record["title"])}</h3>'
         f'<p>{esc(outcome)}</p>{_delivery_activity_html(record["issues"])}'
@@ -1664,6 +1661,8 @@ def _delivery_slice_description(issue_feed: dict, milestone_number: str, slice_i
             )
             if group["outcome evidence"]:
                 fields += f'<dt>Outcome evidence</dt><dd>{esc(group["outcome evidence"])}</dd>'
+            if group["context"]:
+                fields += f'<dt>Context</dt><dd>{esc(group["context"])}</dd>'
             issues = f'<h3>Included issues</h3>{_milestone_member_list(group["members"], by_number)}'
             content = f'<h2>Slice {esc(group["id"])}: {esc(group["title"])}</h2><dl>{fields}</dl><section class="slice-issues">{issues}</section>'
     return f'<section class="sec slice-description">{back_link}{content}</section>'
