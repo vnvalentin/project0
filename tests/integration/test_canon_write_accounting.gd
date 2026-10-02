@@ -188,3 +188,55 @@ func test_quoted_values_and_connection_scope() -> void:
 	var reopened: Dictionary = _store.start_dml_observation()
 	assert_ne(reopened["connection_id"], initial["connection_id"])
 	assert_eq(reopened["previous_windows"][0]["observation_status"], "NOT_OBSERVED")
+
+
+func test_temporary_schema_is_explicitly_outside_qualified_scope() -> void:
+	_store.query("CREATE TEMP TABLE accounting_probe (id INTEGER PRIMARY KEY);")
+	var report: Dictionary = _store.start_dml_observation()
+	assert_eq(report["observation_status"], "NOT_OBSERVED", "table names cannot conflate main and temp schemas")
+
+
+func test_unknown_rollback_and_mid_transaction_start_never_reset_counts() -> void:
+	_store.query("CREATE TABLE accounting_probe (id INTEGER PRIMARY KEY);")
+	var initial: Dictionary = _store.start_dml_observation()
+	var transaction_result: Dictionary = _store.transaction(func() -> bool:
+		_store.query_with_bindings("INSERT INTO accounting_probe VALUES (?);", [1])
+		var rejected: Dictionary = _store.start_dml_observation()
+		assert_eq(rejected["window_id"], initial["window_id"], "invalid start cannot erase active transaction evidence")
+		assert_eq(rejected["observation_status"], "NOT_OBSERVED")
+		_store.query_with_bindings("INSERT OR ROLLBACK INTO accounting_probe VALUES (?);", [1])
+		return false
+	)
+	assert_eq(transaction_result["outcome"], SqliteStoreScript.OUTCOME_TRANSACTION_FAILED)
+	var report: Dictionary = _store.dml_statement_counters()
+	assert_eq(report["totals"], "NOT_OBSERVED")
+	assert_true(report["reasons"].has("transaction_disposition_not_observed"))
+	assert_eq(report["partial_counts"]["totals"]["attempted"]["insert"], 2)
+	assert_eq(report["partial_counts"]["totals"]["failed"]["insert"], 1)
+	assert_eq(report["partial_counts"]["totals"]["rolled_back"]["insert"], 0, "no inferred successful ROLLBACK")
+	assert_eq(_store.query("SELECT id FROM accounting_probe;")["rows"], [], "native OR ROLLBACK acted even though explicit rollback returned failure")
+
+
+func test_foreign_key_side_effects_and_raw_transaction_are_incomplete() -> void:
+	_store.query("CREATE TABLE accounting_parent (id INTEGER PRIMARY KEY);")
+	_store.query("CREATE TABLE accounting_child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES accounting_parent(id) ON DELETE CASCADE);")
+	var report: Dictionary = _store.start_dml_observation()
+	assert_eq(report["observation_status"], "NOT_OBSERVED")
+	assert_true(report["reasons"].has("foreign_key_side_effects"))
+	_store.query("DROP TABLE accounting_child;")
+	_store.start_dml_observation()
+	assert_eq(_store.query("BEGIN;")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	_store.query_with_bindings("INSERT INTO accounting_parent VALUES (?);", [1])
+	assert_eq(_store.query("ROLLBACK;")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	report = _store.dml_statement_counters()
+	assert_eq(report["totals"], "NOT_OBSERVED")
+	assert_eq(report["partial_counts"]["totals"]["committed"]["insert"], 0, "native transaction is never mistaken for autocommit")
+
+
+func test_read_whitespace_and_active_schema_change_are_observed_honestly() -> void:
+	_store.query("CREATE TABLE accounting_probe (id INTEGER PRIMARY KEY);")
+	_store.start_dml_observation()
+	assert_eq(_store.query("SELECT\n COUNT(*) AS n FROM accounting_probe;")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(_store.dml_statement_counters()["observation_status"], "OBSERVED", "read-only SELECT whitespace is supported")
+	_store.query("CREATE INDEX accounting_idx ON accounting_probe (id);")
+	assert_eq(_store.dml_statement_counters()["observation_status"], "NOT_OBSERVED")

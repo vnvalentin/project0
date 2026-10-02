@@ -26,7 +26,10 @@ func start(connection_id: int, tables: Array[String], reasons: Array[String]) ->
 	_tables = {}
 	for table: String in tables:
 		_tables[table] = _empty_counts()
-	_reasons = reasons.duplicate()
+	_reasons.clear()
+	for reason: String in reasons:
+		if not _reasons.has(reason):
+			_reasons.append(reason)
 	_pending.clear()
 	return report()
 
@@ -51,7 +54,7 @@ func observe(sql: String, succeeded: bool, in_transaction: bool) -> void:
 		return
 	var match_result: RegExMatch = _target.search(statement)
 	if match_result == null:
-		if statement.to_upper().begins_with("SELECT "):
+		if RegEx.create_from_string("(?i)^SELECT\\s+").search(statement) != null:
 			return
 		if RegEx.create_from_string("(?i)^PRAGMA\\s+(?:user_version|foreign_keys|journal_mode)$").search(statement) != null:
 			return

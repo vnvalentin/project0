@@ -76,11 +76,14 @@ func start_dml_observation() -> Dictionary:
 		for database: Dictionary in _db.query_result:
 			if str(database["name"]) not in ["main", "temp"]:
 				reasons.append("attached_database")
-	if not _db.query("SELECT name, type, sql FROM sqlite_master UNION ALL SELECT name, type, sql FROM sqlite_temp_master;"):
+	if not _db.query("SELECT 'main' AS schema_name, name, type, sql FROM sqlite_master UNION ALL SELECT 'temp' AS schema_name, name, type, sql FROM sqlite_temp_master;"):
 		reasons.append("schema_qualification_failed")
 	else:
 		var schema: Array = _db.query_result.duplicate(true)
 		for entry: Dictionary in schema:
+			if entry["schema_name"] != "main":
+				reasons.append("temporary_schema")
+				continue
 			var table: String = str(entry["name"])
 			if entry["type"] in ["trigger", "view"]:
 				reasons.append("trigger_or_view_schema")
