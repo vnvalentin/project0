@@ -13,6 +13,14 @@ Build immutable version 0.14.21 from merged source on SETSUJOKU. Preserve
 No gameplay code, authentication, launcher, auto-update or server changes.
 Use the existing builder, dependency audit and compiled package probe.
 
+User additionally approved publication at project0.valentin.vip. Append the
+verified 0.14.21 archive and manifest under the existing downloads directory;
+use the existing publisher with launcher publication disabled. Stage privately,
+require an absent version target, retain the old index for rollback, verify
+hashes before publication and verify the public archive/manifest afterward.
+The signed updater manifest and all existing versions must stay unchanged.
+Public availability does not establish authenticated gameplay acceptance.
+
 ## Hypothesis And Checks
 
 The published 0.14.20 pack has an incompatible RPC contract. Current merged
