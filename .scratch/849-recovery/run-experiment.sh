@@ -37,6 +37,30 @@ import hashlib,json,subprocess,sys
 from pathlib import Path
 out,run_id,revision,engine,prep_exit,recover_exit,stage,cleanup,mode,exit_code,label,source_clean_start=sys.argv[1:]
 out=Path(out); errors=[]; phases={}
+def zero_counts(value):
+    if not isinstance(value,dict) or set(value)!={'attempted','committed','rolled_back','failed'}:
+        return False
+    for window in value.values():
+        if not isinstance(window,dict) or set(window)!={'insert','replace','update','delete'}:
+            return False
+        if any(type(count) is not int or count!=0 for count in window.values()):
+            return False
+    return True
+
+def observation_containers(value):
+    if not isinstance(value,dict) or not zero_counts(value.get('totals')):
+        return False
+    tables=value.get('by_table')
+    if not isinstance(tables,dict) or any(not isinstance(key,str) or not key or not zero_counts(counts) for key,counts in tables.items()):
+        return False
+    partial=value.get('partial_counts')
+    if not isinstance(partial,dict) or not zero_counts(partial.get('totals')):
+        return False
+    partial_tables=partial.get('by_table')
+    if not isinstance(partial_tables,dict) or any(not isinstance(key,str) or not key or not zero_counts(counts) for key,counts in partial_tables.items()):
+        return False
+    return value.get('previous_windows')==[]
+
 for phase in ['prepare','recover']:
     try:
         p=json.loads((out/(phase+'.json')).read_text())
@@ -46,15 +70,22 @@ for phase in ['prepare','recover']:
         if not isinstance(p.get('scenarios'),dict):
             errors.append('invalid_scenarios_container:'+phase)
             continue
-        if p.get('schema_version')!=1 or p.get('issue')!=849 or p.get('phase')!=phase: errors.append('invalid_phase:'+phase)
-        if not isinstance(p.get('native_pid'),int) or p['native_pid']<=0: errors.append('invalid_pid:'+phase)
+        if any(not isinstance(value,dict) for value in p['scenarios'].values()):
+            errors.append('invalid_scenario_container:'+phase)
+            continue
+        if type(p.get('schema_version')) is not int or p.get('schema_version')!=1 or type(p.get('issue')) is not int or p.get('issue')!=849 or p.get('phase')!=phase: errors.append('invalid_phase:'+phase)
+        if type(p.get('native_pid')) is not int or p['native_pid']<=0: errors.append('invalid_pid:'+phase)
         if set(p.get('scenarios',{}))!={'valid','damaged'}: errors.append('incomplete_scenarios:'+phase)
         phases[phase]=p
     except (OSError,ValueError,TypeError): errors.append('missing_or_invalid_phase:'+phase)
 for log in ['import.log','prepare.log','recover.log']:
     path=out/log
     if not path.is_file(): errors.append('missing_log:'+log)
-    elif any(m in path.read_text(errors='replace') for m in ['SCRIPT ERROR','Parse Error','Compile Error']): errors.append('script_error:'+log)
+    else:
+        try:
+            if any(m in path.read_text(errors='replace') for m in ['SCRIPT ERROR','Parse Error','Compile Error']): errors.append('script_error:'+log)
+        except OSError:
+            errors.append('log_not_observed:'+log)
 if cleanup!='true': errors.append('cleanup_unverified')
 if int(prep_exit)!=0 or phases.get('prepare',{}).get('status')!='passed' or phases.get('prepare',{}).get('errors')!=[]: errors.append('prepare_not_passed')
 expected_recover_errors=[] if mode=='baseline' else ['valid:canon_bytes_unchanged']
@@ -67,6 +98,9 @@ for scenario in ['valid','damaged']:
     data=recover.get('scenarios',{}).get(scenario,{})
     try:
         obs=data['observation']
+        if not observation_containers(obs):
+            errors.append('invalid_observation_container:'+scenario)
+            continue
         if obs['observation_status']!='OBSERVED' or obs['scope']!='direct_single_statements_through_this_store' or obs['native_row_effects']!='NOT_OBSERVED': errors.append('unsupported_observation:'+scenario)
         for counts in [obs['totals'],*obs['by_table'].values()]:
             if set(counts)!={'attempted','committed','rolled_back','failed'}: errors.append('incomplete_windows:'+scenario)
@@ -76,6 +110,15 @@ for scenario in ['valid','damaged']:
         for key in ['canon_utf8_bytes','canon_sha1','ordered_mutation_sha1','ordered_mutation_identities','anchor_sha1','cell_sha1']:
             if data[key]!=phases['prepare']['scenarios'][scenario][key]: errors.append('retained_identity_mismatch:'+scenario+':'+key)
         events=data['ordered_mutation_identities']
+        if not isinstance(events,list) or any(not isinstance(event,dict) for event in events):
+            errors.append('invalid_history_container:'+scenario)
+            continue
+        if any(type(event.get(key)) is not int or event[key]<0 for event in events for key in ['applied_revision','expected_revision','schema_version']):
+            errors.append('invalid_history_integer:'+scenario)
+            continue
+        if type(data.get('canon_utf8_bytes')) is not int or data['canon_utf8_bytes']<0:
+            errors.append('invalid_canon_byte_count:'+scenario)
+            continue
         if len(events)!=2 or [e['applied_revision'] for e in events]!=[1,2] or [e['expected_revision'] for e in events]!=[0,1] or any(e['actor_player_id']!='fixture-character-owner' for e in events): errors.append('incomplete_history_identity:'+scenario)
         wanted=('ok','idempotent') if scenario=='valid' else ('invalid_record','invalid_record')
         if (data['resolution_outcome'],data['replay_outcome'])!=wanted: errors.append('public_recovery_outcome:'+scenario)
