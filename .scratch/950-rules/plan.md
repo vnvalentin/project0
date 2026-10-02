@@ -11,7 +11,7 @@ The server-owned public factory, round-trip and derivation seam accepts closed p
 
 ## Behavior and validation
 
-Behavior-first cycles establish worked derivation, malformed profile/input rejection, arithmetic bounds, defensive copies and pinned provenance. Earlier component GREEN remains historical and source-bound; final-head validation and both independent review axes remain required. Full delivery and dependent atomic persistence/integration remain pending. #950 stays open and its PR stays draft.
+Behavior-first cycles establish worked derivation, malformed profile/input rejection, arithmetic bounds, defensive copies and pinned provenance. Earlier component GREEN remains historical and source-bound; final-head validation and both independent review axes remain required. Full delivery and dependent atomic persistence/integration remain pending. #950 stays open; PR #1403 is merged as a bounded component and does not complete #950.
 
 The owned focused command accepts an explicit expected public-test count and a source binding: `prepared` for stable TDD source, `delivery` for clean committed GREEN validation. RED must fail exactly the newly appended public case, pass earlier cases and use the supported test exit. A failed import or script diagnostic stops before GUT. The helper qualifies bounded identity, source hashes, exact test inventory, object-shaped evidence, clean delivery start/end, cleanup and result retention. Unavailable observations never become zero or success. Failed retention is reported as unavailable and does not count captured output as a retained file.
 
