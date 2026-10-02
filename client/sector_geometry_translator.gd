@@ -21,6 +21,7 @@ class_name SectorGeometryTranslator
 
 const SectorGeometryLookupScript: Script = preload("res://shared/sector_geometry_lookup.gd")
 const Placement: Script = preload("res://shared/sector_detail_placement.gd")
+const HeadlessGeometryBoxScene: PackedScene = preload("res://client/headless_geometry_box.tscn")
 
 ## Names of the container nodes the pass produces, so callers/tests can find
 ## the merged geometry deterministically.
@@ -76,8 +77,12 @@ static func _translate_ground_tiles(tiles: Array, parent: Node3D, blueprint: Dic
 		var dimensions: Vector3 = SectorGeometryLookupScript.tile_dimensions(kind)
 		var placements: Array = placements_by_kind[kind]
 
-		var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-		mesh_instance.mesh = _merged_ground_mesh(kind, dimensions, placements, blueprint)
+		var mesh_instance: MeshInstance3D = HeadlessGeometryBoxScene.instantiate() as MeshInstance3D if DisplayServer.get_name() == "headless" else MeshInstance3D.new()
+		if DisplayServer.get_name() != "headless":
+			mesh_instance.mesh = _merged_ground_mesh(kind, dimensions, placements, blueprint)
+		mesh_instance.set_meta("surface_count", 1)
+		mesh_instance.set_meta("vertex_count", placements.size() * 24)
+		mesh_instance.set_meta("aabb", _merged_ground_aabb(dimensions, placements, blueprint))
 		mesh_instance.name = "%s%s" % [GROUND_NODE_PREFIX, kind]
 		parent.add_child(mesh_instance)
 
@@ -116,13 +121,53 @@ static func _merged_ground_mesh(kind: String, dimensions: Vector3, placements: A
 	return mesh
 
 
+static func _merged_ground_aabb(dimensions: Vector3, placements: Array, blueprint: Dictionary) -> AABB:
+	var bounds: Rect2 = Rect2()
+	var has_bounds: bool = false
+	for placement: Vector2 in placements:
+		var rectangle: Rect2 = Placement.clip_rectangle(blueprint, Rect2(placement - Vector2(dimensions.x, dimensions.z) * 0.5, Vector2(dimensions.x, dimensions.z)))
+		if not rectangle.has_area():
+			continue
+		if not has_bounds:
+			bounds = rectangle
+			has_bounds = true
+		else:
+			bounds = bounds.merge(rectangle)
+	if not has_bounds:
+		return AABB()
+	return AABB(Vector3(bounds.position.x, 0.0, bounds.position.y), Vector3(bounds.size.x, dimensions.y, bounds.size.y))
+
+
 ## Returns the cached unit-box surface arrays for a tile kind (generated once
 ## per process; per-kind dimensions are constant).
 static func _ground_base_arrays(kind: String, dimensions: Vector3) -> Array:
 	if not _ground_base_arrays_cache.has(kind):
-		var box_mesh: BoxMesh = BoxMesh.new()
-		box_mesh.size = dimensions
-		_ground_base_arrays_cache[kind] = box_mesh.surface_get_arrays(0)
+		var half: Vector3 = dimensions * 0.5
+		var vertices: PackedVector3Array = PackedVector3Array()
+		var normals: PackedVector3Array = PackedVector3Array()
+		var indices: PackedInt32Array = PackedInt32Array()
+		var faces: Array = [
+			[Vector3.UP, [Vector3(-half.x, half.y, -half.z), Vector3(half.x, half.y, -half.z), Vector3(half.x, half.y, half.z), Vector3(-half.x, half.y, half.z)]],
+			[Vector3.DOWN, [Vector3(-half.x, -half.y, half.z), Vector3(half.x, -half.y, half.z), Vector3(half.x, -half.y, -half.z), Vector3(-half.x, -half.y, -half.z)]],
+			[Vector3.FORWARD, [Vector3(-half.x, -half.y, -half.z), Vector3(half.x, -half.y, -half.z), Vector3(half.x, half.y, -half.z), Vector3(-half.x, half.y, -half.z)]],
+			[Vector3.BACK, [Vector3(half.x, -half.y, half.z), Vector3(-half.x, -half.y, half.z), Vector3(-half.x, half.y, half.z), Vector3(half.x, half.y, half.z)]],
+			[Vector3.LEFT, [Vector3(-half.x, -half.y, half.z), Vector3(-half.x, -half.y, -half.z), Vector3(-half.x, half.y, -half.z), Vector3(-half.x, half.y, half.z)]],
+			[Vector3.RIGHT, [Vector3(half.x, -half.y, -half.z), Vector3(half.x, -half.y, half.z), Vector3(half.x, half.y, half.z), Vector3(half.x, half.y, -half.z)]],
+		]
+		for face: Array in faces:
+			var normal: Vector3 = face[0]
+			var corners: Array = face[1]
+			var offset: int = vertices.size()
+			for corner: Vector3 in corners:
+				vertices.append(corner)
+				normals.append(normal)
+			indices.append_array(PackedInt32Array([offset, offset + 1, offset + 2, offset, offset + 2, offset + 3]))
+		var surface_arrays: Array = []
+		surface_arrays.resize(Mesh.ARRAY_MAX)
+		surface_arrays[Mesh.ARRAY_VERTEX] = vertices
+		surface_arrays[Mesh.ARRAY_NORMAL] = normals
+		surface_arrays[Mesh.ARRAY_INDEX] = indices
+		_ground_base_arrays_cache[kind] = surface_arrays
 	return _ground_base_arrays_cache[kind]
 
 
@@ -180,10 +225,11 @@ static func _add_wall_segment(body: StaticBody3D, x_start: int, x_end: int, y: i
 	var size: Vector3 = Vector3(rectangle.size.x, wall_dimensions.y, rectangle.size.y)
 	var center: Vector3 = Vector3(rectangle.get_center().x, wall_dimensions.y * 0.5, rectangle.get_center().y)
 
-	var mesh_instance: MeshInstance3D = MeshInstance3D.new()
-	var box_mesh: BoxMesh = BoxMesh.new()
-	box_mesh.size = size
-	mesh_instance.mesh = box_mesh
+	var mesh_instance: MeshInstance3D = HeadlessGeometryBoxScene.instantiate() as MeshInstance3D if DisplayServer.get_name() == "headless" else MeshInstance3D.new()
+	if DisplayServer.get_name() != "headless":
+		var box_mesh: BoxMesh = BoxMesh.new()
+		box_mesh.size = size
+		mesh_instance.mesh = box_mesh
 	mesh_instance.position = center
 	body.add_child(mesh_instance)
 	mesh_instance.name = "WallSegmentMesh_%d" % index

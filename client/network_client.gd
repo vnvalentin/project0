@@ -222,7 +222,7 @@ const MONSTERS_CONTAINER_NAME: String = "Monsters"
 ## Slice 131: town NPC cosmetic representation. A script (not a scene) built
 ## procedurally, and a dedicated Gameplay-root child holding every live town NPC,
 ## kept separate like the Monsters container.
-const TOWN_NPC_SCRIPT_PATH: String = "res://client/town_npc.gd"
+const TOWN_NPC_SCENE_PATH: String = "res://client/town_npc.tscn"
 const TOWN_NPCS_CONTAINER_NAME: String = "TownNpcs"
 ## Slice 017: dedicated child of the Gameplay root holding the rendered
 ## starting-town geometry, kept separate so FlatPlane/Player/camera/UI are
@@ -717,7 +717,7 @@ static func spawn_town_npc_representation(npc_id: String, start_position: Vector
 	var node_name: String = town_npc_node_name(npc_id)
 	if parent.get_node_or_null(node_name) != null:
 		return
-	var npc: Node3D = load(TOWN_NPC_SCRIPT_PATH).new()
+	var npc: Node3D = load(TOWN_NPC_SCENE_PATH).instantiate()
 	npc.name = node_name
 	npc.position = start_position
 	parent.add_child(npc)

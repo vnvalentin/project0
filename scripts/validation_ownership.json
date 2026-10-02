@@ -2,7 +2,8 @@
   "schema_version": 1,
   "hosts": {
     "linux": ["192.168.1.254", "github-actions-linux"],
-    "windows": ["SETSUJOKU", "github-actions-windows"]
+    "windows": ["SETSUJOKU", "github-actions-windows"],
+    "macos": ["Philips-MacBook-Pro-2"]
   },
   "test_roots": ["tests", "scripts", "infra", "dashboard", "operator_console", "native"],
   "server_data_exceptions": ["server/starting_town_hub_fixture.gd"],
@@ -64,6 +65,14 @@
       "tests": ["scripts/test_*.ps1", "scripts/check_windows_client_package.ps1", "scripts/verify_standalone_package.ps1", "scripts/run_paired_validation.ps1", "scripts/run_shared_exploration_validation.ps1", "scripts/run_coop_combat_validation.ps1", "scripts/windows_shared_exploration_client.gd", "scripts/windows_coop_combat_client.gd", "scripts/windows_character_sheet_client.gd", "scripts/client_package_inventory.gd", "tests/fixtures/windows_client_packages.gd"],
       "evidence": "client-only-not-server-proof"
     },
+    "m4-baseline": {
+      "platform": "linux",
+      "owner": "linux-server",
+      "dependencies": ["godot", "sqlite", "python", "docker"],
+      "runner": "python3 scripts/run_m4_baseline.py --server-image <immutable-image-id>",
+      "tests": ["scripts/run_m4_baseline.py", "scripts/m4_load_server.gd", "scripts/m4_load_peer.gd"],
+      "evidence": "supporting-real-headless-load"
+    },
     "windows-launcher": {
       "platform": "windows",
       "owner": "windows-launcher",
@@ -71,6 +80,38 @@
       "runner": "scripts/run_windows_launcher_validation.ps1",
       "tests": ["native/windows_launcher/*_test.go"],
       "evidence": "launcher-only-not-gameplay-proof"
+    },
+    "macos-tooling": {
+      "platform": "macos",
+      "owner": "macos-tooling",
+      "dependencies": ["python", "git"],
+      "runner": "python3 scripts/macos/test_package.py",
+      "tests": ["scripts/macos/test_*.py"],
+      "evidence": "supporting-component"
+    },
+    "macos-client": {
+      "platform": "macos",
+      "owner": "macos-client",
+      "dependencies": ["godot-client", "python", "git"],
+      "runner": "python3 scripts/macos/package.py --verify",
+      "tests": ["scripts/macos/package_inventory.gd", "scripts/macos/offline_probe.gd"],
+      "evidence": "client-only-not-server-proof"
+    },
+    "macos-admission": {
+      "platform": "macos",
+      "owner": "macos-client",
+      "dependencies": ["godot-client", "python", "git"],
+      "runner": "python3 scripts/macos/admission.py",
+      "tests": ["scripts/macos/admission.py", "scripts/macos/admission_probe.gd"],
+      "evidence": "pre-auth-client-admission-only"
+    },
+    "macos-published": {
+      "platform": "macos",
+      "owner": "macos-client",
+      "dependencies": ["godot-client", "python", "git"],
+      "runner": "python3 scripts/macos/published.py",
+      "tests": ["scripts/macos/published.py", "scripts/macos/published_inventory.gd", "scripts/macos/published_admission_probe.gd"],
+      "evidence": "published-pack-mac-client-not-gameplay-proof"
     }
   }
 }
