@@ -58,6 +58,27 @@
         "logs/experiments/exp_m4_1_baseline_<timestamp>.json",
         "logs/experiments/exp_m4_1_FAIL_trace_<timestamp>.json"
       ]
+    },
+    {
+      "suite": "m4-baseline",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "python3 scripts/run_m4_baseline.py --server-image sha256:937e863ee7288d569ce0d5a74d3d118f28e64e17056f7f9aac24fd40ee25cdec --ticks 1000 --supported-load --crossing-span 10",
+      "dependencies": [
+        "godot",
+        "sqlite",
+        "python",
+        "docker"
+      ],
+      "tests": [
+        "scripts/run_m4_baseline.py",
+        "scripts/m4_load_server.gd",
+        "scripts/m4_load_peer.gd"
+      ],
+      "artifacts": [
+        "logs/experiments/exp_m4_1_baseline_<timestamp>.json",
+        "logs/experiments/exp_m4_1_FAIL_trace_<timestamp>.json"
+      ]
     }
   ]
 }

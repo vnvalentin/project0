@@ -134,6 +134,7 @@ def parse_arguments(argv=None):
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--diagnostic-workers', type=int, choices=(0, 32), help='60-tick causal comparison only; never baseline acceptance')
     parser.add_argument('--server-image', required=True, help='Immutable locally cached sha256 image ID')
+    parser.add_argument('--crossing-span', type=int, choices=(1, 10), default=1, help='Explicit half-span around x440:1 high crossing stress,10 representative target')
     parser.add_argument('--supported-load', action='store_true', help='Explicit 1000-tick zero-synthetic-worker capacity measurement; never complete isolation acceptance')
     args = parser.parse_args(argv)
     if not re.fullmatch(r'sha256:[0-9a-f]{64}', args.server_image):
@@ -159,11 +160,13 @@ def main():
               'evaluation_scope': 'Supported capacity only; separate worker contention/isolation evidence required.' if args.supported_load else f'Includes {worker_count} fixture-selected synthetic worker tasks; this is not an observed production demand.',
               'started_utc': stamp, 'host': socket.gethostname(), 'requested_ticks': args.ticks,
               'diagnostic_workers': args.diagnostic_workers,
+              'crossing_profile': {'half_span_units': args.crossing_span, 'x_lower_threshold': 440 - args.crossing_span, 'x_upper_threshold': 440 + args.crossing_span, 'note': 'Thresholds, not strict position bounds. Actual peer motion and crossing rate remain observed evidence.'},
               'command': ['python3', 'scripts/run_m4_baseline.py', '--ticks', str(args.ticks), '--server-image', args.server_image],
               'source': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True, timeout=15).strip(),
               'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], text=True, timeout=15)),
               'engine': None,
               'competing_engines_before': [], 'errors': [], 'artifacts': str(folder.relative_to(ROOT))}
+    report['command'] += ['--crossing-span', str(args.crossing_span)]
     if args.supported_load:
         report['command'].append('--supported-load')
     if args.diagnostic_workers is not None:
@@ -206,7 +209,7 @@ def main():
                     'PROJECT0_OPERATOR_CONTROL_PORT': '0', 'PROJECT0_TICK_RATE': '30',
                     'PROJECT0_LLM_TOWN_AT_BOOT': '0', 'PROJECT0_CLIENT_LOGIN_SPLIT': '0', 'PROJECT0_CLIENT_HTTPS_LOGIN': '0',
                     'M4_PRIVATE': str(private), 'M4_HTTP_PORT': str(available_port(socket.SOCK_STREAM)),
-                    'M4_TICKS': str(args.ticks), 'M4_WORKERS': str(worker_count), 'M4_STOP': str(private / 'stop'),
+                    'M4_TICKS': str(args.ticks), 'M4_WORKERS': str(worker_count), 'M4_CROSSING_SPAN': str(args.crossing_span), 'M4_STOP': str(private / 'stop'),
                     'M4_OBSERVATION': str(folder / 'server-observation.json')})
         archive = folder / 'source.tar'
         subprocess.run(['git', 'archive', '--format=tar', '--output=' + str(archive), report['source']], check=True, timeout=30)

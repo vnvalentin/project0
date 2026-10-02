@@ -35,11 +35,15 @@ class BaselineReportTests(unittest.TestCase):
                 'player_position_callback': {'calls': 10, 'duration_usec': 100},
                 'frontier_stay_callback': {'calls': 10, 'duration_usec': 10},
                 'boundary_reentry_callback': {'calls': 0, 'duration_usec': 0},
-                'journey_checkpoint': {'calls': 0, 'duration_usec': 0}}
+                'journey_checkpoint': {'calls': 0, 'duration_usec': 0},
+                'telemetry_emit': {'calls': 0, 'duration_usec': 0}}
         self.assertTrue(evaluate(observation, True)['passed'])
         missing = observation['samples'][500]['stage_timings'].pop('journey_checkpoint')
         self.assertFalse(evaluate(observation, True)['passed'], 'missing callback observations cannot establish overall acceptance')
         observation['samples'][500]['stage_timings']['journey_checkpoint'] = missing
+        telemetry = observation['samples'][500]['stage_timings'].pop('telemetry_emit')
+        self.assertFalse(evaluate(observation, True)['passed'], 'missing telemetry evidence cannot establish acceptance')
+        observation['samples'][500]['stage_timings']['telemetry_emit'] = telemetry
 
         diagnostic = evaluate(observation, True, supported_load=True)
         self.assertFalse(diagnostic['passed'], 'explicit capacity measurement cannot imply isolation acceptance')
@@ -77,7 +81,8 @@ class BaselineReportTests(unittest.TestCase):
                       'player_position_callback': {'calls': 2, 'duration_usec': 5000},
                       'boundary_reentry_callback': {'calls': 0, 'duration_usec': 0},
                       'frontier_stay_callback': {'calls': 2, 'duration_usec': 500},
-                      'journey_checkpoint': {'calls': 2, 'duration_usec': 4000}}}
+                      'journey_checkpoint': {'calls': 2, 'duration_usec': 4000},
+                      'telemetry_emit': {'calls': 1, 'duration_usec': 500}}}
         summary = summarize_stage_timings({'samples': [sample]})
         self.assertTrue(summary['qualified'])
         self.assertEqual(summary['peak_sample']['stage_timings']['journey_checkpoint']['duration_usec'], 4000)
@@ -95,11 +100,14 @@ class BaselineReportTests(unittest.TestCase):
         image = ['--server-image', 'sha256:' + 'a' * 64]
         default = parse_arguments(image)
         self.assertEqual(default.worker_count, 32)
+        self.assertEqual(default.crossing_span, 1)
+        self.assertEqual(parse_arguments(image + ['--crossing-span', '10']).crossing_span, 10)
         self.assertFalse(default.supported_load)
         supported = parse_arguments(image + ['--ticks', '1000', '--supported-load'])
         self.assertEqual(supported.worker_count, 0)
         self.assertTrue(supported.supported_load)
-        for options in (['--ticks', '60', '--supported-load'],
+        for options in (['--crossing-span', '0'], ['--crossing-span', '2'],
+                        ['--ticks', '60', '--supported-load'],
                         ['--supported-load', '--diagnostic-workers', '0'],
                         ['--ticks', '1000', '--diagnostic-workers', '0']):
             with self.subTest(options=options), self.assertRaises(SystemExit):
