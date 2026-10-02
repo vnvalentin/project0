@@ -27,10 +27,20 @@ stage=source_start
 python3 .scratch/850/validation-evidence.py start "$result_file" full
 stage=preflight
 python3 scripts/check_validation_ownership.py --plan .scratch/850/full-validation-plan.json --output "$result/preflight.json" > "$result/preflight.log"
-stage=full
+stage=import
 set +e
 timeout --kill-after=15s 900s godot --headless --editor --path . --import --quit > "$result/import.log" 2>&1
 import_exit=$?
+set -e
+[[ "$import_exit" == 0 ]] || exit 1
+python3 - "$result/import.log" <<'PYSCAN'
+import re,sys
+from pathlib import Path
+log=Path(sys.argv[1]).read_text(errors='replace')
+raise SystemExit(1 if re.search(r'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script',log) else 0)
+PYSCAN
+stage=full
+set +e
 RESULT_DIR="$result" GUT_TIMEOUT_SECONDS=900 bash scripts/run_gut_validation.sh > "$result/full-runner.log" 2>&1
 suite_exit=$?
 bash scripts/check_record_sync.sh > "$result/record-sync.log" 2>&1

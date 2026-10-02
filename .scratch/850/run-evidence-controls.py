@@ -42,7 +42,9 @@ elif name=='godot':
   if case=='engine_timeout':time.sleep(1)
   print('COPIED_CONTROL_NO_NATIVE')
  elif '--import' not in sys.argv:generate()
- elif '--import' in sys.argv:pass
+ elif '--import' in sys.argv:
+  if case=='import_failed':sys.exit(42)
+  if case=='import_markers':print('SCRIPT ERROR: copied preparation fixture')
 elif name=='fake-gut':generate()
 elif name=='timeout':
  args=sys.argv[1:]
@@ -111,7 +113,7 @@ def run():
     try:
         inventory = json.loads((PROJECT/'.scratch/850/full-validation-plan.json').read_text())['steps'][0]['tests']
         for kind in ['focused','full']:
-            for case in CASES+(['valid_red'] if kind=='focused' else ['dirty_start']):
+            for case in CASES+(['valid_red'] if kind=='focused' else ['dirty_start','import_failed','import_markers']):
                 root=context/(kind+'-'+case);root.mkdir()
                 for source in SOURCES:
                     target=root/source;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(PROJECT/source,target)
@@ -122,7 +124,7 @@ def run():
                     if not target.exists():target.write_text('copied inventory fixture\n')
                 scripts=root/'scripts';scripts.mkdir(exist_ok=True)
                 (scripts/'check_validation_ownership.py').write_text('raise SystemExit('+('42' if case=='preflight_failed' else '0')+')\n')
-                (scripts/'check_record_sync.sh').write_text('#!/bin/bash\nexit 0\n')
+                (scripts/'check_record_sync.sh').write_text('#!/bin/bash\ntouch record-sync-called\nexit 0\n')
                 (scripts/'run_gut_validation.sh').write_text('#!/bin/bash\nexec fake-gut\n')
                 fake=root/'bin';fake.mkdir()
                 # Define the fixture generator before dispatch in each explicit stub.
@@ -158,6 +160,11 @@ def run():
                 if case in ['initial_git_missing','initial_git_timeout','initial_sha_invalid','preflight_failed','dirty_start','setup_failed']:
                     calls=[json.loads(line) for line in (root/'calls.jsonl').read_text().splitlines()]
                     assert not any(call['tool'] in ['godot','fake-gut'] for call in calls),(kind,case,'runtime started')
+                if case in ['import_failed','import_markers']:
+                    calls=[json.loads(line) for line in (root/'calls.jsonl').read_text().splitlines()]
+                    assert not any(call['tool']=='fake-gut' for call in calls),(kind,case,'GUT started after failed preparation')
+                    assert not (root/'record-sync-called').exists(),(kind,case,'record sync started after failed preparation')
+                    assert verdict['stage']=='import', (kind,case,verdict)
                 if case.startswith('engine_'):assert verdict['engine']=='NOT_OBSERVED' and any(error.startswith('engine_') for error in verdict['validation_errors'])
                 if case in ['source_changed','head_changed','dirty_end','final_source_missing','final_git_missing']:assert 'source_changed_during_validation' in verdict['validation_errors']
                 (output/(kind+'-'+case+'.json')).write_text(json.dumps(verdict,indent=2)+'\n')
