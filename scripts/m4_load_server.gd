@@ -133,6 +133,12 @@ func _start_server() -> void:
 	root.add_child(_m4_background)
 	_m4_report["configured_tick_rate"] = Engine.physics_ticks_per_second
 	_m4_report["timing_seam"] = "EngineProfiler._tick physics_time; complete Main::iteration physics span plus observer cost; all workload probes execute in physics callback; one physics tick per callback required"
+	_m4_report["timing_coverage"] = {
+		"physics": "Native physics span only, including scene physics callbacks and engine physics/navigation synchronization; observer overhead is added.",
+		"process": "engine_process_ms is retained independently. Async generation deadline resumes on process_frame and evaluates fallback after await; this work need not occur in the physics span.",
+		"evaluation": "background.results timing retains generation wall latency and synchronous validation duration; tested timeout fallback only, not arbitrary successful model candidates.",
+		"limits": "Physics latency cannot establish the budget of every asynchronous callback. Callback wall spans are inclusive and may overlap; coalesced iteration physics maxima are not per-tick durations."
+	}
 	_m4_report["engine"] = Engine.get_version_info()
 	_m4_report["status"] = "setup_ready"
 	_m4_write()
@@ -216,6 +222,11 @@ func _on_physics_frame() -> void:
 	if next_sample == 20:
 		_m4_inject_sector_fault()
 
+func _observe_frontier_stay(peer_id: int, position: Vector3) -> void:
+	var stage_started: int = Time.get_ticks_usec()
+	super(peer_id, position)
+	_m4_record_stage("frontier_stay_callback", stage_started)
+
 func _checkpoint_journey(peer_id: int, authoritative_position: Vector3) -> void:
 	var stage_started: int = Time.get_ticks_usec()
 	super(peer_id, authoritative_position)
@@ -232,7 +243,7 @@ func _m4_record_stage(stage: String, started_usec: int) -> void:
 
 func _m4_take_stages() -> Dictionary:
 	var result: Dictionary = {}
-	for stage: String in ["server_physics_callback", "player_position_callback", "boundary_reentry_callback", "journey_checkpoint"]:
+	for stage: String in ["server_physics_callback", "player_position_callback", "boundary_reentry_callback", "frontier_stay_callback", "journey_checkpoint"]:
 		result[stage] = _m4_stages.get(stage, {"calls": 0, "duration_usec": 0})
 	_m4_stages = {}
 	return result

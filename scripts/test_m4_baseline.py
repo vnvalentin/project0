@@ -61,6 +61,7 @@ class BaselineReportTests(unittest.TestCase):
                       'server_physics_callback': {'calls': 1, 'duration_usec': 10000},
                       'player_position_callback': {'calls': 2, 'duration_usec': 5000},
                       'boundary_reentry_callback': {'calls': 0, 'duration_usec': 0},
+                      'frontier_stay_callback': {'calls': 2, 'duration_usec': 500},
                       'journey_checkpoint': {'calls': 2, 'duration_usec': 4000}}}
         summary = summarize_stage_timings({'samples': [sample]})
         self.assertTrue(summary['qualified'])
@@ -68,6 +69,9 @@ class BaselineReportTests(unittest.TestCase):
         self.assertEqual(summary['stages']['server_physics_callback']['total_usec'], 10000)
         self.assertEqual(summary['stages']['player_position_callback']['total_usec'], 5000)
         self.assertNotIn('total_callback_usec', summary)  # Inclusive spans overlap.
+        frontier = sample['stage_timings'].pop('frontier_stay_callback')
+        self.assertFalse(summarize_stage_timings({'samples': [sample]})['qualified'])
+        sample['stage_timings']['frontier_stay_callback'] = frontier
         del sample['stage_timings']['journey_checkpoint']
         self.assertFalse(summarize_stage_timings({'samples': [sample]})['qualified'])
         self.assertFalse(summarize_stage_timings({})['qualified'])
