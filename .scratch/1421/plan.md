@@ -51,7 +51,16 @@ Commit 221a910 added receive_sector_entry_denied after 0.14.20 was built.
 Confirmed failure: incompatible method tables; the exact compiled old table
 and why prior acceptance missed the incompatible pairing remain unverified.
 Countermeasure: build a matching immutable client and require native evidence.
-Regression/world-entry result: pending. No workaround bypasses authentication.
+Regression: ownership preflight, all 51 source RPC declaration comparisons,
+immutable export/dependency audit and native windowed compiled-package probe
+passed. World-entry result: pending. No workaround bypasses authentication.
+
+An unexpected delivery gate failed when main advanced concurrently to 638b62c:
+the route's merge-base ancestry check rejected the original branch head.
+Refreshing PR #1422's base repairs the stale identity; the new main commit
+changes an unrelated planning record, not the package's application inputs.
+CI confirmation remains pending. The existing package keeps its original
+clean f84edee264e1d0c052aa5344893a6f90fb4c41a2 identity, never a new identity.
 
 ## Rollback And Completion
 
