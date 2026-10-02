@@ -23,10 +23,10 @@ finish() {
   case "$fixture_dir" in /tmp/project0-951.*) rm -rf -- "$fixture_dir" ;; *) exit 2;; esac
   cleanup=false
   test ! -e "$fixture_dir" && cleanup=true
-  python3 - "$result_dir" "$revision" "$engine" "$code" "$stage" "$cleanup" "$mode" <<'PY'
+  python3 - "$result_dir" "$revision" "$engine" "$code" "$stage" "$cleanup" "$mode" "$label" <<'PY'
 from pathlib import Path
 import hashlib,json,re,sys,xml.etree.ElementTree as ET
-directory,revision,engine,code,stage,cleanup,mode=sys.argv[1:]
+directory,revision,engine,code,stage,cleanup,mode,label=sys.argv[1:]
 p=Path(directory);errors=[]
 expected={'tests/integration/test_workshop_station_authority.gd'} if mode=='focused' else {str(t) for root in ['tests/unit','tests/integration'] for t in Path(root).rglob('test_*.gd')}
 suites=[]
@@ -47,10 +47,10 @@ if markers:errors.append('godot_script_failure')
 if cleanup!='true':errors.append('cleanup_not_verified')
 if int(code)!=0:errors.append('engine_or_preparation_exit_nonzero')
 sources={}
-for name in ['server/workshop_station_contract.gd','server/workshop_character_sensor.gd','server/workshop_station_volume.gd','server/workshop_station_authority.gd','tests/integration/test_workshop_station_authority.gd','.scratch/951/run-validation.sh']:
+for name in ['server/admitted_player_state.gd','server/workshop_station_contract.gd','server/workshop_character_sensor.gd','server/workshop_station_volume.gd','server/workshop_station_authority.gd','tests/integration/test_workshop_station_authority.gd','.scratch/951/run-validation.sh']:
  f=Path(name)
  if f.is_file():sources[name]=hashlib.sha256(f.read_bytes()).hexdigest()
-record={'schema_version':1,'issue':951,'host':'192.168.1.254','revision':revision,'engine':engine,'mode':mode,'stage':stage,'command':'bash .scratch/951/run-validation.sh <unique-label> '+mode,'exit_code':int(code),'evidence_exit_code':1 if errors else 0,'status':'failed' if errors else 'passed','evidence_errors':errors,'script_failure_markers':markers,'expected_scripts':sorted(expected),'suites':suites,'cleanup_verified':cleanup=='true','isolated_xdg':True,'isolated_dashboard_results':True,'source_sha256':sources,'runtime_acceptance':'bounded station authority component only; full workshop NOT_OBSERVED'}
+record={'schema_version':1,'issue':951,'host':'192.168.1.254','revision':revision,'engine':engine,'mode':mode,'stage':stage,'command':'bash .scratch/951/run-validation.sh '+label+' '+mode,'exit_code':int(code),'evidence_exit_code':1 if errors else 0,'status':'failed' if errors else 'passed','evidence_errors':errors,'script_failure_markers':markers,'expected_scripts':sorted(expected),'suites':suites,'cleanup_verified':cleanup=='true','isolated_xdg':True,'isolated_dashboard_results':True,'artifact_directory':directory,'source_sha256':sources,'runtime_acceptance':'bounded station authority component only; full workshop NOT_OBSERVED'}
 (p/'result.json').write_text(json.dumps(record,indent=2)+'\n')
 print(json.dumps(record,indent=2))
 raise SystemExit(1 if errors else 0)
