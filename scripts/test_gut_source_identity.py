@@ -79,6 +79,56 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         self.assertTrue(all(call["source"] == self.sha for call in calls))
 
 
+    def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
+        result = self.run_command("run_gut_validation.sh", "0" * 40)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.engine_calls.exists())
+
+    def test_standard_runner_rejects_malformed_source_before_engine_launch(self):
+        for source in ("", "short", "z" * 40, "a" * 41):
+            with self.subTest(source=source):
+                result = self.run_command("run_gut_validation.sh", source)
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse(self.engine_calls.exists())
+
+    def test_source_artifact_requires_explicit_valid_identity(self):
+        shutil.rmtree(self.root / ".git")
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.engine_calls.exists())
+        for source in ("", "short"):
+            with self.subTest(source=source):
+                result = self.run_command("run_gut_validation.sh", source)
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse(self.engine_calls.exists())
+        result = self.run_command("run_gut_validation.sh", self.sha)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertTrue(all(call["source"] == self.sha for call in calls))
+
+    def test_hosted_command_propagates_verified_source_through_empty_environment(self):
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        run = next(call for call in calls if call[0] == "run")
+        env_index = run.index("-i")
+        self.assertIn("M4_SOURCE_REVISION=" + self.sha, run[env_index + 1:])
+        self.assertFalse(self.engine_calls.exists())
+
+    def test_hosted_command_refuses_invalid_or_conflicting_source_before_container_launch(self):
+        for source in ("", "short", "0" * 40):
+            with self.subTest(source=source):
+                result = self.run_command("run_hosted_gut_container.sh", source)
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse(self.docker_calls.exists())
+
+    def test_hosted_command_requires_host_checkout_identity(self):
+        shutil.rmtree(self.root / ".git")
+        result = self.run_command("run_hosted_gut_container.sh", self.sha)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.docker_calls.exists())
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path, required=True)
