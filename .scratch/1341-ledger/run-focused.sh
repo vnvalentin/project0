@@ -5,27 +5,21 @@ run="${1:?new run id required}"
 case "$run" in *[!a-zA-Z0-9_-]*|'') exit 2;; esac
 result="$PWD/build/validation/1341-ledger/$run"
 test ! -e "$result"
-mkdir -p "$result/user-data"
+mkdir -p "$result/user-data" "$result/observations"
 export XDG_DATA_HOME="$result/user-data"
 export DASHBOARD_RESULTS_DIR="$result/dashboard"
 export PROJECT0_LEDGER_EVIDENCE_DIR="$result/observations"
-mkdir -p "$PROJECT0_LEDGER_EVIDENCE_DIR"
 cleanup() {
-  local cleanup_exit=0
+  local runner_exit=$? cleanup_exit=0 evidence_exit=0
+  trap - EXIT
+  set +e
   rm -rf -- "$XDG_DATA_HOME" || cleanup_exit=$?
-  python3 - "$result" <<'PY'
-import json,sys
-from pathlib import Path
-p=Path(sys.argv[1]); f=p/'result.json'
-r=json.loads(f.read_text()) if f.exists() else {'status':'failed','reason':'result_preparation_not_observed'}
-r['owned_xdg_removed']=not (p/'user-data').exists()
-if not r['owned_xdg_removed']: r['status']='failed'
-f.write_text(json.dumps(r,indent=2)+'\n')
-print(json.dumps(r))
-PY
-  return "$cleanup_exit"
+  python3 .scratch/1341-ledger/evidence_guard.py finalize "$result" "$runner_exit" "$cleanup_exit"
+  evidence_exit=$?
+  exit "$evidence_exit"
 }
 trap cleanup EXIT
+python3 .scratch/1341-ledger/evidence_guard.py start "$result"
 set +e
 timeout --kill-after=15s 900s godot --headless --editor --path . --import --quit > "$result/import.log" 2>&1
 import_exit=$?
