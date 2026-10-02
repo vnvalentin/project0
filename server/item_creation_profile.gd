@@ -58,6 +58,11 @@ func derive(value: Variant) -> Dictionary:
 	if not _closed(value, INPUTS):
 		return {"outcome": "malformed", "properties": null}
 	var inputs: Dictionary = value
+	for input: String in INPUTS:
+		var bounds: Dictionary = _wire.inputs[input]
+		if not _bounded_integer(inputs[input]) or inputs[input] < bounds.minimum \
+			or inputs[input] > bounds.maximum:
+			return {"outcome": "malformed", "properties": null}
 	var values: Dictionary = {}
 	var units: Dictionary = {}
 	for key: String in OUTPUTS:
