@@ -10,6 +10,7 @@ mkdir -p "$result_dir"
 fixture_dir=""
 source_revision=NOT_OBSERVED
 engine_version=NOT_OBSERVED
+actual_hostname=NOT_OBSERVED
 actual_host_addresses=NOT_OBSERVED
 prepare_exit=-1
 recover_exit=-1
@@ -29,11 +30,11 @@ finish() {
   if [[ -z "$fixture_dir" || ! -e "$fixture_dir" ]]; then cleanup_verified=true; fi
   python3 - "$result_dir" "$run_id" "$label" "$source_revision" "$engine_version" \
     "$prepare_exit" "$recover_exit" "$stage" "$cleanup_verified" "$cleanup_exit" \
-    "$runner_exit" "$source_clean_start" "$actual_host_addresses" <<'PY'
+    "$runner_exit" "$source_clean_start" "$actual_hostname" "$actual_host_addresses" <<'PY'
 import hashlib,json,re,subprocess,sys
 from pathlib import Path
 
-out,run_id,label,revision,engine,prepare_exit,recover_exit,stage,cleanup,cleanup_exit,runner_exit,source_clean_start,actual_host_addresses=sys.argv[1:]
+out,run_id,label,revision,engine,prepare_exit,recover_exit,stage,cleanup,cleanup_exit,runner_exit,source_clean_start,actual_hostname,actual_host_addresses=sys.argv[1:]
 out=Path(out)
 errors=[]
 sources=['scripts/test_claim_permit_authority_process_recovery.gd',
@@ -95,6 +96,8 @@ if cleanup!='true' or cleanup_exit!='0':
     errors.append('fixture_cleanup_unverified')
 if '192.168.1.254' not in actual_host_addresses.split():
     errors.append('required_host_identity_not_observed')
+if actual_hostname in ['', 'NOT_OBSERVED']:
+    errors.append('hostname_not_observed')
 for name in ['import.log','preflight.log','prepare.log','recover.log']:
     path=out/name
     if not path.is_file():
@@ -144,7 +147,9 @@ else:
                 errors.append('nonzero_or_incomplete_table:'+str(table)+':'+window)
 passed=runner_exit=='0' and not errors
 record={'schema_version':1,'issue':850,'run_id':run_id,'label':label,
-    'host':'192.168.1.254' if '192.168.1.254' in actual_host_addresses.split() else 'NOT_OBSERVED',
+    'host':actual_hostname if actual_hostname not in ['', 'NOT_OBSERVED'] else 'NOT_OBSERVED',
+    'expected_host_address':'192.168.1.254',
+    'expected_host_address_observed':'192.168.1.254' in actual_host_addresses.split(),
     'observed_host_addresses':actual_host_addresses,
         'revision':revision,'final_revision':final_revision,'engine':engine,
         'command':'bash .scratch/850/run-process-recovery.sh '+label,
@@ -173,6 +178,8 @@ trap finish EXIT
 trap 'exit 130' INT TERM
 
 stage=host_identity
+actual_hostname="$(hostname)"
+[[ -n "$actual_hostname" ]] || exit 1
 actual_host_addresses="$(hostname -I)"
 [[ " $actual_host_addresses " == *" 192.168.1.254 "* ]] || exit 1
 stage=source_start
