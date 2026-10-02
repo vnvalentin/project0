@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "errors": [],
+  "tests_by_suite": {},
+  "client_dependencies_checked": 0,
+  "runtime_executed": false,
+  "runtime_acceptance": "not evaluated",
+  "limitations": [
+    "Static resource/type references only; dynamic loading and exported package contents require native client validation.",
+    "A valid plan describes intended execution; it is not evidence that any test ran."
+  ]
+}

@@ -1,0 +1,165 @@
+{
+  "status": "passed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "7be6be607622f873008ddee397374c24fb17b59a",
+  "command": "bash .scratch/1341-ledger/run-sync-timing.sh resumed-sync-20261002-7be6be6",
+  "exit_code": 0,
+  "validation_errors": [],
+  "probe": {
+    "acceptance": "diagnostic only; no timing threshold assertion or policy change",
+    "budget_ms": 15,
+    "limitations": "public transaction includes nested INSERT; native BEGIN/COMMIT/fsync not individually observed",
+    "samples": [
+      {
+        "admission_and_dispatch_ms": 1.327,
+        "canonicalize_ms": 9.878,
+        "iteration": 0,
+        "outcome": "canonicalized",
+        "store_calls": [
+          {
+            "elapsed_ms": 0.298,
+            "method": "query_with_bindings",
+            "operation": "SELECT",
+            "outcome": "ok"
+          },
+          {
+            "elapsed_ms": 0.221,
+            "method": "query_with_bindings",
+            "operation": "INSERT",
+            "outcome": "ok"
+          },
+          {
+            "elapsed_ms": 8.418,
+            "method": "transaction",
+            "operation": "TRANSACTION",
+            "outcome": "ok",
+            "wall_end_s": 1790959717.48921,
+            "wall_start_s": 1790959717.48079
+          }
+        ],
+        "total_ms": 11.205
+      },
+      {
+        "admission_and_dispatch_ms": 1.342,
+        "canonicalize_ms": 28.864,
+        "iteration": 1,
+        "outcome": "canonicalized",
+        "store_calls": [
+          {
+            "elapsed_ms": 0.336,
+            "method": "query_with_bindings",
+            "operation": "SELECT",
+            "outcome": "ok"
+          },
+          {
+            "elapsed_ms": 0.206,
+            "method": "query_with_bindings",
+            "operation": "INSERT",
+            "outcome": "ok"
+          },
+          {
+            "elapsed_ms": 27.317,
+            "method": "transaction",
+            "operation": "TRANSACTION",
+            "outcome": "ok",
+            "wall_end_s": 1790959717.62251,
+            "wall_start_s": 1790959717.59519
+          }
+        ],
+        "total_ms": 30.206
+      },
+      {
+        "admission_and_dispatch_ms": 1.332,
+        "canonicalize_ms": 7.446,
+        "iteration": 2,
+        "outcome": "canonicalized",
+        "store_calls": [
+          {
+            "elapsed_ms": 0.324,
+            "method": "query_with_bindings",
+            "operation": "SELECT",
+            "outcome": "ok"
+          },
+          {
+            "elapsed_ms": 0.21,
+            "method": "query_with_bindings",
+            "operation": "INSERT",
+            "outcome": "ok"
+          },
+          {
+            "elapsed_ms": 5.888,
+            "method": "transaction",
+            "operation": "TRANSACTION",
+            "outcome": "ok",
+            "wall_end_s": 1790959717.88011,
+            "wall_start_s": 1790959717.87422
+          }
+        ],
+        "total_ms": 8.778
+      }
+    ],
+    "status": "passed"
+  },
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/sqlite_store.gd": "8f3949f70a8eb66d52be7a3073c8014fce7dadad5a58d35e3ae554bb58f750a3",
+    "server/canon_repository.gd": "86cdeed79fb96c611927493b3533843a7755b8d23ef3105cebd867ec475e4e56",
+    "server/canon_generation_coordinator.gd": "d36346f1ce1f0ebbb9217a6535948b6edc157b495aebaa011782febcde2feddd",
+    ".scratch/1341-ledger/canon-timing-probe.gd": "b53a0d0d07f6eef9b0e8c988975033e2787c92eea77d0b152fe06dd524f7fa8a",
+    ".scratch/1341-ledger/run-sync-timing.sh": "f9c8b46cce45c662a1fe66a56c957f7a37800de4f590eb32e450b7c2d081bb80",
+    ".scratch/1341-ledger/sync-timing-validation-plan.json": "3233f63970b8be157691069bc79daacce602836673260d57c0abade5bbf4be1d"
+  },
+  "acceptance": "diagnosis only; existing<=15ms acceptance unchanged",
+  "synchronization_observation": {
+    "status": "OBSERVED",
+    "scope": "owned child fsync/fdatasync only; timestamp-contained public transaction windows; trace adds overhead",
+    "transactions": [
+      {
+        "iteration": 0,
+        "transaction_elapsed_ms": 8.418,
+        "syscalls": [
+          {
+            "start_s": 1790959717.481318,
+            "syscall": "fsync",
+            "fd": 7,
+            "return": 0,
+            "elapsed_ms": 7.6
+          }
+        ],
+        "synchronization_wall_ms": 7.6
+      },
+      {
+        "iteration": 1,
+        "transaction_elapsed_ms": 27.317,
+        "syscalls": [
+          {
+            "start_s": 1790959717.595674,
+            "syscall": "fsync",
+            "fd": 7,
+            "return": 0,
+            "elapsed_ms": 26.037000000000003
+          }
+        ],
+        "synchronization_wall_ms": 26.037000000000003
+      },
+      {
+        "iteration": 2,
+        "transaction_elapsed_ms": 5.888,
+        "syscalls": [
+          {
+            "start_s": 1790959717.874762,
+            "syscall": "fsync",
+            "fd": 7,
+            "return": 0,
+            "elapsed_ms": 4.633
+          }
+        ],
+        "synchronization_wall_ms": 4.633
+      }
+    ],
+    "total_parsed_syscalls": 33,
+    "unparsed_syscall_lines": 0,
+    "limitations": "wall durations can include scheduling/storage wait; no root-cause or <=15ms acceptance inferred"
+  }
+}

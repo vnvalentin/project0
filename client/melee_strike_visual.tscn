@@ -1,6 +1,21 @@
-[gd_scene load_steps=2 format=3 uid="uid://d0meleestrikevis001"]
+[gd_scene load_steps=4 format=3 uid="uid://d0meleestrikevis001"]
 
 [ext_resource type="Script" path="res://client/melee_strike_visual.gd" id="1_strikevisual"]
 
+[sub_resource type="BoxMesh" id="BoxMesh_strike"]
+size = Vector3(0.05, 0.05, 2.0)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_strike"]
+shading_mode = 0
+albedo_color = Color(0.4, 1, 1, 1)
+emission_enabled = true
+emission = Color(0.4, 1, 1, 1)
+emission_energy_multiplier = 2.0
+
 [node name="MeleeStrikeVisual" type="Node3D"]
 script = ExtResource("1_strikevisual")
+
+[node name="StrikeLineMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_strike")
+material_override = SubResource("StandardMaterial3D_strike")
+position = Vector3(0, 0.9, -1)

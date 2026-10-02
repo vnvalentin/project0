@@ -1,0 +1,21 @@
+{
+  "status": "failed",
+  "host": "192.168.1.254",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "revision": "0cf8ef69cec58974e4669e45c0a38a294b8642ab",
+  "command": "bash .scratch/1341-ledger/run-focused.sh retirement-red",
+  "import_exit": 0,
+  "exit_code": 1,
+  "script_errors_observed": false,
+  "selected_scripts_ran": 1,
+  "tests": 5,
+  "failures": 2,
+  "owned_xdg_removed": true,
+  "source_sha256": {
+    "server/item_ledger_repository.gd": "68792458ee84be19645623cbc9f656be2ec128cdafc10c04e4ab65f06367f2ab",
+    "tests/integration/test_item_ledger_repository.gd": "2b147f185c0a89e6391e2682d3997dacb3dabba62eead597890ef5ed0b33d456",
+    ".scratch/1341-ledger/run-focused.sh": "dd9dc282b6b2173373c95ca8fe4f73acfda180ba884e54cb71343cae1bb12866"
+  },
+  "milestone_acceptance": "NOT_OBSERVED: runtime equipment/crafting/loot/restart integration",
+  "artifact_directory": "build/validation/1341-ledger/retirement-red"
+}
