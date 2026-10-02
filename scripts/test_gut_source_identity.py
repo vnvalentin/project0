@@ -67,6 +67,13 @@ with open(__CALLS_PATH__, "a") as output:
     output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents, "project_config": project_config, "cwd": str(Path.cwd()), "excluded_present": [name for name in (".netrc", ".env.fixture", ".aws/fixture.json", "logs/private.json", "build/private.json", "fixtures/creation.db") if Path(name).exists()]}) + "\\n")
 if "--import" in sys.argv:
     bootstrap = 'enabled=PackedStringArray()' in project_config
+    if flags.get("FAKE_SOURCE_PARENT_LINK") == "1" and bootstrap:
+        original_client = Path(__ORIGINAL_CLIENT__)
+        original_client.rename(original_client.with_name("detached-source-client"))
+        original_client.symlink_to(Path.cwd() / "client", target_is_directory=True)
+    if flags.get("FAKE_CLIENT_PARENT_LINK") == "1" and bootstrap:
+        Path("client").rename("detached-client")
+        Path("client").symlink_to(__ORIGINAL_CLIENT__, target_is_directory=True)
     if flags.get("FAKE_BOOTSTRAP_TIMEOUT") == "1" and bootstrap:
         sys.exit(124)
     if flags.get("FAKE_BOOTSTRAP_EXIT") == "1" and bootstrap:
@@ -98,7 +105,7 @@ if "-s" in sys.argv and flags.get("FAKE_GUT_SCRIPT_ERROR") == "1":
 for arg in sys.argv:
     if arg.startswith("-gjunit_xml_file="):
         Path(arg.split("=", 1)[1]).write_text('<testsuites><testsuite name="tests/unit/test_fixture.gd" tests="1" failures="0"/></testsuites>')
-'''.replace('__FLAGS_PATH__', repr(str(self.engine_flags))).replace('__CALLS_PATH__', repr(str(self.engine_calls))).replace('__REPORT_PATH__', repr(str(self.root / 'build/validation/preparation-summary.json'))))
+'''.replace('__ORIGINAL_CLIENT__', repr(str(self.root / 'client'))).replace('__FLAGS_PATH__', repr(str(self.engine_flags))).replace('__CALLS_PATH__', repr(str(self.engine_calls))).replace('__REPORT_PATH__', repr(str(self.root / 'build/validation/preparation-summary.json'))))
         self.write_executable("docker", '''#!/usr/bin/python3
 import json, os, sys
 with open(os.environ["FAKE_DOCKER_CALLS"], "a") as output:
@@ -122,7 +129,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
 
     def run_command(self, name, source=None):
         env = self.env.copy()
-        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT", "FAKE_BOOTSTRAP_EXIT", "FAKE_QUALIFICATION_EXIT", "FAKE_QUALIFICATION_MARKER", "FAKE_NON_SCRIPT_ERROR", "FAKE_PROJECT_EDIT", "FAKE_REGISTRY_EDIT", "FAKE_BOOTSTRAP_TIMEOUT")}))
+        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT", "FAKE_BOOTSTRAP_EXIT", "FAKE_QUALIFICATION_EXIT", "FAKE_QUALIFICATION_MARKER", "FAKE_NON_SCRIPT_ERROR", "FAKE_PROJECT_EDIT", "FAKE_REGISTRY_EDIT", "FAKE_BOOTSTRAP_TIMEOUT", "FAKE_CLIENT_PARENT_LINK", "FAKE_SOURCE_PARENT_LINK")}))
         if source is not None:
             env["M4_SOURCE_REVISION"] = source
         return subprocess.run(["bash", "scripts/" + name], cwd=self.root, env=env,
@@ -379,6 +386,33 @@ raise SystemExit(''' + str(code) + ')\n')
                 self.assertTrue(summary["preparation_report_valid"])
                 self.assertTrue(summary["timed_out"])
                 self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
+
+    def test_changed_parent_link_rejects_before_qualification_and_preserves_stage(self):
+        self.env["FAKE_CLIENT_PARENT_LINK"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 1)
+        stage = Path(calls[0]["cwd"])
+        self.assertTrue((stage / "client").is_symlink())
+        self.assertTrue((stage / "detached-client/player_identity.gd").is_file())
+        report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertTrue(report["configuration_custody_lost"])
+        self.assertEqual(report["qualification"], "NOT_OBSERVED")
+
+    def test_changed_source_parent_link_rejects_before_qualification_and_preserves_stage(self):
+        self.env["FAKE_SOURCE_PARENT_LINK"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 1)
+        stage = Path(calls[0]["cwd"])
+        self.assertTrue((self.root / "client").is_symlink())
+        self.assertTrue((self.root / "detached-source-client/player_identity.gd").is_file())
+        self.assertTrue(stage.is_dir())
+        report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertTrue(report["configuration_custody_lost"])
+        self.assertEqual(report["qualification"], "NOT_OBSERVED")
 
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)

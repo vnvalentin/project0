@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "bash .scratch/950-rules/run-focused.sh <new-run-id> <red|green> <expected-public-test-count> <prepared|delivery>",
+      "dependencies": [
+        "godot",
+        "sqlite"
+      ],
+      "tests": [
+        "tests/unit/test_item_creation_profile.gd"
+      ],
+      "artifacts": [
+        "build/validation/950-rules/<run-id>/gut.xml",
+        "build/validation/950-rules/<run-id>/gut.log",
+        "build/validation/950-rules/<run-id>/result.json"
+      ]
+    }
+  ],
+  "setup": "New owned evidence target and isolated runtime state; explicit stable prepared TDD or clean committed delivery source binding.",
+  "cleanup": "Owned guarded finalizer removes temporary runtime state and retains passed/failed evidence, with unavailable retention reported explicitly.",
+  "rollback": "Revert additive evaluator/tests; no live tuning or DB migration."
+}
