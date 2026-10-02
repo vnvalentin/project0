@@ -52,6 +52,15 @@ def main():
             if case in ['timeout','parent_first']:assert result['timed_out'],case
             if case=='oversized':assert result['oversized_output_discarded'],case
             records.append({'case':case,'passed':True})
+        nested="import os,signal,time;assert signal.getsignal(signal.SIGCHLD)==signal.SIG_DFL;pid=os.fork();\nif pid==0:os._exit(0)\ndeadline=time.monotonic()+2;info=None\nwhile info is None and time.monotonic()<deadline:info=os.waitid(os.P_PID,pid,os.WEXITED|os.WNOHANG|os.WNOWAIT);time.sleep(0.01)\nassert info is not None and info.si_pid==pid;os.kill(pid,0);assert os.waitpid(pid,0)[0]==pid;print('PASS: safe assertion');print('ALL PASS')"
+        reset=m.reset_child_sigchld
+        def inherited_ignored_then_reset():
+            m.signal.signal(m.signal.SIGCHLD,m.signal.SIG_IGN);reset()
+        m.reset_child_sigchld=inherited_ignored_then_reset
+        result=m.observe([[sys.executable,'-c',nested]],[{'PATH':'/usr/bin:/bin'}],{'safe assertion'},3)[0]
+        assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
+        m.reset_child_sigchld=reset
+        records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
         cases=['nondefault_sigchld','initial_custody_unavailable','valid','dirty_source','changed_source','metadata_unavailable','metadata_timeout','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
@@ -86,7 +95,7 @@ def main():
                 path=Path(command[-1]);path.write_text(json.dumps({'passed':True,'errors':[],'runtime_executed':False}))
                 return subprocess.CompletedProcess(command,0)
             def fake_output(command,**kwargs):
-                assert kwargs.get('timeout')==10
+                assert kwargs.get('timeout')==10 and kwargs.get('preexec_fn') is m.reset_child_sigchld
                 project=Path(command[command.index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
                 assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').read_bytes()==(root/'scripts/test_prediction_reconciliation.gd').read_bytes()
                 if case=='metadata_unavailable':raise OSError('copied metadata unavailable')
@@ -137,7 +146,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==23 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if len(records)==24 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))

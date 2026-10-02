@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -140,6 +141,11 @@ def teardown(processes):
     return not [pid for pid in owned_children() if pid not in BASELINE_CHILDREN]
 
 
+def reset_child_sigchld():
+    # Single-threaded coordinator; explicit reset clears inherited autoreap flags.
+    signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+
 def observe(commands, envs, allowed, limit):
     processes, records = [], []
     selector = selectors.DefaultSelector()
@@ -148,7 +154,7 @@ def observe(commands, envs, allowed, limit):
     try:
         for command, env in zip(commands, envs):
             process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT, start_new_session=True)
+                                       stderr=subprocess.STDOUT, start_new_session=True, preexec_fn=reset_child_sigchld)
             processes.append(process)
             os.set_blocking(process.stdout.fileno(), False)
             record = {'passed_assertions': set(), 'failed_assertions': set(), 'all_pass': False,
@@ -226,6 +232,8 @@ def run(run_id):
         BASELINE_CHILDREN = set(owned_children())
         result['initial_child_custody']='OBSERVED'
         result['stage']='child_signal_contract'
+        if threading.active_count()!=1:
+            raise RuntimeError('single_threaded_launch_not_qualified')
         if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
             raise RuntimeError('sigchld_disposition_not_qualified')
         result['sigchld_contract']='default_before_child_execution'
@@ -259,7 +267,7 @@ def run(run_id):
         setup=temporary/'import';setup.mkdir()
         env=minimal_environment(setup,port)
         result['stage']='engine_metadata'
-        version=subprocess.check_output(['godot','--path',str(project),'--version'],env=env,cwd=ROOT,stderr=subprocess.DEVNULL,timeout=10).decode().strip()
+        version=subprocess.check_output(['godot','--path',str(project),'--version'],env=env,cwd=ROOT,stderr=subprocess.DEVNULL,timeout=10,preexec_fn=reset_child_sigchld).decode().strip()
         if not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?\.[A-Za-z0-9.]+',version):
             raise ValueError('engine_not_qualified')
         result['engine']=version
