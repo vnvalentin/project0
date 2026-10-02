@@ -93,3 +93,5 @@ Malformed/forged characterization: build/validation/849/20261002T135746Z-malform
 Blank-reference TDD RED: build/validation/849/20261002T135905Z-blank-red-14094/focused-result.json. Two scripts ran: one new pure-contract test failed four blank-reference assertions; all seven repository tests passed. The boundary treated whitespace-only opaque fields as nonempty. Countermeasure: reject blank identifiers without changing their opaque spelling. Updated two-script ownership preflight passed; cleanup verified.
 
 Blank-reference GREEN: build/validation/849/20261002T140254Z-blank-green-22200/focused-result.json. Two scripts/eight tests passed, cleanup verified. Identifier admission now rejects whitespace-only fields while preserving nonblank opaque spelling. No authoritative grant or plot verification was added.
+
+Independent identity/alias characterization: build/validation/849/20261002T140432Z-identity-28096/focused-result.json. Two scripts/nine tests passed; known independently computed UUIDv5 fixture matches, JSON parse/serialize parity holds, input/output arrays do not alias, and forged persisted identity/revision fails. Cleanup verified.
