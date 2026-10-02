@@ -22,6 +22,13 @@ PY
 trap cleanup EXIT
 python3 scripts/check_validation_ownership.py --plan .scratch/950-rules/validation-plan.json --output "$result/preflight.json" > "$result/preflight.log"
 git rev-parse HEAD > "$result/revision.txt"
+python3 - "$result" <<'START_PY'
+import hashlib,json,subprocess,sys
+from pathlib import Path
+paths=['server/item_creation_profile.gd','tests/unit/test_item_creation_profile.gd','tests/fixtures/item_creation_profile.gd','.scratch/950-rules/run-focused.sh','.scratch/950-rules/validation-plan.json']
+v={'status':subprocess.check_output(['git','status','--porcelain'],text=True),'hashes':{x:hashlib.sha256(Path(x).read_bytes()).hexdigest() if Path(x).exists() else 'ABSENT' for x in paths}}
+(Path(sys.argv[1])/'source-start.json').write_text(json.dumps(v))
+START_PY
 set +e
 timeout --kill-after=10s 120s godot --headless --editor --path . --import --quit > "$result/import.log" 2>&1
 import_code=$?
@@ -38,6 +45,9 @@ n=sum(int(s.get('tests',0)) for s in ss);f=sum(int(s.get('failures',0)) for s in
 if len(ss)!=1 or ss[0].get('name')!='tests/unit/test_item_creation_profile.gd' or n<1 or e or k:problems.append('invalid_coverage')
 for name in ['import.log','gut.log']:
  if re.search(r'SCRIPT ERROR:|Parse Error:|Compile Error:|Failed to load script',(p/name).read_text()):problems.append('script_error:'+name)
+start=json.loads((p/'source-start.json').read_text())
+end_hashes={x:hashlib.sha256(Path(x).read_bytes()).hexdigest() if Path(x).exists() else 'ABSENT' for x in start['hashes']}
+if start['hashes']!=end_hashes or start['status']!=subprocess.check_output(['git','status','--porcelain'],text=True) or (p/'revision.txt').read_text().strip()!=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip():problems.append('source_changed_during_validation')
 if int(sys.argv[3])!=0:problems.append('import_failed')
 if mode=='red' and (n!=1 or f!=1 or int(sys.argv[4])!=1):problems.append('expected_red_missing')
 if mode=='green' and (f or int(sys.argv[4])!=0):problems.append('green_failed')
