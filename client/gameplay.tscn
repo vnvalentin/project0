@@ -82,7 +82,7 @@ script = ExtResource("3_camera")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="FlatPlane"]
 mesh = SubResource("BoxMesh_plane")
-surface_material_override/0 = SubResource("StandardMaterial3D_plane")
+material_override = SubResource("StandardMaterial3D_plane")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="FlatPlane"]
 shape = SubResource("BoxShape3D_plane")
@@ -125,7 +125,7 @@ shape = SubResource("BoxShape3D_gate")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Player"]
 mesh = SubResource("CapsuleMesh_player")
-surface_material_override/0 = SubResource("StandardMaterial3D_player")
+material_override = SubResource("StandardMaterial3D_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
 shape = SubResource("CapsuleShape3D_player")

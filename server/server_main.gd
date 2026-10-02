@@ -764,7 +764,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		player_state.health_changed.disconnect(_on_player_state_health_changed)
 		player_state.character_snapshot_ready.disconnect(_on_player_state_character_snapshot_ready)
 		player_state.effective_mechanics_ready.disconnect(_on_player_state_effective_mechanics_ready)
-		player_state.authoritative_stats_ready.disconnect(_on_player_state_authoritative_stats_ready)
+		if player_state.authoritative_stats_ready.is_connected(_on_player_state_authoritative_stats_ready):
+			player_state.authoritative_stats_ready.disconnect(_on_player_state_authoritative_stats_ready)
 		player_state.player_defeated.disconnect(_on_player_state_player_defeated)
 		_player_states.erase(peer_id)
 		player_state.queue_free()

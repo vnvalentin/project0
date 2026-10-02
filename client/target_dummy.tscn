@@ -14,4 +14,4 @@ script = ExtResource("1_dummy")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 mesh = SubResource("CapsuleMesh_dummy")
-surface_material_override/0 = SubResource("StandardMaterial3D_dummy")
+material_override = SubResource("StandardMaterial3D_dummy")

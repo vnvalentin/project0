@@ -3,6 +3,13 @@ extends "res://server/server_player_state.gd"
 var _admitted_session_epoch: int = 0
 
 
+## Read-only server collaborator; a matching Character alone is not admission.
+func current_admitted_identity() -> Dictionary:
+	if not _gameplay_authorized():
+		return {"outcome": "not_admitted"}
+	return {"outcome": "ok", "character_id": character_id, "peer_id": owning_peer_id, "session_epoch": _admitted_session_epoch}
+
+
 func bind_character(p_character_id: String, p_display_name: String, p_cosmetic: Dictionary) -> void:
 	var gateway: Node = get_tree().root.get_node_or_null("LoginGateway") if is_inside_tree() else null
 	var current_epoch: int = gateway.get_session_epoch(owning_peer_id) if gateway != null else 0

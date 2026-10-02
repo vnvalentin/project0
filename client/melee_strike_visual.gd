@@ -26,28 +26,7 @@ var _mesh_instance: MeshInstance3D = null
 
 func _ready() -> void:
 	visible = false
-	_mesh_instance = MeshInstance3D.new()
-	_mesh_instance.name = "StrikeLineMesh"
-	add_child(_mesh_instance)
-
-	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.albedo_color = STRIKE_COLOR
-	material.emission_enabled = true
-	material.emission = STRIKE_COLOR
-	material.emission_energy_multiplier = 2.0
-
-	var archetype: Object = CombatContractsScript.generic_sword_archetype()
-	var mesh: BoxMesh = BoxMesh.new()
-	mesh.size = Vector3(LINE_WIDTH, LINE_WIDTH, archetype.reach_yards)
-	_mesh_instance.mesh = mesh
-	# Applied as a surface override (matching client/target_dummy.gd's own
-	# material pattern) rather than BoxMesh.material directly — assigning a
-	# material straight onto a freshly created primitive mesh resource errors
-	# under Godot's headless dummy renderer (used by GUT) before the mesh has
-	# an initialized surface to attach it to.
-	_mesh_instance.set_surface_override_material(0, material)
-	_mesh_instance.position = Vector3(0.0, FORWARD_HEIGHT_OFFSET, -archetype.reach_yards / 2.0)
+	_mesh_instance = get_node("StrikeLineMesh") as MeshInstance3D
 
 
 ## Public seam: shows the strike line. Called by the owning Player/RemotePlayer

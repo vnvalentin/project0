@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "issue": 951,
+  "host": "192.168.1.254",
+  "revision": "8d88023b5f69625ae42281e0f66e9e11a559e53f",
+  "engine": "4.3.stable.official.77dcf97d8",
+  "mode": "focused",
+  "stage": "focused-gut",
+  "command": "bash .scratch/951/run-validation.sh <unique-label> focused",
+  "exit_code": 1,
+  "evidence_exit_code": 1,
+  "status": "failed",
+  "evidence_errors": [
+    "suite_not_passing",
+    "engine_or_preparation_exit_nonzero"
+  ],
+  "script_failure_markers": [],
+  "expected_scripts": [
+    "tests/integration/test_workshop_station_authority.gd"
+  ],
+  "suites": [
+    {
+      "name": "tests/integration/test_workshop_station_authority.gd",
+      "tests": "2",
+      "failures": "2",
+      "skipped": "0",
+      "time": "0.001479"
+    }
+  ],
+  "cleanup_verified": true,
+  "isolated_xdg": true,
+  "isolated_dashboard_results": true,
+  "source_sha256": {
+    "tests/integration/test_workshop_station_authority.gd": "3090338693f83fe361bfe07a3e01b5fd62ebac02e451fc512590be8ca78563e8",
+    ".scratch/951/run-validation.sh": "384092850cf46b4a1b0cd66426095395daf59bd460849bfd007fa2e9f6ad294e"
+  },
+  "runtime_acceptance": "bounded station authority component only; full workshop NOT_OBSERVED",
+  "actual_command": "bash .scratch/951/run-validation.sh red-admission focused"
+}
