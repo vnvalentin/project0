@@ -111,3 +111,27 @@ timing. Rebind final full/benchmark/review gates to the eventual clean productio
 
 Status: first test/plan committed, native RED pending accepted import-boundary fix #1413
 and root's coordinated window. No countermeasure, runtime pass or capacity is claimed.
+
+## Accepted-main integration checkpoint
+
+Accepted main `40e6d97370d7b2327167db37216f03e65586d28b` is integrated after
+a clean-source check. It includes accepted diagnostic #1405 and Mac source-import
+exclusion #1415. The initial first-RED compatibility regression remains unchanged.
+No production checkpoint countermeasure is present. Harness guidance remains
+`77de008a0f28eb91726527d543adb435735a2157`, consumed in this continuation.
+
+Native RED still awaits the accepted #1396 cold-registry prerequisite and the
+coordinated native window; marker #1415 alone does not establish cold bootstrap.
+Do not repeat an unqualified import or infer #1413 acceptance from its marker merge.
+Accepted diagnostic observer still measures get_canonical_sector-only Canon calls.
+When the candidate metadata seam is added, explicitly observe its unchanged super
+call and qualify exact child controls before any attribution benchmark.
+
+Static preparation recovery: the initial integration command named nonexistent
+`scripts/test_m4_baseline_report.py` and stopped before the record commit. The
+actual accepted control is `scripts/test_m4_baseline.py`; it was discovered from
+the tracked file inventory and passed all six controls separately. The routing
+control also requires its documented `--report` argument; the initial missing
+argument failed before tests, and the corrected invocation passed with evidence.
+No native/import command ran and neither command-selection error was treated as
+a missing dependency or runtime failure.
