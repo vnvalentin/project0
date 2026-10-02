@@ -56,3 +56,58 @@ Checkpoint timing attribution proves high inclusive work, not isolated hash or f
 causality. Original failures remain linked on #1411/#1376. Source-only preparation and
 static checks do not establish runtime behavior. Revert the bounded source commit via
 normal PR to restore behavior; no data rollback. Never mutate live stores or foreign jobs.
+
+## Incremental next-test sequence (source design only)
+
+Application edits remain gated on the first qualified native RED and dependency #1413.
+Do not bulk-write all regressions before learning from the first tracer bullet.
+
+1. Observe the committed compatibility regression RED, then implement only the public
+   Canon metadata getter. Run the same selected script GREEN before moving to the next
+   behavioral increment. The public accepted Canon-read/hash result is the legacy oracle;
+   returned metadata must omit the blueprint rather than materialize it for the caller.
+2. Warm metadata, then change only the isolated authoritative row's schema_version through
+   SqliteStore's bound public query API while leaving blueprint_json unchanged. Metadata
+   must report the new row revision with the unchanged compatible hash. Then separately
+   change the stored blueprint JSON (including alternate formatting/key ordering) and
+   compare with the existing Canon public read. These are fixture-controlled persisted
+   row changes; no production API that rewrites immutable Canon is introduced.
+3. Cover absence-to-success after ordinary canonicalize_blueprint, and invalid/empty
+   sector ids using the existing outcome contract. Warm metadata then make the isolated
+   query unavailable (drop its fixture table through SqliteStore public query). Both
+   public Canon reads must return query_failed, never cached success.
+4. Warm metadata, close the same store object, assert not_open, then reopen into owned
+   fixture state and assert that its current row or absence wins. Every alternate DB
+   path and its WAL/SHM/journal companions must be registered for finally cleanup.
+   No public metadata request can skip the current store/open/query check.
+5. Add a valid oversized supported blueprint using the existing schema-v3 structure
+   fixture with a long nonempty structure_id (current schema does not bound that string).
+   Repeated metadata still equals the accepted Canon-read result and a later row change
+   remains fresh. This proves oversize correctness, not cache memory use. Bound both
+   retained entry count and retained JSON characters in source; independent review
+   verifies the bound and uncached fallback. Do not inspect private cache layout.
+6. Extend existing Journey integration coverage with real ServerMain/Canon/Journey/Registry
+   objects in isolated shared and dedicated fixture stores. The existing server-orchestration
+   tests already safely instantiate ServerMainScript.new() without launching a backend.
+   Bind one controlled Player character, enter through JourneyRegistry, drive the actual
+   authoritative checkpoint callback and read results through JourneyRepository.load_all.
+   Reopen the original journey store and verify the last successful persisted fields:
+   journey_id, character_id, lifecycle_status, peer_id, x/y/z, sector_id, sector_revision,
+   sector_geometry_hash, last_checkpoint_at and last_disconnected_at. Two distinct
+   positions/checkpoints prove the latest save is durable; no private cache or SQL row
+   query is the assertion seam. Capture before/after wall-time bounds for timestamps
+   rather than predicting exact system time. Preserve normal registry reclaim behavior.
+
+Only after the server checkpoint-caller increment is GREEN, audit its integration fakes
+for the new public method. The existing fake Canon in server_main_jit_orchestration
+provides only get_canonical_sector; do not hide absent fixture coverage with a production
+fallback path. Expand the exact owned plan selection to Canon plus Journey scripts
+before native execution and verify both selected XML script names.
+
+Diagnostic #1405 is not edited in this worktree. After it is accepted/integrated, extend
+the observer's unchanged-super Canon child path for metadata and qualify its controls;
+otherwise its current get_canonical_sector-only override would omit checkpoint Canon
+timing. Rebind final full/benchmark/review gates to the eventual clean production head.
+
+Status: first test/plan committed, native RED pending accepted import-boundary fix #1413
+and root's coordinated window. No countermeasure, runtime pass or capacity is claimed.
