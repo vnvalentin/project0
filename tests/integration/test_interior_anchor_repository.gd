@@ -350,3 +350,32 @@ func _assert_counts(actual: Dictionary, expected: Dictionary, context: String) -
 	for window: String in ["attempted", "committed", "rolled_back", "failed"]:
 		for operation: String in ["insert", "replace", "update", "delete"]:
 			assert_eq(actual[window][operation], expected.get(window, {}).get(operation, 0), context + ":" + window + ":" + operation)
+
+
+func test_unsupported_exterior_mutation_version_rejects_without_writes_after_reopen() -> void:
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	assert_eq(_mutations.apply_mutation({
+		"schema_version": 1, "event_id": "retained-exterior-loot", "sector_id": "sector-0-0",
+		"target_guid": _descriptor()["exterior_entity_guid"], "actor_player_id": "character:owner",
+		"mutation_kind": "loot", "payload": {}, "server_tick": 1, "expected_revision": 0,
+	})["outcome"], "ok")
+	assert_eq(_store.query("UPDATE canon_mutations SET schema_version = 99;")["outcome"], "ok")
+	var retained_history: Array = _mutations.list_mutations("sector-0-0")["mutations"]
+	_begin_observation()
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "invalid_record")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "invalid_record")
+	_assert_observation("exterior-version")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_path)["outcome"], "ok")
+	_canon = CanonScript.new(_store)
+	_mutations = MutationsScript.new(_store, _canon)
+	repository = repository_script.new(_store)
+	_begin_observation()
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "invalid_record")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "invalid_record")
+	assert_eq(_mutations.list_mutations("sector-0-0")["mutations"], retained_history)
+	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
+	_assert_observation("exterior-version-reopen")
