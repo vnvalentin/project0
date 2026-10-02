@@ -66,6 +66,15 @@ func register_anchor(server_descriptor: Variant) -> Dictionary:
 		if exterior["outcome"] != "ok":
 			state["result"] = exterior
 			return false
+		var retained: Dictionary = _lookup("a.exterior_sector_id = ? AND a.exterior_entity_guid = ?", [anchor.exterior_sector_id, anchor.exterior_entity_guid])
+		if retained["outcome"] != "not_found":
+			if retained["outcome"] != "ok":
+				state["result"] = retained
+				return false
+			var previous: InteriorAnchorContract.AnchorValue = retained["anchor"]
+			var identical: bool = previous.to_descriptor() == anchor.to_descriptor()
+			state["result"] = {"outcome": "idempotent" if identical else "conflict", "detail": "Exterior reference is already bound.", "anchor": previous}
+			return false
 		anchor.exterior_revision = exterior["revision"]
 		var descriptor: Dictionary = anchor.to_descriptor()
 		var inserted: Dictionary = _store.query_with_bindings(

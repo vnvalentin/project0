@@ -71,3 +71,5 @@ First red evidence: build/validation/849/20261002T134051Z-red-1-30399/focused-re
 First green evidence: build/validation/849/20261002T134414Z-green-1-37728/focused-result.json. One repository test ran/passed with exact registration/exterior resolution/reopen parity and unchanged Canon; exit0, cleanup_verified=true. Report captures baseline revision plus SHA256 of the actual test/shared/server sources. Remaining rejection/replay/fault behaviors and full/review gates are not accepted yet.
 
 Replay/conflict red: build/validation/849/20261002T134548Z-red-2-43642/focused-result.json. Two tests ran; new replay/conflict assertions fail because registration currently reports transaction_failed on uniqueness violation. Cleanup verified. Countermeasure is explicit read-only retained-record comparison before any INSERT, not swallowing a failed INSERT.
+
+Replay/conflict green: build/validation/849/20261002T134704Z-green-2-48465/focused-result.json. Two tests passed, exit0, cleanup_verified=true. Exact replay returns retained anchor and a changed plot reference conflicts before any INSERT attempt; database-wide count evidence will bind to the reviewed accounting dependency.
