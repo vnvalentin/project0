@@ -161,6 +161,12 @@ def main():
                     if case=='altered_logging_override':(project/'override.cfg').write_text('copied unknown override')
                     return [{'exit_code':0,'timed_out':False,'script_error_observed':False}]
                 project=Path(commands[0][commands[0].index('--path')+1]);assert (project/'override.cfg').read_text()==m.LOGGING_OVERRIDE
+                if case=='normal_generated_sidecar':
+                    retained=json.loads((root/'build/validation/1407-isolation/control/generated-sidecars.json').read_text())
+                    assert retained['schema_version']==1 and retained['source_revision']=='a'*40 and retained['prepared_root']==str(project)
+                    assert retained['source_sha256']==hashlib.sha256(json.dumps({name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in source_names if not name.startswith('.scratch/')},sort_keys=True).encode()).hexdigest()
+                    pin=retained['generated_sidecars']['fixtures/icon.png.import']
+                    assert pin=={'source_asset':'fixtures/icon.png','source_sha256':hashlib.sha256((root/'fixtures/icon.png').read_bytes()).hexdigest(),'sha256':hashlib.sha256((project/'fixtures/icon.png.import').read_bytes()).hexdigest()}
                 # The unchanged harness derives nested server --path from res://.
                 assert project!=root and (project/'scripts/test_prediction_reconciliation.gd').is_file()
                 calls.append('import' if '--import' in commands[0] else ('shared' if Path(envs[0]['HOME']).parent.parent.name=='shared' else 'distinct'))

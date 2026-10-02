@@ -123,6 +123,21 @@ def qualify_sidecar(project,target,expected):
     return {'source_asset':asset,'source_sha256':expected[asset],'sha256':hashlib.sha256(payload).hexdigest()}
 
 
+def generated_receipt(path,project,source,report,sidecars,create=False):
+    # Own a separate immutable receipt; never rewrite the helper report.
+    payload=(json.dumps({'schema_version':1,'source_revision':source['revision'],
+        'source_sha256':report['source_sha256'],'prepared_root':str(project),
+        'generated_sidecars':sidecars},sort_keys=True,indent=2)+'\n').encode()
+    if len(payload)>1024*1024:raise ValueError('generated_receipt_not_qualified')
+    for parent in path.parents:
+        if not stat.S_ISDIR(parent.lstat().st_mode):raise ValueError('generated_receipt_parent_not_qualified')
+    if create:
+        with path.open('xb') as stream:stream.write(payload)
+    if not stat.S_ISREG(path.lstat().st_mode) or path.stat().st_size!=len(payload):
+        raise ValueError('generated_receipt_not_qualified')
+    if path.read_bytes()!=payload:raise ValueError('generated_receipt_changed')
+
+
 def preparation_receipt(path,project,source,logging=False,generated_sidecars=None):
     if path.is_symlink() or not path.is_file():raise ValueError('preparation_report_unavailable')
     if path.stat().st_size>1024*1024:raise ValueError('preparation_report_unavailable')
@@ -338,6 +353,8 @@ def run(run_id):
     report_path=None
     project=None
     generated_sidecars=None
+    generated_receipt_path=result_dir/'generated-sidecars.json'
+    generated_receipt_qualified=False
     try:
         result['stage']='initial_child_custody'
         BASELINE_CHILDREN = set(owned_children())
@@ -393,6 +410,10 @@ def run(run_id):
         receipt=preparation_receipt(report_path,project,result['source_start'])
         generated_sidecars=receipt['generated_sidecars']
         result['generated_sidecars']=generated_sidecars
+        result['stage']='generated_receipt'
+        generated_receipt(generated_receipt_path,project,result['source_start'],receipt,generated_sidecars,create=True)
+        generated_receipt_qualified=True
+        result['generated_sidecar_receipt']=str(generated_receipt_path)
         result['preparation']={'report':str(report_path),'status':receipt.get('status'),
             'source_sha256':receipt['source_sha256'],'bootstrap':receipt.get('bootstrap'),'qualification':receipt.get('qualification')}
         if (prepared['exit_code']!=0 or prepared['timed_out'] or prepared['script_error_observed'] or
@@ -425,6 +446,7 @@ def run(run_id):
                 envs.append(env);targets.append(target/'telemetry.db')
             relationship='same' if targets[0].resolve()==targets[1].resolve() else 'distinct'
             if relationship!=('same' if mode=='shared' else 'distinct'):raise ValueError('treatment_not_qualified')
+            generated_receipt(generated_receipt_path,project,result['source_start'],receipt,generated_sidecars)
             observed=observe([['godot','--headless','--path',str(project),'-s',HARNESS]]*2,envs,allowed,60)
             for record in observed:
                 record['public_assertion_verdict']='passed' if record['exit_code']==0 and record['all_pass'] and set(record['passed_assertions'])==allowed and not record['failed_assertions'] and not record['script_error_observed'] and not record['timed_out'] else 'failed'
@@ -433,8 +455,10 @@ def run(run_id):
                 'telemetry_path_qualified':qualified,'children':observed})
             if not qualified:raise ValueError('telemetry_path_not_observed')
             preparation_receipt(report_path,project,result['source_start'],logging,generated_sidecars)
+            generated_receipt(generated_receipt_path,project,result['source_start'],receipt,generated_sidecars)
         result['stage']='consumer_custody'
         preparation_receipt(report_path,project,result['source_start'],logging,generated_sidecars)
+        generated_receipt(generated_receipt_path,project,result['source_start'],receipt,generated_sidecars)
         result['stage']='source_end'
         result['source_end']=identity()
         if result['source_start']!=result['source_end']:raise ValueError('source_changed')
@@ -454,9 +478,10 @@ def run(run_id):
             result['process_cleanup_verified']=False
         if preparation_attempted:
             try:
-                if generated_sidecars is None:raise ValueError('generated_custody_not_observed')
+                if generated_sidecars is None or not generated_receipt_qualified:raise ValueError('generated_custody_not_observed')
                 if identity()!=result['source_start']:raise ValueError('cleanup_source_changed')
                 preparation_receipt(report_path,project,result['source_start'],logging,generated_sidecars)
+                generated_receipt(generated_receipt_path,project,result['source_start'],receipt,generated_sidecars)
             except (OSError, ValueError, UnicodeError, RuntimeError, subprocess.SubprocessError):
                 custody=False
                 result['retained_stage']=str(temporary)

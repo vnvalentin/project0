@@ -19,7 +19,8 @@
         "build/validation/1407-isolation/<run-id>/result.json",
         "build/validation/1407-isolation/<run-id>/preparation.json",
         "build/validation/1407-isolation/<run-id>/prepare-bootstrap.log",
-        "build/validation/1407-isolation/<run-id>/prepare-qualification.log"
+        "build/validation/1407-isolation/<run-id>/prepare-qualification.log",
+        "build/validation/1407-isolation/<run-id>/generated-sidecars.json"
       ]
     }
   ],
