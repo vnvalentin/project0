@@ -90,6 +90,7 @@ def preparation_receipt(path,project,source,logging=False):
 
 
 def qualify_staged(project,source,report,logging):
+    if project.is_symlink() or not project.is_dir():raise ValueError('staged_project_not_qualified')
     contract=preparation_contract(source)
     expected={name:value for name,value in source['source_sha256'].items() if not contract.excluded(Path(name))}
     if (report.get('source_manifest')!=expected or report.get('source_inventory_kind')!='git-tracked' or
@@ -98,14 +99,16 @@ def qualify_staged(project,source,report,logging):
         raise ValueError('preparation_source_not_qualified')
     for name,digest in expected.items():
         target=project/name;original=ROOT/name
-        if (target.is_symlink() or not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest()!=digest or
+        # Qualify every parent before any source content or mode is read.
+        for candidate,root in [(target,project),(original,ROOT)]:
+            parent=candidate.parent
+            while parent!=root:
+                if parent.is_symlink() or not parent.is_dir():raise ValueError('staged_parent_not_qualified')
+                parent=parent.parent
+            if candidate.is_symlink() or not candidate.is_file():raise ValueError('staged_source_changed')
+        if (hashlib.sha256(target.read_bytes()).hexdigest()!=digest or
             bool(target.stat().st_mode & stat.S_IXUSR)!=bool(original.stat().st_mode & stat.S_IXUSR)):
             raise ValueError('staged_source_changed')
-        parent=target.parent
-        while parent!=project:
-            if parent.is_symlink():raise ValueError('staged_parent_not_qualified')
-            parent=parent.parent
-    if project.is_symlink():raise ValueError('staged_project_not_qualified')
     registry=project/'.godot/extension_list.cfg'
     if (registry.parent.is_symlink() or registry.is_symlink() or not registry.is_file() or
         registry.read_bytes()!=contract.REGISTRY):raise ValueError('prepared_registry_not_qualified')
@@ -118,6 +121,7 @@ def qualify_staged(project,source,report,logging):
     for target in project.rglob('*'):
         name=target.relative_to(project).as_posix()
         if target.is_symlink():raise ValueError('unexpected_staged_symlink')
+        if not target.is_dir() and not target.is_file():raise ValueError('unexpected_staged_object')
         if target.is_file() and name not in expected and name!='override.cfg' and target.relative_to(project).parts[0] not in {'.godot','.preparation-runtime'}:
             raise ValueError('unexpected_staged_file')
 
