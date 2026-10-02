@@ -18,6 +18,27 @@
         "build/validation/850/focused.xml",
         "build/validation/850/focused.log"
       ]
+    },
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "bash .scratch/850/run-process-recovery.sh <unique-label>",
+      "dependencies": [
+        "godot",
+        "sqlite",
+        "python"
+      ],
+      "tests": [
+        "scripts/test_claim_permit_authority_process_recovery.gd"
+      ],
+      "artifacts": [
+        "build/validation/850/process-recovery/<run-id>/experiment-result.json",
+        "build/validation/850/process-recovery/<run-id>/prepare.json",
+        "build/validation/850/process-recovery/<run-id>/recover.json",
+        "build/validation/850/process-recovery/<run-id>/prepare.log",
+        "build/validation/850/process-recovery/<run-id>/recover.log"
+      ]
     }
   ]
 }

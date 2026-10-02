@@ -37,6 +37,14 @@ func test_primary_owner_can_start_but_an_unpermitted_visitor_cannot() -> void:
 	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "permission_denied")
 
 
+func test_process_recovery_harness_is_loadable_by_the_owned_linux_runner() -> void:
+	var recovery_path: String = "res://scripts/test_claim_permit_authority_process_recovery.gd"
+	assert_true(ResourceLoader.exists(recovery_path), "the owned process-recovery phase script exists")
+	if not ResourceLoader.exists(recovery_path):
+		return
+	assert_not_null(load(recovery_path), "the process-recovery script must parse before its native runner is scheduled")
+
+
 func test_party_membership_requires_an_explicit_matching_permit() -> void:
 	var authority_script: Script = load(AUTHORITY_PATH)
 	var authority: RefCounted = authority_script.new(_store)

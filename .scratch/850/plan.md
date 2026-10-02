@@ -79,3 +79,13 @@ The owned preparation gate correction is prepared and reproducible source-only c
 ### Accepted integration status
 
 The accepted main integration is preserved with the owned evidence correction. The full validation inventory and static ownership checks are refreshed. Application behavior is unchanged by this correction; independent review and native validation remain pending. Detailed evidence stays local.
+
+### Claim/permit process-restart proof
+
+User-directed scope is #850 authority and durable restart evidence only. Workshop action integration remains with #951; this increment changes no client behavior, Canon schema, migration, or workshop transaction.
+
+The current public authority tests close and reopen `SqliteStore` within one Godot process. The missing acceptance is a true process boundary. The owned runner starts a prepare process that registers a claim, trusted party membership, and a BUILD permit in an isolated SQLite file, then exits. A distinct recover process must read the owner/revision, admit the permitted member, reject an unrelated visitor, and replay the exact permit receipt with zero directly observed DML. Native row effects remain `NOT_OBSERVED`.
+
+Public seam: `ClaimPermitAuthority.register_claim`, `update_memberships`, `apply_permit`, `get_claim`, `begin_interaction`, and immutable receipt replay. The runner and test are in `.scratch/850/run-process-recovery.sh` and `scripts/test_claim_permit_authority_process_recovery.gd`; preflight and invocation are declared in `.scratch/850/validation-plan.json`. Expected artifacts are retained under `build/validation/850/process-recovery/<run-id>/` and the only disposable database state is below `/tmp/project0-850-recovery-*`.
+
+Discriminating check: prepare and recover reports carry distinct native PIDs and exact results; the recover process qualifies OBSERVED statement counters and zero attempted/committed/rolled-back/failed DML for receipt replay. Clean source/revision hashes and temporary-state teardown are required. Rollback removes only the test harness and owned fixture state. Native execution remains blocked until the coordinated slot under #1407 is released; no native pass is claimed at the current branch head.
