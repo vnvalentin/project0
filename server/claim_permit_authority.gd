@@ -127,8 +127,16 @@ func update_memberships(character_id: Variant, memberships: Variant, expected_re
 			party_count += 1
 	if party_count > 1:
 		return _result("invalid_request")
+	var sorted_members: Array = seen.keys()
+	sorted_members.sort()
+	var fingerprint: String = JSON.stringify(["memberships", character_id, sorted_members, expected_revision, operation_id]).sha256_text()
+	var actor_scope: String = JSON.stringify(["memberships", character_id])
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var receipt: Dictionary = _lookup_receipt(actor_scope, operation_id, fingerprint)
+		if receipt.outcome != "not_found":
+			decision.merge(receipt, true)
+			return false
 		var current: Dictionary = _membership_revision(character_id)
 		if current.outcome != "ok":
 			decision.outcome = current.outcome
@@ -148,9 +156,13 @@ func update_memberships(character_id: Variant, memberships: Variant, expected_re
 		for subject: Dictionary in memberships:
 			if _store.query_with_bindings("INSERT INTO permission_memberships (character_id, subject_kind, subject_id, subject_role) VALUES (?, ?, ?, ?);", [character_id, subject.kind, subject.id, subject.role]).outcome != "ok":
 				return false
+		var result: Dictionary = _receipt_result(operation_id, current.revision + 1, character_id)
+		if not _write_receipt(actor_scope, fingerprint, result):
+			return false
+		decision.merge(result, true)
 		return true
 	)
-	return decision if decision.outcome != "ok" else _result(String(transaction.outcome))
+	return decision if decision.outcome != "ok" or transaction.outcome == "ok" else _result(String(transaction.outcome))
 
 
 ## Actor identity is supplied by authenticated server dispatch, never the intent.
@@ -169,9 +181,10 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 	if not _valid_subject(intent.subject) or (intent.action == "grant" and not _valid_bits(intent.permission_bits)):
 		return _result("invalid_request")
 	var fingerprint: String = JSON.stringify(["permit", intent]).sha256_text()
+	var actor_scope: String = JSON.stringify(["character", actor_character_id])
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		var receipt: Dictionary = _lookup_receipt(actor_character_id, intent.operation_id, fingerprint)
+		var receipt: Dictionary = _lookup_receipt(actor_scope, intent.operation_id, fingerprint)
 		if receipt.outcome != "not_found":
 			decision.merge(receipt, true)
 			return false
@@ -207,7 +220,7 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 		if _store.query_with_bindings("UPDATE plot_claims SET claim_revision = ? WHERE plot_id = ?;", [current.claim_revision + 1, intent.plot_id]).outcome != "ok":
 			return false
 		var result: Dictionary = _receipt_result(intent.operation_id, current.claim_revision + 1, intent.plot_id)
-		if not _write_receipt(actor_character_id, fingerprint, result):
+		if not _write_receipt(actor_scope, fingerprint, result):
 			return false
 		decision.merge(result, true)
 		return true

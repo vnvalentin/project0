@@ -204,3 +204,25 @@ func test_permit_receipt_replays_after_later_revision_and_restart_without_writes
 	changed.permission_bits = 2
 	assert_eq(authority.apply_permit("owner-one", changed).outcome, "operation_conflict")
 	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_membership_receipt_does_not_restore_old_membership_on_replay() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	assert_eq(authority.apply_permit("owner-one", {
+		"schema_version": 1, "operation_id": "permit-one", "plot_id": "plot-one", "expected_revision": 1,
+		"action": "grant", "subject": {"kind": "party", "id": "party-one", "role": ""}, "permission_bits": 1,
+	}).outcome, "ok")
+	var membership: Array = [{"kind": "party", "id": "party-one", "role": ""}]
+	var original: Dictionary = authority.update_memberships("member-one", membership, 0, "joined-once")
+	assert_eq(original.outcome, "ok")
+	assert_eq(authority.update_memberships("member-one", [], 1, "left-once").outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var replay: Dictionary = authority.update_memberships("member-one", membership, 0, "joined-once")
+	assert_eq(replay.outcome, "duplicate_rejected")
+	assert_eq(replay.get("original_result"), original)
+	assert_eq(authority.begin_interaction("member-one", "plot-one", 1).outcome, "permission_denied", "old events cannot restore revoked membership")
+	assert_eq(authority.update_memberships("member-one", [], 0, "joined-once").outcome, "operation_conflict")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
