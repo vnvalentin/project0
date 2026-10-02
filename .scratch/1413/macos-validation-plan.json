@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": "https://github.com/vnvalentin/project0/issues/1413",
+  "scope": "Mac staging-tool controls for the source import exclusion",
+  "rollback": "Revert only the marker and owned records; preserve all existing packages and external services.",
+  "steps": [
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_package.py --report build/validation/macos/1413-import-qualified/package.json",
+      "dependencies": [
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/test_package.py"
+      ],
+      "artifacts": [
+        "build/validation/macos/1413-import-qualified/package.json"
+      ]
+    },
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_admission.py --report build/validation/macos/1413-import-qualified/admission.json",
+      "dependencies": [
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/test_admission.py"
+      ],
+      "artifacts": [
+        "build/validation/macos/1413-import-qualified/admission.json"
+      ]
+    },
+    {
+      "suite": "macos-tooling",
+      "platform": "macos",
+      "host": "Philips-MacBook-Pro-2",
+      "command": "python3 scripts/macos/test_published.py --report build/validation/macos/1413-import-qualified/published.json",
+      "dependencies": [
+        "python",
+        "git"
+      ],
+      "tests": [
+        "scripts/macos/test_published.py"
+      ],
+      "artifacts": [
+        "build/validation/macos/1413-import-qualified/published.json"
+      ]
+    }
+  ]
+}
