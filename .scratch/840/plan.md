@@ -22,3 +22,9 @@ Qualified first public-seam tracer RED observed: one executed testcase and one a
 After qualified RED and checkpoint https://github.com/vnvalentin/project0/issues/840#issuecomment-5957696207, the first worked parse_client_request implementation is prepared: required closed top fields, numeric angle converted to float, detached nested values. No enum, nested-schema, bounds, actor or acknowledgment completion is claimed; the next counterexample is required before broader guards. Native first GREEN remains pending the next coordinated window.
 
 First worked tracer GREEN observed: one executed testcase, zero failures, complete retained JUnit and script-error checks, clean source custody and cleanup passed. This qualifies only the PLACE worked parser and nested-copy behavior. Next vertical counterexample must observe RED before enum/nested/bounds/actor/ack guards; none of those remaining contract features or action/persistence acceptance is claimed. Detailed synthetic evidence remains local.
+
+### Excluded verb tracer — prepared, RED pending
+
+Integrated verified accepted main `521601a72e792e7a54c6b12c618f10eff48cadb0` into the clean contract branch; prior worked GREEN remains bound to its original source. Added one public `parse_client_request` counterexample: otherwise worked fixture with `CANCEL_ACTION` must return `invalid_request` and no request value, matching the locked twelve-verb protocol. No application guard was added before native RED. The test inventory is now two functions; static ownership preflight, shell syntax and whitespace checks passed. Native parse and RED are not yet observed and await coordinator release. Public checkpoint: https://github.com/vnvalentin/project0/issues/840#issuecomment-5958723892.
+
+Nested schema, angle/bounds, blueprint, actor and acknowledgement closure plus full validation/reviews remain incomplete. This preparation grants no action, persistence or milestone acceptance.

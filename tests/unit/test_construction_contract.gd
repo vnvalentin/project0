@@ -1,5 +1,5 @@
 extends GutTest
-## #840 pure closed construction contract; first public-seam tracer only.
+## #840 pure closed construction contract; public-seam construction request tracers.
 
 const CONTRACT_PATH: String = "res://shared/construction_contract.gd"
 
@@ -36,6 +36,18 @@ func test_place_request_preserves_pins_and_detaches_client_values() -> void:
 	assert_eq(request["grid"]["position"], [-2, 0, 3])
 	assert_eq(request["blueprint"]["blueprint_revision"], "fixture-v1")
 	assert_eq(request["materials"][0]["quantity"], 2)
+
+
+func test_cancel_action_is_excluded_from_the_closed_verb_set() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	raw["verb"] = "CANCEL_ACTION"
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
 
 
 func _request() -> Dictionary:
