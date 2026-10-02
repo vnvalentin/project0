@@ -40,3 +40,7 @@ The prepared CANCEL_ACTION counterexample still awaits native RED before an appl
 ### Accepted map integration before next native candidate
 
 Read the complete accepted main delta from `521601a72e792e7a54c6b12c618f10eff48cadb0` to `6a39f68f58388976710ff5a9fc49961ffc1a25b0` and integrated it into the clean branch. The sole changed path is the M4 scale evaluation map; it clarifies supported runtime evidence and does not add a construction behavior or authorize multi-runtime deployment. Application/test/runner source is unchanged by this documentation integration. Static ownership preflight and record sync passed, with evidence under `build/validation/840/accepted-map-static/`. The prepared excluded-verb test still awaits native RED; prior RED/GREEN and copied control source bindings remain historical exact-revision evidence.
+
+### Evidence gate correction status
+
+The owned evidence qualification correction is prepared and source-only controls passed. Static delivery checks passed. Application behavior is unchanged; the excluded-verb tracer remains pending native RED. Detailed evidence is retained locally. Independent review and native validation remain pending; slice acceptance is not claimed.

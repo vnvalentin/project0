@@ -35,7 +35,7 @@ import hashlib,json,re,subprocess,sys,xml.etree.ElementTree as E
 from pathlib import Path
 out,label,revision,expected,engine,stage,native_exit,complete,clean_start,cleanup,mode=sys.argv[1:]
 out=Path(out);errors=[]
-source_paths=['tests/unit/test_construction_contract.gd','shared/construction_contract.gd','.scratch/840/run-focused.sh','.scratch/840/validation-plan.json']
+source_paths=['tests/unit/test_construction_contract.gd','shared/construction_contract.gd','.scratch/840/run-focused.sh','.scratch/840/validation-plan.json','.scratch/840/run-evidence-controls.py']
 sources={}
 for path in source_paths:
     try:
@@ -63,14 +63,31 @@ try:
 except (OSError,ValueError): errors.append('source_start_missing')
 if cleanup!='true': errors.append('cleanup_unverified')
 if complete!='true': errors.append('execution_incomplete')
-expected_tests=0
+if engine=='NOT_OBSERVED' or not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?\.[A-Za-z0-9_.+-]+',engine): errors.append('engine_identity_not_observed')
+test_path='tests/unit/test_construction_contract.gd'
+declared_cases=('test_place_request_preserves_pins_and_detaches_client_values','test_cancel_action_is_excluded_from_the_closed_verb_set')
+counterexample='test_cancel_action_is_excluded_from_the_closed_verb_set'
+expected_tests=len(declared_cases)
 try:
-    expected_tests=len(re.findall(r'^func test_',Path('tests/unit/test_construction_contract.gd').read_text(),re.M))
+    source_cases=re.findall(r'^func (test_[A-Za-z0-9_]+)\(',Path(test_path).read_text(),re.M)
+    if sorted(source_cases)!=sorted(declared_cases): errors.append('declared_test_inventory_mismatch')
 except (OSError,UnicodeError): errors.append('test_inventory_not_observed')
 counts={'tests':0,'failures':0,'errors':0,'skips':0}
+failed_cases=[]
 try:
     xml=E.parse(out/'gut.xml').getroot()
-    counts={'tests':len(xml.findall('.//testcase')),'failures':len(xml.findall('.//failure')),'errors':len(xml.findall('.//error')),'skips':len(xml.findall('.//skipped'))}
+    cases=xml.findall('.//testcase')
+    suites=xml.findall('.//testsuite')
+    counts={'tests':len(cases),'failures':len(xml.findall('.//failure')),'errors':len(xml.findall('.//error')),'skips':len(xml.findall('.//skipped'))}
+    if len(suites)!=1 or suites[0].get('name')!=test_path: errors.append('test_suite_identity_mismatch')
+    if sorted(c.get('name','') for c in cases)!=sorted(declared_cases): errors.append('test_case_identity_mismatch')
+    if any(c.get('classname')!=test_path for c in cases): errors.append('test_class_identity_mismatch')
+    failed_cases=[c.get('name','') for c in cases if c.findall('.//failure') or c.findall('.//error')]
+    for case in cases:
+        wanted_status='fail' if case.get('name','') in failed_cases else 'pass'
+        if case.get('status')!=wanted_status: errors.append('test_case_status_mismatch')
+        if not re.fullmatch(r'[1-9][0-9]*',case.get('assertions','')): errors.append('test_assertions_not_observed')
+    if len(xml.findall('.//failure'))!=sum(len(c.findall('.//failure')) for c in cases): errors.append('unattributed_failure')
 except (OSError,E.ParseError): errors.append('missing_or_invalid_gut_xml')
 if expected_tests<=0 or counts['tests']!=expected_tests: errors.append('test_inventory_mismatch')
 if counts['errors'] or counts['skips']: errors.append('gut_errors_or_skips')
@@ -83,7 +100,7 @@ for name in ['import.log','gut.log']:
 if mode=='green':
     if int(native_exit)!=0 or counts['failures']!=0: errors.append('green_not_observed')
 else:
-    if int(native_exit)==0 or counts['failures']<=0: errors.append('red_not_observed')
+    if int(native_exit)!=1 or failed_cases!=[counterexample] or counts['failures']<=0: errors.append('red_not_observed')
 report={'schema_version':1,'issue':840,'host':'192.168.1.254','revision':revision,'final_revision':final_revision,'expected_head':expected,'engine':engine,'command':'bash .scratch/840/run-focused.sh '+label+' '+expected+' '+mode,'mode':mode,'stage':stage,'native_exit_code':int(native_exit),'status':'passed' if not errors else 'failed','expected_tests':expected_tests,**counts,'source_clean_start':clean_start=='true','source_clean_end':clean_end,'source_sha256':sources,'cleanup_verified':cleanup=='true','errors':errors,'action_validation':'NOT_OBSERVED','persistence':'NOT_OBSERVED','windows_runtime':'NOT_OBSERVED','result_retention':'OBSERVED'}
 try:
     (out/'focused-result.json').write_text(json.dumps(report,indent=2)+'\n')
@@ -105,7 +122,11 @@ else
 fi
 stage=source_guard
 [[ "$revision" == "$expected_head" ]]
-[[ -z "$(git status --porcelain)" ]]
+if initial_status="$(timeout --kill-after=1s 10s git status --porcelain 2>/dev/null)"; then
+  [[ -z "$initial_status" ]] || exit 1
+else
+  exit 1
+fi
 source_clean_start=true
 state="$(mktemp -d /tmp/project0-840-focused-XXXXXX)"
 export XDG_DATA_HOME="$state/data"
@@ -114,13 +135,19 @@ mkdir -p "$XDG_DATA_HOME" "$DASHBOARD_RESULTS_DIR"
 python3 - "$out/source-start.json" <<'PY'
 import hashlib,json,sys
 from pathlib import Path
-paths=['tests/unit/test_construction_contract.gd','shared/construction_contract.gd','.scratch/840/run-focused.sh','.scratch/840/validation-plan.json']
+paths=['tests/unit/test_construction_contract.gd','shared/construction_contract.gd','.scratch/840/run-focused.sh','.scratch/840/validation-plan.json','.scratch/840/run-evidence-controls.py']
 Path(sys.argv[1]).write_text(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() if Path(p).is_file() else 'NOT_PRESENT' for p in paths},indent=2)+'\n')
 PY
 stage=ownership
 python3 scripts/check_validation_ownership.py --plan .scratch/840/validation-plan.json --output "$out/plan-ownership.json" > "$out/preflight.log" 2>&1
+stage=engine_identity
+if observed_engine="$(timeout --kill-after=1s 10s /usr/local/bin/godot --version 2>/dev/null)"; then
+  [[ "$observed_engine" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?\.[A-Za-z0-9_.+-]+$ ]] || exit 1
+  engine="$observed_engine"
+else
+  exit 1
+fi
 stage=import
-engine="$(/usr/local/bin/godot --version)"
 timeout --kill-after=10s 90s /usr/local/bin/godot --headless --path . --import > "$out/import.log" 2>&1
 scan_phase_log "$out/import.log"
 stage=gut
