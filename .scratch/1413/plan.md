@@ -17,3 +17,5 @@ Independent Standards and Spec reviews bind to the frozen final source. Full GUT
 ## Rollback and next action
 
 Revert the additive marker and owned planning files; no production world state, existing package or service is changed. Root owns implementation and focused controls. Independent agents own review. Coordinate the Linux source-import check after review; retain any unresolved gate as blocked rather than retry unchanged source toward green.
+
+Accepted-main integration: incorporated verified74fc23c09b106101b62aac430ae4ae0af43d28f5 after inspecting the committed interior recovery and workshop authority delta. Mac tooling source and the exclusion marker are unchanged. Existing accepted source is not a claim of milestone outcome acceptance. Final review, final-source controls and Linux import remain pending.
