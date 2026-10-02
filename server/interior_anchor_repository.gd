@@ -7,6 +7,7 @@ const Guid: Script = preload("res://shared/canon_entity_guid.gd")
 const Resolver: Script = preload("res://shared/canon_sector_resolver.gd")
 const Canon: Script = preload("res://server/canon_repository.gd")
 const Mutations: Script = preload("res://server/canon_mutation_repository.gd")
+const Integrity: Script = preload("res://server/canon_sector_integrity.gd")
 
 var _store: SqliteStore
 var _canon: CanonRepository
@@ -158,12 +159,16 @@ func _exterior_context(sector_id: String, entity_guid: String) -> Dictionary:
 	var history: Dictionary = _mutations.list_mutations(sector_id)
 	if history["outcome"] != "ok":
 		return history
-	var revision: int = 0
-	for mutation: Dictionary in history["mutations"]:
-		if int(mutation["applied_revision"]) != revision + 1 or revision >= Contract.MAX_REVISION:
-			return _result("invalid_record", "Exterior mutation history is incompatible.")
-		revision += 1
-	var effective: Dictionary = Resolver.resolve_effective_blueprint(canonical["sector"]["blueprint"], history["mutations"])
+	var base: Dictionary = Integrity.inspect_base(sector_id, canonical, history)
+	if base["outcome"] != "ok":
+		return {"outcome": "invalid_record", "detail": "Exterior Canon integrity rejected.", "failure_class": base["failure_class"]}
+	var inspected: Dictionary = Integrity.inspect_history(sector_id, base["blueprint"], history)
+	if inspected["outcome"] != "ok":
+		return {"outcome": "invalid_record", "detail": "Exterior mutation integrity rejected.", "failure_class": inspected["failure_class"]}
+	var revision: int = inspected["revision"]
+	if revision > Contract.MAX_REVISION:
+		return _result("invalid_record", "Exterior mutation history is incompatible.")
+	var effective: Dictionary = Resolver.resolve_effective_blueprint(base["blueprint"], inspected["mutations"])
 	for entity: Dictionary in Guid.list_entities(effective):
 		if entity["entity_class"] == "structure" and entity["guid"] == entity_guid:
 			return {"outcome": "ok", "detail": "", "revision": revision}
