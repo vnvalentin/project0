@@ -15,7 +15,7 @@ SOURCES = ['.scratch/1341-ledger/run-full.sh', '.scratch/1341-ledger/run-focused
            '.scratch/1341-ledger/evidence_guard.py', '.scratch/1341-ledger/run-import-controls.py',
            'server/item_ledger_repository.gd', 'server/sqlite_store.gd',
            'tests/integration/test_item_ledger_repository.gd']
-CASES = ['valid', 'nonzero', 'timeout', 'script_marker', 'missing_log', 'unreadable_log', 'oversized_log']
+CASES = ['partial_setup', 'valid', 'nonzero', 'timeout', 'script_marker', 'missing_log', 'unreadable_log', 'oversized_log']
 STUB = r'''#!/usr/bin/env python3
 import json,os,sys
 from pathlib import Path
@@ -30,6 +30,10 @@ elif name=='timeout':
  args=sys.argv[1:]
  while args and args[0].startswith('--'):args=args[1:]
  os.execvp(args[1],args[1:])
+elif name=='mkdir':
+ if case=='partial_setup' and any(a.endswith('/user-data') for a in sys.argv[1:]):
+  target=next(a for a in sys.argv[1:] if a.endswith('/user-data'));Path(target).mkdir(parents=True);sys.exit(42)
+ os.execv('/bin/mkdir',['mkdir',*sys.argv[1:]])
 elif name=='godot':
  if sys.argv[1:]==['--version']:print('COPIED_NO_NATIVE')
  elif '--import' in sys.argv:
@@ -89,7 +93,7 @@ def run():
             (scripts/'check_record_sync.sh').write_text('#!/bin/bash\nexit 0\n')
             bins=root/'bin'
             bins.mkdir()
-            for name in ['git','godot','timeout']:
+            for name in ['git','godot','timeout','mkdir']:
                 path=bins/name
                 path.write_text(STUB.replace('#!/usr/bin/env python3','#!'+sys.executable,1))
                 path.chmod(0o700)
@@ -102,13 +106,14 @@ def run():
             verdict=json.loads((out/'result.json').read_text())
             calls=[json.loads(line) for line in (root/'calls.jsonl').read_text().splitlines()]
             gut_started=any(call['tool']=='fake-gut' for call in calls)
-            expected_started=case=='valid' or pre_fix
+            expected_started=case=='valid' or (pre_fix and case!='partial_setup')
             assert gut_started==expected_started,(case,'preparation_stop_mismatch')
             assert verdict['cleanup_verified'] is True and verdict['result_retention']=='OBSERVED',case
             if case=='valid' or (pre_fix and case=='oversized_log'):assert result.returncode==0 and verdict['status']=='passed',case
             else:
                 assert result.returncode==1 and verdict['status']=='failed',case
-                if not pre_fix:assert verdict.get('phase')=='import_qualification' and verdict.get('validation_errors'),case
+                if case!='partial_setup' and not pre_fix:assert verdict.get('phase')=='import_qualification' and verdict.get('validation_errors'),case
+                if case=='partial_setup':assert not any(call['tool']=='godot' for call in calls),case
             (output/(case+'-verdict.json')).write_text(json.dumps(verdict,indent=2)+'\n')
             records.append({'case':case,'status':'passed','gut_started':gut_started,
                             'runner_exit':result.returncode,'cleanup_verified':True})

@@ -27,3 +27,7 @@ Independent Standards and Spec review of the successor's final source remain req
 The controls own only disposable copied state and retained private output. Preparation failures must stop later execution while preserving evidence and cleanup; unavailable identity or retention remains explicitly unobserved. Rollback reverts only this additive owned harness correction and restores the retained prior record when needed. Existing application state and unrelated work remain intact.
 
 The implementing owner completes the copied/static checkpoint and opens the successor draft pull request with references #1341 and #1407. The coordinator assigns both independent review axes and any later approved native window. Feature and milestone completion require their own integrated evidence and resolved blocking work.
+
+## Setup-finalization refinement status
+
+Independent review identified that owned runtime subdirectory setup preceded finalizer installation. The bounded refinement reserves the evidence directory first, installs cleanup, then creates owned runtime state. A copied partial-setup control exercises a failure after creating temporary state and requires a retained failed verdict and teardown before any native phase. Application behavior is unchanged; detailed learning and control evidence remain local. The corrected source still requires independent review and later delivery qualification.
