@@ -134,6 +134,7 @@ def run():
                     if isinstance(value, dict) and value.get('issue') == 951 and 'cleanup_verified' in value:verdict=value
             assert isinstance(verdict, dict), (case, 'missing_structured_verdict')
             assert result.returncode == (0 if case == 'valid' else 1), (case, result.returncode)
+            assert verdict['evidence_exit_code'] == result.returncode, (case, 'evidence_exit_code_mismatch', verdict['evidence_exit_code'], result.returncode)
             assert verdict['status'] == ('passed' if case == 'valid' else 'failed'), case
             if expected_error:
                 assert any(e.startswith(expected_error) for e in verdict['evidence_errors']), (case, verdict['evidence_errors'])
@@ -147,7 +148,7 @@ def run():
                 assert fixture.parent == Path('/tmp') and fixture.name.startswith('project0-951.control.')
                 if fixture.exists():shutil.rmtree(fixture)
                 assert not fixture.exists()
-            record = {'case': case, 'exit_code': result.returncode, 'status': verdict['status'],
+            record = {'case': case, 'exit_code': result.returncode, 'evidence_exit_code': verdict['evidence_exit_code'], 'status': verdict['status'],
                       'evidence_errors': verdict['evidence_errors'], 'cleanup_verified': verdict['cleanup_verified'],
                       'result_retention': verdict['result_retention'], 'verdict_captured': True,
                       'native_runtime_executed': False, 'actual_git_mutated': False,

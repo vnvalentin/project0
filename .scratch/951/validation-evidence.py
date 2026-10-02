@@ -56,6 +56,7 @@ def retain(path, record):
     except (OSError, UnicodeError):
         record['status'] = 'failed'
         record['result_retention'] = 'NOT_OBSERVED'
+        record['evidence_exit_code'] = 1
         record['evidence_errors'].append('result_retention_not_observed')
         print(json.dumps(record))
         return False

@@ -6,6 +6,7 @@
     {
       "case": "valid",
       "exit_code": 0,
+      "evidence_exit_code": 0,
       "status": "passed",
       "evidence_errors": [],
       "cleanup_verified": true,
@@ -18,6 +19,7 @@
     {
       "case": "dirty-start",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_start_not_qualified",
@@ -43,6 +45,7 @@
     {
       "case": "dirty-end",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_not_clean_at_end"
@@ -57,6 +60,7 @@
     {
       "case": "changed-head",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "revision_changed"
@@ -71,6 +75,7 @@
     {
       "case": "changed-source",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_changed"
@@ -85,6 +90,7 @@
     {
       "case": "missing-start-identity",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_start_not_qualified",
@@ -110,6 +116,7 @@
     {
       "case": "missing-end-identity",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "final_revision_not_observed",
@@ -125,6 +132,7 @@
     {
       "case": "missing-end-source",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_not_observed:server/workshop_station_contract.gd",
@@ -140,6 +148,7 @@
     {
       "case": "nonmap-start-json",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_start_not_observed",
@@ -158,6 +167,7 @@
     {
       "case": "truncated-start-json",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_start_not_observed",
@@ -176,6 +186,7 @@
     {
       "case": "unreadable-start-json",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_start_not_observed",
@@ -194,6 +205,7 @@
     {
       "case": "malformed-start-fields",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "source_start_not_qualified"
@@ -208,6 +220,7 @@
     {
       "case": "nonmap-summary",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "standard_summary_not_observed",
@@ -223,6 +236,7 @@
     {
       "case": "truncated-summary",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "standard_summary_not_observed",
@@ -238,6 +252,7 @@
     {
       "case": "unreadable-summary",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "standard_summary_not_observed",
@@ -253,6 +268,7 @@
     {
       "case": "cleanup-failure",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "cleanup_not_verified"
@@ -267,6 +283,7 @@
     {
       "case": "retention-failure",
       "exit_code": 1,
+      "evidence_exit_code": 1,
       "status": "failed",
       "evidence_errors": [
         "result_retention_not_observed"
