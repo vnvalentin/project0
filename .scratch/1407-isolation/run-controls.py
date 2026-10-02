@@ -61,7 +61,7 @@ def main():
         assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
-        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','normal_generated_sidecar','consumer_override_changed','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font','orphan_generated_sidecar','nonasset_generated_sidecar','foreign_generated_source_file','foreign_generated_destination','sidecar_wrong_importer','sidecar_symlink','sidecar_changed_after_shared','sidecar_added_after_shared','sidecar_removed_after_shared','sidecar_parent_changed_after_shared','sidecar_missing_cache','consumer_override_changed','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
         assert len(cases)==len(set(cases))
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
@@ -70,7 +70,8 @@ def main():
             (root/'scripts/fixture.sh').write_text('#!/bin/sh\nexit 0\n');(root/'scripts/fixture.sh').chmod(0o755)
             (root/'.scratch').mkdir();(root/'.scratch/fixture.txt').write_text('SYNTHETIC_EXCLUDED_STAGING_FIXTURE')
             (root/'fixtures').mkdir();(root/'fixtures/icon.png').write_bytes(b'\x89PNG\r\n\x1a\nSYNTHETIC_AUTHORED_ASSET_1407')
-            source_names=['fixtures/icon.png','project.godot','scripts/test_prediction_reconciliation.gd','scripts/prepare_godot_project.py','scripts/fixture.sh','.scratch/fixture.txt']
+            for name in ['icon.svg','font.ttf','font.fnt']:(root/'fixtures'/name).write_text('SYNTHETIC_AUTHORED_ASSET_1407')
+            source_names=['fixtures/icon.svg','fixtures/font.ttf','fixtures/font.fnt','fixtures/icon.png','project.godot','scripts/test_prediction_reconciliation.gd','scripts/prepare_godot_project.py','scripts/fixture.sh','.scratch/fixture.txt']
             calls=[];identity_calls=[0];prepared_project=[None]
             def identity():
                 identity_calls[0]+=1
@@ -109,6 +110,15 @@ def main():
                 if case=='metadata_unavailable':raise OSError('copied metadata unavailable')
                 if case=='metadata_timeout':raise subprocess.TimeoutExpired(command,10)
                 return b'4.7.2.stable.official.synthetic\n' if case=='unsupported_engine' else b'4.3.stable.official.77dcf97d8\n'
+            generated_cases=['normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font','orphan_generated_sidecar','nonasset_generated_sidecar','foreign_generated_source_file','foreign_generated_destination','sidecar_wrong_importer','sidecar_symlink','sidecar_changed_after_shared','sidecar_added_after_shared','sidecar_removed_after_shared','sidecar_parent_changed_after_shared','sidecar_missing_cache']
+            def write_sidecar(project):
+                asset={'normal_generated_svg':'fixtures/icon.svg','normal_generated_font':'fixtures/font.ttf','normal_generated_bitmap_font':'fixtures/font.fnt'}.get(case,'fixtures/icon.png')
+                importer,kind,suffix={'.png':('texture','CompressedTexture2D','.ctex'),'.svg':('texture','CompressedTexture2D','.ctex'),'.ttf':('font_data_dynamic','FontFile','.fontdata'),'.fnt':('font_data_bmfont','FontFile','.fontdata')}[Path(asset).suffix]
+                destination='res://.godot/imported/'+Path(asset).name+'-'+('1'*32)+suffix
+                cache=project/destination.removeprefix('res://');cache.parent.mkdir(parents=True,exist_ok=True);cache.write_bytes(b'SYNTHETIC_IMPORT_CACHE_1407')
+                sidecar=project/(asset+'.import')
+                sidecar.write_text('[remap]\nimporter='+json.dumps(importer)+'\ntype='+json.dumps(kind)+'\npath='+json.dumps(destination)+'\n\n[deps]\nsource_file='+json.dumps('res://'+asset)+'\ndest_files='+json.dumps([destination])+'\n\n[params]\ngenerate/mipmaps=false\n')
+                return sidecar,cache
             def observe(commands,envs,allowed,limit):
                 if '--prepared-root' in commands[0]:
                     command=commands[0];calls.append('prepare')
@@ -131,10 +141,15 @@ def main():
                         if case=='preparation_log_changed' and name=='qualification':log.write_text('SYNTHETIC_EXCLUDED_RAW_PREPARATION\n')
                     if case=='wrong_preparation_source':receipt['source_revision']='b'*40
                     report.write_text(json.dumps(receipt))
-                    if case=='normal_generated_sidecar':
-                        destination='res://.godot/imported/icon.png-'+('1'*32)+'.ctex'
-                        cache=project/destination.removeprefix('res://');cache.parent.mkdir(parents=True);cache.write_bytes(b'SYNTHETIC_IMPORT_CACHE_1407')
-                        (project/'fixtures/icon.png.import').write_text('[remap]\nimporter="texture"\ntype="CompressedTexture2D"\npath='+json.dumps(destination)+'\n\n[deps]\nsource_file="res://fixtures/icon.png"\ndest_files='+json.dumps([destination])+'\n\n[params]\ngenerate/mipmaps=false\n')
+                    if case in generated_cases and case!='sidecar_added_after_shared':
+                        sidecar,cache=write_sidecar(project)
+                        if case=='orphan_generated_sidecar':sidecar.rename(project/'fixtures/missing.png.import')
+                        if case=='nonasset_generated_sidecar':sidecar.rename(project/'scripts/fixture.sh.import')
+                        if case=='foreign_generated_source_file':sidecar.write_text(sidecar.read_text().replace('source_file="res://fixtures/icon.png"','source_file="res://outside/other.png"'))
+                        if case=='foreign_generated_destination':sidecar.write_text(sidecar.read_text().replace('res://.godot/imported/','res://outside/'))
+                        if case=='sidecar_wrong_importer':sidecar.write_text(sidecar.read_text().replace('importer="texture"','importer="script"'))
+                        if case=='sidecar_symlink':sidecar.rename(project/'.godot/sidecar-retained');sidecar.symlink_to(project/'.godot/sidecar-retained')
+                        if case=='sidecar_missing_cache':cache.unlink()
                     if case=='missing_preparation_report':report.unlink()
                     if case=='altered_executable_mode':(project/'scripts/fixture.sh').chmod(0o644)
                     if case=='unexpected_prepared_private_file':(project/'.scratch').mkdir();(project/'.scratch/fixture.txt').write_text('SYNTHETIC_EXCLUDED_STAGING_FIXTURE')
@@ -153,6 +168,12 @@ def main():
                 if case=='consumer_registry_changed' and calls[-1]=='distinct':(project/'.godot/extension_list.cfg').write_text('copied unknown consumer registry')
                 if case=='consumer_config_changed' and calls[-1]=='distinct':(project/'project.godot').write_text('copied unknown consumer configuration')
                 if case=='consumer_override_changed' and calls[-1]=='distinct':(project/'override.cfg').write_text('copied unknown consumer override')
+                if calls[-1]=='shared':
+                    sidecar=project/'fixtures/icon.png.import'
+                    if case=='sidecar_changed_after_shared':sidecar.write_text(sidecar.read_text()+'; synthetic changed state\n')
+                    if case=='sidecar_added_after_shared':write_sidecar(project)
+                    if case=='sidecar_removed_after_shared':sidecar.unlink()
+                    if case=='sidecar_parent_changed_after_shared':(project/'fixtures').rename(project/'detached-fixtures');(project/'fixtures').symlink_to(root/'fixtures',target_is_directory=True)
                 output=[]
                 for env in envs:
                     if '--import' not in commands[0]:
@@ -179,12 +200,12 @@ def main():
                 stream=io.StringIO()
                 with contextlib.redirect_stdout(stream):code=m.run('control')
                 path=root/'build/validation/1407-isolation/control/result.json'
-                expected=0 if case in ['valid','prepared_before_consumers','normal_generated_sidecar','missing_assertion'] else 1
+                expected=0 if case in ['valid','prepared_before_consumers','normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font','missing_assertion'] else 1
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
-                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink']),case
-                    if case in ['valid','prepared_before_consumers','normal_generated_sidecar']:assert [pair['mode'] for pair in result['comparisons']]==['shared','distinct'] and all(len(pair['children'])==2 for pair in result['comparisons'])
+                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed','helper_source_changed','missing_preparation_report','wrong_preparation_source','altered_executable_mode','unexpected_prepared_private_file','changed_registry','consumer_registry_changed','consumer_config_changed','prepared_parent_symlink','orphan_generated_sidecar','nonasset_generated_sidecar','foreign_generated_source_file','foreign_generated_destination','sidecar_wrong_importer','sidecar_symlink','sidecar_changed_after_shared','sidecar_added_after_shared','sidecar_removed_after_shared','sidecar_parent_changed_after_shared','sidecar_missing_cache']),case
+                    if case in ['valid','prepared_before_consumers','normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font']:assert [pair['mode'] for pair in result['comparisons']]==['shared','distinct'] and all(len(pair['children'])==2 for pair in result['comparisons'])
                     if case=='consumer_override_changed':assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir() and (Path(result['retained_stage'])/'project/override.cfg').read_text()=='copied unknown consumer override'
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
                     if case=='nondefault_sigchld':assert result['stage']=='child_signal_contract' and not calls and identity_calls[0]==0
@@ -193,7 +214,11 @@ def main():
                     (output/(case+'-result.json')).write_text(json.dumps(result,indent=2)+'\n')
                 else:assert 'NOT_OBSERVED' in stream.getvalue()
                 if case=='helper_source_changed':assert not (root/'forbidden-helper-marker').exists(),case
-                if case in ['prepared_before_consumers','normal_generated_sidecar']:assert calls==['prepare','shared','distinct'],case
+                if case in ['prepared_before_consumers','normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font']:assert calls==['prepare','shared','distinct'],case
+                if case in ['orphan_generated_sidecar', 'nonasset_generated_sidecar', 'foreign_generated_source_file', 'foreign_generated_destination', 'sidecar_wrong_importer', 'sidecar_symlink', 'sidecar_changed_after_shared', 'sidecar_added_after_shared', 'sidecar_removed_after_shared', 'sidecar_parent_changed_after_shared', 'sidecar_missing_cache']:
+                    assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir(),case
+                    assert calls==(['prepare','shared'] if case.endswith('_after_shared') else ['prepare']),case
+                if case in ['normal_generated_sidecar','normal_generated_svg','normal_generated_font','normal_generated_bitmap_font']:assert len(result['generated_sidecars'])==1 and all(record['source_sha256']==result['source_start']['source_sha256'][record['source_asset']] for record in result['generated_sidecars'].values()),case
                 if case in ['dirty_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker']:assert not any(call in ['shared','distinct'] for call in calls),case
                 records.append({'case':case,'passed':True})
             finally:
@@ -204,7 +229,7 @@ def main():
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if completed and len(records)==38 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if completed and len(records)==52 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))
