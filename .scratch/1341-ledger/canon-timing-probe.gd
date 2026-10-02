@@ -36,16 +36,25 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var arguments: PackedStringArray = OS.get_cmdline_user_args()
-	if arguments.size() != 1:
+	if arguments.size() not in [1, 2] or (arguments.size() == 2 and arguments[1] not in ["1", "3"]):
 		quit(2)
 		return
+	var sample_count: int = int(arguments[1]) if arguments.size() == 2 else 3
 	var samples: Array[Dictionary] = []
 	var passed: bool = true
-	for iteration: int in range(3):
+	for iteration: int in range(sample_count):
 		var filename: String = "test_canon_timing_%d_%d.db" % [OS.get_process_id(), Time.get_ticks_usec()]
 		var store: TimedStore = TimedStore.new()
 		var repository: CanonRepository = RepositoryScript.new(store)
 		var setup_ok: bool = store.open(filename).outcome == "ok" and repository.ensure_schema().outcome == "ok"
+		var settings: Dictionary = {}
+		if setup_ok:
+			var journal: Dictionary = store.query("PRAGMA journal_mode;")
+			var synchronous: Dictionary = store.query("PRAGMA synchronous;")
+			setup_ok = journal.outcome == "ok" and synchronous.outcome == "ok" and journal.rows.size() == 1 and synchronous.rows.size() == 1
+			if setup_ok:
+				settings = {"journal_mode": journal.rows[0].journal_mode, "synchronous": synchronous.rows[0].synchronous}
+				setup_ok = settings.journal_mode == "wal" and settings.synchronous is int and settings.synchronous in [0, 1, 2, 3]
 		var callback_time: Array[float] = [0.0]
 		var coordinator: CanonGenerationCoordinator = CoordinatorScript.new()
 		coordinator.set_canonicalize_callback(func(blueprint: Dictionary) -> Dictionary:
@@ -59,7 +68,7 @@ func _run() -> void:
 		var started: int = Time.get_ticks_usec()
 		var result: Dictionary = coordinator.accept_generation_result("sector_01_02", AdmissionScript.PROFILE_POI_ANCHOR, generation) if setup_ok else {"outcome": "setup_failed"}
 		var elapsed: float = float(Time.get_ticks_usec() - started) / 1000.0
-		samples.append({"iteration": iteration, "outcome": result.outcome, "total_ms": elapsed, "canonicalize_ms": callback_time[0], "admission_and_dispatch_ms": elapsed - callback_time[0], "store_calls": store.measured_calls.duplicate(true)})
+		samples.append({"iteration": iteration, "sqlite_settings": settings, "outcome": result.outcome, "total_ms": elapsed, "canonicalize_ms": callback_time[0], "admission_and_dispatch_ms": elapsed - callback_time[0], "store_calls": store.measured_calls.duplicate(true)})
 		passed = passed and result.outcome == "canonicalized"
 		if store.is_open():
 			store.close()
