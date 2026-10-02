@@ -45,6 +45,28 @@ def ordinary(path):
     return stat.S_ISREG(path.lstat().st_mode)
 
 
+def check_directories(root, relative=Path('.')):
+    # Recheck ancestors before every selected read, including the root itself.
+    if relative.is_absolute() or '..' in relative.parts:
+        raise PreparationError('source_path_invalid')
+    directories = [*reversed(root.parents), root]
+    parent = root
+    for component in relative.parent.parts:
+        parent /= component
+        directories.append(parent)
+    for directory in directories:
+        if not stat.S_ISDIR(directory.lstat().st_mode):
+            raise PreparationError('source_directory_custody_failed')
+
+
+def checked_file(root, relative, failure_class):
+    check_directories(root, relative)
+    target = root / relative
+    if not ordinary(target):
+        raise PreparationError(failure_class)
+    return target
+
+
 def git_read(root, *arguments, check=True):
     command = [shutil.which('git', path='/usr/bin:/bin'), '-C', str(root),
                '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', *arguments]
@@ -69,6 +91,7 @@ def git_index(root):
 
 
 def check_override(root):
+    check_directories(root)
     override = root / 'override.cfg'
     if override.exists() or override.is_symlink():
         raise PreparationError('configuration_override_unknown_edit_preserved')
@@ -81,9 +104,7 @@ def verify_source(root, revision, hashes, committed):
             raise PreparationError('source_revision_changed')
         index = git_index(root)
     for name, expected in hashes.items():
-        path = root / name
-        if path.is_symlink() or not ordinary(path):
-            raise PreparationError('source_custody_failed')
+        path = checked_file(root, Path(name), 'source_custody_failed')
         content = path.read_bytes()
         if hashlib.sha256(content).hexdigest() != expected:
             raise PreparationError('source_changed_during_preparation')
@@ -144,14 +165,7 @@ def source_inventory(root, revision, prepared):
             raise PreparationError('source_override_present')
         if excluded(relative):
             continue
-        # lstat every component before opening a selected source file.
-        target = root
-        for component in relative.parts:
-            target /= component
-            if target.is_symlink():
-                raise PreparationError('source_symlink_present')
-        if not ordinary(target):
-            raise PreparationError('source_not_regular')
+        target = checked_file(root, relative, 'source_not_regular')
         if committed is not None:
             if relative not in committed or index.get(relative) != committed[relative]:
                 raise PreparationError('source_index_differs_from_revision')
@@ -167,6 +181,7 @@ def source_inventory(root, revision, prepared):
 
 
 def check_registry(root):
+    check_directories(root)
     cache = root / '.godot'
     registry = cache / 'extension_list.cfg'
     if cache.is_symlink() or registry.is_symlink():
@@ -194,9 +209,7 @@ def configurations(original):
 def verify_copy(root, hashes, expected_config):
     check_override(root)
     for name, expected in hashes.items():
-        path = root / name
-        if path.is_symlink() or not ordinary(path):
-            raise PreparationError('prepared_source_custody_failed')
+        path = checked_file(root, Path(name), 'prepared_source_custody_failed')
         content = path.read_bytes()
         if name == 'project.godot':
             valid = content == expected_config
@@ -355,7 +368,7 @@ def prepare(args):
         prepared.mkdir(mode=0o700)
         report['prepared_root_created'] = True
         for relative in inventory:
-            incoming = source / relative
+            incoming = checked_file(source, relative, 'source_custody_failed')
             target = prepared / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             with incoming.open('rb') as reader, target.open('xb') as writer:
@@ -368,6 +381,7 @@ def prepare(args):
         report['source_inventory_kind'] = 'git-tracked' if committed is not None else 'gitless-artifact'
         report['source_files'] = len(hashes)
         configuration = prepared / 'project.godot'
+        checked_file(prepared, Path('project.godot'), 'prepared_source_custody_failed')
         original_candidate = configuration.read_bytes()
         bootstrap_config, qualification_config = configurations(original_candidate)
         original = original_candidate
@@ -410,7 +424,7 @@ def prepare(args):
     finally:
         if original is not None:
             try:
-                configuration = prepared / 'project.godot'
+                configuration = checked_file(prepared, Path('project.godot'), 'prepared_source_custody_failed')
                 check_override(prepared)
                 if configuration.is_symlink() or not ordinary(configuration) or configuration.read_bytes() not in known_configs:
                     report['configuration_custody_lost'] = True
