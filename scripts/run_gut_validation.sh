@@ -273,7 +273,7 @@ try:
             raise ValueError("unqualified_phase")
     report_valid = True
     if flags:
-        timed_out = any(flags)
+        timed_out = timed_out is True or any(flags)
 except (OSError, ValueError):
     pass
 Path(summary).write_text(json.dumps({
