@@ -34,10 +34,10 @@ try:probe=json.loads((p/'probe.json').read_text())
 except (OSError,ValueError):probe={};problems.append('missing_probe_result')
 if probe.get('status')!='passed' or len(probe.get('samples',[]))!=3:problems.append('probe_not_complete')
 if re.search(r'SCRIPT ERROR:|Parse Error:|Compile Error:|Failed to load script',(p/'probe.log').read_text()):problems.append('script_error')
-revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
-if revision!=(p/'start-revision.txt').read_text().strip() or subprocess.check_output(['git','status','--porcelain'],text=True).strip():problems.append('source_changed')
+revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True,stderr=subprocess.DEVNULL,timeout=10).strip()
+if revision!=(p/'start-revision.txt').read_text().strip() or subprocess.check_output(['git','status','--porcelain'],text=True,stderr=subprocess.DEVNULL,timeout=10).strip():problems.append('source_changed')
 if int(sys.argv[2])!=0:problems.append('command_failed')
-r={'status':'failed' if problems else 'passed','host':'192.168.1.254','engine':subprocess.check_output(['godot','--version'],text=True).strip(),'revision':revision,'command':'bash .scratch/1341-ledger/run-timing.sh '+p.name,'exit_code':int(sys.argv[2]),'validation_errors':problems,'probe':probe,'owned_xdg_removed':'NOT_OBSERVED','source_sha256':{f:hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in ['server/sqlite_store.gd','server/canon_repository.gd','server/canon_generation_coordinator.gd','.scratch/1341-ledger/canon-timing-probe.gd']},'acceptance':'diagnosis only; existing<=15ms acceptance unchanged'}
+r={'status':'failed' if problems else 'passed','host':'192.168.1.254','engine':subprocess.check_output(['godot','--version'],text=True,stderr=subprocess.DEVNULL,timeout=10).strip(),'revision':revision,'command':'bash .scratch/1341-ledger/run-timing.sh '+p.name,'exit_code':int(sys.argv[2]),'validation_errors':problems,'probe':probe,'owned_xdg_removed':'NOT_OBSERVED','source_sha256':{f:hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in ['server/sqlite_store.gd','server/canon_repository.gd','server/canon_generation_coordinator.gd','.scratch/1341-ledger/canon-timing-probe.gd']},'acceptance':'diagnosis only; existing<=15ms acceptance unchanged'}
 (p/'result.json').write_text(json.dumps(r,indent=2)+'\n')
 if problems:sys.exit(1)
 PY

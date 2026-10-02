@@ -45,10 +45,10 @@ if tests!=expected_tests or tests<=0 or failures or errors or skips:problems.app
 log=(p/'gut.log').read_text()
 script_errors=bool(re.search(r'SCRIPT ERROR:|Parse Error:|Compile Error:|Failed to load script',log))
 if script_errors:problems.append('script_error')
-revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
-if revision!=(p/'start-revision.txt').read_text().strip() or subprocess.check_output(['git','status','--porcelain'],text=True).strip():problems.append('source_changed')
+revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True,stderr=subprocess.DEVNULL,timeout=10).strip()
+if revision!=(p/'start-revision.txt').read_text().strip() or subprocess.check_output(['git','status','--porcelain'],text=True,stderr=subprocess.DEVNULL,timeout=10).strip():problems.append('source_changed')
 if int(sys.argv[3])!=0:problems.append('command_failed')
-r={'status':'failed' if problems else 'passed','host':'192.168.1.254','engine':subprocess.check_output(['godot','--version'],text=True).strip(),'revision':revision,'command':'bash .scratch/1341-ledger/run-diagnostic.sh '+sys.argv[4]+' '+p.name,'exit_code':int(sys.argv[3]),'selected_script':selected,'expected_tests':expected_tests,'tests':tests,'failures':failures,'errors':errors,'skipped':skips,'script_errors_observed':script_errors,'validation_errors':problems,'source_sha256':{f:hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in [selected,'.scratch/1341-ledger/run-diagnostic.sh']},'owned_xdg_removed':'NOT_OBSERVED','acceptance':'diagnosis only; does not replace failed full suite'}
+r={'status':'failed' if problems else 'passed','host':'192.168.1.254','engine':subprocess.check_output(['godot','--version'],text=True,stderr=subprocess.DEVNULL,timeout=10).strip(),'revision':revision,'command':'bash .scratch/1341-ledger/run-diagnostic.sh '+sys.argv[4]+' '+p.name,'exit_code':int(sys.argv[3]),'selected_script':selected,'expected_tests':expected_tests,'tests':tests,'failures':failures,'errors':errors,'skipped':skips,'script_errors_observed':script_errors,'validation_errors':problems,'source_sha256':{f:hashlib.sha256(Path(f).read_bytes()).hexdigest() for f in [selected,'.scratch/1341-ledger/run-diagnostic.sh']},'owned_xdg_removed':'NOT_OBSERVED','acceptance':'diagnosis only; does not replace failed full suite'}
 (p/'result.json').write_text(json.dumps(r,indent=2)+'\n')
 if problems:sys.exit(1)
 PY
