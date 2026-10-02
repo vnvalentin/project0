@@ -1,6 +1,6 @@
 extends GutTest
 ## #1377. These are isolated Linux component proofs, not deployed-stack or
-## three-case gameplay acceptance. Raw storage is an explicitly approved seam.
+## networked/deployed gameplay acceptance. Raw storage is an explicitly approved seam.
 
 const Evidence: Script = preload("res://scripts/m4_canon_evidence.gd")
 const Store: Script = preload("res://server/sqlite_store.gd")
@@ -9,6 +9,12 @@ const Mutations: Script = preload("res://server/canon_mutation_repository.gd")
 const Service: Script = preload("res://server/canon_mutation_service.gd")
 const Intent: Script = preload("res://shared/canon_mutation_intent.gd")
 const Guid: Script = preload("res://shared/canon_entity_guid.gd")
+const Boundary: Script = preload("res://server/sector_boundary_detector.gd")
+const Player: Script = preload("res://server/server_player_state.gd")
+const Combat: Script = preload("res://shared/combat_contracts.gd")
+const Interaction: Script = preload("res://shared/environmental_interaction_contract.gd")
+const Environmental: Script = preload("res://server/environmental_interaction_service.gd")
+const Collision: Script = preload("res://shared/sector_collision_map.gd")
 const Fixtures: Script = preload("res://scripts/sector_blueprint_fixtures.gd")
 
 var _stores: Array[SqliteStore] = []
@@ -17,9 +23,15 @@ var _trace: Dictionary = {}
 var _stamp: String = ""
 var _old_canon: String = ""
 var _had_canon: bool = false
+var _failures_before: int = 0
+var _network_client: Node = null
 
 
 func before_each() -> void:
+	_failures_before = get_fail_count()
+	_network_client = get_tree().root.get_node_or_null("NetworkClient")
+	if _network_client != null:
+		_network_client.name = "M4ComponentNetworkClient"
 	_stamp = "%d_%d" % [Time.get_ticks_usec(), randi()]
 	_stores = []
 	_paths = []
@@ -32,6 +44,9 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	if _network_client != null:
+		_network_client.name = "NetworkClient"
+		assert_eq(get_tree().root.get_node_or_null("NetworkClient"), _network_client, "autoload restored")
 	for store: SqliteStore in _stores:
 		if store.is_open():
 			store.close()
@@ -51,14 +66,21 @@ func after_each() -> void:
 	for result: Dictionary in cleanup:
 		if not result["absent"]:
 			_trace["passed"] = false
+	_trace["passed"] = _trace["passed"] and get_fail_count() == _failures_before
+	_trace["assertion_failures"] = get_fail_count() - _failures_before
 	var directory: String = "res://logs/experiments"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
 	var prefix: String = "parity" if _trace["passed"] else "FAIL_trace"
 	var file: FileAccess = FileAccess.open("%s/exp_m4_2_%s_%s.json" % [directory, prefix, _stamp], FileAccess.WRITE)
 	assert_not_null(file, "retain result after cleanup")
 	if file != null:
-		file.store_string(JSON.stringify(_trace, "\t"))
+		var content: String = JSON.stringify(_trace, "\t")
+		file.store_string(content)
+		file.flush()
+		assert_eq(file.get_error(), OK, "evidence persisted")
+		var saved_path: String = file.get_path_absolute()
 		file.close()
+		assert_eq(FileAccess.get_file_as_string(saved_path), content, "complete evidence readback")
 
 
 func _open_store(relative_path: String) -> SqliteStore:
@@ -73,9 +95,9 @@ func _open_store(relative_path: String) -> SqliteStore:
 	return store
 
 
-func _fixture(dedicated: bool) -> Dictionary:
-	var account_path: String = "m4_accounts_%s.db" % _stamp
-	var configured: String = "m4_canon_%s.db" % _stamp if dedicated else ""
+func _fixture(dedicated: bool, label: String = "") -> Dictionary:
+	var account_path: String = "m4_accounts_%s%s.db" % [_stamp, label]
+	var configured: String = "m4_canon_%s%s.db" % [_stamp, label] if dedicated else ""
 	if dedicated:
 		OS.set_environment("PROJECT0_CANON_DB_PATH", configured)
 	else:
@@ -94,10 +116,15 @@ func _fixture(dedicated: bool) -> Dictionary:
 	assert_eq(canon.ensure_schema()["outcome"], "ok")
 	var mutations: CanonMutationRepository = Mutations.new(store, canon)
 	assert_eq(mutations.ensure_schema()["outcome"], "ok")
-	for sector: String in ["sector-0-0", "sector-1-0"]:
+	for sector: String in ["sector-0-0", "sector--1-0"]:
 		var blueprint: Dictionary = JSON.parse_string(Fixtures.VALID_WITH_LOCKED_GATE)
 		blueprint["sector_id"] = sector
-		assert_eq(canon.canonicalize_blueprint(blueprint)["outcome"], "ok")
+		blueprint["structures"][0]["x"] = -2 if sector == "sector--1-0" else 1
+		blueprint["structures"].append({"structure_id": "debris", "kind": "well", "x": 5, "y": 5, "facing_degrees": 90})
+		var seeded: Dictionary = canon.canonicalize_blueprint(blueprint)
+		assert_eq(seeded["outcome"], "ok", seeded.get("detail", ""))
+		if seeded["outcome"] != "ok":
+			return {}
 	var service: CanonMutationService = Service.new(mutations, func() -> int: return 73)
 	assert_eq(service.resolve_intent("m4-player", _intent())["status"], "accepted", "known committed revision precedes rejection window")
 	_trace["store_selection"] = {"configured_canon_path": selected, "handle": "dedicated" if dedicated else "accounts_shared", "accounts_path": account_path}
@@ -145,7 +172,7 @@ func _rejections(dedicated: bool) -> void:
 	var cases: Array[Dictionary] = [
 		{"id": "malformed", "actor": "m4-player", "intent": null, "reason": "invalid_intent"},
 		{"id": "invalid_actor", "actor": "", "intent": _intent(), "reason": "invalid_actor"},
-		{"id": "cross_sector_guid", "actor": "m4-player", "intent": _intent({"sector_id": "sector-1-0", "client_seq": 2}), "reason": "target_not_found"},
+		{"id": "cross_sector_guid", "actor": "m4-player", "intent": _intent({"sector_id": "sector--1-0", "client_seq": 2}), "reason": "target_not_found"},
 		{"id": "missing_sector", "actor": "m4-player", "intent": _intent({"sector_id": "sector-9-9", "client_seq": 3}), "reason": "sector_not_canon"},
 		{"id": "stale_revision", "actor": "m4-player", "intent": _intent({"client_seq": 4}), "reason": "revision_mismatch"},
 		{"id": "forged_tick", "actor": "m4-player", "intent": _intent({"server_tick": 999}), "reason": "invalid_intent"},
@@ -218,3 +245,158 @@ func test_existing_target_is_neither_opened_nor_claimed_for_cleanup() -> void:
 	assert_eq(FileAccess.get_sha256(path), expected, "existing bytes untouched")
 	_trace["passed"] = result == null and not _paths.has(path) and FileAccess.get_sha256(path) == expected
 	_paths.append(path) # This test created the sentinel and owns its teardown.
+
+
+func _seed_permanent_changes(fixture: Dictionary) -> void:
+	var mutations: CanonMutationRepository = fixture["mutations"]
+	for event: Dictionary in [
+		{"event_id": "m4-unlock", "target_guid": Guid.derive("sector-0-0", Guid.ENTITY_CLASS_STRUCTURE, "gate-1"), "mutation_kind": "unlock_gate", "expected_revision": 1, "payload": {"unlocked": true}},
+		{"event_id": "m4-destroy", "target_guid": Guid.derive("sector-0-0", Guid.ENTITY_CLASS_STRUCTURE, "debris"), "mutation_kind": "destroy_structure", "expected_revision": 2, "payload": {}},
+	]:
+		event.merge({"schema_version": 1, "sector_id": "sector-0-0", "actor_player_id": "m4-player", "server_tick": 100})
+		assert_eq(mutations.apply_mutation(event)["outcome"], "ok")
+
+
+func _canonical_state(fixture: Dictionary) -> Dictionary:
+	var raw: Dictionary = Evidence.snapshot(fixture["store"])
+	assert_eq(raw["status"], "OBSERVED")
+	return {"blueprints": raw["blueprints"], "mutations": raw["mutations"], "reconstructed": Evidence.reconstructed_state(raw)}
+
+
+func _moving_players(fixture: Dictionary, count: int, observe_boundaries: bool) -> Dictionary:
+	var canon: CanonRepository = fixture["canon"]
+	var detector: RefCounted = Boundary.new()
+	var reloads: Array = []
+	var requests: Array = []
+	detector.set_canon_lookup(canon.get_canonical_sector)
+	detector.set_request_callback(func(_peer: int, sector: String, _position: Vector3) -> void: requests.append(sector))
+	detector.set_reload_callback(func(peer: int, sector: String, position: Vector3) -> void:
+		var loaded: Dictionary = canon.get_canonical_sector(sector)
+		assert_eq(loaded["outcome"], "ok")
+		reloads.append({"peer": peer, "sector_id": sector, "position": [position.x, position.y, position.z], "canonical": _canonical_state(fixture)})
+	)
+	var players: Array[Node] = []
+	var targets: Array[Node3D] = []
+	var hits: Array = []
+	for index: int in count:
+		var peer: int = 10 + index
+		var direction: float = 1.0 if index % 2 == 0 else -1.0
+		var start: Vector3 = Vector3(-0.2 if direction > 0 else 0.2, 0, 10 + index * 3)
+		var target: Node3D = Node3D.new()
+		target.position = Vector3(1.4 if direction > 0 else -1.4, 0, start.z)
+		add_child_autofree(target)
+		targets.append(target)
+		var player: Node = Player.new()
+		add_child_autofree(player)
+		player.start_for_peer(peer, start)
+		player.bind_character("m4-character-%d" % index, "M4 fixture", {})
+		player.set_physics_process(false)
+		player.set_target_dummies({"m4-spatial-%d" % index: target})
+		player.combat_event_emitted.connect(func(_peer: int, event: Object) -> void:
+			hits.append({"actor": event.attacker_peer_id, "target_id": event.target_id, "kind": event.kind,
+				"impact": [event.impact_position.x, event.impact_position.y, event.impact_position.z]})
+		)
+		if observe_boundaries:
+			detector.commit_position(peer, start)
+			player.position_updated.connect(func(id: int, position: Vector3) -> void: detector.observe_position(id, position))
+		player.apply_input_intent(peer, Vector2(direction, 0), 1)
+		players.append(player)
+	# Same-tick concurrency: every admitted character advances within each tick,
+	# in deterministic server order. This is not parallel or multi-writer authority.
+	for _tick: int in 4:
+		for player: Node in players:
+			player._physics_process(1.0 / 30.0)
+	for player: Node in players:
+		player.apply_input_intent(player.owning_peer_id, Vector2.ZERO, 2)
+		var resolution: Object = player.apply_action_intent(player.owning_peer_id,
+			Combat.ActionIntent.new(player.owning_peer_id, 1, 0, Combat.ACTION_KIND_MELEE_STRIKE, player.facing))
+		assert_eq(resolution.result, Combat.RESULT_ACCEPTED)
+	for _tick: int in 40:
+		for player: Node in players:
+			player._physics_process(1.0 / 30.0)
+	var state: Array = []
+	for index: int in players.size():
+		var player: Node = players[index]
+		var target: Node3D = targets[index]
+		state.append({"peer": player.owning_peer_id, "character_id": player.character_id,
+			"position": [player.position.x, player.position.y, player.position.z],
+			"facing": [player.facing.x, player.facing.y, player.facing.z],
+			"spatial_target": {"target_id": "m4-spatial-%d" % index, "position": [target.position.x, target.position.y, target.position.z]}})
+	assert_eq(hits.size(), count, "registered spatial references still resolve after crossing")
+	if observe_boundaries:
+		assert_eq(reloads.size(), count, "one real adjacent-sector reload per character")
+	assert_true(requests.is_empty(), "Canon crossings need no generation")
+	return {"players": state, "hits": hits, "reloads": reloads, "generation_requests": requests}
+
+
+func _boundary_case(count: int) -> void:
+	_trace["case_id"] = "unilateral" if count == 1 else "concurrent_same_tick"
+	var reference: Dictionary = _fixture(false, "_reference")
+	var crossed: Dictionary = _fixture(true, "_crossed")
+	if reference.is_empty() or crossed.is_empty():
+		return
+	_seed_permanent_changes(reference)
+	_seed_permanent_changes(crossed)
+	var original: Dictionary = _canonical_state(reference)
+	assert_eq(original["mutations"].size(), 3, "three literal committed events")
+	assert_eq(original["reconstructed"][1]["effective_blueprint"]["structures"].size(), 1, "destroyed debris absent")
+	assert_true(original["reconstructed"][1]["effective_blueprint"]["structures"][0]["unlocked"], "committed gate unlock reconstructed")
+	assert_eq(original["reconstructed"][1]["occupancy_encoding"][0]["rows_z_then_x"], ["111"], "unlocked gate remains physically closed until opened")
+	var baseline: Dictionary = _moving_players(reference, count, false)
+	var crossing: Dictionary = _moving_players(crossed, count, true)
+	var restored: Dictionary = _canonical_state(crossed)
+	assert_eq(restored, original, "exact raw Canon, ordered mutation rows and reconstructed geometry match reference")
+	assert_eq(crossing["players"], baseline["players"], "authoritative transforms and entity references match")
+	assert_eq(crossing["hits"], baseline["hits"], "spatial references remain usable")
+	for reload: Dictionary in crossing["reloads"]:
+		assert_eq(reload["canonical"], original, "each boundary callback reload matches independent reference")
+	_trace.merge({"reference": original, "crossed": restored, "reference_runtime": baseline, "crossed_runtime": crossing,
+		"concurrency_model": "one_authoritative_thread_same_tick_batch", "passed": restored == original and crossing["players"] == baseline["players"] and crossing["hits"] == baseline["hits"]})
+
+
+func test_unilateral_crossing_keeps_active_spatial_reference_and_exact_canon() -> void:
+	_boundary_case(1)
+
+
+func test_concurrent_crossings_keep_each_character_and_exact_canon() -> void:
+	_boundary_case(4)
+
+
+func _synchronous_interaction(fixture: Dictionary, observe_boundary: bool) -> Dictionary:
+	var canon: CanonRepository = fixture["canon"]
+	var blueprint: Dictionary = canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"]
+	var collision: RefCounted = Collision.new(blueprint)
+	var service: RefCounted = Environmental.new(canon, fixture["mutations"], func() -> int: return 120, collision.has_line_of_sight)
+	var actor: Vector3 = Vector3(0.5, 0, 1)
+	var intent: Dictionary = Interaction.build_intent("sector-0-0", Guid.derive("sector-0-0", Guid.ENTITY_CLASS_STRUCTURE, "gate-1"), "lock_pick", 1, Vector3.RIGHT, 12)
+	var detector: RefCounted = Boundary.new()
+	detector.set_canon_lookup(canon.get_canonical_sector)
+	var transition: Dictionary = {}
+	if observe_boundary:
+		detector.commit_position(20, Vector3(-0.5, 0, 1))
+		transition = detector.observe_position(20, actor)
+		assert_true(transition["reloaded"], "interaction actor entered the adjacent canonical sector")
+	var result: Dictionary = service.resolve_intent("m4-interaction-actor", actor, {}, intent)
+	assert_eq(result["status"], "accepted")
+	assert_eq(result["applied_revision"], 2)
+	return {"result": result, "actor_position": [actor.x, actor.y, actor.z], "target_guid": intent["target_guid"], "sector_id": "sector-0-0",
+		"line_of_sight": collision.has_line_of_sight(actor, Vector3(1, 0, 0)), "transition_reloaded": transition.get("reloaded", false)}
+
+
+func test_supported_synchronous_boundary_interaction_matches_reference() -> void:
+	_trace["case_id"] = "synchronous_boundary_interaction"
+	var reference: Dictionary = _fixture(false, "_reference")
+	var crossed: Dictionary = _fixture(true, "_crossed")
+	if reference.is_empty() or crossed.is_empty():
+		return
+	var baseline: Dictionary = _synchronous_interaction(reference, false)
+	var crossing: Dictionary = _synchronous_interaction(crossed, true)
+	var expected: Dictionary = _canonical_state(reference)
+	var actual: Dictionary = _canonical_state(crossed)
+	assert_eq(crossing["result"], baseline["result"], "same server-stamped interaction outcome")
+	assert_true(crossing["line_of_sight"], "real collision-map line of sight")
+	assert_eq(actual, expected, "exact raw rows and supported reconstructed state")
+	assert_eq(actual["mutations"][1]["server_tick"], 120, "authoritative tick retained in parity")
+	assert_true(actual["reconstructed"][1]["effective_blueprint"]["structures"][0]["unlocked"])
+	_trace.merge({"reference": expected, "crossed": actual, "reference_interaction": baseline, "crossed_interaction": crossing,
+		"interaction_model": "synchronous_validation_and_commit_no_persistent_in_flight_state", "passed": actual == expected and crossing["result"] == baseline["result"]})

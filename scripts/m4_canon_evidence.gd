@@ -60,3 +60,44 @@ static func rejected_window(before: Dictionary, after: Dictionary, sql: Dictiona
 				elif counts[operation] != 0:
 					failures.append("attempted_%s_%s" % [table, operation])
 	return {"passed": failures.is_empty(), "failures": failures}
+
+
+## Lossless report of the supported effective sector fields. The occupancy
+## strings encode public is_blocked() results; they are not native saved masks.
+static func reconstructed_state(raw: Dictionary) -> Array:
+	var resolver: Script = load("res://shared/canon_sector_resolver.gd")
+	var collision: Script = load("res://shared/sector_collision_map.gd")
+	var geometry: Script = load("res://shared/sector_geometry_lookup.gd")
+	var guid: Script = load("res://shared/canon_entity_guid.gd")
+	var result: Array = []
+	for row: Dictionary in raw["blueprints"]:
+		var mutations: Array = []
+		for committed: Dictionary in raw["mutations"]:
+			if committed["sector_id"] == row["sector_id"]:
+				var decoded: Dictionary = committed.duplicate(true)
+				decoded["payload"] = JSON.parse_string(committed["payload_json"])
+				mutations.append(decoded)
+		var effective: Dictionary = resolver.resolve_effective_blueprint(JSON.parse_string(row["blueprint_json"]), mutations)
+		var map: RefCounted = collision.new(effective)
+		var bounds: Array = []
+		var occupancy: Array = []
+		for structure: Dictionary in effective.get("structures", []):
+			var extent: Vector2i = geometry.structure_footprint(structure["kind"])
+			var x: int = int(structure["x"])
+			var z: int = int(structure["y"])
+			var cells: Array[String] = []
+			for dz: int in range(-extent.y, extent.y + 1):
+				var bits: String = ""
+				for dx: int in range(-extent.x, extent.x + 1):
+					bits += "1" if map.is_blocked(Vector2i(x + dx, z + dz)) else "0"
+				cells.append(bits)
+			bounds.append({"anchor_id": structure["structure_id"], "x_min": x - extent.x - 0.5, "x_max": x + extent.x + 0.5,
+				"z_min": z - extent.y - 0.5, "z_max": z + extent.y + 0.5})
+			occupancy.append({"anchor_id": structure["structure_id"], "origin": [x - extent.x, z - extent.y], "rows_z_then_x": cells})
+		var wall_cells: Array = []
+		for tile: Dictionary in effective.get("tiles", []):
+			if tile["kind"] == "wall":
+				wall_cells.append({"cell": [tile["x"], tile["y"]], "blocked": map.is_blocked(Vector2i(int(tile["x"]), int(tile["y"])))})
+		result.append({"sector_id": row["sector_id"], "effective_blueprint": effective, "entity_guids": guid.list_entities(effective),
+			"static_collider_bounds": bounds, "occupancy_encoding": occupancy, "wall_cells": wall_cells, "blocked_count": map.blocked_count()})
+	return result
