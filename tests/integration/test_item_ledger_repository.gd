@@ -87,6 +87,51 @@ func test_definition_revision_is_immutable_and_exact_re_registration_is_idempote
 	assert_eq(ledger.get_definition(original.definition_id, original.definition_revision).definition.to_wire_dict(), original)
 
 
+func test_creation_atomically_persists_identity_receipt_and_exclusive_revisions() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var created: Dictionary = ledger.create_instance("character:one", "operation:create", original, 0, 0)
+	assert_eq(created.outcome, "ok")
+	assert_not_null(created.receipt)
+	if created.receipt == null:
+		return
+	assert_eq(created.receipt.instance_revision, 0)
+	assert_eq(created.receipt.owner_revision, 1)
+	assert_eq(created.receipt.location_revision, 1)
+	var counts: Dictionary = _store.dml_statement_counters()
+	assert_eq(counts.observation_status, "OBSERVED")
+	assert_eq(counts.totals.committed.insert, 4)
+	assert_eq(counts.by_table.canon_item_instances.committed.insert, 1)
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	var loaded: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(loaded.outcome, "ok")
+	assert_not_null(loaded.instance)
+	if loaded.instance != null:
+		assert_eq(loaded.instance.to_wire_dict(), original)
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 1)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 1)
+	var listed: Dictionary = ledger.list_owner(original.owner)
+	assert_eq(listed.outcome, "ok")
+	assert_eq(listed.instances.size(), 1)
+
+
+func _instance_wire() -> Dictionary:
+	return {
+		"schema_version": 1, "instance_id": "instance:sword", "definition_id": "definition:sword",
+		"definition_revision": "edition:one", "quantity": 1,
+		"owner": {"kind": "character", "id": "character:one"},
+		"location": {"kind": "equipped", "slot": "right_hand"}, "bound_character_id": "",
+		"acquisition": {"source_id": "source:smith", "operation_id": "operation:create", "server_tick": 9007199254740993},
+		"instance_revision": 0, "terminal": null,
+	}
+
+
 func _definition_wire() -> Dictionary:
 	return {
 		"schema_version": 1, "definition_id": "definition:sword", "definition_revision": "edition:one",

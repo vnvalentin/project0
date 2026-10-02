@@ -31,7 +31,7 @@ timeout --kill-after=15s 180s godot --headless --path . -s addons/gut/gut_cmdln.
 exit_code=$?
 set -e
 python3 - "$result" "$import_exit" "$exit_code" <<'PY'
-import hashlib,json,subprocess,sys,xml.etree.ElementTree as ET
+import hashlib,json,re,subprocess,sys,xml.etree.ElementTree as ET
 from pathlib import Path
 p=Path(sys.argv[1]); root=None
 try: root=ET.parse(p/'gut.xml').getroot()
@@ -40,8 +40,9 @@ suites=list(root.iter('testsuite')) if root is not None else []
 selected=[s for s in suites if s.attrib.get('name')=='tests/integration/test_item_ledger_repository.gd']
 tests=sum(int(s.attrib.get('tests',0)) for s in selected)
 failures=sum(int(s.attrib.get('failures',0)) for s in selected)
-passed=int(sys.argv[2])==0 and int(sys.argv[3])==0 and len(selected)==1 and tests>0 and failures==0
-r={'status':'passed' if passed else 'failed','host':'192.168.1.254','engine':subprocess.check_output(['godot','--version'],text=True).strip(),'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'command':'bash .scratch/1341-ledger/run-focused.sh '+p.name,'import_exit':int(sys.argv[2]),'exit_code':int(sys.argv[3]),'selected_scripts_ran':len(selected),'tests':tests,'failures':failures,'owned_xdg_removed':'NOT_OBSERVED','source_sha256':{name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in ['server/item_ledger_repository.gd','tests/integration/test_item_ledger_repository.gd','.scratch/1341-ledger/run-focused.sh'] if Path(name).is_file()},'milestone_acceptance':'NOT_OBSERVED: runtime equipment/crafting/loot/restart integration'}
+script_errors=any(re.search(r"SCRIPT ERROR:|Parse Error:|Compile Error:|Failed to load script", (p/name).read_text()) for name in ['import.log','gut.log'])
+passed=not script_errors and int(sys.argv[2])==0 and int(sys.argv[3])==0 and len(selected)==1 and tests>0 and failures==0
+r={'status':'passed' if passed else 'failed','host':'192.168.1.254','engine':subprocess.check_output(['godot','--version'],text=True).strip(),'revision':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'command':'bash .scratch/1341-ledger/run-focused.sh '+p.name,'import_exit':int(sys.argv[2]),'exit_code':int(sys.argv[3]),'script_errors_observed':script_errors,'selected_scripts_ran':len(selected),'tests':tests,'failures':failures,'owned_xdg_removed':'NOT_OBSERVED','source_sha256':{name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in ['server/item_ledger_repository.gd','tests/integration/test_item_ledger_repository.gd','.scratch/1341-ledger/run-focused.sh'] if Path(name).is_file()},'milestone_acceptance':'NOT_OBSERVED: runtime equipment/crafting/loot/restart integration'}
 (p/'result.json').write_text(json.dumps(r,indent=2)+'\n')
 if not passed: sys.exit(1)
 PY
