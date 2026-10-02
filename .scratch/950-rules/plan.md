@@ -27,3 +27,7 @@ Qualified RED: unchanged-source second import had no script errors; one test/one
 Minimal first evaluator prepared for worked fixture; GREEN pending next shared window. This draft is incomplete: nested profile/input validation and integer encoding/overflow bounds are upcoming vertical cycles, not accepted public behavior. No persistence or live profile activation.
 
 First worked-profile GREEN passed and owned cleanup/source stability were verified. Evidence remains local under build/validation/950-rules/first-evaluator-green-20261002, including source-start.json binding the prepared evaluator. This completes only the worked-example cycle. Closed nested validation, exact numeric encoding bounds and persistence remain pending; no merge/full acceptance claim.
+
+## Nested authored-rule validation cycle
+
+Next tracer rejects malformed/open profile identity, input-unit/bounds and output-unit/arithmetic/weight records through from_wire_dict only. Independent safety ceiling1000000 bounds integer encoding/components (sum<=3000001000000); it is a protocol guard, not tuning. RED pending; worked example remains the preceding GREEN. Wrapper takes an explicit expected test count, requires exactly one failing testcase for RED, preserves zero script errors/skip/error requirements. This cycle does not use bad rules to execute division or overflow.
