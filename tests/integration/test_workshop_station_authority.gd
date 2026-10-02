@@ -70,3 +70,19 @@ func _descriptor() -> Dictionary:
 		"bounds_min": [-2, -1, -2], "bounds_max": [2, 3, 2],
 		"active": true, "revision": 1,
 	}
+
+
+func test_admitted_identity_rejects_old_node_after_same_character_session_replacement() -> void:
+	assert_true(_state.has_method("current_admitted_identity"), "Admission owner must expose its current bound identity")
+	if not _state.has_method("current_admitted_identity"):
+		return
+	var initial: Dictionary = _state.current_admitted_identity()
+	assert_eq(initial["outcome"], "ok")
+	_sessions.clear(PEER_ID)
+	_sessions.bind(PEER_ID, "fixture-account-951", "fixture-player-951")
+	_sessions.set_selected_character_snapshot(PEER_ID, "fixture-character-951", "Fixture", {})
+	assert_eq(_state.current_admitted_identity()["outcome"], "not_admitted", "Same Character cannot revive an old world-bound epoch")
+	_state.bind_character("fixture-character-951", "Fixture", {})
+	var rebound: Dictionary = _state.current_admitted_identity()
+	assert_eq(rebound["outcome"], "ok")
+	assert_ne(rebound["session_epoch"], initial["session_epoch"])
