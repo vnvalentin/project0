@@ -18,6 +18,21 @@
         "build/validation/m4-1377-focused.xml",
         "logs/experiments/exp_m4_2_parity_<timestamp>.json"
       ]
+    },
+    {
+      "suite": "linux-tooling",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "python3 scripts/test_gut_source_identity.py --report build/validation/m4-source-identity-tests.json",
+      "dependencies": [
+        "python"
+      ],
+      "tests": [
+        "scripts/test_gut_source_identity.py"
+      ],
+      "artifacts": [
+        "build/validation/m4-source-identity-tests.json"
+      ]
     }
   ]
 }

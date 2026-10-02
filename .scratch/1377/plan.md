@@ -23,3 +23,24 @@ setup, execution and cleanup, use a fresh owned `XDG_DATA_HOME`, and set
 shell EXIT trap before releasing the lock. Logs, JUnit and case JSON remain in
 the worktree as evidence. Never use the shared Godot data directory or publish
 results to the live dashboard.
+
+## Standard runner source identity follow-up
+
+Records-first checkpoint: https://github.com/vnvalentin/project0/issues/1377#issuecomment-5956853608
+User outcome: ordinary GUT commands produce source-bound M4 evidence without
+requiring an undocumented environment override. Scope is Linux validation
+commands only; no gameplay, schema, thresholds or production changes. The
+unacceptable outcome is a report attributed to a different or malformed source.
+Hypothesis: the standard runner omits the checkout SHA and the hosted runner's
+explicit empty environment discards it. Cheapest discriminating check: execute
+the public runner commands in an owned temporary Git checkout with substituted
+external engine/container executables, observing their allowed source input.
+These command seams are the assigned parent-approved test boundaries.
+
+The standard runner must derive the checkout HEAD when Git metadata exists and
+reject a conflicting supplied identity before engine launch. A source artifact
+without Git metadata requires a supplied full 40-hex SHA. The hosted runner
+qualifies the host checkout HEAD and passes it explicitly through env -i. Direct
+M4 test invocation still refuses absent or invalid source identity. Tests create
+only temporary Git repos and fake external executables; cleanup owns that root.
+Rollback is reverting the runner changes and removing owned temporary fixtures.
