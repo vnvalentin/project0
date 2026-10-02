@@ -1,0 +1,35 @@
+"""M4 acceptance evaluator. It consumes observations, never supplies missing ones."""
+import math
+
+
+def evaluate(observation: dict, cleanup: bool) -> dict:
+    samples = observation.get('samples', [])
+    complete = len(samples) == 1000 and all(isinstance(s, dict) for s in samples)
+    ticks = [s.get('tick') for s in samples] if complete else []
+    complete = complete and all(isinstance(t, int) for t in ticks)
+    complete = complete and ticks == list(range(ticks[0], ticks[0] + 1000)) if ticks else False
+    durations = [s.get('duration_ms') for s in samples] if complete else []
+    finite = bool(durations) and all(isinstance(v, (int, float)) and math.isfinite(v) and v >= 0 for v in durations)
+    ordered = sorted(durations) if finite else []
+    elapsed = observation.get('elapsed_seconds', 0)
+    elapsed_valid = isinstance(elapsed, (int, float)) and math.isfinite(elapsed) and elapsed > 0
+    crossings = observation.get('crossings', [])
+    isolation = observation.get('isolation', {})
+    checks = {
+        'complete_tick_samples': complete,
+        'finite_durations': finite,
+        '30hz': observation.get('configured_tick_rate') == 30,
+        'full_workload_each_tick': complete and all(s.get('peers') == 10 and s.get('sectors', 0) >= 4 and s.get('npcs', 0) >= 10 and s.get('bodies', 0) >= 15 and s.get('triggers', 0) >= 15 for s in samples),
+        'p99_at_most_33_3ms': bool(ordered) and ordered[989] <= 33.3,
+        'max_at_most_50ms': bool(ordered) and ordered[-1] <= 50,
+        'crossings_at_least_two_per_second': elapsed_valid and len(crossings) / elapsed >= 2,
+        'canon_timing_observed': bool(observation.get('canon_reads')),
+        'isolation_observed': all(isolation.get(k) is True for k in ('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed')),
+        'runtime_errors_absent': observation.get('errors') == [],
+        'cleanup_verified': cleanup is True,
+    }
+    return {'passed': all(checks.values()), 'checks': checks,
+            'failed_checks': [k for k, value in checks.items() if not value],
+            'p99_ms': ordered[989] if ordered else None,
+            'max_ms': ordered[-1] if ordered else None,
+            'crossings_per_second': len(crossings) / elapsed if elapsed_valid else None}
