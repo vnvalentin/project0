@@ -12,6 +12,7 @@
         "sqlite"
       ],
       "tests": [
+        "tests/unit/test_interior_anchor_contract.gd",
         "tests/integration/test_interior_anchor_repository.gd"
       ],
       "artifacts": [
