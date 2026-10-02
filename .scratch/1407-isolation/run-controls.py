@@ -26,7 +26,7 @@ def load(path):
 def main():
     before=hashlib.sha256(SOURCE.read_bytes()).hexdigest()
     output=ROOT/'build/validation/1407-isolation'/('controls-'+uuid.uuid4().hex[:12]);output.mkdir(parents=True)
-    temporary=Path(tempfile.mkdtemp(prefix='project0-1407-controls.'));records=[]
+    temporary=Path(tempfile.mkdtemp(prefix='project0-1407-controls.'));records=[];completed=False
     try:
         copied=temporary/'runner.py';shutil.copyfile(SOURCE,copied);m=load(copied)
         secret='SYNTHETIC_EXCLUDED_TEXT_1407'
@@ -61,7 +61,8 @@ def main():
         assert result['exit_code']==0 and result['all_pass'] and result['passed_assertions']==['safe assertion'] and not m.owned_children()
         m.reset_child_sigchld=reset
         records.append({'case':'nested_child_default_and_waitable_pid','passed':True})
-        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','consumer_override_changed','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        cases=['nondefault_sigchld','initial_custody_unavailable','valid','prepared_before_consumers','consumer_override_changed','preparation_log_changed','dirty_source','changed_source','metadata_unavailable','metadata_timeout','unsupported_engine','import_failure','import_marker','missing_readiness','missing_assertion','child_timeout','cleanup_failure','retention_failure','existing_override','altered_staged_copy','altered_logging_override']
+        assert len(cases)==len(set(cases))
         for case in cases:
             root=temporary/case;root.mkdir();shutil.copyfile(SOURCE,root/'runner.py');m=load(root/'runner.py');m.ROOT=root
             (root/'scripts').mkdir();shutil.copy2(ROOT/'scripts/prepare_godot_project.py',root/'scripts/prepare_godot_project.py');(root/'scripts/test_prediction_reconciliation.gd').write_text('_assert(true, "safe assertion")\n')
@@ -122,7 +123,8 @@ def main():
                         'source_sha256':hashlib.sha256(json.dumps(hashes,sort_keys=True).encode()).hexdigest(),
                         'source_inventory_kind':'git-tracked','configuration_original_sha256':hashes['project.godot']}
                     for name in ['bootstrap','qualification']:
-                        log=report.parent/('prepare-'+name+'.log');log.write_text('PREPARATION: synthetic canonical phase\n');receipt[name]['log']=str(log)
+                        log=report.parent/('prepare-'+name+'.log');log.write_text(('SCRIPT ERROR: preparation script error observed\n' if phase['script_error_observed'] else '')+'PREPARATION: '+json.dumps(phase,sort_keys=True)+'\n');receipt[name]['log']=str(log)
+                        if case=='preparation_log_changed' and name=='qualification':log.write_text('SYNTHETIC_EXCLUDED_RAW_PREPARATION\n')
                     report.write_text(json.dumps(receipt))
                     if case=='altered_staged_copy':(project/'scripts/test_prediction_reconciliation.gd').write_text('changed copied source')
                     if case=='altered_logging_override':(project/'override.cfg').write_text('copied unknown override')
@@ -158,7 +160,7 @@ def main():
                 assert code==expected,case
                 if case!='retention_failure':
                     result=json.loads(path.read_text());assert result['status']==('observed' if expected==0 else 'failed'),case
-                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override']),case
+                    assert result['cleanup_verified']==(case not in ['cleanup_failure','initial_custody_unavailable','consumer_override_changed','changed_source','altered_staged_copy','altered_logging_override','preparation_log_changed']),case
                     if case=='consumer_override_changed':assert result['process_cleanup_verified'] is True and Path(result['retained_stage']).is_dir() and (Path(result['retained_stage'])/'project/override.cfg').read_text()=='copied unknown consumer override'
                     if case=='initial_custody_unavailable':assert result['initial_child_custody']=='NOT_OBSERVED' and not calls
                     if case=='nondefault_sigchld':assert result['stage']=='child_signal_contract' and not calls and identity_calls[0]==0
@@ -173,10 +175,11 @@ def main():
                 m.subprocess.run=original_run;m.subprocess.check_output=original_output
                 m.os.pidfd_open=original_pidfd;m.signal.pidfd_send_signal=original_signal
                 m.signal.getsignal=original_getsignal;m.tempfile.mkdtemp=original_mkdtemp
+        completed=True
     finally:
         shutil.rmtree(temporary)
         unchanged=hashlib.sha256(SOURCE.read_bytes()).hexdigest()==before
-        report={'status':'passed' if len(records)==27 and unchanged and not temporary.exists() else 'failed','cases':records,
+        report={'status':'passed' if completed and len(records)==28 and unchanged and not temporary.exists() else 'failed','cases':records,
                 'actual_source_preserved':unchanged,'copied_context_removed':not temporary.exists(),'godot_run':False,'actual_git_mutation':False}
         (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps({'status':report['status'],'artifact':str(output/'control-result.json')}))

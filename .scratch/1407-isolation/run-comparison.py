@@ -51,14 +51,35 @@ def preparation_contract():
     return module
 
 
+def qualify_phase_evidence(path,report):
+    for phase in ['bootstrap','qualification']:
+        record=report.get(phase)
+        if record==NOT:continue
+        fields={'status','exit_code','timed_out','script_error_observed','non_script_error_observed','output_valid','log'}
+        if (not isinstance(record,dict) or set(record)!=fields or record['status'] not in {'passed','failed'} or
+            any(type(record[name]) is not bool for name in ['timed_out','script_error_observed','non_script_error_observed','output_valid']) or
+            (record['exit_code'] is not None and type(record['exit_code']) is not int)):
+            raise ValueError('preparation_phase_not_qualified')
+        log=path.parent/('prepare-'+phase+'.log')
+        if record['log']!=str(log) or log.is_symlink() or not log.is_file() or log.stat().st_size>8192:
+            raise ValueError('preparation_log_not_qualified')
+        lines=[]
+        if record['script_error_observed']:lines.append('SCRIPT ERROR: preparation script error observed')
+        if record['non_script_error_observed']:lines.append('ERROR: non-script engine error observed')
+        lines.append('PREPARATION: '+json.dumps({key:value for key,value in record.items() if key!='log'},sort_keys=True))
+        if log.read_text()!='\n'.join(lines)+'\n':raise ValueError('preparation_log_not_qualified')
+
+
 def preparation_receipt(path,project,source,logging=False):
     if path.is_symlink() or not path.is_file():raise ValueError('preparation_report_unavailable')
+    if path.stat().st_size>1024*1024:raise ValueError('preparation_report_unavailable')
     report=json.loads(path.read_text())
     if (not isinstance(report,dict) or report.get('schema_version')!=1 or
         report.get('source_revision')!=source['revision'] or report.get('prepared_root')!=str(project) or
         report.get('prepared_root_created') is not True or report.get('configuration_restored') is not True or
         report.get('source_custody_qualified') is not True or report.get('configuration_custody_lost') is not False):
         raise ValueError('preparation_receipt_not_qualified')
+    qualify_phase_evidence(path,report)
     qualify_staged(project,source,report,logging)
     return report
 
