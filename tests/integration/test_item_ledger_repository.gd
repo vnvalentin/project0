@@ -121,6 +121,62 @@ func test_creation_atomically_persists_identity_receipt_and_exclusive_revisions(
 	assert_eq(listed.instances.size(), 1)
 
 
+func test_retirement_is_atomic_irreversible_and_preserves_original_success_receipts() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var created: Dictionary = ledger.create_instance("character:one", "operation:create", original, 0, 0)
+	assert_eq(created.outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var retired: Dictionary = ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "consumed", 9223372036854775807)
+	assert_eq(retired.outcome, "ok")
+	assert_not_null(retired.receipt)
+	if retired.receipt == null:
+		return
+	var counters: Dictionary = _store.dml_statement_counters()
+	assert_eq(counters.observation_status, "OBSERVED")
+	assert_eq(counters.totals.committed.update, 3)
+	assert_eq(counters.totals.committed.insert, 1)
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	var persisted: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(persisted.outcome, "ok")
+	assert_not_null(persisted.instance)
+	if persisted.instance == null:
+		return
+	var expected: Dictionary = original.duplicate(true)
+	expected.owner = null
+	expected.location = null
+	expected.instance_revision = 1
+	expected.terminal = {"reason": "consumed", "operation_id": "operation:retire", "server_tick": 9223372036854775807}
+	assert_eq(persisted.instance.to_wire_dict(), expected)
+	assert_eq(ledger.list_owner(original.owner).instances.size(), 0)
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 2)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 2)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var retry: Dictionary = original.duplicate(true)
+	retry.acquisition.server_tick = 12345
+	assert_eq(ledger.create_instance("character:one", "operation:create", retry, 0, 0), created)
+	assert_eq(ledger.retire_instance("character:one", "operation:retire", retry, 1, 1, "consumed", 10), retired)
+	assert_eq(ledger.retire_instance("character:one", "operation:retire-other", original, 2, 2, "destroyed", 10).outcome, "stale_instance")
+	retry.acquisition.operation_id = "operation:revive"
+	assert_eq(ledger.create_instance("character:one", "operation:revive", retry, 2, 2).outcome, "identity_exists")
+	_assert_no_writes()
+
+
+func _assert_no_writes() -> void:
+	var counts: Dictionary = _store.dml_statement_counters()
+	assert_eq(counts.observation_status, "OBSERVED")
+	if counts.observation_status != "OBSERVED":
+		return
+	for window: String in ["attempted", "committed", "rolled_back", "failed"]:
+		for operation: String in ["insert", "replace", "update", "delete"]:
+			assert_eq(counts.totals[window][operation], 0, "%s/%s" % [window, operation])
+
+
 func _instance_wire() -> Dictionary:
 	return {
 		"schema_version": 1, "instance_id": "instance:sword", "definition_id": "definition:sword",

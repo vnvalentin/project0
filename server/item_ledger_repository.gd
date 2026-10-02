@@ -169,6 +169,61 @@ func create_instance(actor: String, operation_id: String, wire: Variant, owner_r
 	return work
 
 
+## Expected active snapshot is caller intent, revalidated before any DML.
+func retire_instance(actor: String, operation_id: String, wire: Variant, owner_revision: Variant, location_revision: Variant, reason: String, server_tick: Variant) -> Dictionary:
+	if not _open():
+		return _command_result("not_open", "store is not open")
+	if not _identifier(actor) or not _identifier(operation_id) or not _revision(owner_revision) or not _revision(location_revision) or not _revision(server_tick) or reason not in InstanceScript.TERMINAL_REASONS:
+		return _command_result("invalid_command", "actor, operation, revisions and terminal metadata are required")
+	var work: Dictionary = _command_result("transaction_failed", "transaction did not complete")
+	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var validated: Dictionary = _validate_snapshot(wire)
+		if validated.outcome != "ok":
+			work.merge(_command_result(validated.outcome, validated.detail), true)
+			return false
+		var data: Dictionary = validated.instance.to_wire_dict()
+		if data.terminal != null:
+			work.merge(_command_result("invalid_retirement", "expected snapshot must be active"), true)
+			return false
+		if data.location.kind == "carried":
+			work.merge(_command_result("capacity_not_configured", "carried capacity requires an authored profile"), true)
+			return false
+		var fingerprint: String = _fingerprint("retire", actor, operation_id, data, validated.definition, owner_revision, location_revision, reason)
+		var replay: Dictionary = _find_receipt(actor, operation_id, fingerprint)
+		if replay.outcome != "not_found":
+			work.merge(replay, true)
+			return replay.outcome == "ok"
+		var current: Dictionary = get_instance(data.instance_id)
+		if current.outcome != "ok":
+			work.merge(_command_result(current.outcome, current.detail), true)
+			return false
+		if var_to_bytes(_canonical(current.instance.to_wire_dict())) != var_to_bytes(_canonical(data)):
+			work.merge(_command_result("stale_instance", "expected active snapshot changed"), true)
+			return false
+		var expectations: Dictionary = _check_revisions(data.owner, data.location, owner_revision, location_revision)
+		if expectations.outcome != "ok":
+			work.merge(expectations, true)
+			return false
+		if data.instance_revision == 9223372036854775807:
+			work.merge(_command_result("revision_overflow", "instance revision cannot advance"), true)
+			return false
+		if not _retire_record(data, reason, operation_id, server_tick) or not _advance_revisions(data.owner, data.location, owner_revision, location_revision):
+			return false
+		var receipt: Dictionary = _new_receipt("retire", actor, operation_id, data.instance_id, data.instance_revision + 1, owner_revision + 1, location_revision + 1)
+		if not _insert_receipt(receipt, fingerprint):
+			return false
+		work.merge(_command_result("ok", "", receipt), true)
+		return true
+	)
+	if transaction.outcome != "ok" and work.outcome == "ok":
+		return _command_result("transaction_failed", transaction.detail)
+	return work
+
+
+func _retire_record(data: Dictionary, reason: String, operation_id: String, server_tick: int) -> bool:
+	return _store.query_with_bindings("UPDATE canon_item_instances SET owner_kind = NULL, owner_id = NULL, location_kind = NULL, slot = NULL, source_id = NULL, location_index = NULL, instance_revision = ?, terminal_reason = ?, terminal_tick = ?, terminal_operation_id = ? WHERE instance_id = ? AND instance_revision = ?;", [data.instance_revision + 1, reason, server_tick, operation_id, data.instance_id, data.instance_revision]).outcome == "ok"
+
+
 func get_instance(instance_id: String) -> Dictionary:
 	if not _open():
 		return _instance_result("not_open", "store is not open")
