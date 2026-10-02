@@ -198,3 +198,34 @@ func test_failed_canon_history_read_does_not_guess_revision_zero() -> void:
 	var interior_id: String = contract_script.parse_server_descriptor(_descriptor())["anchor"].interior_id
 	assert_eq(repository.get_anchor(interior_id)["outcome"], "not_found")
 	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
+
+
+func test_malformed_values_and_forged_entry_identity_are_rejected() -> void:
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	var first: Dictionary = repository.register_anchor(_descriptor())
+	assert_eq(first["outcome"], "ok")
+	var retained: Dictionary = first["anchor"].to_dict()
+	var changes: Array[Dictionary] = [
+		{"schema_version": 2}, {"exterior_sector_id": 7},
+		{"entry_position": [NAN, 0, 0]}, {"entry_position": [2, 0, 0]},
+		{"bounds_min": [0, 0, 0], "bounds_max": [0, 3, 2]},
+		{"bounds_max": [INF, 3, 2]}, {"cell_coordinate": [0.5, 0, 0]},
+		{"cell_coordinate": [0, 0]}, {"streaming_reference": ""},
+		{"interior_id": "client-chosen"}, {"revision": 99},
+	]
+	for change: Dictionary in changes:
+		var invalid: Dictionary = _descriptor()
+		invalid.merge(change, true)
+		assert_eq(repository.register_anchor(invalid)["outcome"], "invalid_anchor", str(change))
+	for key: String in _descriptor():
+		var incomplete: Dictionary = _descriptor()
+		incomplete.erase(key)
+		assert_eq(repository.register_anchor(incomplete)["outcome"], "invalid_anchor", key)
+	for field: String in ["interior_id", "plot_id", "bounds_min", "revision", "streaming_reference"]:
+		var forged: Dictionary = _intent()
+		forged[field] = retained.get(field)
+		assert_eq(repository.resolve_entry(forged)["outcome"], "invalid_anchor", field)
+	assert_eq(repository.get_anchor(retained["interior_id"])["anchor"].to_dict(), retained)
+	assert_eq(repository.resolve_entry(_intent())["anchor"].to_dict(), retained)

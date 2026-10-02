@@ -87,3 +87,5 @@ Cross-store green regression: build/validation/849/20261002T135449Z-cross-store-
 Canon-read-failure characterization: build/validation/849/20261002T135533Z-read-failure-3680/focused-result.json. Six tests passed; owned missing history table yielded query_failed on registration/resolution, no anchor was returned, base Canon preserved and cleanup verified. No fallback revision getter is used.
 
 ADR identity corrected to0016 at coordinator request to preserve the unrelated active Mac0013 and other M3 ADR identities. Only the owned anchor ADR/links changed.
+
+Malformed/forged characterization: build/validation/849/20261002T135746Z-malformed-8416/focused-result.json. Seven tests passed; nonfinite/zero bounds, out-of-cell entry, fractional or malformed cell coordinates, unknown/versioned/missing fields and forged client identity/plot/bounds/revision/stream fields reject; existing anchor remains unchanged. Cleanup verified.
