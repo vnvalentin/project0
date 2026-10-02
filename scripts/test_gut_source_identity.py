@@ -20,6 +20,10 @@ class SourceIdentityTests(unittest.TestCase):
         for name in ("run_gut_validation.sh", "run_hosted_gut_container.sh", "prepare_godot_project.py"):
             if (ROOT / "scripts" / name).is_file():
                 shutil.copyfile(ROOT / "scripts" / name, self.root / "scripts" / name)
+        recipe = ROOT / "deploy/validation/Dockerfile"
+        if recipe.is_file():
+            (self.root / "deploy/validation").mkdir(parents=True)
+            shutil.copyfile(recipe, self.root / "deploy/validation/Dockerfile")
         (self.root / "tests/unit").mkdir(parents=True)
         (self.root / "tests/unit/test_fixture.gd").write_text("# Command fixture only\n")
         self.original_project_config = ('config_version=5\n\n[application]\nconfig/name="Fixture"\n\n'
@@ -99,6 +103,8 @@ for arg in sys.argv:
 import json, os, sys
 with open(os.environ["FAKE_DOCKER_CALLS"], "a") as output:
     output.write(json.dumps(sys.argv[1:]) + "\\n")
+if sys.argv[1:2] == ["build"]:
+    sys.exit(int(os.environ.get("FAKE_DOCKER_BUILD_EXIT", "0")))
 sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
 ''')
         for args in (["init", "-q"], ["add", "."],
@@ -346,6 +352,34 @@ os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
         self.assertTrue(report["bootstrap"]["timed_out"])
         self.assertEqual(report["qualification"], "NOT_OBSERVED")
 
+    def test_helper_timeout_exit_survives_an_earlier_non_timeout_phase_report(self):
+        for code in (124, 137):
+            with self.subTest(code=code):
+                helper = self.root / "scripts/prepare_godot_project.py"
+                helper.write_text('''import json, sys
+from pathlib import Path
+arguments = dict(zip(sys.argv[1::2], sys.argv[2::2]))
+Path(arguments["--report"]).write_text(json.dumps({
+    "schema_version": 1,
+    "source_revision": arguments["--source-revision"],
+    "prepared_root": arguments["--prepared-root"],
+    "prepared_root_created": False, "configuration_custody_lost": False,
+    "bootstrap": {"timed_out": False}, "qualification": "NOT_OBSERVED"
+}))
+raise SystemExit(''' + str(code) + ')\n')
+                for arguments in (["add", "scripts/prepare_godot_project.py"],
+                                  ["-c", "user.name=Command Fixture", "-c", "user.email=fixture@example.invalid",
+                                   "-c", "commit.gpgsign=false", "commit", "-qm", "timeout boundary fixture"]):
+                    subprocess.run(["git", *arguments], cwd=self.root, env=self.env,
+                                   check=True, capture_output=True, timeout=10)
+                result = self.run_command("run_gut_validation.sh")
+                self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+                self.assertFalse(self.engine_calls.exists())
+                summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+                self.assertTrue(summary["preparation_report_valid"])
+                self.assertTrue(summary["timed_out"])
+                self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
+
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)
         self.assertEqual(result.returncode, 2)
@@ -381,6 +415,45 @@ os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
         env_index = run.index("-i")
         self.assertIn("M4_SOURCE_REVISION=" + self.sha, run[env_index + 1:])
         self.assertFalse(self.engine_calls.exists())
+
+    def test_hosted_command_builds_dependency_image_before_consumer_with_only_recipe_context(self):
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        build = next(call for call in calls if call[0] == "build")
+        run = next(call for call in calls if call[0] == "run")
+        self.assertLess(calls.index(build), calls.index(run))
+        self.assertEqual(build[-1], str(self.root / "deploy/validation"))
+        self.assertIn("GODOT_IMAGE=ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602", build)
+        self.assertIn("project0-gut-validation:local", run)
+        self.assertNotIn("--push", build)
+
+    def test_hosted_build_failure_stops_consumer_and_retains_dependency_evidence(self):
+        self.env["FAKE_DOCKER_BUILD_EXIT"] = "7"
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 7, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        self.assertTrue(any(call[0] == "build" for call in calls))
+        self.assertFalse(any(call[0] == "run" for call in calls))
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["stage"], "validation-image")
+        self.assertEqual(summary["dependency"], "validation-image-python-git")
+        self.assertEqual(summary["image_build_exit_code"], 7)
+        self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
+
+    def test_hosted_build_failure_has_static_evidence_without_host_reporter(self):
+        self.env["FAKE_DOCKER_BUILD_EXIT"] = "7"
+        self.env["PYTHON_BIN"] = str(self.root / "missing-python")
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 7, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        self.assertFalse(any(call[0] == "run" for call in calls))
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(summary["stage"], "validation-image")
+        self.assertEqual(summary["reporter"], "unavailable")
+        self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
 
     def test_hosted_command_refuses_invalid_or_conflicting_source_before_container_launch(self):
         for source in ("", "short", "0" * 40):

@@ -23,13 +23,61 @@ if [[ ${M4_SOURCE_REVISION+x} && "$M4_SOURCE_REVISION" != "$source_revision" ]];
   echo "VALIDATION GATE ERROR: supplied M4 source revision differs from host checkout HEAD." >&2
   exit 2
 fi
-image="ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
+base_image="ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
+image="project0-gut-validation:local"
 install -d -m 2775 "$root/build/validation/runtime" "$root/.godot" "$root/logs/experiments"
 container="project0-hosted-gut-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}"
 label="${PROJECT0_HOSTED_GUT_TEST_ID:-$container}"
 if docker container inspect "$container" >/dev/null 2>&1; then
   echo "owned container already exists: $container" >&2
   exit 1
+fi
+
+# Build context contains only the validation recipe. No source checkout or
+# private host state is sent to the builder; the caller owns the shared lock.
+record_image_failure() {
+  local build_code="$1"
+  local attempted="${2:-true}"
+  local python_bin="${PYTHON_BIN:-python3}"
+  local summary="$root/build/validation/validation-summary.json"
+  if ! "$python_bin" - "$summary" "$build_code" "$source_revision" "$attempted" >/dev/null 2>&1 <<'PYREPORT'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({
+    "schema_version": 1, "runner": "GUT", "status": "failed", "stage": "validation-image",
+    "dependency": "validation-image-python-git", "exit_code": int(sys.argv[2]),
+    "image_build_exit_code": int(sys.argv[2]) if sys.argv[4] == "true" else "NOT_OBSERVED",
+    "image_build_attempted": sys.argv[4] == "true", "source_revision": sys.argv[3],
+    "scripts_ran": 0, "gut_execution": "NOT_OBSERVED",
+}, indent=2) + "\n")
+PYREPORT
+  then
+    # Fixed fallback requires no host interpreter and cannot report success.
+    cat > "$summary" <<'FALLBACK'
+{"schema_version":1,"runner":"GUT","status":"failed","stage":"validation-image","dependency":"validation-image-python-git","exit_code":1,"image_build_exit_code":"NOT_OBSERVED","reporter":"unavailable","scripts_ran":0,"gut_execution":"NOT_OBSERVED"}
+FALLBACK
+  fi
+}
+validation_context_qualified() (
+  [[ ! -L "$root/deploy" && ! -L "$root/deploy/validation" ]] || exit 1
+  shopt -s nullglob dotglob
+  entries=("$root/deploy/validation"/*)
+  [[ ${#entries[@]} -eq 1 && "${entries[0]}" == "$root/deploy/validation/Dockerfile" \
+     && -f "${entries[0]}" && ! -L "${entries[0]}" ]]
+)
+if ! validation_context_qualified; then
+  record_image_failure 2 false
+  echo "VALIDATION GATE ERROR: validation build context is not the single owned recipe." >&2
+  exit 2
+fi
+if docker build --build-arg "GODOT_IMAGE=$base_image" --tag "$image" \
+    "$root/deploy/validation" >/dev/null 2>&1; then
+  :
+else
+  build_status=$?
+  record_image_failure "$build_status"
+  echo "VALIDATION GATE ERROR: validation image dependencies could not be built." >&2
+  exit "$build_status"
 fi
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
