@@ -19,3 +19,15 @@ The hypothesis is that the first process compiles typed server scripts before Go
 Detailed runtime evidence and root-cause learning remain local under the user's disclosure instruction. Public records carry scope, status, dependencies, and next actions only.
 
 Preparation reporting uses the owning Linux runtime's existing Python interpreter to encode JSON paths safely. No package installation is authorized or required; a missing reporter remains an execution blocker.
+
+## Reusable preparation and isolated source
+
+The public standard GUT command will consume a reusable Linux preparation entry point, `scripts/prepare_godot_project.py`. Its planned CLI accepts `--source-root`, a new `--prepared-root`, `--godot`, `--source-revision`, `--timeout-seconds`, and `--report`. It copies regular source into an exclusively created writable root, excluding private, generated, and credential-bearing state before content capture. It never rewrites the original checkout or read-only hosted source mount.
+
+The helper seeds the fixed vendored SQLite registry before any Godot process. It temporarily disables the GUT editor plugin and file logging in the owned copy for asset preparation, restores the original plugin configuration for ordinary import, then restores exact original project bytes. Each phase rejects script/load/parse/compile errors, nonzero exits, unavailable output, or failed configuration custody. Non-script engine observations remain reported; no zero-engine-error claim follows from the script gate. Unknown configuration edits are preserved and fail qualification.
+
+The caller owns the validation lock, source/artifact identity, complete consumer process lifecycle, evidence directory, and prepared-root teardown. The helper does not launch GUT, a game scene, a server, database actions, or a benchmark. The existing hosted source/read-only/no-network boundaries remain intact.
+
+BDD: the standard runner imports in a fresh owned copy with the plugin disabled, qualifies with the plugin restored, runs GUT only after preparation succeeds, and removes its copy while leaving original source unchanged. Any preparation script failure prevents GUT. Unknown registry/configuration or unavailable evidence cannot leave a stale passing summary. Source identity propagates unchanged through Git checkout and explicitly identified gitless artifact inputs.
+
+The existing `scripts/test_gut_source_identity.py` remains the agreed command seam and substituted-engine control. Its next tracer observes staged project configuration and cleanup through actual command calls. Native qualification and full GUT remain separate required gates. Rollback removes only the helper/runner changes; no application schema, dependencies, privileges, runtime deployment or Windows client behavior changes.
