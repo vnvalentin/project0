@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "issue": 1421,
+  "version": "0.14.21",
+  "owner": "vnvalentin / Copilot",
+  "host": "192.168.1.254",
+  "source_package": "dist/standalone/0.14.21",
+  "publisher": "/data/code/project0/scripts/publish_client_downloads.sh",
+  "publisher_sha256": "d863a250adaafdcb5af56184cd5934bde56af249d6407fd4c86861bf298c7fc4",
+  "publish_signed_launcher": false,
+  "target": "/var/lib/project0/patches/downloads/0.14.21",
+  "archive_name": "Project0-client-windows-x64-0.14.21.zip",
+  "archive_sha256": "141A9E54599094B35FB4663998B83F34E0D88864A7C6175B1F04BF13BB19A7D0",
+  "manifest_sha256": "5DD38F40FF7D60362EC8844DC13AAD57CE9CABD843948AABFFF2F2C438B73E10",
+  "public_archive_url": "https://project0.valentin.vip/patches/downloads/0.14.21/Project0-client-windows-x64-0.14.21.zip",
+  "setup": "Require absent target and isolated GUID staging; transfer only the verified archive and manifest with noninteractive SSH/SCP",
+  "execution": "Hash-check transfer, use the unchanged Linux publisher in isolated staging, move only the new version into downloads, atomically replace the index after retaining its previous contents",
+  "verification": "Fetch the public manifest and archive, verify SHA256 and latest-client links, compare previous version and signed updater hashes before and after",
+  "cleanup": "Always remove owned remote staging and local verification download; retain result and index rollback snapshot",
+  "rollback": "Restore the retained previous index and withdraw only the owned new 0.14.21 directory if publication fails; never change older versions or updater manifests",
+  "acceptance_limit": "Download publication only; authenticated Character-to-world runtime evidence remains pending"
+}
