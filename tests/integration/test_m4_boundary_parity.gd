@@ -81,6 +81,8 @@ func after_each() -> void:
 		var saved_path: String = file.get_path_absolute()
 		file.close()
 		assert_eq(FileAccess.get_file_as_string(saved_path), content, "complete evidence readback")
+		var persisted: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(saved_path))
+		assert_eq(persisted["passed"], get_fail_count() == _failures_before, "persisted verdict matches actual test assertions")
 
 
 func _open_store(relative_path: String) -> SqliteStore:
@@ -351,7 +353,7 @@ func _boundary_case(count: int) -> void:
 	for reload: Dictionary in crossing["reloads"]:
 		assert_eq(reload["canonical"], original, "each boundary callback reload matches independent reference")
 	_trace.merge({"reference": original, "crossed": restored, "reference_runtime": baseline, "crossed_runtime": crossing,
-		"concurrency_model": "one_authoritative_thread_same_tick_batch", "passed": restored == original and crossing["players"] == baseline["players"] and crossing["hits"] == baseline["hits"]})
+		"concurrency_model": "one_authoritative_thread_same_tick_batch", "passed": restored == original and crossing["players"] == baseline["players"] and crossing["hits"] == baseline["hits"]}, true)
 
 
 func test_unilateral_crossing_keeps_active_spatial_reference_and_exact_canon() -> void:
@@ -399,4 +401,4 @@ func test_supported_synchronous_boundary_interaction_matches_reference() -> void
 	assert_eq(actual["mutations"][1]["server_tick"], 120, "authoritative tick retained in parity")
 	assert_true(actual["reconstructed"][1]["effective_blueprint"]["structures"][0]["unlocked"])
 	_trace.merge({"reference": expected, "crossed": actual, "reference_interaction": baseline, "crossed_interaction": crossing,
-		"interaction_model": "synchronous_validation_and_commit_no_persistent_in_flight_state", "passed": actual == expected and crossing["result"] == baseline["result"]})
+		"interaction_model": "synchronous_validation_and_commit_no_persistent_in_flight_state", "passed": actual == expected and crossing["result"] == baseline["result"]}, true)
