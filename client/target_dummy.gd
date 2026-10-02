@@ -27,11 +27,11 @@ var _hit_reaction_time_remaining: float = 0.0
 func _ready() -> void:
 	_mesh_instance = get_node_or_null("MeshInstance3D")
 	if _mesh_instance != null:
-		var mat: Material = _mesh_instance.get_surface_override_material(0)
+		var mat: Material = _mesh_instance.material_override
 		if mat is StandardMaterial3D:
 			# Duplicate material so this instance doesn't mutate shared resource permanently
 			_base_material = mat.duplicate() as StandardMaterial3D
-			_mesh_instance.set_surface_override_material(0, _base_material)
+			_mesh_instance.material_override = _base_material
 			_original_color = _base_material.albedo_color
 	NetworkClient.combat_event_received.connect(_on_combat_event_received)
 

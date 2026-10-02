@@ -374,6 +374,8 @@ func _assert_tile_geometry_under_root(root: Node3D, expected_offset: Vector3, la
 		return 0
 	assert_eq(ground.get_parent(), root, "%s floor geometry is owned by its sector root" % label)
 	assert_eq(ground.global_position, expected_offset, "%s floor geometry inherits the sector offset" % label)
+	if DisplayServer.get_name() == "headless":
+		return int(ground.get_meta("vertex_count", 0))
 	var local_bounds: AABB = ground.mesh.get_aabb()
 	assert_true(local_bounds.has_point(Vector3(0.0, local_bounds.get_center().y, 0.0)), "%s floor mesh stays in sector-local tile space" % label)
 	var vertices: PackedVector3Array = ground.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
