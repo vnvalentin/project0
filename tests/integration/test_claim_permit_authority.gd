@@ -226,3 +226,33 @@ func test_membership_receipt_does_not_restore_old_membership_on_replay() -> void
 	assert_eq(authority.begin_interaction("member-one", "plot-one", 1).outcome, "permission_denied", "old events cannot restore revoked membership")
 	assert_eq(authority.update_memberships("member-one", [], 0, "joined-once").outcome, "operation_conflict")
 	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_permission_audit_retains_canonical_intent_and_rejects_corrupt_receipt() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var intent: Dictionary = {
+		"schema_version": 1, "operation_id": "permit-audit", "plot_id": "plot-one", "expected_revision": 1,
+		"action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1,
+	}
+	assert_eq(authority.apply_permit("owner-one", intent).outcome, "ok")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	var audit: Dictionary = _store.query_with_bindings("SELECT actor_scope, request_json, request_fingerprint, result_revision, target_id FROM permission_operation_receipts WHERE operation_id = ?;", ["permit-audit"])
+	assert_eq(audit.outcome, "ok", "audit records retain the actual accepted intent, not only an opaque digest")
+	if audit.outcome != "ok":
+		return
+	assert_eq(audit.rows.size(), 1)
+	assert_eq(audit.rows[0].actor_scope, JSON.stringify(["character", "owner-one"]))
+	assert_eq(audit.rows[0].request_json, JSON.stringify(["permit", intent]))
+	assert_eq(audit.rows[0].request_fingerprint, String(audit.rows[0].request_json).sha256_text())
+	assert_eq(audit.rows[0].result_revision, 2)
+	assert_eq(audit.rows[0].target_id, "plot-one")
+	assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET request_json = ? WHERE operation_id = ?;", ["[]", "permit-audit"]).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.apply_permit("owner-one", intent).outcome, "invalid_persisted_state")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
