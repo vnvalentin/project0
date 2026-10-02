@@ -67,3 +67,21 @@ func test_rejects_invalid_closed_authored_rules() -> void:
 		target[change.key] = change.value
 		var parsed: Dictionary = profile_script.from_wire_dict(wire)
 		assert_null(parsed.profile, "reject malformed authored rule: " + str(change))
+
+
+func test_derivation_rejects_noninteger_or_out_of_authored_range_inputs() -> void:
+	var profile_script: Script = load(PROFILE_PATH)
+	var parsed: Dictionary = profile_script.from_wire_dict(Fixture.authored())
+	assert_eq(parsed.outcome, "ok")
+	if parsed.profile == null:
+		return
+	var invalid: Array = [true, 81.0, "81", -1, 101, 1000001]
+	for key: String in ["material_purity", "catalyst_quality", "workstation_parameter"]:
+		for bad: Variant in invalid:
+			var inputs: Dictionary = {
+				"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40,
+			}
+			inputs[key] = bad
+			var result: Dictionary = parsed.profile.derive(inputs)
+			assert_eq(result.outcome, "malformed", "reject invalid creation input: " + key + "=" + str(bad))
+			assert_null(result.properties)
