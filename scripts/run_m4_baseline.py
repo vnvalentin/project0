@@ -306,6 +306,14 @@ def main():
             content = log.read_text(errors='replace')
             if any(marker in content for marker in ERROR_MARKERS):
                 report['errors'].append('runtime_script_error:' + log.name)
+        try:
+            inventory = subprocess.run(['docker', 'container', 'ls', '--all',
+                                        '--filter', 'name=^/' + container_name + '$',
+                                        '--filter', 'name=^/' + probe_name + '$', '--format', '{{.Names}}'],
+                                       capture_output=True, text=True, timeout=10)
+            container_absent = inventory.returncode == 0 and not inventory.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            container_absent = False
         if source is not None and fingerprints is not None:
             final_fingerprints = tree_fingerprints(source)
             write_json(folder / 'runtime-files-after.json', final_fingerprints)
@@ -314,16 +322,11 @@ def main():
                 report['errors'].append('runtime_artifact_changed')
         if private is not None:
             try:
-                if not all(group_cleanup):
-                    raise OSError('owned_process_group_remains')
+                if not all(group_cleanup) or not container_absent:
+                    raise OSError('owned_process_or_container_cleanup_unverified')
                 shutil.rmtree(private)
             except OSError:
                 report['errors'].append('private_cleanup_failed')
-        try:
-            inventory = subprocess.run(['docker', 'container', 'ls', '--all', '--filter', 'name=^/' + container_name + '$', '--format', '{{.Names}}'], capture_output=True, text=True, timeout=10)
-            container_absent = inventory.returncode == 0 and not inventory.stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            container_absent = False
         cleanup = container_absent and all(group_cleanup) and all(process.poll() is not None for process in owned) and (private is None or not private.exists())
         report['cleanup'] = {'container_removed': container_absent, 'process_groups_empty': all(group_cleanup), 'processes_stopped': all(p.poll() is not None for p in owned),
                              'private_tree_removed': private is None or not private.exists(), 'verified': cleanup}
