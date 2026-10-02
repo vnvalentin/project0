@@ -60,7 +60,21 @@ project_config = configuration.read_text() if configuration.is_file() else None
 registry = Path(".godot/extension_list.cfg")
 registry_contents = registry.read_text() if registry.is_file() else None
 with open(__CALLS_PATH__, "a") as output:
-    output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents, "project_config": project_config, "cwd": str(Path.cwd())}) + "\\n")
+    output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents, "project_config": project_config, "cwd": str(Path.cwd()), "excluded_present": [name for name in (".netrc", ".env.fixture", ".aws/fixture.json", "logs/private.json", "build/private.json", "fixtures/creation.db") if Path(name).exists()]}) + "\\n")
+if "--import" in sys.argv:
+    bootstrap = 'enabled=PackedStringArray()' in project_config
+    if flags.get("FAKE_BOOTSTRAP_EXIT") == "1" and bootstrap:
+        sys.exit(7)
+    if flags.get("FAKE_QUALIFICATION_EXIT") == "1" and not bootstrap:
+        sys.exit(8)
+    if flags.get("FAKE_QUALIFICATION_MARKER") == "1" and not bootstrap:
+        print("SCRIPT ERROR: synthetic qualification failure")
+    if flags.get("FAKE_NON_SCRIPT_ERROR") == "1":
+        print("ERROR: synthetic expected SQLite constraint failure")
+    if flags.get("FAKE_PROJECT_EDIT") == "1":
+        configuration.write_text(project_config + "\\n; unknown fixture edit")
+    if flags.get("FAKE_REGISTRY_EDIT") == "1":
+        registry.write_text("res://unknown-fixture.gdextension\\n")
 if "--import" in sys.argv and flags.get("FAKE_IMPORT_SCRIPT_ERROR") == "1":
     print("SCRIPT ERROR: Parse Error: synthetic preparation failure")
 if "-s" in sys.argv and flags.get("FAKE_REMOVE_REPORT") == "1":
@@ -71,7 +85,7 @@ if "-s" in sys.argv and flags.get("FAKE_EXPERIMENT_ARTIFACT") == "1":
     trace.write_text('{"fixture":"retained"}')
 if "-s" in sys.argv and flags.get("FAKE_GUT_OVERRIDE_EDIT") == "1":
     Path("override.cfg").write_text("; unknown GUT fixture edit")
-if "--import" in sys.argv and flags.get("FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT") == "1":
+if "--import" in sys.argv and flags.get("FAKE_OVERRIDE_EDIT") == "1":
     Path("override.cfg").write_text("; unknown fixture edit")
 if "-s" in sys.argv and flags.get("FAKE_GUT_SCRIPT_ERROR") == "1":
     print("SCRIPT ERROR: synthetic skipped runtime failure")
@@ -100,7 +114,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
 
     def run_command(self, name, source=None):
         env = self.env.copy()
-        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT")}))
+        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT", "FAKE_BOOTSTRAP_EXIT", "FAKE_QUALIFICATION_EXIT", "FAKE_QUALIFICATION_MARKER", "FAKE_NON_SCRIPT_ERROR", "FAKE_PROJECT_EDIT", "FAKE_REGISTRY_EDIT")}))
         if source is not None:
             env["M4_SOURCE_REVISION"] = source
         return subprocess.run(["bash", "scripts/" + name], cwd=self.root, env=env,
@@ -241,6 +255,83 @@ os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
         preparation = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
         self.assertEqual(preparation["status"], "failed")
         self.assertEqual(preparation["failure_class"], "source_tracked_dirt")
+
+    def test_each_import_phase_rejects_nonzero_and_qualification_script_marker(self):
+        for flag, calls_expected, stage in (("FAKE_BOOTSTRAP_EXIT", 1, "bootstrap"),
+                                            ("FAKE_QUALIFICATION_EXIT", 2, "qualification"),
+                                            ("FAKE_QUALIFICATION_MARKER", 2, "qualification")):
+            with self.subTest(flag=flag):
+                self.engine_calls.unlink(missing_ok=True)
+                self.env[flag] = "1"
+                result = self.run_command("run_gut_validation.sh")
+                self.env.pop(flag)
+                self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+                calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+                self.assertEqual(len(calls), calls_expected)
+                self.assertTrue(all("--import" in call["args"] for call in calls))
+                report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+                self.assertEqual(report[stage]["status"], "failed")
+                self.assertTrue(report["configuration_restored"])
+                self.assertFalse(Path(calls[0]["cwd"]).exists())
+                summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+                self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
+
+    def test_expected_non_script_error_observation_does_not_expand_script_gate(self):
+        self.env["FAKE_NON_SCRIPT_ERROR"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertTrue(report["bootstrap"]["non_script_error_observed"])
+        self.assertFalse(report["bootstrap"]["script_error_observed"])
+        self.assertEqual(report["qualification"]["status"], "passed")
+
+    def test_unknown_project_or_registry_edit_prevents_second_import_and_retains_stage(self):
+        for flag, filename in (("FAKE_PROJECT_EDIT", "project.godot"),
+                               ("FAKE_REGISTRY_EDIT", ".godot/extension_list.cfg")):
+            with self.subTest(flag=flag):
+                self.engine_calls.unlink(missing_ok=True)
+                self.env[flag] = "1"
+                result = self.run_command("run_gut_validation.sh")
+                self.env.pop(flag)
+                self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+                calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+                self.assertEqual(len(calls), 1)
+                stage = Path(calls[0]["cwd"])
+                self.assertIn("unknown", (stage / filename).read_text())
+                report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+                self.assertTrue(report["configuration_custody_lost"])
+
+    def test_private_generated_and_database_inputs_are_excluded_in_git_and_gitless_copies(self):
+        names = (".netrc", ".env.fixture", ".aws/fixture.json", "logs/private.json",
+                 "build/private.json", "fixtures/creation.db")
+        for name in names:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("synthetic excluded input")
+        for args in (["add", *names], ["-c", "user.name=Command Fixture", "-c", "user.email=fixture@example.invalid",
+                                     "-c", "commit.gpgsign=false", "commit", "-qm", "synthetic excluded inputs"]):
+            subprocess.run(["git", *args], cwd=self.root, env=self.env, check=True, capture_output=True, timeout=10)
+        self.sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.root, env=self.env, text=True, timeout=10).strip()
+        for gitless in (False, True):
+            with self.subTest(gitless=gitless):
+                if gitless:
+                    shutil.rmtree(self.root / ".git")
+                self.engine_calls.unlink(missing_ok=True)
+                result = self.run_command("run_gut_validation.sh", self.sha)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+                self.assertTrue(all(call["excluded_present"] == [] for call in calls))
+                report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+                self.assertTrue(all(name not in report["source_manifest"] for name in names))
+
+    def test_modified_tracked_source_bytes_are_rejected_before_engine_launch(self):
+        path = self.root / "client/player_identity.gd"
+        path.write_text("extends Node\n# synthetic tracked modification\n")
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        self.assertFalse(self.engine_calls.exists())
+        report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertEqual(report["failure_class"], "source_tracked_dirt")
 
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)
