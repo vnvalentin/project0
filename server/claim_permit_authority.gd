@@ -49,7 +49,7 @@ func register_claim(plot_id: Variant, owner_character_id: Variant, operation_id:
 	var request_json: String = JSON.stringify(["register_claim", plot_id, owner_character_id, operation_id])
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		var receipt: Dictionary = _lookup_receipt(actor_scope, operation_id, request_json.sha256_text())
+		var receipt: Dictionary = _lookup_receipt(actor_scope, operation_id, request_json.sha256_text(), 1, plot_id)
 		if receipt.outcome != "not_found":
 			decision.merge(receipt, true)
 			return false
@@ -148,7 +148,7 @@ func update_memberships(character_id: Variant, memberships: Variant, expected_re
 	var actor_scope: String = JSON.stringify(["memberships", character_id])
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		var receipt: Dictionary = _lookup_receipt(actor_scope, operation_id, fingerprint)
+		var receipt: Dictionary = _lookup_receipt(actor_scope, operation_id, fingerprint, expected_revision + 1, character_id)
 		if receipt.outcome != "not_found":
 			decision.merge(receipt, true)
 			return false
@@ -200,7 +200,7 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 	var actor_scope: String = JSON.stringify(["character", actor_character_id])
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		var receipt: Dictionary = _lookup_receipt(actor_scope, intent.operation_id, fingerprint)
+		var receipt: Dictionary = _lookup_receipt(actor_scope, intent.operation_id, fingerprint, intent.expected_revision + 1, intent.plot_id)
 		if receipt.outcome != "not_found":
 			decision.merge(receipt, true)
 			return false
@@ -257,7 +257,7 @@ func transfer_claim(actor_character_id: Variant, intent: Variant) -> Dictionary:
 	var request_json: String = JSON.stringify(["transfer_claim", intent])
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		var receipt: Dictionary = _lookup_receipt(actor_scope, intent.operation_id, request_json.sha256_text())
+		var receipt: Dictionary = _lookup_receipt(actor_scope, intent.operation_id, request_json.sha256_text(), intent.expected_revision + 1, intent.plot_id)
 		if receipt.outcome != "not_found":
 			decision.merge(receipt, true)
 			return false
@@ -405,7 +405,7 @@ func cancel_interaction(actor_character_id: Variant, interaction_id: Variant) ->
 	return _result("ok")
 
 
-func _lookup_receipt(actor_scope: String, operation_id: String, fingerprint: String) -> Dictionary:
+func _lookup_receipt(actor_scope: String, operation_id: String, fingerprint: String, expected_result_revision: int, expected_target_id: String) -> Dictionary:
 	var query: Dictionary = _store.query_with_bindings("SELECT request_fingerprint, request_json, result_revision, target_id FROM permission_operation_receipts WHERE actor_scope = ? AND operation_id = ?;", [actor_scope, operation_id])
 	if query.outcome != "ok":
 		return _result(String(query.outcome))
@@ -418,6 +418,8 @@ func _lookup_receipt(actor_scope: String, operation_id: String, fingerprint: Str
 		return _result("invalid_persisted_state")
 	if row.request_fingerprint != fingerprint:
 		return _result("operation_conflict")
+	if row.result_revision != expected_result_revision or row.target_id != expected_target_id:
+		return _result("invalid_persisted_state")
 	return {"outcome": "duplicate_rejected", "original_result": _receipt_result(operation_id, row.result_revision, row.target_id)}
 
 

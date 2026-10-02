@@ -325,3 +325,37 @@ func test_primary_owner_transfer_invalidates_old_handles_and_survives_reopen() -
 	changed.new_owner_character_id = "owner-three"
 	assert_eq(authority.transfer_claim("owner-one", changed).outcome, "operation_conflict")
 	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_corrupt_receipt_result_cannot_replace_the_original_accepted_result() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	var commands: Array = [
+		["register_claim", ["plot-one", "owner-one", "provision-one"]],
+		["update_memberships", ["member-one", [], 0, "membership-one"]],
+		["apply_permit", ["owner-one", {"schema_version": 1, "operation_id": "permit-one", "plot_id": "plot-one", "expected_revision": 1, "action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1}]],
+		["transfer_claim", ["owner-one", {"schema_version": 1, "operation_id": "transfer-one", "plot_id": "plot-one", "expected_revision": 2, "new_owner_character_id": "owner-two"}]],
+	]
+	var originals: Array[Dictionary] = []
+	for command: Array in commands:
+		var result: Dictionary = authority.callv(command[0], command[1])
+		assert_eq(result.outcome, "ok")
+		originals.append(result)
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	for index: int in range(commands.size()):
+		var original: Dictionary = originals[index]
+		assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET target_id = ? WHERE operation_id = ?;", ["different-valid-target", original.operation_id]).outcome, "ok")
+		assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+		var changed_target: Dictionary = authority.callv(commands[index][0], commands[index][1])
+		assert_eq(changed_target.outcome, "invalid_persisted_state", commands[index][0] + " must bind the retained target to original intent")
+		assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+		assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET target_id = ?, result_revision = ? WHERE operation_id = ?;", [original.target_id, original.revision + 1, original.operation_id]).outcome, "ok")
+		assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+		var changed_revision: Dictionary = authority.callv(commands[index][0], commands[index][1])
+		assert_eq(changed_revision.outcome, "invalid_persisted_state", commands[index][0] + " must bind the retained revision to original expectations")
+		assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+		assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET result_revision = ? WHERE operation_id = ?;", [original.revision, original.operation_id]).outcome, "ok")
