@@ -39,7 +39,7 @@ get_anchor and resolve_entry use read-only lookups and validate persisted versio
 5. Given an injected failure on the initial cell INSERT, registration reports rollback and neither anchor nor cell is observable through repository methods after reopen.
 6. Given malformed/incompatible persisted data, lookup fails closed and leaves records preserved.
 
-TDD starts with one failing public-seam repository test, then the smallest implementation, then additional behavior cycles. Pure contract tests cover only parsing and derivation that support the repository. Real SQLite integration proves storage; no private members or database-side assertions substitute for repository behavior. Statement evidence uses the independently owned database-wide SqliteStore accounting when available; old canon-only counters do not prove zero new-table DML.
+TDD starts with one failing public-seam repository test, then the smallest implementation, then additional behavior cycles. Pure contract tests cover only parsing and derivation that support the repository. Real SQLite integration proves storage; no private members or database-side assertions substitute for repository behavior. Statement evidence uses the independently owned conservative direct-statement SqliteStore accounting; old canon-only counters do not prove zero new-table DML, and native/hidden write effects remain NOT_OBSERVED.
 
 ## Dependency and ownership boundaries
 
@@ -61,7 +61,7 @@ No native Windows or paired gameplay acceptance claimed. Missing observations re
 
 ## Evidence and root-cause learning
 
-Design review: approved by coordinating agent before product edits. Runtime validation: NOT_OBSERVED. Focused/full/review gates: NOT_OBSERVED. No product edit yet.
+Design review: approved by coordinating agent before product edits. Supporting isolated SQLite and pure-contract checks are recorded below. Player entry/facility runtime acceptance remains NOT_OBSERVED; final full/review gates remain pending.
 No runtime failure has occurred in this increment. Source/path discoveries are not runtime evidence. Record any unexpected validation/runtime failure and its discriminating check here and additively on #849 before completion.
 
 Root-cause learning: initial plan preparation used documented `python`, which is absent on this Linux host (exit 127); no preflight or Godot execution occurred. Existing `python3` resolves and is used explicitly. This is host command naming, not missing SQLite or a client dependency. Countermeasure: exact interpreter pinned in command/plan evidence.
@@ -105,3 +105,7 @@ Root-cause learning: recovery fixture run build/validation/849/20261002T141246Z-
 Recovery/coverage GREEN: build/validation/849/20261002T141403Z-recovery-gate-50704/focused-result.json. Both selected scripts/eleven tests passed, evidence_exit_code0 and no evidence_errors, cleanup verified. Malformed retained entry data fails closed on lookup, resolution and replay before/after reopen; no automatic repair occurs and base Canon remains unchanged.
 
 Direct-statement characterization: build/validation/849/20261002T141618Z-direct-counts-54541/focused-result.json. Two scripts/eleven tests passed and all thirteen retained scenario observation files are OBSERVED for direct_single_statements_through_this_store; cleanup verified. Registration attempts/commits exactly one INSERT per anchor/cell table. Real cell CHECK failure attempts two INSERTs, fails the cell statement, rolls back the successful anchor statement and commits zero. Replay/conflict, reads/reopen, missing/destroyed exterior, separate-store, Canon read failure, malformed/forged input and corrupt retained recovery each have zero attempted/committed/rolled_back/failed direct DML across every operation/table. Native row effects remain NOT_OBSERVED; this is scoped supporting component evidence, not database-wide hidden-writer or gameplay acceptance.
+
+Final validation guard: both focused and full modes reject missing/invalid JUnit, incomplete selected script inventory, nonpositive test count, failures/errors/skips, script/parse/compile error markers, missing scoped observation artifacts or unverified cleanup. Intentional native SQLite CHECK failures are expected fault evidence, not GDScript failures. The full mode calls the standard scripts/run_gut_validation.sh with isolated XDG_DATA_HOME, explicit owned RESULT_DIR and DASHBOARD_RESULTS_DIR; no real Canon database or production dashboard is used.
+
+Final guard/preflight characterization: build/validation/849/final-plan-ownership.json passed, with the explicit full Linux GUT inventory. build/validation/849/20261002T141915Z-final-guard-62570/focused-result.json passed both scripts/eleven tests, all thirteen scoped observation files, no script/parse/compile errors and verified cleanup. Final full-suite and independent review evidence will be recorded additively on #849 at the frozen committed revision, without changing product sources after the run.
