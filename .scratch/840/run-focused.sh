@@ -10,7 +10,7 @@ out="$PWD/build/validation/840/$run_id"
 test ! -e "$out"
 mkdir -p "$out"
 state=""
-revision="$(git rev-parse HEAD)"
+revision=NOT_OBSERVED
 engine=NOT_OBSERVED
 stage=setup
 native_exit=-1
@@ -27,30 +27,46 @@ PYSCAN
 finish() {
   trap - EXIT
   set +e
-  case "$state" in "") ;; /tmp/project0-840-focused-*) rm -rf -- "$state" ;; *) exit 2 ;; esac
+  case "$state" in "") ;; /tmp/project0-840-focused-*) rm -rf -- "$state" ;; *) state_guard_failed=true ;; esac
   cleanup=false
-  [[ -z "$state" || ! -e "$state" ]] && cleanup=true
+  [[ -z "$state" || ! -e "$state" ]] && [[ "${state_guard_failed:-false}" == false ]] && cleanup=true
   python3 - "$out" "$label" "$revision" "$expected_head" "$engine" "$stage" "$native_exit" "$execution_complete" "$source_clean_start" "$cleanup" "$mode" <<'PY'
 import hashlib,json,re,subprocess,sys,xml.etree.ElementTree as E
 from pathlib import Path
 out,label,revision,expected,engine,stage,native_exit,complete,clean_start,cleanup,mode=sys.argv[1:]
 out=Path(out);errors=[]
 source_paths=['tests/unit/test_construction_contract.gd','shared/construction_contract.gd','.scratch/840/run-focused.sh','.scratch/840/validation-plan.json']
-sources={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() if Path(p).is_file() else 'NOT_PRESENT' for p in source_paths}
+sources={}
+for path in source_paths:
+    try:
+        sources[path]=hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    except OSError:
+        sources[path]='NOT_OBSERVED';errors.append('source_identity_not_observed:'+path)
 if clean_start!='true': errors.append('source_not_clean_at_start')
+if revision=='NOT_OBSERVED': errors.append('initial_revision_not_observed')
 if revision!=expected: errors.append('unexpected_head')
+def git_identity(arguments,error):
+    try:
+        return subprocess.check_output(['git',*arguments],text=True,stderr=subprocess.DEVNULL,timeout=10).strip()
+    except (OSError,subprocess.SubprocessError,UnicodeError):
+        errors.append(error);return 'NOT_OBSERVED'
+final_status=git_identity(['status','--porcelain'],'source_status_not_observed')
+clean_end='NOT_OBSERVED' if final_status=='NOT_OBSERVED' else not final_status
+final_revision=git_identity(['rev-parse','HEAD'],'final_revision_not_observed')
+if final_revision!='NOT_OBSERVED' and final_revision!=revision: errors.append('head_changed_during_run')
+if clean_end is False: errors.append('source_not_clean_at_end')
 try:
-    clean_end=not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
-    if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=revision: errors.append('head_changed_during_run')
-except subprocess.CalledProcessError:
-    clean_end=False;errors.append('git_source_check_failed')
-if not clean_end: errors.append('source_not_clean_at_end')
-try:
-    if json.loads((out/'source-start.json').read_text())!=sources: errors.append('source_changed_during_run')
+    initial_sources=json.loads((out/'source-start.json').read_text())
+    if not isinstance(initial_sources,dict) or set(initial_sources)!=set(source_paths) or any(not isinstance(v,str) for v in initial_sources.values()):
+        errors.append('invalid_source_start_container')
+    elif initial_sources!=sources: errors.append('source_changed_during_run')
 except (OSError,ValueError): errors.append('source_start_missing')
 if cleanup!='true': errors.append('cleanup_unverified')
 if complete!='true': errors.append('execution_incomplete')
-expected_tests=len(re.findall(r'^func test_',Path('tests/unit/test_construction_contract.gd').read_text(),re.M))
+expected_tests=0
+try:
+    expected_tests=len(re.findall(r'^func test_',Path('tests/unit/test_construction_contract.gd').read_text(),re.M))
+except (OSError,UnicodeError): errors.append('test_inventory_not_observed')
 counts={'tests':0,'failures':0,'errors':0,'skips':0}
 try:
     xml=E.parse(out/'gut.xml').getroot()
@@ -60,20 +76,33 @@ if expected_tests<=0 or counts['tests']!=expected_tests: errors.append('test_inv
 if counts['errors'] or counts['skips']: errors.append('gut_errors_or_skips')
 for name in ['import.log','gut.log']:
     p=out/name
-    if not p.is_file(): errors.append('missing_log:'+name)
-    elif re.search(r'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script',p.read_text(errors='replace')): errors.append('script_error:'+name)
+    try:
+        if not p.is_file(): errors.append('missing_log:'+name)
+        elif re.search(r'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script',p.read_text(errors='replace')): errors.append('script_error:'+name)
+    except OSError: errors.append('log_not_observed:'+name)
 if mode=='green':
     if int(native_exit)!=0 or counts['failures']!=0: errors.append('green_not_observed')
 else:
     if int(native_exit)==0 or counts['failures']<=0: errors.append('red_not_observed')
-report={'schema_version':1,'issue':840,'host':'192.168.1.254','revision':revision,'expected_head':expected,'engine':engine,'command':'bash .scratch/840/run-focused.sh '+label+' '+expected+' '+mode,'mode':mode,'stage':stage,'native_exit_code':int(native_exit),'status':'passed' if not errors else 'failed','expected_tests':expected_tests,**counts,'source_clean_start':clean_start=='true','source_clean_end':clean_end,'source_sha256':sources,'cleanup_verified':cleanup=='true','errors':errors,'action_validation':'NOT_OBSERVED','persistence':'NOT_OBSERVED','windows_runtime':'NOT_OBSERVED'}
-(out/'focused-result.json').write_text(json.dumps(report,indent=2)+'\n')
+report={'schema_version':1,'issue':840,'host':'192.168.1.254','revision':revision,'final_revision':final_revision,'expected_head':expected,'engine':engine,'command':'bash .scratch/840/run-focused.sh '+label+' '+expected+' '+mode,'mode':mode,'stage':stage,'native_exit_code':int(native_exit),'status':'passed' if not errors else 'failed','expected_tests':expected_tests,**counts,'source_clean_start':clean_start=='true','source_clean_end':clean_end,'source_sha256':sources,'cleanup_verified':cleanup=='true','errors':errors,'action_validation':'NOT_OBSERVED','persistence':'NOT_OBSERVED','windows_runtime':'NOT_OBSERVED','result_retention':'OBSERVED'}
+try:
+    (out/'focused-result.json').write_text(json.dumps(report,indent=2)+'\n')
+except OSError:
+    report['status']='failed';report['result_retention']='NOT_OBSERVED';report['errors'].append('result_retention_not_observed')
+    print(json.dumps(report));raise SystemExit(1)
 print(json.dumps({k:report[k] for k in ['status','mode','stage','tests','failures','native_exit_code','cleanup_verified','errors']}))
 raise SystemExit(0 if not errors else 1)
 PY
   exit "$?"
 }
 trap finish EXIT
+stage=initial_identity
+if initial_revision="$(timeout --kill-after=1s 10s git rev-parse HEAD 2>/dev/null)"; then
+  [[ "$initial_revision" =~ ^[0-9a-f]{40}$ ]] || exit 1
+  revision="$initial_revision"
+else
+  exit 1
+fi
 stage=source_guard
 [[ "$revision" == "$expected_head" ]]
 [[ -z "$(git status --porcelain)" ]]
