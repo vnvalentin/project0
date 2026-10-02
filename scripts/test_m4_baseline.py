@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 import subprocess
 import sys
-from run_m4_baseline import group_members, stop_owned_group
+from run_m4_baseline import group_members, stop_owned_group, parse_arguments
 from m4_baseline_report import evaluate, audit_worker_probe, summarize_stage_timings
 
 class BaselineReportTests(unittest.TestCase):
@@ -30,6 +30,10 @@ class BaselineReportTests(unittest.TestCase):
                        'isolation': dict.fromkeys(('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed'), True),
                        'samples': [{'tick': tick, 'duration_ms': 1.0, 'peers': 10, 'ready': 10, 'sectors': 4, 'npcs': 10, 'bodies': 15, 'triggers': 15} for tick in range(1000)]}
         self.assertTrue(evaluate(observation, True)['passed'])
+        diagnostic = evaluate(observation, True, supported_load=True)
+        self.assertFalse(diagnostic['passed'], 'explicit capacity measurement cannot imply isolation acceptance')
+        self.assertTrue(diagnostic['checks']['complete_tick_samples'])
+        self.assertEqual(diagnostic['p99_ms'], 1.0)
         observation['canon_reads'][0]['outcome'] = 'damaged'
         self.assertFalse(evaluate(observation, True)['passed'])
         observation['canon_reads'][0]['outcome'] = 'ok'
@@ -75,6 +79,20 @@ class BaselineReportTests(unittest.TestCase):
         del sample['stage_timings']['journey_checkpoint']
         self.assertFalse(summarize_stage_timings({'samples': [sample]})['qualified'])
         self.assertFalse(summarize_stage_timings({})['qualified'])
+
+    def test_explicit_supported_load_preserves_default_stress_and_refuses_mixed_modes(self):
+        image = ['--server-image', 'sha256:' + 'a' * 64]
+        default = parse_arguments(image)
+        self.assertEqual(default.worker_count, 32)
+        self.assertFalse(default.supported_load)
+        supported = parse_arguments(image + ['--ticks', '1000', '--supported-load'])
+        self.assertEqual(supported.worker_count, 0)
+        self.assertTrue(supported.supported_load)
+        for options in (['--ticks', '60', '--supported-load'],
+                        ['--supported-load', '--diagnostic-workers', '0'],
+                        ['--ticks', '1000', '--diagnostic-workers', '0']):
+            with self.subTest(options=options), self.assertRaises(SystemExit):
+                parse_arguments(image + options)
 
     def test_owned_cleanup_removes_descendant_after_leader_exits(self):
         code = "import subprocess,sys; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])"

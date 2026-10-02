@@ -2,7 +2,7 @@
 import math
 
 
-def evaluate(observation: dict, cleanup: bool) -> dict:
+def evaluate(observation: dict, cleanup: bool, supported_load: bool = False) -> dict:
     samples = observation.get('samples', [])
     complete = len(samples) == 1000 and all(isinstance(s, dict) for s in samples)
     ticks = [s.get('tick') for s in samples] if complete else []
@@ -37,7 +37,8 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
         'runtime_errors_absent': observation.get('errors') == [],
         'cleanup_verified': cleanup is True,
     }
-    return {'passed': all(checks.values()), 'checks': checks,
+    return {'passed': all(checks.values()) and not supported_load, 'checks': checks,
+            'acceptance_exclusions': ['supported_load_requires_independent_contention_isolation'] if supported_load else [],
             'failed_checks': [k for k, value in checks.items() if not value],
             'p99_ms': ordered[989] if ordered else None,
             'max_ms': ordered[-1] if ordered else None,
