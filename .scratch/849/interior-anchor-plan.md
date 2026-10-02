@@ -75,3 +75,7 @@ Replay/conflict red: build/validation/849/20261002T134548Z-red-2-43642/focused-r
 Replay/conflict green: build/validation/849/20261002T134704Z-green-2-48465/focused-result.json. Two tests passed, exit0, cleanup_verified=true. Exact replay returns retained anchor and a changed plot reference conflicts before any INSERT attempt; database-wide count evidence will bind to the reviewed accounting dependency.
 
 Real SQLite rollback characterization: build/validation/849/20261002T135134Z-rollback-58063/focused-result.json. Three tests passed, cleanup verified. Owned cell CHECK constraint rejected the second INSERT; public lookup/resolution after close/reopen found no anchor, and immutable Canon matched. No trigger or hidden writes were used. This confirms the transaction behavior already implemented in the first green, rather than inventing another red claim.
+
+Orphan characterization: build/validation/849/20261002T135300Z-orphan-60846/focused-result.json. Four tests passed. Missing sector, missing structure and destroyed effective structure reject; the immutable base is preserved. Cleanup verified.
+
+Approved SDD adjustment: InteriorAnchorRepository(store) will construct CanonRepository and CanonMutationRepository bound to that exact store. Removing the two injected repositories prevents qualification from another database and guarantees final authority reads share the write transaction. The coordinator approved this bounded strengthening; it changes no product policy or other module.

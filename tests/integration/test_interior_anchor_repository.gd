@@ -135,3 +135,23 @@ func test_real_second_insert_failure_leaves_no_anchor_after_reopen() -> void:
 	assert_eq(repository.get_anchor(interior_id)["outcome"], "not_found")
 	assert_eq(repository.resolve_entry(_intent())["outcome"], "not_found")
 	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
+
+
+func test_missing_and_destroyed_exterior_references_do_not_register() -> void:
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store, _canon, _mutations)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	var missing_sector: Dictionary = _descriptor()
+	missing_sector["exterior_sector_id"] = "sector-9-9"
+	assert_eq(repository.register_anchor(missing_sector)["outcome"], "orphan_anchor")
+	var missing_structure: Dictionary = _descriptor()
+	missing_structure["exterior_entity_guid"] = "uncommitted-structure"
+	assert_eq(repository.register_anchor(missing_structure)["outcome"], "orphan_anchor")
+	assert_eq(_mutations.apply_mutation({
+		"schema_version": 1, "event_id": "destroy-hall", "sector_id": "sector-0-0",
+		"target_guid": _descriptor()["exterior_entity_guid"], "actor_player_id": "character:owner",
+		"mutation_kind": "destroy_structure", "payload": {}, "server_tick": 1, "expected_revision": 0,
+	})["outcome"], "ok")
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "orphan_anchor")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "orphan_anchor")
+	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
