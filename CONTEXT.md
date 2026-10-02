@@ -95,10 +95,19 @@ server-authoritative, generated, canon-persisted content`.
   **≈ ¼ mile = 440 world units** (tunable via `WorldScale`, growing toward
   1 mile = 1760); a Sector is a **region container** whose fine Tile detail
   covers only a bounded sub-area, not every yard (see
-  [ADR 0003](docs/adr/0003-imperial-world-scale.md)). Generation is asynchronous;
+  [ADR 0003](docs/adr/0003-imperial-world-scale.md)). Under
+  [ADR 0013](docs/adr/0013-whole-sector-themed-places.md) (accepted 2026-10-02;
+  implementation #1389) a new Sector is instead one complete themed place,
+  walkable edge to edge, built from its **Sector description**; existing v1–v5
+  blueprints keep the region-container model. Generation is asynchronous;
   an unseen coordinate is requested from an authoritative boundary transition,
   and only the stored Canon result is replicated.
   _Avoid_: chunk, tile map, level.
+- **Sector description**: The compact, versioned AI-produced statement of what a
+  Sector is (theme, biome tags, edge ports, path graph, landmarks). Canon stores
+  it with a seed and builder version, and the shared deterministic builder
+  expands it into the Sector's full ground ([ADR 0013](docs/adr/0013-whole-sector-themed-places.md)).
+  _Avoid_: blueprint (the legacy tile-list format), layout.
 - **Canon**: World state that has been validated and persisted to the
   server-owned persistence service, making it authoritative and durable across
   sessions. Canon sectors are immutable at their base revision; an append-only,
