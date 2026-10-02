@@ -240,3 +240,34 @@ func test_read_whitespace_and_active_schema_change_are_observed_honestly() -> vo
 	assert_eq(_store.dml_statement_counters()["observation_status"], "OBSERVED", "read-only SELECT whitespace is supported")
 	_store.query("CREATE INDEX accounting_idx ON accounting_probe (id);")
 	assert_eq(_store.dml_statement_counters()["observation_status"], "NOT_OBSERVED")
+
+
+func test_read_only_windows_report_zero_without_resetting_legacy_canon_counters() -> void:
+	_canon.canonicalize_blueprint(JSON.parse_string(FixturesScript.VALID_WITH_LOCKED_GATE))
+	var legacy: Dictionary = _store.canon_write_counters()
+	_store.start_dml_observation()
+	_canon.get_canonical_sector("sector-0-0")
+	_mutations.list_mutations("sector-0-0")
+	var report: Dictionary = _store.dml_statement_counters()
+	assert_eq(report["observation_status"], "OBSERVED")
+	for window: String in ["attempted", "committed", "rolled_back", "failed"]:
+		assert_eq(report["totals"][window], {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	_store.start_dml_observation()
+	assert_eq(_store.canon_write_counters(), legacy, "neither starting nor snapshotting observation resets lifetime Canon counters")
+
+
+func test_query_failure_latch_rolls_back_observed_successful_attempts() -> void:
+	_store.query("CREATE TABLE accounting_probe (id INTEGER PRIMARY KEY);")
+	_store.start_dml_observation()
+	var result: Dictionary = _store.transaction(func() -> bool:
+		_store.query_with_bindings("INSERT INTO accounting_probe VALUES (?);", [1])
+		_store.query_with_bindings("INSERT INTO accounting_probe VALUES (?);", [1])
+		return true
+	)
+	assert_eq(result["outcome"], SqliteStoreScript.OUTCOME_TRANSACTION_FAILED, "accepted #1379 contract, regardless of callback bool")
+	var report: Dictionary = _store.dml_statement_counters()
+	assert_eq(report["observation_status"], "OBSERVED")
+	assert_eq(report["by_table"]["accounting_probe"]["attempted"]["insert"], 2)
+	assert_eq(report["by_table"]["accounting_probe"]["failed"]["insert"], 1)
+	assert_eq(report["by_table"]["accounting_probe"]["rolled_back"]["insert"], 1)
+	assert_eq(report["by_table"]["accounting_probe"]["committed"]["insert"], 0)
