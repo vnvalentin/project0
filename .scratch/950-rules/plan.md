@@ -21,6 +21,10 @@ Review identified incomplete failure-path finalization, unbounded metadata queri
 
 Detailed runtime results, failure messages, counts, source receipts and host metadata remain in ignored local validation output. Published records contain status only. Historical private planning detail is preserved locally; no native behavior, timing, lock or milestone acceptance is inferred from static/control checks.
 
+### Clean-worktree import bootstrap
+
+The first exact-host GREEN attempt on revision `69633fc5aa843730c6dbf39e81b5f87644efa421` passed plan preflight and engine import exit status, but the runner correctly stopped before GUT because the fresh-worktree import log contained unresolved GUT classes and `SQLite`. Hypothesis: Godot's first import populates ignored editor/resource class caches, while the next import can qualify the unchanged source. The discriminating same-worktree retry confirmed this: attempt `pr1403-retry-import1` failed at `import_qualification`; `pr1403-retry-import2` passed all seven public cases with cleanup verified. Source hashes were identical across both attempts. Root cause was the runner treating the cache-populating first import as the qualified import. Existing tests exercised the runner only after a populated project cache, so they missed clean-worktree startup. Countermeasure: perform a bounded warm-up import to its own log, then keep a separate strict import pass that still rejects script/compile errors before GUT. Regression evidence is the fresh-worktree GREEN run after this change. Remaining limitation: this component check does not establish atomic ledger integration or full #950 acceptance.
+
 ## Safety, rollback and next actor
 
 The runner owns a new evidence target and isolated temporary runtime state, with finalization installed before setup commands. Revert additive owned harness changes for rollback; no production state, permissions or dependency installation is involved. Independent review precedes coordinated native validation. The coordinator owns execution windows and final delivery gates; dependent persistence remains a separate accepted increment.

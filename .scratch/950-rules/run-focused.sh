@@ -28,6 +28,8 @@ python3 .scratch/950-rules/validation-evidence.py preflight-check "$result" "$mo
 stage=engine_metadata
 engine="$(timeout --kill-after=1s 10s godot --version)"
 test -n "$engine"
+stage=import_warmup
+timeout --kill-after=10s 120s godot --headless --editor --path . --import --quit > "$result/import-warmup.log" 2>&1
 stage=import
 set +e
 timeout --kill-after=10s 120s godot --headless --editor --path . --import --quit > "$result/import.log" 2>&1
