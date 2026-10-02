@@ -21,6 +21,10 @@ class SourceIdentityTests(unittest.TestCase):
             shutil.copyfile(ROOT / "scripts" / name, self.root / "scripts" / name)
         (self.root / "tests/unit").mkdir(parents=True)
         (self.root / "tests/unit/test_fixture.gd").write_text("# Command fixture only\n")
+        self.extension_registry = "res://addons/godot-sqlite/gdsqlite.gdextension\n"
+        extension = self.root / "addons/godot-sqlite/gdsqlite.gdextension"
+        extension.parent.mkdir(parents=True)
+        extension.write_text('[configuration]\nentry_symbol="fixture"\n')
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.engine_calls = self.root / "engine-calls.jsonl"
@@ -39,8 +43,10 @@ class SourceIdentityTests(unittest.TestCase):
         self.write_executable("godot", '''#!/usr/bin/python3
 import json, os, sys
 from pathlib import Path
+registry = Path(".godot/extension_list.cfg")
+registry_contents = registry.read_text() if registry.is_file() else None
 with open(os.environ["FAKE_ENGINE_CALLS"], "a") as output:
-    output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:]}) + "\\n")
+    output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents}) + "\\n")
 for arg in sys.argv:
     if arg.startswith("-gjunit_xml_file="):
         Path(arg.split("=", 1)[1]).write_text('<testsuites><testsuite name="tests/unit/test_fixture.gd" tests="1" failures="0"/></testsuites>')
@@ -78,6 +84,13 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         self.assertEqual(len(calls), 2)
         self.assertTrue(all(call["source"] == self.sha for call in calls))
 
+
+    def test_standard_runner_initializes_the_tracked_extension_registry_before_engine_launch(self):
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call["extension_registry"] == self.extension_registry for call in calls))
 
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)

@@ -47,6 +47,27 @@ if ! command -v timeout >/dev/null 2>&1; then
   exit 1
 fi
 
+# Godot loads GDExtension classes from this registry before its first editor
+# scan discovers extension declarations. Seed only the reviewed server extension
+# so a fresh validation checkout can compile the same typed SQLite consumers.
+# Existing unknown registry state is rejected rather than silently replaced.
+extension_declaration="addons/godot-sqlite/gdsqlite.gdextension"
+extension_registry=".godot/extension_list.cfg"
+if [[ ! -f "$extension_declaration" || -L "$extension_declaration" || -L .godot || -L "$extension_registry" ]]; then
+  echo "VALIDATION GATE ERROR: server extension bootstrap requires ordinary owned source/cache paths." >&2
+  exit 2
+fi
+mkdir -p .godot || exit 2
+if [[ -e "$extension_registry" ]]; then
+  if [[ ! -f "$extension_registry" ]] || ! cmp -s "$extension_registry" <(printf '%s\n' "res://$extension_declaration"); then
+    echo "VALIDATION GATE ERROR: extension registry differs from the reviewed server declaration." >&2
+    exit 2
+  fi
+elif ! (set -C; printf '%s\n' "res://$extension_declaration" > "$extension_registry"); then
+  echo "VALIDATION GATE ERROR: extension registry preparation failed." >&2
+  exit 2
+fi
+
 # Reimport/compile from a clean cache before running so a stale GDScript class
 # cache cannot silently drop a test script from the run and still report green
 # (DT-007). A skipped script must never be mistaken for a passing suite.
