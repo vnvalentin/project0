@@ -81,10 +81,11 @@ func test_worst_case_pass_1_and_pass_2_fit_the_200_ms_budget() -> void:
 		for y: int in range(-60, 60):
 			tiles.append({"x": x + 0.25, "y": y, "kind": "floor" if (x + y) % 7 else "lava_pit"})
 	var context: Dictionary = {"sector_id": SECTOR_ID, "placement": Placement.select(SECTOR_ID, INGRESS), "ingress": INGRESS}
+	var town: Dictionary = Hub.blueprint()
 	var started: int = Time.get_ticks_usec()
 	var repaired: Dictionary = Repair.repair({"tiles": tiles}, SECTOR_ID)
 	var validated: Dictionary = Schema.validate(repaired)
-	var prepared: Dictionary = Detail.prepare(_pass_1_result(validated["blueprint"]), context, Hub.blueprint())
+	var prepared: Dictionary = Detail.prepare(_pass_1_result(validated["blueprint"]), context, town)
 	var elapsed_ms: float = float(Time.get_ticks_usec() - started) / 1000.0
 	assert_eq(validated["outcome"], Schema.OUTCOME_VALID)
 	assert_true(prepared.get("blueprint") is Dictionary, "the cascade always yields a placed candidate")
