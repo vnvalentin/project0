@@ -8,15 +8,17 @@ Milestone 4 evaluates whether the current single authoritative game runtime
 meets the agreed workload and isolation envelope. The proposed decision is to
 retain one simulation and Canon-writing authority when the complete measured
 baseline passes, and introduce a process boundary only for a reproduced capacity
-or isolation problem. This ADR is **proposed** while the M4.1/M4.2 measurements
-and container evidence are pending; it does not claim the baseline passes.
+or isolation problem. This ADR is **proposed** while final M4.1 capacity/isolation and container
+evidence are pending. Supported M4.2 component parity is accepted separately;
+it does not establish baseline capacity.
 
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Source analysis: [M4.3 findings](../../.scratch/zone-sharding/m4-source-findings.md),
-reconciled at accepted main `9702827c918cbf34719e11123e349c20af76fc1f`.
-The [records-first checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685)
-owns this documentation amendment.
+reconciled at accepted main `521601a72e792e7a54c6b12c618f10eff48cadb0`.
+The [initial checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685)
+and [evidence amendment](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827)
+own this documentation work.
 
 ## Evidence required to accept
 
@@ -51,7 +53,8 @@ single-runtime artifact, exact source/engine/host/container identities, retained
 reports, independent review and final-revision repository validation. Source
 inspection, component tests or a source-checkout load run alone cannot establish
 this result. The public diagnostic checkpoints below supply supporting evidence,
-not completed capacity or integrated parity acceptance.
+not completed capacity acceptance. Integrated component parity is qualified
+by the separate final evidence below.
 
 ## Supporting evidence and unresolved coverage
 
@@ -73,15 +76,39 @@ maxima cannot establish exact per-tick P99. The tested request path is bounded
 timeout fallback, not arbitrary successful generated candidates. No zero
 native-engine blocking claim follows from these timings or an `await` statement.
 
-[M4.2's final-source integration checkpoint](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5957487132)
-retains historical ten-case focused evidence at
-`5e7d56dafbe29b3e8f66d396cb5202894f5fabf7`; final integrated native parity,
-full validation and review remain pending. The source findings retain the matched
-worker and earlier inclusive callback diagnostics with their exact identities.
+[M4.2 final acceptance](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5958365467)
+and [qualified native evidence](https://github.com/vnvalentin/project0/issues/1377#issuecomment-5958474826)
+bind accepted component parity to `6bda74b00aea805e6c1dce2bb72ac5431930c075`:
+ten focused tests/case reports and 157/157 full scripts / 1,175 tests passed,
+with source/helper/test qualification, rejected-write/observation controls,
+zero error markers and verified owned cleanup. PR #1387 merged as accepted main
+`521601a72e792e7a54c6b12c618f10eff48cadb0`; #1377 is closed. This is supported
+same-runtime component evidence, not deployed cross-process handoff or capacity.
+The source findings retain prior diagnostics with their historical identities.
 Research source, benchmark/package source, engine/artifact identity and final
 integration source remain distinct. Accepted main's interior-anchor persistence
 ([ADR 0016](0016-interior-anchor-and-cell-persistence.md)) has unresolved runtime
 integration and does not establish new supported repair/claim gameplay.
+
+[The retained full high-crossing profiles](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5958477060)
+at `51d39e2b308b0089ac2a6e08134fd9f3ad4699ac` both failed: 1,000 observations
+with five coalesced supported iterations and 17 coalesced worker-stress iterations;
+maxima 207.810 ms and 87.600 ms at about 19 crossings/sec. All required stage
+observations and cleanup were qualified, but exact consecutive-tick P99 was
+unavailable. At the single-step supported peak, frontier-stay took 188.753 ms
+inside 198.682 ms of position callbacks; journey checkpoints took 7.488 ms.
+A checkpoint-only explanation is contradicted. Relative synchronous telemetry,
+stdout, trace preparation and scheduling contributions remain **unknown**.
+Neither the failed stress nor this source analysis selects a process boundary.
+
+Await the explicit span10 result at
+`746e8a2e8c42d8e3db26351c8adea50c9c646401`: unchanged production behavior,
+actual crossings at least two/sec and inclusive unchanged-super telemetry spans.
+Accept only actual qualified P99/maximum and all capacity/isolation/container
+gates; preserve span1 failures as the higher-crossing limit. Missing/coalesced
+measurements leave acceptance blocked. A target maximum failure requires the
+smallest causal check or a fully specified evidence-backed boundary, rather than
+an assumed worker or Canon writer. The findings contain the final decision outline.
 
 ## Authority and scale contract
 
@@ -95,7 +122,9 @@ integration and does not establish new supported repair/claim gameplay.
   assume a historical database filename or add a second SQLite writer.
 - Reuse the [worker-extension contract](../../.scratch/container-platform/issues/06-worker-extension-contract.md):
   bounded envelopes, job identity, idempotency, deadlines, provisional results,
-  isolated resources and server-side validation. The present per-sector
+  isolated resources and server-side validation. This provisional-worker seam
+  does not authorize a Canon worker writer; changing the sole writer requires
+  a separate authority design, compatibility and recovery evidence. The present per-sector
   generator has no global fair queue or retention limit. Their design and
   numeric budgets require measured need and a bounded implementation issue.
 - If a simulation split becomes necessary, first specify a unique transfer ID
