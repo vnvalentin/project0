@@ -115,7 +115,7 @@ static func parse_entry_intent(input: Variant) -> Dictionary:
 
 
 static func valid_id(value: Variant) -> bool:
-	return value is String and not value.is_empty() and value.length() <= MAX_ID_LENGTH
+	return value is String and not value.strip_edges().is_empty() and value.length() <= MAX_ID_LENGTH
 
 
 static func _closed(data: Dictionary, fields: PackedStringArray) -> bool:
