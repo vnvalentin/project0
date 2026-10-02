@@ -88,10 +88,8 @@ Included issues:
 - #456
 Complete when: The required acceptance proof.
 Dependency: Prerequisites for this work.
+Context: #789 Parent context, cited on the first Slice it relates to; not a member.
 Outcome evidence: https://example.test/accepted-validation
-
-## Shared Context
-- #789 Parent context, not a delivery member.
 
 ## Required Scope Awaiting Slice Definition
 - Additional required work whose grouping is not yet agreed.
@@ -102,7 +100,10 @@ outcome, completion criterion, and explicit `- #number` members. Fenced examples
 and references outside `Included issues` do not establish membership. Missing
 issues, duplicate membership, and issues assigned elsewhere are displayed as
 mapping warnings and keep the affected group New. Issues assigned to the
-milestone but outside its groups and shared context appear as unmapped work.
+milestone but outside its groups appear as unmapped work. A `## Shared Context`
+section is not allowed (#1400): it is shown as a mapping warning and its issues
+count as unmapped. List a shared issue on the first Slice it relates to, under
+`Included issues:` when it is assigned to the milestone, otherwise in `Context:`.
 
 Each card and defined group shows issue activity independently: closed/total,
 active, and blocked counts. These are issue counts, not accepted-outcome
