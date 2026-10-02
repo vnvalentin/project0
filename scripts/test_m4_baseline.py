@@ -22,7 +22,7 @@ class BaselineReportTests(unittest.TestCase):
 
     def test_incomplete_and_nonfinite_tick_data_never_passes(self):
         observation = {'configured_tick_rate': 30, 'elapsed_seconds': 1000 / 30,
-                       'crossings': [{}] * 100, 'canon_reads': [{'duration_usec': 50}], 'errors': [],
+                       'crossings': [{}] * 100, 'canon_reads': [{'duration_usec': 50, 'phase': 'readiness', 'context': 'boundary_lookup', 'outcome': 'ok', 'sector_id': 'sector-0-0'}], 'errors': [],
                        'body_activity': [{'steps': 1000, 'travel': 1.0} for _ in range(15)],
                        'entries_by_trigger': [1] * 15,
                        'background': {'accepted_connections': 4, 'results': [{'sector': 'sector-%d-10' % i, 'outcome': 'timeout'} for i in range(4)]},
@@ -30,6 +30,9 @@ class BaselineReportTests(unittest.TestCase):
                        'isolation': dict.fromkeys(('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed'), True),
                        'samples': [{'tick': tick, 'duration_ms': 1.0, 'peers': 10, 'ready': 10, 'sectors': 4, 'npcs': 10, 'bodies': 15, 'triggers': 15} for tick in range(1000)]}
         self.assertTrue(evaluate(observation, True)['passed'])
+        observation['canon_reads'][0]['outcome'] = 'damaged'
+        self.assertFalse(evaluate(observation, True)['passed'])
+        observation['canon_reads'][0]['outcome'] = 'ok'
         observation['entries_by_trigger'][0] = 0
         self.assertFalse(evaluate(observation, True)['passed'])
         observation['entries_by_trigger'][0] = 1

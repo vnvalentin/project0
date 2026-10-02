@@ -29,7 +29,7 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
         'p99_at_most_33_3ms': bool(ordered) and ordered[989] <= 33.3,
         'max_at_most_50ms': bool(ordered) and ordered[-1] <= 50,
         'crossings_at_least_two_per_second': elapsed_valid and len(crossings) / elapsed >= 2,
-        'canon_timing_observed': bool(observation.get('canon_reads')),
+        'canon_timing_observed': any(r.get('outcome') == 'ok' and r.get('sector_id') in ('sector-0-0', 'sector-1-0', 'sector-0-1', 'sector-1-1') and r.get('phase') in ('setup', 'readiness', 'measured') and isinstance(r.get('duration_usec'), (int, float)) and math.isfinite(r['duration_usec']) and r['duration_usec'] >= 0 for r in observation.get('canon_reads', [])),
         'isolation_observed': all(isolation.get(k) is True for k in ('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed')),
         'dynamic_activity_observed': len(bodies) == 15 and all(isinstance(b, dict) and isinstance(b.get('travel'), (int, float)) and math.isfinite(b['travel']) and b['travel'] > 0 and b.get('steps', 0) >= len(samples) for b in bodies) and len(entries) == 15 and all(isinstance(n, int) and n > 0 for n in entries),
         'background_outcomes_observed': background.get('accepted_connections') == 4 and len(results) == 4 and {r.get('sector') for r in results} == {'sector-%d-10' % i for i in range(4)} and all(r.get('outcome') == 'timeout' for r in results),

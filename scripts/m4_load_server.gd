@@ -29,6 +29,7 @@ class MovingBody extends CharacterBody3D:
 		travel += before.distance_to(position)
 		steps += 1
 
+var _m4_canon_context: String = "server_lookup"
 var _m4_profiler: TickProfiler
 var _m4_report: Dictionary = {"samples": [], "crossings": [], "canon_reads": [], "errors": [], "isolation": {}}
 var _m4_bodies: Array[MovingBody] = []
@@ -163,10 +164,27 @@ func _on_player_state_character_bound(peer_id: int, display_name: String, cosmet
 func _inspect_canon_base(sector_id: String) -> Dictionary:
 	var started: int = Time.get_ticks_usec()
 	var result: Dictionary = super(sector_id)
-	if _m4_started and not _m4_finished:
-		_m4_report["canon_reads"].append({"tick": Engine.get_physics_frames(), "sector_id": sector_id,
-			"duration_usec": Time.get_ticks_usec() - started, "outcome": result.get("outcome")})
+	var duration: int = Time.get_ticks_usec() - started
+	var phase: String = "measured" if _m4_started and not _m4_finished else "setup"
+	if not _m4_started and _m4_report.get("status") == "setup_ready":
+		phase = "readiness"
+	_m4_report["canon_reads"].append({"tick": Engine.get_physics_frames(), "sector_id": sector_id,
+		"duration_usec": duration, "outcome": result.get("outcome"), "phase": phase,
+		"context": _m4_canon_context, "unix_usec": int(Time.get_unix_time_from_system() * 1000000.0)})
 	return result
+
+func _boundary_has_canon(sector_id: String) -> bool:
+	var previous: String = _m4_canon_context
+	_m4_canon_context = "boundary_lookup"
+	var result: bool = super(sector_id)
+	_m4_canon_context = previous
+	return result
+
+func _reload_sector_from_boundary(peer_id: int, sector_id: String, position: Vector3, trace: Dictionary = {}) -> void:
+	var previous: String = _m4_canon_context
+	_m4_canon_context = "boundary_reentry"
+	super(peer_id, sector_id, position, trace)
+	_m4_canon_context = previous
 
 func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) -> void:
 	super(peer_id, updated_position)
@@ -307,6 +325,15 @@ func _m4_finish() -> void:
 		"scope": "Application-owned worker probe explicit waits only. Native engine synchronization is not observed. Joins occur after measured window."}
 	_m4_report["body_activity"] = _m4_bodies.map(func(body: MovingBody) -> Dictionary: return {"steps": body.steps, "travel": body.travel})
 	_m4_report["entries_by_trigger"] = _m4_entries_by_trigger
+	var healthy_reads: int = 0
+	var measured_healthy_reads: int = 0
+	for observation: Dictionary in _m4_report["canon_reads"]:
+		if observation.get("outcome") == "ok" and SECTORS.has(observation.get("sector_id")):
+			healthy_reads += 1
+			if observation.get("phase") == "measured":
+				measured_healthy_reads += 1
+	_m4_report["canon_read_summary"] = {"healthy_all_phases": healthy_reads, "healthy_measured": measured_healthy_reads,
+		"note": "Real public-path reads only; readiness reads remain distinct from measured-window reads. Crossings may reuse loaded Canon state; no artificial reads are added."}
 	_m4_report["fault"] = _m4_fault
 	_m4_report["background"] = {"accepted_connections": _m4_connections.size(), "results": _m4_background_results}
 	_m4_report["isolation"] = {
