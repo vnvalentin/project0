@@ -17,10 +17,19 @@ class SourceIdentityTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
         (self.root / "scripts").mkdir()
-        for name in ("run_gut_validation.sh", "run_hosted_gut_container.sh"):
-            shutil.copyfile(ROOT / "scripts" / name, self.root / "scripts" / name)
+        for name in ("run_gut_validation.sh", "run_hosted_gut_container.sh", "prepare_godot_project.py"):
+            if (ROOT / "scripts" / name).is_file():
+                shutil.copyfile(ROOT / "scripts" / name, self.root / "scripts" / name)
         (self.root / "tests/unit").mkdir(parents=True)
         (self.root / "tests/unit/test_fixture.gd").write_text("# Command fixture only\n")
+        self.original_project_config = ('config_version=5\n\n[application]\nconfig/name="Fixture"\n\n'
+                                        '[autoload]\nPlayerIdentity="*res://client/player_identity.gd"\n'
+                                        'NetworkClient="*res://client/network_client.gd"\n\n'
+                                        '[editor_plugins]\nenabled=PackedStringArray("res://addons/gut/plugin.cfg")\n')
+        (self.root / "project.godot").write_text(self.original_project_config)
+        (self.root / "client").mkdir()
+        for name in ("player_identity.gd", "network_client.gd"):
+            (self.root / "client" / name).write_text("extends Node\n")
         self.extension_registry = "res://addons/godot-sqlite/gdsqlite.gdextension\n"
         extension = self.root / "addons/godot-sqlite/gdsqlite.gdextension"
         extension.parent.mkdir(parents=True)
@@ -29,6 +38,7 @@ class SourceIdentityTests(unittest.TestCase):
         self.bin.mkdir()
         self.engine_calls = self.root / "engine-calls.jsonl"
         self.docker_calls = self.root / "docker-calls.jsonl"
+        self.engine_flags = self.bin / "engine-flags.json"
         self.env = {
             "PATH": str(self.bin) + os.pathsep + "/usr/bin:/bin",
             "HOME": str(self.root / "home"),
@@ -43,18 +53,32 @@ class SourceIdentityTests(unittest.TestCase):
         self.write_executable("godot", '''#!/usr/bin/python3
 import json, os, sys
 from pathlib import Path
+flags_path = Path(__FLAGS_PATH__)
+flags = json.loads(flags_path.read_text()) if flags_path.is_file() else {}
+configuration = Path("project.godot")
+project_config = configuration.read_text() if configuration.is_file() else None
 registry = Path(".godot/extension_list.cfg")
 registry_contents = registry.read_text() if registry.is_file() else None
-with open(os.environ["FAKE_ENGINE_CALLS"], "a") as output:
-    output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents}) + "\\n")
-if "--import" in sys.argv and os.environ.get("FAKE_IMPORT_SCRIPT_ERROR") == "1":
+with open(__CALLS_PATH__, "a") as output:
+    output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents, "project_config": project_config, "cwd": str(Path.cwd())}) + "\\n")
+if "--import" in sys.argv and flags.get("FAKE_IMPORT_SCRIPT_ERROR") == "1":
     print("SCRIPT ERROR: Parse Error: synthetic preparation failure")
-if "-s" in sys.argv and os.environ.get("FAKE_GUT_SCRIPT_ERROR") == "1":
+if "-s" in sys.argv and flags.get("FAKE_REMOVE_REPORT") == "1":
+    Path(__REPORT_PATH__).unlink()
+if "-s" in sys.argv and flags.get("FAKE_EXPERIMENT_ARTIFACT") == "1":
+    trace = Path("logs/experiments/control.json")
+    trace.parent.mkdir(parents=True)
+    trace.write_text('{"fixture":"retained"}')
+if "-s" in sys.argv and flags.get("FAKE_GUT_OVERRIDE_EDIT") == "1":
+    Path("override.cfg").write_text("; unknown GUT fixture edit")
+if "--import" in sys.argv and flags.get("FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT") == "1":
+    Path("override.cfg").write_text("; unknown fixture edit")
+if "-s" in sys.argv and flags.get("FAKE_GUT_SCRIPT_ERROR") == "1":
     print("SCRIPT ERROR: synthetic skipped runtime failure")
 for arg in sys.argv:
     if arg.startswith("-gjunit_xml_file="):
         Path(arg.split("=", 1)[1]).write_text('<testsuites><testsuite name="tests/unit/test_fixture.gd" tests="1" failures="0"/></testsuites>')
-''')
+'''.replace('__FLAGS_PATH__', repr(str(self.engine_flags))).replace('__CALLS_PATH__', repr(str(self.engine_calls))).replace('__REPORT_PATH__', repr(str(self.root / 'build/validation/preparation-summary.json'))))
         self.write_executable("docker", '''#!/usr/bin/python3
 import json, os, sys
 with open(os.environ["FAKE_DOCKER_CALLS"], "a") as output:
@@ -76,6 +100,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
 
     def run_command(self, name, source=None):
         env = self.env.copy()
+        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT")}))
         if source is not None:
             env["M4_SOURCE_REVISION"] = source
         return subprocess.run(["bash", "scripts/" + name], cwd=self.root, env=env,
@@ -85,7 +110,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         result = self.run_command("run_gut_validation.sh")
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(calls), 3)
         self.assertTrue(all(call["source"] == self.sha for call in calls))
 
 
@@ -93,7 +118,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         result = self.run_command("run_gut_validation.sh")
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(calls), 3)
         self.assertTrue(all(call["extension_registry"] == self.extension_registry for call in calls))
 
     def test_standard_runner_rejects_import_script_errors_before_gut_with_retained_failure(self):
@@ -107,7 +132,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
         self.assertEqual(summary["stage"], "import")
         self.assertEqual(summary["exit_code"], 1)
         self.assertTrue(summary["import_script_error_observed"])
-        self.assertIn("synthetic preparation failure", (self.root / summary["import_log"]).read_text())
+        self.assertIn("SCRIPT ERROR", (self.root / summary["import_log"]).read_text())
 
     def test_standard_runner_rejects_gut_script_error_despite_complete_passing_junit(self):
         self.env["FAKE_GUT_SCRIPT_ERROR"] = "1"
@@ -150,6 +175,62 @@ os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
                 self.assertEqual(summary["status"], "failed")
                 key = "import_log_scan_failed" if log == "import.log" else "gut_log_scan_failed"
                 self.assertTrue(summary[key])
+
+    def test_standard_runner_prepares_in_isolation_then_restores_plugin_before_gut(self):
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertIn('enabled=PackedStringArray()', calls[0]["project_config"])
+        self.assertEqual(len(calls), 3)
+        self.assertIn('enabled=PackedStringArray("res://addons/gut/plugin.cfg")', calls[1]["project_config"])
+        self.assertEqual(calls[2]["project_config"], self.original_project_config)
+        self.assertTrue(all(call["cwd"] != str(self.root) for call in calls))
+        self.assertEqual((self.root / "project.godot").read_text(), self.original_project_config)
+        self.assertFalse(Path(calls[0]["cwd"]).exists())
+        self.assertFalse((self.root / ".godot").exists())
+
+    def test_missing_custody_report_fails_and_preserves_staged_source(self):
+        self.env["FAKE_REMOVE_REPORT"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertTrue(Path(calls[0]["cwd"]).is_dir())
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["status"], "failed")
+
+    def test_experiment_artifact_and_relative_dashboard_survive_staged_cleanup(self):
+        self.env["FAKE_EXPERIMENT_ARTIFACT"] = "1"
+        self.env["DASHBOARD_RESULTS_DIR"] = "dashboard"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        trace = self.root / "logs/experiments/control.json"
+        self.assertEqual(json.loads(trace.read_text()), {"fixture": "retained"})
+        summary = json.loads((self.root / "dashboard/validation-summary.json").read_text())
+        self.assertEqual(summary["status"], "passed")
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertFalse(Path(calls[0]["cwd"]).exists())
+
+    def test_unknown_override_edit_prevents_qualification_and_preserves_stage(self):
+        self.env["FAKE_OVERRIDE_EDIT"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 1)
+        stage = Path(calls[0]["cwd"])
+        self.assertEqual((stage / "override.cfg").read_text(), "; unknown fixture edit")
+        summary = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertTrue(summary["configuration_custody_lost"])
+
+    def test_unknown_gut_override_edit_fails_and_preserves_stage(self):
+        self.env["FAKE_GUT_OVERRIDE_EDIT"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.engine_calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 3)
+        stage = Path(calls[0]["cwd"])
+        self.assertEqual((stage / "override.cfg").read_text(), "; unknown GUT fixture edit")
+        summary = json.loads((self.root / "dashboard/validation-summary.json").read_text())
+        self.assertEqual(summary["status"], "failed")
 
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)

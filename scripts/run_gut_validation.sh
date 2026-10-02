@@ -41,7 +41,17 @@ else
   export M4_SOURCE_REVISION
 fi
 
+source_root="$PWD"
+if [[ -n "$DASHBOARD_RESULTS_DIR" && "$DASHBOARD_RESULTS_DIR" != /* ]]; then
+  DASHBOARD_RESULTS_DIR="$source_root/$DASHBOARD_RESULTS_DIR"
+fi
 mkdir -p "$RESULT_DIR"
+RESULT_DIR="$(cd "$RESULT_DIR" && pwd)"
+JUNIT_FILE="${RESULT_DIR}/gut.xml"
+LOG_FILE="${RESULT_DIR}/gut.log"
+IMPORT_LOG="${RESULT_DIR}/import.log"
+SUMMARY_FILE="${RESULT_DIR}/validation-summary.json"
+PREPARATION_REPORT="${RESULT_DIR}/preparation-summary.json"
 
 record_bootstrap_failure() {
   python3 - "$SUMMARY_FILE" <<'PYREPORT'
@@ -60,8 +70,8 @@ if ! command -v timeout >/dev/null 2>&1; then
 fi
 
 # Godot loads GDExtension classes from this registry before its first editor
-# scan discovers extension declarations. Seed only the reviewed server extension
-# so a fresh validation checkout can compile the same typed SQLite consumers.
+# scan discovers extension declarations. The helper seeds the reviewed extension
+# only in its owned copy; the original checkout remains untouched.
 # Existing unknown registry state is rejected rather than silently replaced.
 extension_declaration="addons/godot-sqlite/gdsqlite.gdextension"
 extension_registry=".godot/extension_list.cfg"
@@ -70,24 +80,160 @@ if [[ ! -f "$extension_declaration" || -L "$extension_declaration" || -L .godot 
   record_bootstrap_failure
   exit 2
 fi
-mkdir -p .godot || { record_bootstrap_failure; exit 2; }
 if [[ -e "$extension_registry" ]]; then
   if [[ ! -f "$extension_registry" ]] || ! cmp -s "$extension_registry" <(printf '%s\n' "res://$extension_declaration"); then
     echo "VALIDATION GATE ERROR: extension registry differs from the reviewed server declaration." >&2
     record_bootstrap_failure
     exit 2
   fi
-elif ! (set -C; printf '%s\n' "res://$extension_declaration" > "$extension_registry"); then
-  echo "VALIDATION GATE ERROR: extension registry preparation failed." >&2
-  record_bootstrap_failure
-  exit 2
 fi
 
 # Reimport/compile from a clean cache before running so a stale GDScript class
 # cache cannot silently drop a test script from the run and still report green
 # (DT-007). A skipped script must never be mistaken for a passing suite.
+source_root="$PWD"
+prepared_parent="$(mktemp -d "${TMPDIR:-/tmp}/project0-gut-prepared.XXXXXX")" || { record_bootstrap_failure; exit 2; }
+prepared_root="$prepared_parent/project"
+publish_dashboard_results() {
+if [[ -n "$DASHBOARD_RESULTS_DIR" ]]; then
+  if mkdir -p "$DASHBOARD_RESULTS_DIR" \
+    && cp "$JUNIT_FILE" "$DASHBOARD_RESULTS_DIR/gut.xml" \
+    && cp "$SUMMARY_FILE" "$DASHBOARD_RESULTS_DIR/validation-summary.json"; then
+    echo "Published dashboard test results to $DASHBOARD_RESULTS_DIR"
+  else
+    echo "WARNING: unable to publish dashboard test results to $DASHBOARD_RESULTS_DIR" >&2
+  fi
+fi
+
+}
+record_cleanup_failure() {
+  python3 - "$SUMMARY_FILE" "$prepared_root" "$1" <<'PYCLEANUP'
+import json, sys
+from pathlib import Path
+path, root, reason = sys.argv[1:]
+try:
+    result = json.loads(Path(path).read_text())
+    if not isinstance(result, dict):
+        result = {}
+except (OSError, ValueError):
+    result = {}
+result.update(status="failed", stage="cleanup", exit_code=1,
+              cleanup_failure=reason, retained_prepared_root=root)
+Path(path).write_text(json.dumps(result, indent=2)+"\n")
+PYCLEANUP
+  publish_dashboard_results
+}
+cleanup_prepared_source() {
+  runner_exit=$?
+  trap - EXIT
+  if ! python3 - "$PREPARATION_REPORT" "$prepared_root" "$M4_SOURCE_REVISION" <<'PYCUSTODY'
+import hashlib, json, stat, sys
+from pathlib import Path
+try:
+    report = Path(sys.argv[1])
+    if report.is_symlink() or not report.is_file():
+        sys.exit(1)
+    result = json.loads(report.read_text())
+    root = Path(sys.argv[2])
+    qualified = (isinstance(result, dict) and result.get("configuration_custody_lost") is False
+                 and result.get("prepared_root") == sys.argv[2]
+                 and result.get("source_revision") == sys.argv[3]
+                 and isinstance(result.get("prepared_root_created"), bool)
+                 and (result["prepared_root_created"] is False
+                      or (result.get("configuration_restored") is True
+                          and result.get("source_custody_qualified") is True)))
+    if qualified and result["prepared_root_created"]:
+        config = root / "project.godot"
+        cache = root / ".godot"
+        registry = cache / "extension_list.cfg"
+        override = root / "override.cfg"
+        qualified = (not root.is_symlink() and not cache.is_symlink()
+                     and not config.is_symlink() and stat.S_ISREG(config.lstat().st_mode)
+                     and hashlib.sha256(config.read_bytes()).hexdigest() == result.get("configuration_original_sha256")
+                     and not registry.is_symlink() and stat.S_ISREG(registry.lstat().st_mode)
+                     and registry.read_bytes() == b"res://addons/godot-sqlite/gdsqlite.gdextension\n"
+                     and not override.exists() and not override.is_symlink())
+except (OSError, ValueError):
+    sys.exit(1)
+sys.exit(0 if qualified else 1)
+PYCUSTODY
+  then
+    record_cleanup_failure "configuration_custody_unqualified"
+    echo "VALIDATION GATE ERROR: staged source retained because configuration custody is unqualified." >&2
+    exit 1
+  fi
+  # Existing tests own res://logs/experiments/*.json. Retain only those generated
+  # artifacts in the established host destination, without replacing prior files.
+  if ! python3 - "$prepared_root" "$source_root" "$RESULT_DIR" <<'PYARTIFACTS'
+import hashlib, json, os, stat, sys
+from pathlib import Path
+stage, source, results = map(Path, sys.argv[1:])
+origin = stage / "logs/experiments"
+try:
+    manifest = []
+    if origin.exists() or origin.is_symlink():
+        if (stage / "logs").is_symlink() or origin.is_symlink() or not origin.is_dir():
+            raise ValueError("artifact_root_unqualified")
+        paths = []
+        for directory, directories, files in os.walk(origin, followlinks=False):
+            parent = Path(directory)
+            for name in directories:
+                if (parent / name).is_symlink():
+                    raise ValueError("artifact_directory_unqualified")
+            for name in files:
+                path = parent / name
+                if not stat.S_ISREG(path.lstat().st_mode) or path.suffix != ".json":
+                    raise ValueError("artifact_file_unqualified")
+                paths.append(path)
+        destination = source / "logs/experiments"
+        for root in (source / "logs", destination):
+            if root.is_symlink() or (root.exists() and not root.is_dir()):
+                raise ValueError("artifact_destination_unqualified")
+        # Preflight every destination before writing any generated evidence.
+        for incoming in paths:
+            relative = incoming.relative_to(origin)
+            outgoing = destination / relative
+            for parent in [outgoing, *outgoing.parents]:
+                if parent == source:
+                    break
+                if parent.is_symlink():
+                    raise ValueError("artifact_destination_unqualified")
+            if outgoing.exists():
+                raise ValueError("artifact_destination_collision")
+        for incoming in paths:
+            outgoing = destination / incoming.relative_to(origin)
+            outgoing.parent.mkdir(parents=True, exist_ok=True)
+            payload = incoming.read_bytes()
+            with outgoing.open("xb") as stream:
+                stream.write(payload)
+            if outgoing.read_bytes() != payload:
+                raise ValueError("artifact_readback_failed")
+            manifest.append({"path": str(outgoing), "sha256": hashlib.sha256(payload).hexdigest()})
+    (results / "experiment-artifacts.json").write_text(json.dumps({"status":"retained", "files":manifest},indent=2)+"\n")
+except (OSError, ValueError):
+    sys.exit(1)
+PYARTIFACTS
+  then
+    record_cleanup_failure "experiment_artifacts_unqualified"
+    echo "VALIDATION GATE ERROR: staged experiment artifacts retained for recovery." >&2
+    exit 1
+  fi
+  if ! rm -rf -- "$prepared_parent" || [[ -e "$prepared_parent" ]]; then
+    record_cleanup_failure "prepared_source_teardown_failed"
+    exit 1
+  fi
+  publish_dashboard_results
+  exit "$runner_exit"
+}
+trap cleanup_prepared_source EXIT
+
+GODOT_BIN="$(command -v "$GODOT_BIN")" || { record_bootstrap_failure; exit 2; }
+if [[ "$GODOT_BIN" != /* ]]; then GODOT_BIN="$source_root/$GODOT_BIN"; fi
 set +e
-timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless --import >"$IMPORT_LOG" 2>&1
+python3 "$source_root/scripts/prepare_godot_project.py" \
+  --source-root "$source_root" --prepared-root "$prepared_root" \
+  --godot "$GODOT_BIN" --source-revision "$M4_SOURCE_REVISION" \
+  --timeout-seconds "$GUT_TIMEOUT_SECONDS" --report "$PREPARATION_REPORT" >"$IMPORT_LOG" 2>&1
 import_exit_code=$?
 set -e
 import_script_error_observed=false
@@ -118,8 +264,18 @@ PYREPORT
   exit 1
 fi
 
+cd "$prepared_root" || { record_bootstrap_failure; exit 2; }
+# GUT runtime state stays inside the same owned lifecycle as its source copy.
+gut_runtime_home="$prepared_parent/runtime-home"
+gut_runtime_data="$prepared_parent/runtime-data"
+gut_runtime_config="$prepared_parent/runtime-config"
+gut_runtime_cache="$prepared_parent/runtime-cache"
+mkdir -p "$gut_runtime_home" "$gut_runtime_data" "$gut_runtime_config" "$gut_runtime_cache"
+
 set +e
-timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless \
+env HOME="$gut_runtime_home" XDG_DATA_HOME="$gut_runtime_data" \
+  XDG_CONFIG_HOME="$gut_runtime_config" XDG_CACHE_HOME="$gut_runtime_cache" \
+  timeout --kill-after=15s "${GUT_TIMEOUT_SECONDS}s" "$GODOT_BIN" --headless \
   -s addons/gut/gut_cmdln.gd \
   -gjunit_xml_file="$JUNIT_FILE" \
   -gdisable_colors \
@@ -178,31 +334,20 @@ if [[ "$exit_code" -eq 0 ]]; then
   status="passed"
 fi
 
-cat > "$SUMMARY_FILE" <<EOF
-{
-  "runner": "GUT",
-  "status": "$status",
-  "exit_code": $exit_code,
-  "timed_out": $timed_out,
-  "timeout_seconds": $GUT_TIMEOUT_SECONDS,
-  "scripts_expected": $scripts_expected,
-  "scripts_ran": $scripts_ran,
-  "gut_script_error_observed": $gut_script_error_observed,
-  "gut_log_scan_failed": $gut_log_scan_failed,
-  "timestamp_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "junit_xml": "$JUNIT_FILE",
-  "log": "$LOG_FILE"
-}
-EOF
+python3 - "$SUMMARY_FILE" "$status" "$exit_code" "$timed_out" "$GUT_TIMEOUT_SECONDS" \
+  "$scripts_expected" "$scripts_ran" "$gut_script_error_observed" "$gut_log_scan_failed" \
+  "$PREPARATION_REPORT" "$JUNIT_FILE" "$LOG_FILE" <<'PYSUMMARY'
+import datetime, json, sys
+from pathlib import Path
+path, status, code, timed, timeout, expected, ran, marker, scan, preparation, junit, log = sys.argv[1:]
+Path(path).write_text(json.dumps({
+    "runner":"GUT", "status":status, "exit_code":int(code), "timed_out":timed=="true",
+    "timeout_seconds":int(timeout), "scripts_expected":int(expected), "scripts_ran":int(ran),
+    "gut_script_error_observed":marker=="true", "gut_log_scan_failed":scan=="true",
+    "preparation_report":preparation, "timestamp_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "junit_xml":junit, "log":log,
+},indent=2)+"\n")
+PYSUMMARY
 
-if [[ -n "$DASHBOARD_RESULTS_DIR" ]]; then
-  if mkdir -p "$DASHBOARD_RESULTS_DIR" \
-    && cp "$JUNIT_FILE" "$DASHBOARD_RESULTS_DIR/gut.xml" \
-    && cp "$SUMMARY_FILE" "$DASHBOARD_RESULTS_DIR/validation-summary.json"; then
-    echo "Published dashboard test results to $DASHBOARD_RESULTS_DIR"
-  else
-    echo "WARNING: unable to publish dashboard test results to $DASHBOARD_RESULTS_DIR" >&2
-  fi
-fi
 
 exit "$exit_code"
