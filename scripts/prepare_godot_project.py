@@ -90,7 +90,9 @@ def verify_source(root, revision, hashes, committed):
         if committed is not None:
             relative = Path(name)
             blob = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
-            if index.get(relative) != committed[relative] or blob != committed[relative][1]:
+            executable = bool(path.stat().st_mode & stat.S_IXUSR)
+            if (index.get(relative) != committed[relative] or blob != committed[relative][1] or
+                    executable != (committed[relative][0] == '100755')):
                 raise PreparationError('source_tracked_dirt')
 
 
@@ -155,7 +157,8 @@ def source_inventory(root, revision, prepared):
                 raise PreparationError('source_index_differs_from_revision')
             content = target.read_bytes()
             blob = hashlib.sha1(b'blob ' + str(len(content)).encode() + b'\0' + content).hexdigest()
-            if blob != committed[relative][1]:
+            executable = bool(target.stat().st_mode & stat.S_IXUSR)
+            if blob != committed[relative][1] or executable != (committed[relative][0] == '100755'):
                 raise PreparationError('source_tracked_dirt')
         selected.append(relative)
     if Path('project.godot') not in selected or Path(EXTENSION) not in selected:

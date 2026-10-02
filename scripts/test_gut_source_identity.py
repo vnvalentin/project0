@@ -232,6 +232,16 @@ os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
         summary = json.loads((self.root / "dashboard/validation-summary.json").read_text())
         self.assertEqual(summary["status"], "failed")
 
+    def test_changed_tracked_executable_mode_rejects_source_before_engine_launch(self):
+        path = self.root / "client/player_identity.gd"
+        path.chmod(0o755)
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        self.assertFalse(self.engine_calls.exists())
+        preparation = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertEqual(preparation["status"], "failed")
+        self.assertEqual(preparation["failure_class"], "source_tracked_dirt")
+
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)
         self.assertEqual(result.returncode, 2)
