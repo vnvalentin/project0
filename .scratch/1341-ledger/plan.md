@@ -103,3 +103,7 @@ All three alternate pairs completed with application source and observed SQLite 
 ## Accepted timing-test integration
 
 Integrated exactly verified accepted main f719b846e027204b22b144bc1ae3095ab08e2cc3. Read the complete fallback timing correction: boot hub fixture construction moves before the unchanged 200ms measured Repair/Schema/Detail seam, with reproducible validation recipes. Application code and GUT inventory are unchanged; this accepted correction neither changes the separate15ms Canon gate nor resolves storage timing debt. Record sync and full ownership plan preflight pass. No native validation performed during this integration; full and focused final-source evidence remain pending.
+
+## Accepted parity evidence integration
+
+Integrated exactly verified accepted main521601a72e792e7a54c6b12c618f10eff48cadb0. Read the full source-identity runner delta, public command controls and new parity suite/evidence helper. Standard full validation qualifies and exports checkout identity through M4_SOURCE_REVISION; source-only hosted artifacts receive a qualified host revision and malformed/conflicting identities fail before execution. One new integration suite updates this branch full inventory to158 scripts. These are accepted supporting component/runner changes, not ledger full validation or review carry-forward. Storage timing debt and prediction cause remain unresolved; no native command or production change occurred. Private diagnostics remain unpublished.
