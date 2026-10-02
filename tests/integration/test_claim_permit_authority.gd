@@ -4,9 +4,11 @@ const StoreScript: Script = preload("res://server/sqlite_store.gd")
 const AUTHORITY_PATH: String = "res://server/claim_permit_authority.gd"
 var _store: SqliteStore
 var _database: String
+var _observation_index: int = 0
 
 
 func before_each() -> void:
+	_observation_index = 0
 	_database = "test_claim_permit_%d_%d.db" % [Time.get_ticks_usec(), randi()]
 	_store = StoreScript.new()
 	assert_eq(_store.open(_database).outcome, "ok")
@@ -136,7 +138,7 @@ func test_specific_commit_authorizer_requires_its_managed_transaction() -> void:
 	)
 	assert_eq(check.outcome, "ok")
 	assert_eq(transaction.outcome, "ok")
-	var observation: Dictionary = _store.dml_statement_counters()
+	var observation: Dictionary = _observe("specific_commit_authorizer_requires_its_managed_transaction")
 	assert_eq(observation.observation_status, "OBSERVED")
 	assert_eq(observation.totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0}, "the authorizer only reads authority")
 
@@ -165,7 +167,7 @@ func test_revoked_character_permit_rejects_final_commit_with_zero_write_attempts
 	)
 	assert_eq(result.outcome, "stale_authority")
 	assert_eq(calls[0], 0)
-	var observation: Dictionary = _store.dml_statement_counters()
+	var observation: Dictionary = _observe("revoked_character_permit_rejects_final_commit_with_zero_write_attempts")
 	assert_eq(observation.observation_status, "OBSERVED")
 	assert_eq(observation.totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	assert_eq(_store.query("SELECT id FROM action_probe;").rows.size(), 0)
@@ -191,7 +193,7 @@ func test_permit_receipt_replays_after_later_revision_and_restart_without_writes
 	var replay: Dictionary = authority.apply_permit("owner-one", intent)
 	assert_eq(replay.outcome, "duplicate_rejected")
 	assert_eq(replay.get("original_result"), original)
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("permit_receipt_replays_after_later_revision_and_restart_without_writes").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	_store.close()
 	_store = StoreScript.new()
 	assert_eq(_store.open(_database).outcome, "ok")
@@ -203,7 +205,7 @@ func test_permit_receipt_replays_after_later_revision_and_restart_without_writes
 	var changed: Dictionary = intent.duplicate(true)
 	changed.permission_bits = 2
 	assert_eq(authority.apply_permit("owner-one", changed).outcome, "operation_conflict")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("permit_receipt_replays_after_later_revision_and_restart_without_writes").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_membership_receipt_does_not_restore_old_membership_on_replay() -> void:
@@ -225,7 +227,7 @@ func test_membership_receipt_does_not_restore_old_membership_on_replay() -> void
 	assert_eq(replay.get("original_result"), original)
 	assert_eq(authority.begin_interaction("member-one", "plot-one", 1).outcome, "permission_denied", "old events cannot restore revoked membership")
 	assert_eq(authority.update_memberships("member-one", [], 0, "joined-once").outcome, "operation_conflict")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("membership_receipt_does_not_restore_old_membership_on_replay").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_permission_audit_retains_canonical_intent_and_rejects_corrupt_receipt() -> void:
@@ -255,7 +257,7 @@ func test_permission_audit_retains_canonical_intent_and_rejects_corrupt_receipt(
 	assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET request_json = ? WHERE operation_id = ?;", ["[]", "permit-audit"]).outcome, "ok")
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.apply_permit("owner-one", intent).outcome, "invalid_persisted_state")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("permission_audit_retains_canonical_intent_and_rejects_corrupt_receipt").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_provisioning_has_an_immutable_receipt_before_current_claim_checks() -> void:
@@ -270,7 +272,7 @@ func test_provisioning_has_an_immutable_receipt_before_current_claim_checks() ->
 	assert_eq(replay.get("original_result"), original)
 	assert_eq(authority.register_claim("plot-two", "owner-one", "provision-one").outcome, "operation_conflict")
 	assert_eq(authority.register_claim("plot-one", "owner-two", "provision-other").outcome, "claim_conflict")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("provisioning_has_an_immutable_receipt_before_current_claim_checks").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	var audit: Dictionary = _store.query_with_bindings("SELECT actor_scope, request_json FROM permission_operation_receipts WHERE operation_id = ?;", ["provision-one"])
 	assert_eq(audit.rows.size(), 1)
 	if audit.rows.size() != 1:
@@ -301,10 +303,10 @@ func test_primary_owner_transfer_invalidates_old_handles_and_survives_reopen() -
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.transfer_claim("steward-one", intent).outcome, "permission_denied", "even all explicit bits cannot transfer another primary owner's plot")
 	assert_eq(authority.transfer_claim("visitor-one", intent).outcome, "permission_denied")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("primary_owner_transfer_invalidates_old_handles_and_survives_reopen").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	var original: Dictionary = authority.transfer_claim("owner-one", intent)
 	assert_eq(original.outcome, "ok")
-	assert_eq(_store.dml_statement_counters().totals.committed, {"insert": 1, "replace": 0, "update": 1, "delete": 0})
+	assert_eq(_observe("primary_owner_transfer_invalidates_old_handles_and_survives_reopen").totals.committed, {"insert": 1, "replace": 0, "update": 1, "delete": 0})
 	assert_eq(authority.commit_interaction("owner-one", started.interaction_id, func() -> bool: return true).outcome, "stale_authority")
 	assert_eq(authority.begin_interaction("owner-one", "plot-one", 1).outcome, "permission_denied")
 	assert_eq(authority.begin_interaction("owner-two", "plot-one", 63).outcome, "ok")
@@ -324,7 +326,7 @@ func test_primary_owner_transfer_invalidates_old_handles_and_survives_reopen() -
 	var changed: Dictionary = intent.duplicate(true)
 	changed.new_owner_character_id = "owner-three"
 	assert_eq(authority.transfer_claim("owner-one", changed).outcome, "operation_conflict")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("primary_owner_transfer_invalidates_old_handles_and_survives_reopen").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_corrupt_receipt_result_cannot_replace_the_original_accepted_result() -> void:
@@ -352,12 +354,12 @@ func test_corrupt_receipt_result_cannot_replace_the_original_accepted_result() -
 		assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 		var changed_target: Dictionary = authority.callv(commands[index][0], commands[index][1])
 		assert_eq(changed_target.outcome, "invalid_persisted_state", commands[index][0] + " must bind the retained target to original intent")
-		assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+		assert_eq(_observe("corrupt_receipt_result_cannot_replace_the_original_accepted_result").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 		assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET target_id = ?, result_revision = ? WHERE operation_id = ?;", [original.target_id, original.revision + 1, original.operation_id]).outcome, "ok")
 		assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 		var changed_revision: Dictionary = authority.callv(commands[index][0], commands[index][1])
 		assert_eq(changed_revision.outcome, "invalid_persisted_state", commands[index][0] + " must bind the retained revision to original expectations")
-		assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+		assert_eq(_observe("corrupt_receipt_result_cannot_replace_the_original_accepted_result").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 		assert_eq(_store.query_with_bindings("UPDATE permission_operation_receipts SET result_revision = ? WHERE operation_id = ?;", [original.revision, original.operation_id]).outcome, "ok")
 
 
@@ -370,7 +372,7 @@ func test_final_receipt_constraint_rolls_back_grant_and_claim_revision() -> void
 	var intent: Dictionary = {"schema_version": 1, "operation_id": "reject-final-audit", "plot_id": "plot-one", "expected_revision": 1, "action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1}
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.apply_permit("owner-one", intent).outcome, "transaction_failed")
-	var observation: Dictionary = _store.dml_statement_counters()
+	var observation: Dictionary = _observe("final_receipt_constraint_rolls_back_grant_and_claim_revision")
 	assert_eq(observation.observation_status, "OBSERVED")
 	assert_eq(observation.totals.attempted, {"insert": 2, "replace": 0, "update": 1, "delete": 0})
 	assert_eq(observation.totals.committed, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
@@ -404,7 +406,7 @@ func test_faction_access_requires_both_explicit_named_role_and_current_membershi
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.commit_interaction("crafter-one", started.interaction_id, func() -> bool: return true).outcome, "stale_authority")
 	assert_eq(authority.begin_interaction("crafter-one", "plot-one", 9).outcome, "permission_denied")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("faction_access_requires_both_explicit_named_role_and_current_membership").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_explicit_steward_cannot_delegate_or_remove_rights_it_does_not_hold() -> void:
@@ -426,7 +428,7 @@ func test_explicit_steward_cannot_delegate_or_remove_rights_it_does_not_hold() -
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.apply_permit("steward-one", grant).outcome, "permission_denied")
 	assert_eq(authority.apply_permit("steward-one", {"schema_version": 1, "operation_id": "remove-builder", "plot_id": "plot-one", "expected_revision": 3, "action": "revoke", "subject": {"kind": "character", "id": "builder-one", "role": ""}}).outcome, "permission_denied")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("explicit_steward_cannot_delegate_or_remove_rights_it_does_not_hold").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	grant.operation_id = "delegate-entry"
 	grant.subject.id = "visitor-one"
 	grant.permission_bits = 1
@@ -466,7 +468,7 @@ func test_closed_permission_inputs_reject_unknown_bits_fields_types_and_control_
 		assert_eq(authority.apply_permit("owner-one", intent).outcome, "invalid_request")
 	assert_eq(authority.register_claim("plot\nforged", "owner-one", "bad-plot").outcome, "invalid_request")
 	assert_eq(authority.update_memberships("member-one", [{"kind": "party", "id": "first", "role": ""}, {"kind": "party", "id": "second", "role": ""}], 0, "two-parties").outcome, "invalid_request")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("closed_permission_inputs_reject_unknown_bits_fields_types_and_control_ids").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_corrupt_claim_and_membership_state_rejects_without_repair_writes() -> void:
@@ -479,7 +481,7 @@ func test_corrupt_claim_and_membership_state_rejects_without_repair_writes() -> 
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.get_claim("plot-one").outcome, "invalid_persisted_state")
 	assert_eq(authority.begin_interaction("owner-one", "plot-one", 1).outcome, "invalid_persisted_state")
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("corrupt_claim_and_membership_state_rejects_without_repair_writes").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	assert_eq(_store.query("UPDATE plot_claims SET claim_revision = 1;").outcome, "ok")
 	assert_eq(_store.query("INSERT INTO permission_memberships (character_id, subject_kind, subject_id, subject_role) VALUES ('member-one', 'party', 'first', '');").outcome, "ok")
 	assert_eq(_store.query("INSERT INTO permission_memberships (character_id, subject_kind, subject_id, subject_role) VALUES ('member-one', 'party', 'second', '');").outcome, "ok")
@@ -491,7 +493,7 @@ func test_corrupt_claim_and_membership_state_rejects_without_repair_writes() -> 
 	assert_eq(authority.begin_interaction("member-one", "plot-one", 1).outcome, "invalid_persisted_state")
 	assert_eq(authority.update_memberships("member-one", [], 1, "do-not-repair").outcome, "invalid_persisted_state")
 	assert_eq(_store.query("SELECT subject_id FROM permission_memberships ORDER BY subject_id;").rows, [{"subject_id": "first"}, {"subject_id": "second"}])
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("corrupt_claim_and_membership_state_rejects_without_repair_writes").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 
 
 func test_closed_store_raw_transaction_and_restarted_handles_fail_closed() -> void:
@@ -543,4 +545,21 @@ func test_membership_set_order_does_not_change_an_accepted_operation() -> void:
 	var replay: Dictionary = authority.update_memberships("member-one", members, 0, "one-membership-set")
 	assert_eq(replay.outcome, "duplicate_rejected")
 	assert_eq(replay.get("original_result"), original)
-	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	assert_eq(_observe("membership_set_order_does_not_change_an_accepted_operation").totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func _observe(scenario: String) -> Dictionary:
+	var observation: Dictionary = _store.dml_statement_counters()
+	assert_eq(observation.observation_status, "OBSERVED")
+	assert_eq(observation.native_row_effects, "NOT_OBSERVED")
+	var evidence_directory: String = OS.get_environment("PROJECT0_PERMISSION_EVIDENCE_DIR")
+	if not evidence_directory.is_empty():
+		assert_eq(DirAccess.make_dir_recursive_absolute(evidence_directory), OK)
+		var filename: String = "%s-%02d.json" % [scenario, _observation_index]
+		var file: FileAccess = FileAccess.open(evidence_directory.path_join(filename), FileAccess.WRITE)
+		assert_not_null(file)
+		if file != null:
+			file.store_string(JSON.stringify({"scenario": scenario, "observation": observation}, "\t") + "\n")
+			file.close()
+	_observation_index += 1
+	return observation
