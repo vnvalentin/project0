@@ -247,16 +247,41 @@ else
   fi
 fi
 if [[ "$import_exit_code" -ne 0 || "$import_script_error_observed" == true || "$import_log_scan_failed" == true ]]; then
-  python3 - "$SUMMARY_FILE" "$IMPORT_LOG" "$import_exit_code" "$import_script_error_observed" "$import_log_scan_failed" <<'PYREPORT'
+  python3 - "$SUMMARY_FILE" "$IMPORT_LOG" "$import_exit_code" "$import_script_error_observed" "$import_log_scan_failed" "$PREPARATION_REPORT" "$M4_SOURCE_REVISION" "$prepared_root" <<'PYREPORT'
 import json,sys
 from pathlib import Path
-summary,log,code,marker,scan_failed=sys.argv[1:]
+summary,log,code,marker,scan_failed,preparation,revision,prepared=sys.argv[1:]
 code=int(code)
+timed_out = True if code in (124,137) else "NOT_OBSERVED"
+report_valid = False
+try:
+    evidence = Path(preparation)
+    if evidence.is_symlink() or not evidence.is_file():
+        raise ValueError("unavailable_report")
+    report = json.loads(evidence.read_text())
+    if (not isinstance(report, dict) or report.get("schema_version") != 1
+            or report.get("source_revision") != revision or report.get("prepared_root") != prepared):
+        raise ValueError("unqualified_report")
+    flags = []
+    for phase in ("bootstrap", "qualification"):
+        observed = report.get(phase)
+        if isinstance(observed, dict):
+            if not isinstance(observed.get("timed_out"), bool):
+                raise ValueError("unqualified_phase")
+            flags.append(observed["timed_out"])
+        elif observed != "NOT_OBSERVED":
+            raise ValueError("unqualified_phase")
+    report_valid = True
+    if flags:
+        timed_out = any(flags)
+except (OSError, ValueError):
+    pass
 Path(summary).write_text(json.dumps({
     "runner":"GUT", "status":"failed", "stage":"import", "exit_code":1,
     "import_exit_code":code, "import_script_error_observed":marker=="true",
     "import_log_scan_failed":scan_failed=="true",
-    "timed_out":code in (124,137), "scripts_ran":0, "gut_execution":"NOT_OBSERVED",
+    "timed_out":timed_out, "preparation_report_valid":report_valid,
+    "preparation_report":preparation, "scripts_ran":0, "gut_execution":"NOT_OBSERVED",
     "import_log":log,
 },indent=2)+"\n")
 PYREPORT

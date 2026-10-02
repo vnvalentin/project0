@@ -63,6 +63,8 @@ with open(__CALLS_PATH__, "a") as output:
     output.write(json.dumps({"source": os.environ.get("M4_SOURCE_REVISION"), "args": sys.argv[1:], "extension_registry": registry_contents, "project_config": project_config, "cwd": str(Path.cwd()), "excluded_present": [name for name in (".netrc", ".env.fixture", ".aws/fixture.json", "logs/private.json", "build/private.json", "fixtures/creation.db") if Path(name).exists()]}) + "\\n")
 if "--import" in sys.argv:
     bootstrap = 'enabled=PackedStringArray()' in project_config
+    if flags.get("FAKE_BOOTSTRAP_TIMEOUT") == "1" and bootstrap:
+        sys.exit(124)
     if flags.get("FAKE_BOOTSTRAP_EXIT") == "1" and bootstrap:
         sys.exit(7)
     if flags.get("FAKE_QUALIFICATION_EXIT") == "1" and not bootstrap:
@@ -114,7 +116,7 @@ sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
 
     def run_command(self, name, source=None):
         env = self.env.copy()
-        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT", "FAKE_BOOTSTRAP_EXIT", "FAKE_QUALIFICATION_EXIT", "FAKE_QUALIFICATION_MARKER", "FAKE_NON_SCRIPT_ERROR", "FAKE_PROJECT_EDIT", "FAKE_REGISTRY_EDIT")}))
+        self.engine_flags.write_text(json.dumps({key: self.env.get(key) for key in ("FAKE_IMPORT_SCRIPT_ERROR", "FAKE_GUT_SCRIPT_ERROR", "FAKE_REMOVE_REPORT", "FAKE_EXPERIMENT_ARTIFACT", "FAKE_OVERRIDE_EDIT", "FAKE_GUT_OVERRIDE_EDIT", "FAKE_BOOTSTRAP_EXIT", "FAKE_QUALIFICATION_EXIT", "FAKE_QUALIFICATION_MARKER", "FAKE_NON_SCRIPT_ERROR", "FAKE_PROJECT_EDIT", "FAKE_REGISTRY_EDIT", "FAKE_BOOTSTRAP_TIMEOUT")}))
         if source is not None:
             env["M4_SOURCE_REVISION"] = source
         return subprocess.run(["bash", "scripts/" + name], cwd=self.root, env=env,
@@ -332,6 +334,17 @@ os.execv("/usr/bin/grep", ["grep", *sys.argv[1:]])
         self.assertFalse(self.engine_calls.exists())
         report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
         self.assertEqual(report["failure_class"], "source_tracked_dirt")
+
+    def test_preparation_timeout_is_retained_in_top_level_failure_summary(self):
+        self.env["FAKE_BOOTSTRAP_TIMEOUT"] = "1"
+        result = self.run_command("run_gut_validation.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertTrue(summary["timed_out"])
+        self.assertEqual(summary["gut_execution"], "NOT_OBSERVED")
+        report = json.loads((self.root / "build/validation/preparation-summary.json").read_text())
+        self.assertTrue(report["bootstrap"]["timed_out"])
+        self.assertEqual(report["qualification"], "NOT_OBSERVED")
 
     def test_standard_runner_rejects_conflicting_source_before_engine_launch(self):
         result = self.run_command("run_gut_validation.sh", "0" * 40)
