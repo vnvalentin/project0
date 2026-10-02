@@ -40,6 +40,12 @@ out=Path(out); errors=[]; phases={}
 for phase in ['prepare','recover']:
     try:
         p=json.loads((out/(phase+'.json')).read_text())
+        if not isinstance(p,dict):
+            errors.append('invalid_phase_container:'+phase)
+            continue
+        if not isinstance(p.get('scenarios'),dict):
+            errors.append('invalid_scenarios_container:'+phase)
+            continue
         if p.get('schema_version')!=1 or p.get('issue')!=849 or p.get('phase')!=phase: errors.append('invalid_phase:'+phase)
         if not isinstance(p.get('native_pid'),int) or p['native_pid']<=0: errors.append('invalid_pid:'+phase)
         if set(p.get('scenarios',{}))!={'valid','damaged'}: errors.append('incomplete_scenarios:'+phase)
