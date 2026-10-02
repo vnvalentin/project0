@@ -12,9 +12,13 @@ var _canon: CanonRepository
 var _mutations: CanonMutationRepository
 var _path: String
 var _blueprint: Dictionary
+var _other_store: SqliteStore
+var _other_path: String = ""
 
 
 func before_each() -> void:
+	_other_store = null
+	_other_path = ""
 	_path = "interior_anchor_%d_%d.db" % [Time.get_ticks_usec(), randi()]
 	_store = StoreScript.new()
 	assert_eq(_store.open(_path)["outcome"], "ok")
@@ -33,6 +37,14 @@ func after_each() -> void:
 		var absolute: String = ProjectSettings.globalize_path("user://%s%s" % [_path, suffix])
 		if FileAccess.file_exists(absolute):
 			assert_eq(DirAccess.remove_absolute(absolute), OK, "Owned fixture cleanup")
+
+	if _other_store != null and _other_store.is_open():
+		_other_store.close()
+	if not _other_path.is_empty():
+		for suffix: String in ["", "-wal", "-shm", "-journal"]:
+			var absolute: String = ProjectSettings.globalize_path("user://%s%s" % [_other_path, suffix])
+			if FileAccess.file_exists(absolute):
+				assert_eq(DirAccess.remove_absolute(absolute), OK, "Other owned fixture cleanup")
 
 
 func test_server_anchor_resolves_and_recovers_after_reopen() -> void:
@@ -155,3 +167,20 @@ func test_missing_and_destroyed_exterior_references_do_not_register() -> void:
 	assert_eq(repository.register_anchor(_descriptor())["outcome"], "orphan_anchor")
 	assert_eq(repository.resolve_entry(_intent())["outcome"], "orphan_anchor")
 	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
+
+
+func test_separate_store_canon_cannot_qualify_registration() -> void:
+	_other_path = _path + "-other.db"
+	_other_store = StoreScript.new()
+	assert_eq(_other_store.open(_other_path)["outcome"], "ok")
+	var other_canon: CanonRepository = CanonScript.new(_other_store)
+	var other_mutations: CanonMutationRepository = MutationsScript.new(_other_store, other_canon)
+	assert_eq(other_canon.ensure_schema()["outcome"], "ok")
+	assert_eq(other_mutations.ensure_schema()["outcome"], "ok")
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	# Current injected seam permits the dangerous miscomposition; next cycle
+	# removes the injected Canon/mutation arguments rather than trusting callers.
+	var repository: RefCounted = repository_script.new(_other_store, _canon, _mutations)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "orphan_anchor")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "orphan_anchor")
