@@ -11,3 +11,15 @@ User-approved scope evaluates supported unilateral, concurrent same-tick, and sy
 Owned files: tests/integration/test_m4_boundary_parity.gd and scripts/m4_canon_evidence.gd.
 Rollback: close owned stores, remove only unique fixture files/sidecars, and discard owned XDG directory. Production paths and services are excluded.
 Validation: machine-readable plan alongside this note; focused GUT then full GUT and record sync at final revision. Review remains required.
+
+## Reproduction boundary
+
+Set `M4_SOURCE_REVISION="$(git rev-parse HEAD)"` as shown in the validation plan;
+the harness rejects absent or malformed source identity. Reports retain the
+source SHA and actual helper/test hashes. For exact-final evidence, use a clean
+committed worktree. Hold `flock /tmp/project0-m4-01a0fcfa-validation.lock` across
+setup, execution and cleanup, use a fresh owned `XDG_DATA_HOME`, and set
+`DASHBOARD_RESULTS_DIR` inside that same temporary root. Remove that root in a
+shell EXIT trap before releasing the lock. Logs, JUnit and case JSON remain in
+the worktree as evidence. Never use the shared Godot data directory or publish
+results to the live dashboard.

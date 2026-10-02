@@ -101,3 +101,13 @@ static func reconstructed_state(raw: Dictionary) -> Array:
 		result.append({"sector_id": row["sector_id"], "effective_blueprint": effective, "entity_guids": guid.list_entities(effective),
 			"static_collider_bounds": bounds, "occupancy_encoding": occupancy, "wall_cells": wall_cells, "blocked_count": map.blocked_count()})
 	return result
+
+
+## Source identity admitted into a retained experiment report.
+static func source_identity(revision: String) -> Dictionary:
+	if revision.length() != 40:
+		return {"status": "NOT_OBSERVED", "reason": "source_revision_required"}
+	for character: String in revision:
+		if not "0123456789abcdef".contains(character):
+			return {"status": "NOT_OBSERVED", "reason": "source_revision_invalid"}
+	return {"status": "OBSERVED", "revision": revision}

@@ -39,6 +39,8 @@ func before_each() -> void:
 		"source_revision": OS.get_environment("M4_SOURCE_REVISION"), "case_id": "", "passed": false,
 		"source_sha256": {"helper": FileAccess.get_sha256("res://scripts/m4_canon_evidence.gd"), "test": FileAccess.get_sha256("res://tests/integration/test_m4_boundary_parity.gd")},
 		"unsupported": ["repair_claim_permanent_flags", "persistent_in_flight_interaction_transfer", "native_persisted_occupancy_bitmask"]}
+	_trace["source_identity"] = Evidence.source_identity(_trace["source_revision"])
+	assert_eq(_trace["source_identity"]["status"], "OBSERVED", "M4_SOURCE_REVISION must be the full lowercase commit SHA")
 	_had_canon = OS.has_environment("PROJECT0_CANON_DB_PATH")
 	_old_canon = OS.get_environment("PROJECT0_CANON_DB_PATH")
 
@@ -98,6 +100,8 @@ func _open_store(relative_path: String) -> SqliteStore:
 
 
 func _fixture(dedicated: bool, label: String = "") -> Dictionary:
+	if _trace["source_identity"]["status"] != "OBSERVED":
+		return {}
 	var account_path: String = "m4_accounts_%s%s.db" % [_stamp, label]
 	var configured: String = "m4_canon_%s%s.db" % [_stamp, label] if dedicated else ""
 	if dedicated:
@@ -402,3 +406,14 @@ func test_supported_synchronous_boundary_interaction_matches_reference() -> void
 	assert_true(actual["reconstructed"][1]["effective_blueprint"]["structures"][0]["unlocked"])
 	_trace.merge({"reference": expected, "crossed": actual, "reference_interaction": baseline, "crossed_interaction": crossing,
 		"interaction_model": "synchronous_validation_and_commit_no_persistent_in_flight_state", "passed": actual == expected and crossing["result"] == baseline["result"]}, true)
+
+
+func test_source_identity_rejects_missing_or_invalid_revision() -> void:
+	_trace["case_id"] = "control_source_identity"
+	for revision: String in ["", "main", "41078c6", "g".repeat(40), " ".repeat(40)]:
+		var rejected: Dictionary = Evidence.source_identity(revision)
+		assert_eq(rejected["status"], "NOT_OBSERVED", "unqualified source cannot identify passing evidence")
+	var accepted: Dictionary = Evidence.source_identity("41078c67a42553ca55b3e1e958f170421cfa4912")
+	assert_eq(accepted["status"], "OBSERVED")
+	assert_eq(accepted["revision"], "41078c67a42553ca55b3e1e958f170421cfa4912")
+	_trace["passed"] = true
