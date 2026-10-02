@@ -8,16 +8,19 @@ Milestone 4 evaluates whether the current single authoritative game runtime
 meets the agreed workload and isolation envelope. The proposed decision is to
 retain one simulation and Canon-writing authority when the complete measured
 baseline passes, and introduce a process boundary only for a reproduced capacity
-or isolation problem. This ADR is **proposed** while final M4.1 capacity/isolation and container
-evidence are pending. Supported M4.2 component parity is accepted separately;
-it does not establish baseline capacity.
+or isolation problem. The tested single runtime failed M4.1 capacity at the
+target crossing rate.
+This ADR remains **proposed**: the candidate off-tick checkpoint boundary needs
+feasibility, independent review and project architecture acceptance. Supported
+M4.2 component parity is accepted separately; it does not establish capacity.
 
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Source analysis: [M4.3 findings](../../.scratch/zone-sharding/m4-source-findings.md),
 reconciled at accepted main `521601a72e792e7a54c6b12c618f10eff48cadb0`.
-The [initial checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685)
-and [evidence amendment](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827)
+The [initial checkpoint](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685),
+[evidence amendment](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827)
+and [target proposal](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958697673)
 own this documentation work.
 
 ## Evidence required to accept
@@ -101,14 +104,51 @@ A checkpoint-only explanation is contradicted. Relative synchronous telemetry,
 stdout, trace preparation and scheduling contributions remain **unknown**.
 Neither the failed stress nor this source analysis selects a process boundary.
 
-Await the explicit span10 result at
-`746e8a2e8c42d8e3db26351c8adea50c9c646401`: unchanged production behavior,
-actual crossings at least two/sec and inclusive unchanged-super telemetry spans.
-Accept only actual qualified P99/maximum and all capacity/isolation/container
-gates; preserve span1 failures as the higher-crossing limit. Missing/coalesced
-measurements leave acceptance blocked. A target maximum failure requires the
-smallest causal check or a fully specified evidence-backed boundary, rather than
-an assumed worker or Canon writer. The findings contain the final decision outline.
+[The final span10 checkpoint](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5958678365)
+at `746e8a2e8c42d8e3db26351c8adea50c9c646401` reports supported 82 crossings
+in 34.372720 s (2.385613/sec), stress 80 in 33.581454 s (2.382267/sec).
+Known single-step maxima are 548.826 ms / 83.827 ms. Coalescing leaves exact P99
+unavailable; conservative first-1,000-tick nearest-rank P99 lower bounds
+48.679 ms / 55.558 ms nevertheless establish failure. Source/package custody,
+required callback stages, bounded fault/worker controls and cleanup are qualified.
+Final full GUT remains pending; #1376 timing is blocked and M4 is not complete.
+
+At the supported peak, three journey checkpoints took 534.269 ms inside
+537.523 ms position callbacks, with zero telemetry calls and zero observed
+throttling. This associates the peak with journey work, but does not isolate
+Canon SELECT/decode, JSON serialization/hash, journey UPSERT or scheduling.
+The earlier frontier-associated tail remains a separate measured limit.
+
+## Proposed bounded checkpoint boundary
+
+Retain one simulation and Canon authority; do not select zone sharding from
+these observations. The next candidate is a bounded off-tick checkpoint lane
+inside the existing game persistence authority. First measure unchanged public
+child seams for canonical read/decode/hash versus journey save. The current
+checkpoint reads immutable Canon, hashes its blueprint and copies schema_version
+into sector_revision, then updates JourneyRegistry and synchronously UPSERTs
+journeys. It does not replay mutations or rebuild runtime collision state.
+Preserve these identities and reclaim/lifecycle behavior explicitly.
+
+Simulation captures immutable, epoch/sequence-bound checkpoint requests.
+A trusted game-owned executor may serialize persistence away from the physics
+callback only after native affinity and exclusive handle ownership are proven.
+The game accounts handle also holds Canon by default: it must not be shared
+concurrently with tick callbacks or transferred between threads. Qualify all
+consumers before routing repository work through one owner. A pure computation
+worker receives no Canon handle; a dedicated persistence process is a separate
+new authority design requiring acceptance, not the provisional-worker contract.
+No implementation mechanism is claimed safe or necessary from the current span.
+
+Before implementation, bound queue items/bytes, age, deadline and retries from
+measurements; define saturation/backpressure outside the tick and durable
+acknowledgement/reconciliation by request identity. Preserve ordered lifecycle
+barriers, single active peer, reconnect/expiry and the crash-loss/freshness budget;
+never report queued state as durable or allow stale epochs/sequences to overwrite
+newer state. Test duplicates, ambiguous commits, crashes, saturation and storage
+failure along with exact parity and complete workload timing. The findings give
+this candidate's detailed owner, promotion and rollback contract. Its feasibility
+and measured remedy remain open; it is not capacity acceptance.
 
 ## Authority and scale contract
 
@@ -137,7 +177,9 @@ an assumed worker or Canon writer. The findings contain the final decision outli
 
 ## Alternatives and decision rule
 
-Retaining one runtime preserves the existing authority and avoids introducing
+Accepting the existing baseline is currently ruled out by the measured maximum
+and conservative P99 failure. Retaining one runtime after a qualified remedy
+preserves the existing authority and avoids introducing
 cross-process handoff failure modes when the agreed workload already fits. It
 is acceptable only after the complete measured profile passes.
 
@@ -162,7 +204,17 @@ any separately authorized runtime promotion. The current script restores the
 previous Compose artifact and image tags; a claim of digest custody requires
 actual recorded artifact evidence. Storage compatibility must remain explicit.
 
-This decision introduces no worker, shard, database migration, client authority,
+For the proposed lane, qualify candidate and recovery game images on isolated
+compatible storage; stop admission, drain a durable checkpoint barrier, stop and
+fence the old store owner before activating one candidate. Rollback stops candidate
+admission, reconciles durable/ambiguous requests, fences that owner, then restores
+the previous compatible image/Compose artifact and checks journey/reclaim health
+before reopening admission. No simultaneous old/new writers or replay of committed
+mutations is permitted. Failed native-affinity/storage compatibility leaves the
+proposal inactive; no migration is implicit. Prove this route before separately
+authorized promotion.
+
+This proposal introduces no worker, shard, database migration, client authority,
 new gameplay state or production deployment. Multi-authority deployment is not
 an automatic consequence of M4 acceptance. Revert this documentation change to
 withdraw the proposal; any future runtime change requires its own rollback

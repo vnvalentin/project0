@@ -1,6 +1,6 @@
 # M4.3 source findings and scale decision draft
 
-Status: proposed; source findings reconciled with recorded diagnostics, full acceptance pending.
+Status: proposed; tested single-runtime capacity failed; bounded checkpoint-boundary proposal awaits acceptance.
 Governing issue: [#205](https://github.com/vnvalentin/project0/issues/205).
 Parent: [#204](https://github.com/vnvalentin/project0/issues/204).
 Milestone/group: Milestone 4 / M4.3.
@@ -8,7 +8,8 @@ Source baseline: `521601a72e792e7a54c6b12c618f10eff48cadb0` (accepted main).
 Prior investigation baseline: `75655f6b62f61fc4f6e69e6aa9e317d9c0e498ae`; all cited source files
 were compared as committed objects and are byte-identical at accepted main.
 Records-first amendments: [initial reconciliation](https://github.com/vnvalentin/project0/issues/205#issuecomment-5957545685),
-[accepted-parity/full-failure reconciliation](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827).
+[accepted-parity/full-failure reconciliation](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958590827),
+[target failure and candidate boundary](https://github.com/vnvalentin/project0/issues/205#issuecomment-5958697673).
 Research date: 2026-10-02.
 
 This note maps the current implementation and the decisions needed after
@@ -47,10 +48,10 @@ requires a tested containerized single-runtime increment.
 
 | Required evidence | Current finding | Decision consequence |
 | --- | --- | --- |
-| Complete M4.1 workload, qualified source/artifact identity, all 1,000 samples, crossings, isolation controls, cleanup | Retained full high-crossing profiles at `51d39e2b308b0089ac2a6e08134fd9f3ad4699ac` failed; coalescing prevents exact per-tick P99. Explicit span10 evidence at `746e8a2e8c42d8e3db26351c8adea50c9c646401` remains pending | Preserve the maximum violations and unavailable P99; do not accept capacity or infer a sole cause/process split. |
+| Complete M4.1 workload, qualified source/artifact identity, all 1,000 samples, crossings, isolation controls, cleanup | Retained full high-crossing profiles at `51d39e2b308b0089ac2a6e08134fd9f3ad4699ac` failed; coalescing prevents exact per-tick P99. Explicit span10 evidence at `746e8a2e8c42d8e3db26351c8adea50c9c646401` also fails known single-step maxima and conservative P99 lower bounds | Preserve the maximum violations and unavailable P99; do not accept capacity or infer a sole cause/process split. |
 | Complete M4.2 supported unilateral/concurrent boundary and current interaction parity, attempted Canon writes, database/sidecar hashes, cleanup; explicit unsupported-state list | Accepted at `6bda74b00aea805e6c1dce2bb72ac5431930c075`; PR #1387 merged as accepted main above and #1377 closed | Supported component parity is qualified; this is not a deployed handoff or M4.1 capacity result. Unsupported representations remain explicit limitations. |
-| Same containerized artifact passes the complete profile | No artifact-bound result supplied | Source-checkout success would be supporting evidence only. |
-| Independent review and integrated validation | Research amendment review and final M4.1 qualification remain pending | Neither #205 nor M4 is complete. |
+| Same containerized artifact passes the complete profile | Final target package/source custody and cleanup are qualified, but both measured profiles fail | An artifact-bound failure does not qualify a no-sharding capacity acceptance. |
+| Independent review and integrated validation | Research amendment review and final full delivery gate remain pending; M4.1 timing is blocked | Neither #205 nor M4 is complete. |
 
 ## Recorded diagnostics and measurement limits
 
@@ -138,36 +139,140 @@ backpressure, trace work and native scheduling are falsifiable alternatives;
 source inspection alone assigns none a sole causal contribution.
 ([frontier callback][frontier-callback], [telemetry][telemetry], [trace][trace])
 
-The next source-bound profile is `746e8a2e8c42d8e3db26351c8adea50c9c646401`:
-explicit span10 movement with unchanged ten peers/four sectors/50 entities and
-production behavior, measured crossings still at least two/sec, and nested
-unchanged-super telemetry timing. Default span1 stress remains available. The
-new observer span is inclusive of event building, validation, SQL and scheduling;
-it does not isolate SQL latency. All required spans must be present for overall
-acceptance. The missing-stage acceptance defect was separately corrected at
-`a9b12d2fe0a6ad022b7f73812ae99943433f4df6`; it does not retroactively turn the
-fully observed older timing failures into passes. No target result is presumed.
+## Final target-profile result: baseline capacity failed
 
-### Final decision outline once target evidence is qualified
+[The complete target checkpoint](https://github.com/vnvalentin/project0/issues/1376#issuecomment-5958678365)
+binds the explicit span10 paired runs to
+`746e8a2e8c42d8e3db26351c8adea50c9c646401`. Source archive SHA-256 is
+`47c5c578e679a3124df32e1458036f4e3b32bb5069bb220e2887be96dc2e927a` in both;
+package/source custody and cleanup were separately qualified. These are public
+issue-recorded results, not a fresh inspection of private reports.
 
-1. Record the actual target source/artifact identity, measured rate, 1,000
-   consecutive single-step ticks, exact P99 and maximum, isolation controls,
-   process/async coverage limits and owned cleanup. Coalescing, missing evidence
-   or a threshold failure must remain explicit; do not infer an unavailable P99.
-2. If all required target capacity, worker-isolation, parity and container gates
-   pass, retain one simulation/Canon authority within that exact measured envelope.
-   Preserve the higher-crossing failures as its known limit.
-3. If the target maximum or other gate fails, do not accept baseline capacity.
-   Use the measured nested span to choose the cheapest causal check. A telemetry
-   contribution is not a Canon-write measurement, and synthetic worker stress
-   alone does not require splitting player simulation. If attribution remains
-   unresolved, record blocked decision evidence and the next bounded check.
-4. Only a reproduced causal bottleneck or isolation failure can justify a new
-   boundary. Specify its mutable-fact owner, bounded queue/deadline, failure
-   recovery, candidate routing, storage compatibility and rollback before choosing
-   it. The provisional-worker extension contract cannot authorize a Canon worker
-   writer; that would require a separate single-writer authority design and
-   acceptance. Retain the deployment/rollback route below for any proposed split.
+| Target measurement | Supported, zero synthetic workers | Stress, 32 workers |
+| --- | --- | --- |
+| Actual crossings / elapsed / rate | 82 / 34.372720 s / 2.385613 per second | 80 / 33.581454 s / 2.382267 per second |
+| Profiler observations / physics steps / coalesced observations | 1,000 / 1,024 / 6 | 1,000 / 1,007 / 5 |
+| Known single-step maximum | 548.826 ms | 83.827 ms |
+| Exact per-tick P99 | Unavailable | Unavailable |
+| Conservative nearest-rank P99 lower bound, first 1,000 actual ticks | 48.679 ms | 55.558 ms |
+| Known single ticks above 33.3 ms / 50 ms in that window | 219 / 10 | 264 / 31 |
+| Separate process-span maximum | 8.592 ms | 4.817 ms |
+
+The lower bounds assign zero duration to every unobserved individual tick and
+still exceed 33.3 ms. They establish a negative result without claiming an exact
+P99 or complete individual-tick dataset. Each peak had one physics step and
+exceeded 50 ms. The tested single runtime fails capacity at an actual crossing
+rate above two/sec; this conclusion no longer depends only on the earlier
+19-crossings/sec profile. Coalescing still leaves the complete-tick/exact-P99
+acceptance gates unqualified, with formal maximum fields null in the reports.
+
+At the supported peak, three journey calls took 534.269 ms inside 537.523 ms
+position callbacks; frontier-stay took 0.104 ms and telemetry emitted zero calls.
+Superclass physics took 7.092 ms and observer overhead 1.352 ms. The external
+CPU observer reported zero throttling, including the peak neighborhood. At the
+stress peak, two journey calls took 65.007 ms inside 68.540 ms position callbacks;
+telemetry again emitted zero calls. Observed stress throttling was temporally
+near its peak, not established as the cause. Neither telemetry persistence nor
+CPU-cap throttling can solely explain the supported peak. The earlier
+frontier-associated failure remains valid for its own source/profile.
+
+Both bounded fault probes were contained and healthy Canon remained unchanged.
+Stress completed all 32 tasks with zero application-owned explicit waits;
+structural controls passed but do not cover arbitrary failures or native
+synchronization. Four async generation timeouts/fallback evaluations completed
+per run; this does not qualify arbitrary successful generated candidates.
+Callback stages and cleanup were qualified. Runner errors were empty; observation
+errors recorded coalesced physics iterations. Both commands returned acceptance
+failure. Final full GUT remains a delivery gate; #1376 stays timing-blocked and
+M4 is not complete. The independent missing-stage gate fix remains resolved.
+
+## Checkpoint source and smallest candidate boundary
+
+The current checkpoint is called both from distance-triggered position updates
+and periodic server physics. Its synchronous chain is:
+
+1. `_checkpoint_journey` selects the sector from authoritative position.
+2. `CanonRepository.get_canonical_sector` SELECTs immutable `blueprint_json`,
+   decodes it with `JSON.parse_string` and constructs the Canon record. This
+   path does not replay mutations or rebuild collision state.
+3. The server serializes that blueprint and computes `md5_text()`, then passes
+   `schema_version` as the current `sector_revision` field.
+4. `JourneyRegistry.checkpoint` updates its game-owned in-memory record and
+   `_persist` calls `JourneyRepository.save`, a synchronous journeys UPSERT on
+   the game accounts-store handle.
+([checkpoint][checkpoint], [Canon read][canon-read], [registry][journey-registry],
+[journey persistence][journey-persistence])
+
+The 534.269 ms inclusive measurement does not isolate SELECT/decode, serialization/
+hash, UPSERT or scheduler cost. Confirmed subcall root cause remains **unknown**.
+The cheapest next check wraps unchanged public repository/checkpoint seams to
+record child timings and ordered outcomes in memory, without extra per-event
+stdout. Compare immutable-metadata reuse only in a separately authorized control,
+retaining exact hash and current revision semantics. No SQL-only claim is made.
+
+The proposed boundary is a **bounded off-tick checkpoint lane within the game
+persistence authority**, rather than zone simulation processes. It is a candidate
+design, not an implemented or accepted remedy:
+
+- Simulation owns admission, movement and the journey lifecycle. It captures an
+  immutable request with journey/Character identity, lifecycle epoch, monotonically
+  ordered sequence, authoritative tick/position, sector and Canon metadata;
+  provisional computation has no Canon write authority. Preserve the exact
+  current schema-version/hash meaning unless a separate compatibility decision
+  explicitly changes it.
+- First prove whether pure decode/hash can consume immutable read-only metadata
+  away from the tick. Any persistence executor must have exclusive native-handle
+  ownership and serialize repository operations. The current accounts handle is
+  also Canon's default handle: do not let a checkpoint thread share it with other
+  synchronous repository calls, transfer it between threads, or introduce a
+  competing writer. Native SQLite thread affinity and the full set of store
+  consumers must be qualified before choosing a thread implementation.
+- One game-owned persistence executor is the candidate for database work if
+  that qualification succeeds. It is a trusted internal execution boundary for
+  the existing sole owner, **not** a provisional generation worker. Existing
+  Canon validation and commit decisions remain server-owned; clients and job
+  workers get no Canon handle. A dedicated persistence process would require a
+  separately accepted authority/routing/fencing design, not reuse of the worker
+  contract as a grant of Canon-writing power.
+- Admission to the lane is bounded by explicit item/byte, latency and retry
+  budgets chosen from the child-span control before implementation. Saturation
+  must record a blocker and apply declared backpressure outside the physics tick;
+  it cannot silently lose lifecycle transitions or present queued state as durable.
+  Coalescing periodic positions is permitted only after specifying ordering and
+  durability semantics; entry/disconnect/reclaim/expiry are ordered barriers.
+- A durable acknowledgement carries the request identity, sequence and committed
+  outcome. Duplicate/reordered requests cannot overwrite newer state; stale
+  lifecycle epochs are rejected. An ambiguous completion is reconciled by durable
+  identity before retry. Define accepted-position freshness/crash-loss budget
+  explicitly, and preserve the existing bounded reclaim and single-active-peer
+  behavior. Neither an enqueue acknowledgement nor live memory proves persistence.
+- Acceptance must cover crash before/after commit, lost/duplicate acknowledgements,
+  saturation, reconnect/expiry, storage failure, exact supported parity, and the
+  complete target workload with unchanged timing thresholds. Measure physics,
+  process, queue age and child persistence coverage separately. The lane must
+  demonstrate the remedy; choosing it does not qualify current capacity.
+
+### Candidate promotion and rollback contract
+
+Start with the current game image and data model as the recovery boundary. Build
+one identifiable candidate game image; include the proposed executor contract
+and a startup choice that refuses incompatible storage/native ownership. No new
+zone service, shared database writer or schema migration is part of this proposal.
+Test candidate and recovery images against isolated copies of the same compatible
+store through the deployment route below. Before promotion, stop admission,
+drain/acknowledge the last accepted checkpoint barrier, stop the old process and
+verify that its persistence owner has released the store. Only then start one
+candidate owner; retain the previous Compose artifact and image identity. This
+is a future explicit-service rollout procedure, not current deployment authority.
+
+On failure, stop candidate admission; reconcile/drain acknowledged and ambiguous
+requests, retain durable committed state, stop and fence the candidate, then
+restore the previous compatible game image/Compose artifact and reopen admission
+only after storage and journey/reclaim health checks. Never run old and new
+writers concurrently or roll back by replaying acknowledged mutations. Prove
+this sequence in isolation before any separately authorized promotion. If native
+ownership or schema compatibility cannot be proved, do not activate the lane;
+retain the timing blocker and design the necessary persistence boundary separately.
 
 ## Source qualification after integration
 
@@ -361,7 +466,10 @@ count change.
 
 ## Proposed ADR disposition
 
-No final choice yet. The evidence distinguishes these outcomes:
+The tested single-runtime baseline failed. The proposed next boundary is the
+off-tick checkpoint lane above; its feasibility, measured remedy and architecture
+acceptance remain open. No zone/process split is established as necessary. Future
+evidence distinguishes these outcomes:
 
 1. Complete load, isolation, parity and container-artifact checks pass: retain
    one simulation/Canon authority and document the measured envelope and future
@@ -380,8 +488,10 @@ No final choice yet. The evidence distinguishes these outcomes:
    the approved scope, rather than a demand to implement it for M4.
 
 [ADR 0017](../../docs/adr/0017-evidence-led-world-scale.md) stages this conditional
-disposition with `status: proposed`. Accept it only after linking the actual M4
-reports and their exact source/container identities; proposed is not accepted.
+disposition with `status: proposed`. The actual failed M4.1 and accepted M4.2
+checkpoints are linked above. Keep it
+proposed until independent review and project architecture acceptance; a rejected
+baseline does not make this candidate lane an accepted or measured solution.
 
 ## Validation and remaining work
 
@@ -389,10 +499,11 @@ This is a source-bound research artifact. Document/link review and whitespace
 validation apply locally; Linux ownership preflight, full GUT, record sync,
 independent Standards/Spec review and final-revision evidence remain root-owned
 delivery gates. No product/runtime test was run as part of this source research.
-The documentation behavior check is: given a diagnostic or historical parity
-checkpoint, when this decision is read, then its exact source, observation limit
-and outstanding acceptance remain explicit. A missing full profile keeps the
-ADR proposed; a source/command check cannot promote it to accepted.
+The documentation behavior check is: given historical diagnostics, accepted
+component parity and failed full target profiles, when this decision is read,
+then their exact sources, observation limits and outstanding acceptance remain
+explicit. A failed baseline or unqualified candidate keeps the ADR proposed; a
+source/command check cannot promote it to accepted.
 The next actor is the M4.1 evidence owner, followed by the M4.3 reviewer.
 Rollback for this artifact is reverting its documentation commit.
 
@@ -425,3 +536,8 @@ Rollback for this artifact is reverting its documentation commit.
 [frontier-callback]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/server/server_main.gd#L1030-L1078
 [telemetry]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/server/telemetry_sink.gd#L104-L157
 [trace]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/shared/jit_trace_context.gd#L28-L57
+
+[checkpoint]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/server/server_main.gd#L1639-L1664
+[canon-read]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/server/canon_repository.gd#L98-L113
+[journey-registry]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/server/journey_registry.gd#L113-L125
+[journey-persistence]: https://github.com/vnvalentin/project0/blob/521601a72e792e7a54c6b12c618f10eff48cadb0/server/journey_repository.gd#L48-L62
