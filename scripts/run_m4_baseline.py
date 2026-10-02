@@ -396,7 +396,7 @@ def main():
             observation.setdefault('errors', []).extend(report['errors'])
         report['stage_summary'] = summarize_stage_timings(observation)
         if args.checkpoint_attribution:
-            report['checkpoint_summary'] = summarize_checkpoint_timings(observation.get('checkpoint_attribution', {}))
+            report['checkpoint_summary'] = summarize_checkpoint_timings(observation.get('checkpoint_attribution', {}), observation.get('samples'))
         report['evaluation'] = evaluate(observation, cleanup, supported_load=args.supported_load, checkpoint_attribution=args.checkpoint_attribution)
         report['passed'] = report['evaluation']['passed'] and not report['errors'] and args.ticks == 1000
         report['completed_utc'] = datetime.now(timezone.utc).isoformat()

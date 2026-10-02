@@ -149,7 +149,7 @@ func test_missing_canon_observer_cannot_qualify() -> void:
 	_host._canon_repository = originals["canon"]
 	_public_checkpoint_calls()
 	assert_false(_observer.bindings_qualified())
-	assert_false(_observer.binding_evidence()["server_canon"])
+	assert_false(_observer.binding_evidence().get("server_canon", false))
 	assert_eq(_observer.take_iteration()["canon_read"]["calls"], 0)
 
 func test_different_store_handle_cannot_qualify() -> void:

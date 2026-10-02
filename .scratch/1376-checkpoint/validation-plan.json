@@ -6,7 +6,7 @@
       "suite": "linux-tooling",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "python3 scripts/test_m4_checkpoint_report.py",
+      "command": "mkdir -p build/validation && python3 scripts/test_m4_checkpoint_report.py > build/validation/checkpoint-report-controls.log 2>&1",
       "dependencies": [
         "python"
       ],
@@ -21,7 +21,7 @@
       "suite": "godot-server",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "GUT focused test_m4_checkpoint_attribution.gd with isolated state and committed source; native window pending",
+      "command": "(set -euo pipefail\nexec 9>/tmp/project0-m4-01a0fcfa-validation.lock\nflock -n 9\nstate_root=\"$(mktemp -d /tmp/project0-m4-checkpoint-validation.XXXXXX)\"\ntrap 'rm -rf -- \"$state_root\"' EXIT\nexport XDG_DATA_HOME=\"$state_root/data\" XDG_CONFIG_HOME=\"$state_root/config\" XDG_CACHE_HOME=\"$state_root/cache\"\nexport PROJECT0_TEST_STATE_DIR=\"$state_root/runtime\" DASHBOARD_RESULTS_DIR=\"$state_root/dashboard\"\nexport M4_SOURCE_REVISION=\"$(git rev-parse --verify HEAD)\"\n[[ \"$M4_SOURCE_REVISION\" =~ ^[0-9a-f]{40}$ ]]\nmkdir -p \"$PROJECT0_TEST_STATE_DIR\" build/validation\nresult_dir=\"$(mktemp -d build/validation/checkpoint-focused.XXXXXX)\"\ntimeout --kill-after=15s 90s godot --headless --import > \"$result_dir/bootstrap.log\" 2>&1\ntimeout --kill-after=15s 120s godot --headless -s addons/gut/gut_cmdln.gd -gselect=test_m4_checkpoint_attribution -gjunit_xml_file=\"$result_dir/gut.xml\" -gdisable_colors -gexit > \"$result_dir/gut.log\" 2>&1\n)",
       "dependencies": [
         "godot",
         "sqlite"
@@ -30,7 +30,9 @@
         "tests/integration/test_m4_checkpoint_attribution.gd"
       ],
       "artifacts": [
-        "build/validation/checkpoint-focused/gut.xml",
+        "build/validation/checkpoint-focused.*/gut.xml",
+        "build/validation/checkpoint-focused.*/gut.log",
+        "build/validation/checkpoint-focused.*/bootstrap.log",
         "logs/experiments/exp_m4_checkpoint_<case>_<timestamp>.json"
       ]
     }
