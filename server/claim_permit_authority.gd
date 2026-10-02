@@ -244,6 +244,47 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 	return decision if decision.outcome != "ok" or transaction.outcome == "ok" else _result(String(transaction.outcome))
 
 
+## Only the primary owner may transfer a plot. Existing explicit permits remain
+## until revoked; the new claim revision invalidates every old interaction.
+func transfer_claim(actor_character_id: Variant, intent: Variant) -> Dictionary:
+	if not _valid_id(actor_character_id) or not _exact_fields(intent, ["schema_version", "operation_id", "plot_id", "expected_revision", "new_owner_character_id"]):
+		return _result("invalid_request")
+	if not (intent.schema_version is int) or intent.schema_version != 1 or not _valid_revision(intent.expected_revision):
+		return _result("invalid_request")
+	if not _valid_id(intent.operation_id) or not _valid_id(intent.plot_id) or not _valid_id(intent.new_owner_character_id):
+		return _result("invalid_request")
+	var actor_scope: String = JSON.stringify(["character", actor_character_id])
+	var request_json: String = JSON.stringify(["transfer_claim", intent])
+	var decision: Dictionary = _result("ok")
+	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var receipt: Dictionary = _lookup_receipt(actor_scope, intent.operation_id, request_json.sha256_text())
+		if receipt.outcome != "not_found":
+			decision.merge(receipt, true)
+			return false
+		var current: Dictionary = get_claim(intent.plot_id)
+		if current.outcome != "ok":
+			decision.outcome = current.outcome
+			return false
+		if current.claim.claim_revision != intent.expected_revision or current.claim.claim_revision >= MAX_REVISION:
+			decision.outcome = "revision_mismatch"
+			return false
+		if current.claim.owner_character_id != actor_character_id:
+			decision.outcome = "permission_denied"
+			return false
+		if current.claim.owner_character_id == intent.new_owner_character_id:
+			decision.outcome = "owner_unchanged"
+			return false
+		if _store.query_with_bindings("UPDATE plot_claims SET owner_character_id = ?, claim_revision = ? WHERE plot_id = ?;", [intent.new_owner_character_id, current.claim.claim_revision + 1, intent.plot_id]).outcome != "ok":
+			return false
+		var result: Dictionary = _receipt_result(intent.operation_id, current.claim.claim_revision + 1, intent.plot_id)
+		if not _write_receipt(actor_scope, request_json, result):
+			return false
+		decision.merge(result, true)
+		return true
+	)
+	return decision if decision.outcome != "ok" or transaction.outcome == "ok" else _result(String(transaction.outcome))
+
+
 func _membership_revision(character_id: String) -> Dictionary:
 	var query: Dictionary = _store.query_with_bindings("SELECT membership_revision FROM permission_member_revisions WHERE character_id = ?;", [character_id])
 	if query.outcome != "ok":

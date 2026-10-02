@@ -277,3 +277,51 @@ func test_provisioning_has_an_immutable_receipt_before_current_claim_checks() ->
 		return
 	assert_eq(audit.rows[0].actor_scope, JSON.stringify(["provision"]))
 	assert_eq(audit.rows[0].request_json, JSON.stringify(["register_claim", "plot-one", "owner-one", "provision-one"]))
+
+
+func test_primary_owner_transfer_invalidates_old_handles_and_survives_reopen() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	var provision: Dictionary = authority.register_claim("plot-one", "owner-one", "provision-one")
+	assert_eq(provision.outcome, "ok")
+	assert_eq(authority.apply_permit("owner-one", {
+		"schema_version": 1, "operation_id": "steward", "plot_id": "plot-one", "expected_revision": 1,
+		"action": "grant", "subject": {"kind": "character", "id": "steward-one", "role": ""}, "permission_bits": 63,
+	}).outcome, "ok")
+	assert_eq(authority.apply_permit("owner-one", {
+		"schema_version": 1, "operation_id": "visitor", "plot_id": "plot-one", "expected_revision": 2,
+		"action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1,
+	}).outcome, "ok")
+	var started: Dictionary = authority.begin_interaction("owner-one", "plot-one", 1)
+	var intent: Dictionary = {"schema_version": 1, "operation_id": "transfer-one", "plot_id": "plot-one", "expected_revision": 3, "new_owner_character_id": "owner-two"}
+	assert_true(authority.has_method("transfer_claim"), "primary-owner transfer is an atomic public command")
+	if not authority.has_method("transfer_claim"):
+		return
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.transfer_claim("steward-one", intent).outcome, "permission_denied", "even all explicit bits cannot transfer another primary owner's plot")
+	assert_eq(authority.transfer_claim("visitor-one", intent).outcome, "permission_denied")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	var original: Dictionary = authority.transfer_claim("owner-one", intent)
+	assert_eq(original.outcome, "ok")
+	assert_eq(_store.dml_statement_counters().totals.committed, {"insert": 1, "replace": 0, "update": 1, "delete": 0})
+	assert_eq(authority.commit_interaction("owner-one", started.interaction_id, func() -> bool: return true).outcome, "stale_authority")
+	assert_eq(authority.begin_interaction("owner-one", "plot-one", 1).outcome, "permission_denied")
+	assert_eq(authority.begin_interaction("owner-two", "plot-one", 63).outcome, "ok")
+	assert_eq(authority.begin_interaction("visitor-one", "plot-one", 1).outcome, "ok", "explicit grants survive until explicitly revoked")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	assert_eq(authority.get_claim("plot-one").claim.owner_character_id, "owner-two")
+	var replay: Dictionary = authority.transfer_claim("owner-one", intent)
+	assert_eq(replay.outcome, "duplicate_rejected")
+	assert_eq(replay.get("original_result"), original)
+	var initial: Dictionary = authority.register_claim("plot-one", "owner-one", "provision-one")
+	assert_eq(initial.outcome, "duplicate_rejected")
+	assert_eq(initial.get("original_result"), provision)
+	var changed: Dictionary = intent.duplicate(true)
+	changed.new_owner_character_id = "owner-three"
+	assert_eq(authority.transfer_claim("owner-one", changed).outcome, "operation_conflict")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
