@@ -29,6 +29,7 @@ func ensure_schema() -> Dictionary:
 	var statements: Array[String] = [
 		"CREATE TABLE IF NOT EXISTS plot_claims (plot_id TEXT PRIMARY KEY, owner_character_id TEXT NOT NULL, claim_revision INTEGER NOT NULL CHECK(claim_revision > 0), registration_operation_id TEXT NOT NULL);",
 		"CREATE TABLE IF NOT EXISTS plot_permits (plot_id TEXT NOT NULL REFERENCES plot_claims(plot_id), subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL, subject_role TEXT NOT NULL, permission_bits INTEGER NOT NULL, PRIMARY KEY(plot_id, subject_kind, subject_id, subject_role));",
+		"CREATE TABLE IF NOT EXISTS permission_operation_receipts (actor_scope TEXT NOT NULL, operation_id TEXT NOT NULL, request_fingerprint TEXT NOT NULL, result_revision INTEGER NOT NULL, target_id TEXT NOT NULL, PRIMARY KEY(actor_scope, operation_id));",
 		"CREATE TABLE IF NOT EXISTS permission_member_revisions (character_id TEXT PRIMARY KEY, membership_revision INTEGER NOT NULL, operation_id TEXT NOT NULL);",
 		"CREATE TABLE IF NOT EXISTS permission_memberships (character_id TEXT NOT NULL REFERENCES permission_member_revisions(character_id), subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL, subject_role TEXT NOT NULL, PRIMARY KEY(character_id, subject_kind, subject_id, subject_role));",
 	]
@@ -167,8 +168,13 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 		return _result("invalid_request")
 	if not _valid_subject(intent.subject) or (intent.action == "grant" and not _valid_bits(intent.permission_bits)):
 		return _result("invalid_request")
+	var fingerprint: String = JSON.stringify(["permit", intent]).sha256_text()
 	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var receipt: Dictionary = _lookup_receipt(actor_character_id, intent.operation_id, fingerprint)
+		if receipt.outcome != "not_found":
+			decision.merge(receipt, true)
+			return false
 		var current: Dictionary = _permission_snapshot(actor_character_id, intent.plot_id)
 		if current.outcome != "ok":
 			decision.outcome = current.outcome
@@ -198,9 +204,15 @@ func apply_permit(actor_character_id: Variant, intent: Variant) -> Dictionary:
 			grant_write = _store.query_with_bindings("UPDATE plot_permits SET permission_bits = ? WHERE plot_id = ? AND subject_kind = ? AND subject_id = ? AND subject_role = ?;", [intent.permission_bits, intent.plot_id, subject.kind, subject.id, subject.role])
 		if grant_write.outcome != "ok":
 			return false
-		return _store.query_with_bindings("UPDATE plot_claims SET claim_revision = ? WHERE plot_id = ?;", [current.claim_revision + 1, intent.plot_id]).outcome == "ok"
+		if _store.query_with_bindings("UPDATE plot_claims SET claim_revision = ? WHERE plot_id = ?;", [current.claim_revision + 1, intent.plot_id]).outcome != "ok":
+			return false
+		var result: Dictionary = _receipt_result(intent.operation_id, current.claim_revision + 1, intent.plot_id)
+		if not _write_receipt(actor_character_id, fingerprint, result):
+			return false
+		decision.merge(result, true)
+		return true
 	)
-	return decision if decision.outcome != "ok" else _result(String(transaction.outcome))
+	return decision if decision.outcome != "ok" or transaction.outcome == "ok" else _result(String(transaction.outcome))
 
 
 func _membership_revision(character_id: String) -> Dictionary:
@@ -321,3 +333,28 @@ func cancel_interaction(actor_character_id: Variant, interaction_id: Variant) ->
 		return _result("interaction_actor_mismatch")
 	_interactions.erase(interaction_id)
 	return _result("ok")
+
+
+func _lookup_receipt(actor_scope: String, operation_id: String, fingerprint: String) -> Dictionary:
+	var query: Dictionary = _store.query_with_bindings("SELECT request_fingerprint, result_revision, target_id FROM permission_operation_receipts WHERE actor_scope = ? AND operation_id = ?;", [actor_scope, operation_id])
+	if query.outcome != "ok":
+		return _result(String(query.outcome))
+	if query.rows.is_empty():
+		return _result("not_found")
+	var row: Dictionary = query.rows[0]
+	if not (row.request_fingerprint is String) or row.request_fingerprint.length() != 64 or not _valid_revision(row.result_revision) or row.result_revision == 0 or not _valid_id(row.target_id):
+		return _result("invalid_persisted_state")
+	if row.request_fingerprint != fingerprint:
+		return _result("operation_conflict")
+	return {"outcome": "duplicate_rejected", "original_result": _receipt_result(operation_id, row.result_revision, row.target_id)}
+
+
+func _write_receipt(actor_scope: String, fingerprint: String, result: Dictionary) -> bool:
+	return _store.is_managed_transaction_active() and _store.query_with_bindings(
+		"INSERT INTO permission_operation_receipts (actor_scope, operation_id, request_fingerprint, result_revision, target_id) VALUES (?, ?, ?, ?, ?);",
+		[actor_scope, result.operation_id, fingerprint, result.revision, result.target_id]
+	).outcome == "ok"
+
+
+static func _receipt_result(operation_id: String, revision: int, target_id: String) -> Dictionary:
+	return {"outcome": "ok", "operation_id": operation_id, "revision": revision, "target_id": target_id}

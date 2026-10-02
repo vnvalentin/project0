@@ -169,3 +169,38 @@ func test_revoked_character_permit_rejects_final_commit_with_zero_write_attempts
 	assert_eq(observation.observation_status, "OBSERVED")
 	assert_eq(observation.totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
 	assert_eq(_store.query("SELECT id FROM action_probe;").rows.size(), 0)
+
+
+func test_permit_receipt_replays_after_later_revision_and_restart_without_writes() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	assert_eq(authority.register_claim("plot-one", "owner-one", "provision-one").outcome, "ok")
+	var intent: Dictionary = {
+		"schema_version": 1, "operation_id": "permit-one", "plot_id": "plot-one", "expected_revision": 1,
+		"action": "grant", "subject": {"kind": "character", "id": "visitor-one", "role": ""}, "permission_bits": 1,
+	}
+	var original: Dictionary = authority.apply_permit("owner-one", intent)
+	assert_eq(original.outcome, "ok")
+	var later: Dictionary = intent.duplicate(true)
+	later.operation_id = "permit-two"
+	later.expected_revision = 2
+	later.subject.id = "visitor-two"
+	assert_eq(authority.apply_permit("owner-one", later).outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var replay: Dictionary = authority.apply_permit("owner-one", intent)
+	assert_eq(replay.outcome, "duplicate_rejected")
+	assert_eq(replay.get("original_result"), original)
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_database).outcome, "ok")
+	authority = authority_script.new(_store)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var recovered: Dictionary = authority.apply_permit("owner-one", intent)
+	assert_eq(recovered.outcome, "duplicate_rejected")
+	assert_eq(recovered.get("original_result"), original)
+	var changed: Dictionary = intent.duplicate(true)
+	changed.permission_bits = 2
+	assert_eq(authority.apply_permit("owner-one", changed).outcome, "operation_conflict")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
