@@ -152,3 +152,58 @@ func test_open_rejects_res_path() -> void:
 	var result: Dictionary = store.open("res://should_not_be_allowed.db")
 	assert_eq(result["outcome"], SqliteStoreScript.OUTCOME_OPEN_FAILED, "a res:// path is rejected outright")
 	assert_false(store.is_open(), "store is not open after a rejected res:// path")
+
+
+func test_ignored_query_error_rolls_back_even_when_body_returns_true() -> void:
+	var store: SqliteStore = SqliteStoreScript.new()
+	assert_eq(store.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(store.query("CREATE TABLE ignored_error_probe (id INTEGER PRIMARY KEY);")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var transaction_result: Dictionary = store.transaction(func() -> bool:
+		assert_eq(store.query("INSERT INTO ignored_error_probe (id) VALUES (1);")["outcome"], SqliteStoreScript.OUTCOME_OK)
+		assert_eq(store.query("INSERT INTO ignored_error_probe (id) VALUES (1);")["outcome"], SqliteStoreScript.OUTCOME_QUERY_FAILED)
+		return true
+	)
+	assert_eq(transaction_result["outcome"], SqliteStoreScript.OUTCOME_TRANSACTION_FAILED, "a query failure cannot be hidden by the callback")
+	store.close()
+	var reopened: SqliteStore = SqliteStoreScript.new()
+	assert_eq(reopened.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(reopened.query("SELECT id FROM ignored_error_probe;")["rows"].size(), 0, "no earlier write survives the failed transaction")
+	reopened.close()
+
+
+func test_ignored_bound_query_error_rolls_back_without_poisoning_next_transaction() -> void:
+	var store: SqliteStore = SqliteStoreScript.new()
+	assert_eq(store.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(store.query("CREATE TABLE bound_error_probe (id INTEGER PRIMARY KEY);")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var transaction_result: Dictionary = store.transaction(func() -> bool:
+		assert_eq(store.query_with_bindings("INSERT INTO bound_error_probe (id) VALUES (?);", [1])["outcome"], SqliteStoreScript.OUTCOME_OK)
+		assert_eq(store.query_with_bindings("INSERT INTO bound_error_probe (id) VALUES (?);", [1])["outcome"], SqliteStoreScript.OUTCOME_QUERY_FAILED)
+		# A later successful statement must not clear the earlier failure.
+		assert_eq(store.query_with_bindings("INSERT INTO bound_error_probe (id) VALUES (?);", [2])["outcome"], SqliteStoreScript.OUTCOME_OK)
+		return true
+	)
+	assert_eq(transaction_result["outcome"], SqliteStoreScript.OUTCOME_TRANSACTION_FAILED)
+	assert_eq(store.query("SELECT id FROM bound_error_probe;")["rows"].size(), 0)
+	var next_result: Dictionary = store.transaction(func() -> bool:
+		return store.query_with_bindings("INSERT INTO bound_error_probe (id) VALUES (?);", [3])["outcome"] == SqliteStoreScript.OUTCOME_OK
+	)
+	assert_eq(next_result["outcome"], SqliteStoreScript.OUTCOME_OK, "a later transaction is independent of the failed one")
+	store.close()
+	var reopened: SqliteStore = SqliteStoreScript.new()
+	assert_eq(reopened.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(reopened.query("SELECT id FROM bound_error_probe ORDER BY id;")["rows"], [{"id": 3}], "only the subsequent healthy commit survives reopen")
+	reopened.close()
+
+
+func test_query_errors_outside_transaction_do_not_poison_a_healthy_commit() -> void:
+	var store: SqliteStore = SqliteStoreScript.new()
+	assert_eq(store.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(store.query("CREATE TABLE independent_error_probe (id INTEGER PRIMARY KEY);")["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(store.query("SELECT missing_column FROM independent_error_probe;")["outcome"], SqliteStoreScript.OUTCOME_QUERY_FAILED)
+	assert_eq(store.query_with_bindings("SELECT missing_column FROM independent_error_probe WHERE id = ?;", [1])["outcome"], SqliteStoreScript.OUTCOME_QUERY_FAILED)
+	var transaction_result: Dictionary = store.transaction(func() -> bool:
+		return store.query_with_bindings("INSERT INTO independent_error_probe (id) VALUES (?);", [1])["outcome"] == SqliteStoreScript.OUTCOME_OK
+	)
+	assert_eq(transaction_result["outcome"], SqliteStoreScript.OUTCOME_OK)
+	assert_eq(store.query("SELECT id FROM independent_error_probe;")["rows"], [{"id": 1}])
+	store.close()
