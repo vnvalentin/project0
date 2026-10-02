@@ -16,6 +16,14 @@ stage=setup
 native_exit=-1
 execution_complete=false
 source_clean_start=false
+scan_phase_log() {
+  python3 - "$1" <<'PYSCAN'
+import re,sys
+from pathlib import Path
+text=Path(sys.argv[1]).read_text(errors='replace')
+raise SystemExit(1 if re.search(r'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script',text) else 0)
+PYSCAN
+}
 finish() {
   trap - EXIT
   set +e
@@ -85,7 +93,7 @@ python3 scripts/check_validation_ownership.py --plan .scratch/840/validation-pla
 stage=import
 engine="$(/usr/local/bin/godot --version)"
 timeout --kill-after=10s 90s /usr/local/bin/godot --headless --path . --import > "$out/import.log" 2>&1
-! rg -q 'SCRIPT ERROR|Parse Error|Compile Error|Failed to load script' "$out/import.log"
+scan_phase_log "$out/import.log"
 stage=gut
 set +e
 timeout --kill-after=10s 90s /usr/local/bin/godot --headless --path . -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/unit/test_construction_contract.gd -gdisable_colors -gexit -gjunit_xml_file="$out/gut.xml" > "$out/gut.log" 2>&1
