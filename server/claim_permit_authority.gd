@@ -45,20 +45,33 @@ func ensure_schema() -> Dictionary:
 func register_claim(plot_id: Variant, owner_character_id: Variant, operation_id: Variant) -> Dictionary:
 	if not _valid_id(plot_id) or not _valid_id(owner_character_id) or not _valid_id(operation_id):
 		return _result("invalid_request")
-	var observed: Dictionary = get_claim(plot_id)
-	if observed.outcome == "ok":
-		if observed.claim.owner_character_id == owner_character_id and observed.claim.registration_operation_id == operation_id:
-			return _result("duplicate_rejected")
-		return _result("claim_conflict")
-	if observed.outcome != "not_found":
-		return observed
+	var actor_scope: String = JSON.stringify(["provision"])
+	var request_json: String = JSON.stringify(["register_claim", plot_id, owner_character_id, operation_id])
+	var decision: Dictionary = _result("ok")
 	var transaction: Dictionary = _store.transaction(func() -> bool:
-		return _store.query_with_bindings(
+		var receipt: Dictionary = _lookup_receipt(actor_scope, operation_id, request_json.sha256_text())
+		if receipt.outcome != "not_found":
+			decision.merge(receipt, true)
+			return false
+		var observed: Dictionary = get_claim(plot_id)
+		if observed.outcome == "ok":
+			decision.outcome = "claim_conflict"
+			return false
+		if observed.outcome != "not_found":
+			decision.outcome = observed.outcome
+			return false
+		if _store.query_with_bindings(
 			"INSERT INTO plot_claims (plot_id, owner_character_id, claim_revision, registration_operation_id) VALUES (?, ?, 1, ?);",
 			[plot_id, owner_character_id, operation_id]
-		).outcome == "ok"
+		).outcome != "ok":
+			return false
+		var result: Dictionary = _receipt_result(operation_id, 1, plot_id)
+		if not _write_receipt(actor_scope, request_json, result):
+			return false
+		decision.merge(result, true)
+		return true
 	)
-	return _result(String(transaction.outcome))
+	return decision if decision.outcome != "ok" or transaction.outcome == "ok" else _result(String(transaction.outcome))
 
 
 func get_claim(plot_id: Variant) -> Dictionary:

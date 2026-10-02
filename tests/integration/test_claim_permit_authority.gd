@@ -256,3 +256,24 @@ func test_permission_audit_retains_canonical_intent_and_rejects_corrupt_receipt(
 	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
 	assert_eq(authority.apply_permit("owner-one", intent).outcome, "invalid_persisted_state")
 	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+
+
+func test_provisioning_has_an_immutable_receipt_before_current_claim_checks() -> void:
+	var authority_script: Script = load(AUTHORITY_PATH)
+	var authority: RefCounted = authority_script.new(_store)
+	assert_eq(authority.ensure_schema().outcome, "ok")
+	var original: Dictionary = authority.register_claim("plot-one", "owner-one", "provision-one")
+	assert_eq(original.outcome, "ok")
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var replay: Dictionary = authority.register_claim("plot-one", "owner-one", "provision-one")
+	assert_eq(replay.outcome, "duplicate_rejected")
+	assert_eq(replay.get("original_result"), original)
+	assert_eq(authority.register_claim("plot-two", "owner-one", "provision-one").outcome, "operation_conflict")
+	assert_eq(authority.register_claim("plot-one", "owner-two", "provision-other").outcome, "claim_conflict")
+	assert_eq(_store.dml_statement_counters().totals.attempted, {"insert": 0, "replace": 0, "update": 0, "delete": 0})
+	var audit: Dictionary = _store.query_with_bindings("SELECT actor_scope, request_json FROM permission_operation_receipts WHERE operation_id = ?;", ["provision-one"])
+	assert_eq(audit.rows.size(), 1)
+	if audit.rows.size() != 1:
+		return
+	assert_eq(audit.rows[0].actor_scope, JSON.stringify(["provision"]))
+	assert_eq(audit.rows[0].request_json, JSON.stringify(["register_claim", "plot-one", "owner-one", "provision-one"]))
