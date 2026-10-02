@@ -38,7 +38,9 @@ store. Bound queries, a unique exterior reference, and an anchor/cell foreign ke
 preserve the relationship. Registration validates the closed input before DML,
 then uses one transaction for final effective-Canon reads and both INSERTs.
 Effective existence comes from successfully loaded immutable Canon plus ordered
-mutation history; read failure, absent/destroyed structure or conflicting anchor
+mutation history qualified by the existing CanonSectorIntegrity base/history
+inspectors; unsupported versions, malformed payloads, incompatible replay, read
+failure, absent/destroyed structure or conflicting anchor
 fails closed. Neither Canon blueprint nor its mutation log is rewritten.
 
 Exact registration replay returns the retained contract without another write.

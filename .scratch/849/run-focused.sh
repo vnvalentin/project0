@@ -51,7 +51,7 @@ for log_name in ['import.log', 'focused.log' if mode=='focused' else 'gut.log']:
     if log_path.is_file() and any(marker in log_path.read_text(errors='replace') for marker in ['SCRIPT ERROR','Parse Error','Compile Error']):
         errors.append('script_error:'+log_name)
 observations={}
-for scenario in ["registration","resolution","reopen","replay-conflict","cell-rollback","rollback-reopen","missing-exterior","destroyed-exterior","separate-store","canon-read-failure","malformed-forged","corrupt-record","corrupt-reopen","exterior-version","exterior-version-reopen"]:
+for scenario in ["registration","resolution","reopen","replay-conflict","cell-rollback","rollback-reopen","missing-exterior","destroyed-exterior","separate-store","canon-read-failure","malformed-forged","corrupt-record","corrupt-reopen","exterior-version","exterior-version-reopen","exterior-payload","exterior-payload-reopen","exterior-base","exterior-base-reopen"]:
     path=Path(result_dir)/"statement-observations"/(scenario+".json")
     try:
         entry=json.loads(path.read_text())
