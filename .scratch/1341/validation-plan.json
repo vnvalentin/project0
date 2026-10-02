@@ -1,15 +1,27 @@
 {
   "schema_version": 1,
   "kind": "component",
-  "steps": [{
-    "suite": "godot-server",
-    "platform": "linux",
-    "host": "192.168.1.254",
-    "command": "XDG_DATA_HOME=$PWD/build/validation/1341/user-data godot --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=.scratch/1341/focused-gut.json -gjunit_xml_file=build/validation/1341/focused.xml",
-    "dependencies": ["godot", "sqlite"],
-    "tests": ["tests/unit/test_item_definition.gd"],
-    "artifacts": ["build/validation/1341/focused.xml", "build/validation/1341/focused.log", "build/validation/1341/plan-ownership.json"]
-  }],
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "XDG_DATA_HOME=$PWD/build/validation/1341/user-data godot --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=.scratch/1341/focused-gut.json -gjunit_xml_file=build/validation/1341/focused.xml",
+      "dependencies": [
+        "godot",
+        "sqlite"
+      ],
+      "tests": [
+        "tests/unit/test_item_definition.gd",
+        "tests/unit/test_item_instance.gd"
+      ],
+      "artifacts": [
+        "build/validation/1341/focused.xml",
+        "build/validation/1341/focused.log",
+        "build/validation/1341/plan-ownership.json"
+      ]
+    }
+  ],
   "setup": "Isolated worktree and worktree-owned XDG user data; no external services or state.",
   "cleanup": "Retain only synthetic evidence; remove worktree-owned user-data after validation.",
   "rollback": "Revert additive contracts/tests through a reviewed PR; no persistence migration."

@@ -56,4 +56,4 @@ func test_definition_snapshot_survives_input_and_output_mutation() -> void:
 	var output: Dictionary = definition.to_wire_dict()
 	output.maximum_stack = 99
 	assert_eq(definition.to_wire_dict(), original)
-	assert_eq(definition.to_wire_dict(), original)
+	assert_eq(JSON.stringify(definition.to_wire_dict()), JSON.stringify(original))
