@@ -21,7 +21,7 @@ class BaselineReportTests(unittest.TestCase):
         observation = {'configured_tick_rate': 30, 'elapsed_seconds': 1000 / 30,
                        'crossings': [{}] * 100, 'canon_reads': [{'duration_usec': 50}], 'errors': [],
                        'isolation': dict.fromkeys(('healthy_canon_unchanged', 'sector_fault_contained', 'background_contention_observed', 'structural_nonblocking_verified', 'lock_wait_observed'), True),
-                       'samples': [{'tick': tick, 'duration_ms': 1.0, 'peers': 10, 'sectors': 4, 'npcs': 10, 'bodies': 15, 'triggers': 15} for tick in range(1000)]}
+                       'samples': [{'tick': tick, 'duration_ms': 1.0, 'peers': 10, 'ready': 10, 'sectors': 4, 'npcs': 10, 'bodies': 15, 'triggers': 15} for tick in range(1000)]}
         self.assertTrue(evaluate(observation, True)['passed'])
         observation['samples'][500]['duration_ms'] = float('nan')
         self.assertFalse(evaluate(observation, True)['passed'])

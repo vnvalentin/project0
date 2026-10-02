@@ -19,7 +19,7 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
         'complete_tick_samples': complete,
         'finite_durations': finite,
         '30hz': observation.get('configured_tick_rate') == 30,
-        'full_workload_each_tick': complete and all(s.get('peers') == 10 and s.get('sectors', 0) >= 4 and s.get('npcs', 0) >= 10 and s.get('bodies', 0) >= 15 and s.get('triggers', 0) >= 15 for s in samples),
+        'full_workload_each_tick': complete and all(s.get('peers') == 10 and s.get('ready') == 10 and s.get('sectors', 0) >= 4 and s.get('npcs', 0) >= 10 and s.get('bodies', 0) >= 15 and s.get('triggers', 0) >= 15 for s in samples),
         'p99_at_most_33_3ms': bool(ordered) and ordered[989] <= 33.3,
         'max_at_most_50ms': bool(ordered) and ordered[-1] <= 50,
         'crossings_at_least_two_per_second': elapsed_valid and len(crossings) / elapsed >= 2,
@@ -38,7 +38,7 @@ def evaluate(observation: dict, cleanup: bool) -> dict:
 def audit_worker_probe(source: str) -> dict:
     """Bounded structural check for the added probe, not native engine lock proof."""
     import re
-    names = ('_m4_tick', '_m4_start_worker_probe', '_m4_poll_workers', '_m4_inject_sector_fault')
+    names = ('_on_physics_frame', '_m4_tick', '_m4_start_worker_probe', '_m4_poll_workers', '_m4_inject_sector_fault')
     forbidden = ('wait_for_task_completion', 'wait_for_group_task_completion', 'wait_to_finish',
                  'Mutex', 'Semaphore', '.lock(', '.wait(', 'OS.execute', 'OS.delay_',
                  'FileAccess', 'DirAccess', '.query(', '.transaction(')

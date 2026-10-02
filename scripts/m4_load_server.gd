@@ -35,6 +35,9 @@ var _m4_bodies: Array[MovingBody] = []
 var _m4_triggers: Array[Area3D] = []
 var _m4_seen: Dictionary = {}
 var _m4_trigger_entries: int = 0
+var _m4_entries_by_trigger: Array[int] = []
+var _m4_last_body_steps: Array[int] = []
+var _m4_last_npc_tick: int = 0
 var _m4_start_usec: int = 0
 var _m4_last_frame: int = 0
 var _m4_started: bool = false
@@ -100,6 +103,8 @@ func _start_server() -> void:
 		body.add_child(shape)
 		root.add_child(body)
 		_m4_bodies.append(body)
+		_m4_last_body_steps.append(0)
+		_m4_entries_by_trigger.append(0)
 		var trigger: Area3D = Area3D.new()
 		trigger.name = "M4Boundary%d" % index
 		trigger.position = body.home + Vector3(0.6, 0, 0)
@@ -110,7 +115,9 @@ func _start_server() -> void:
 		box.size = Vector3(0.5, 1, 1)
 		trigger_shape.shape = box
 		trigger.add_child(trigger_shape)
-		trigger.body_entered.connect(func(_body: Node3D) -> void: _m4_trigger_entries += 1)
+		trigger.body_entered.connect(func(_body: Node3D) -> void:
+			_m4_trigger_entries += 1
+			_m4_entries_by_trigger[index] += 1)
 		root.add_child(trigger)
 		_m4_triggers.append(trigger)
 	_m4_listener = TCPServer.new()
@@ -123,7 +130,7 @@ func _start_server() -> void:
 		_m4_background_results.append({"sector": sector, "outcome": result.get("request_outcome"), "timing": result.get("timing", {})}))
 	root.add_child(_m4_background)
 	_m4_report["configured_tick_rate"] = Engine.physics_ticks_per_second
-	_m4_report["timing_seam"] = "EngineProfiler._tick physics_time; complete Main::iteration physics span; one physics tick per callback required"
+	_m4_report["timing_seam"] = "EngineProfiler._tick physics_time; complete Main::iteration physics span plus observer cost; all workload probes execute in physics callback; one physics tick per callback required"
 	_m4_report["engine"] = Engine.get_version_info()
 	_m4_report["status"] = "setup_ready"
 	_m4_write()
@@ -168,11 +175,26 @@ func _on_player_state_position_updated(peer_id: int, updated_position: Vector3) 
 		_m4_report["crossings"].append({"tick": Engine.get_physics_frames(), "peer": peer_id, "from": _m4_seen[peer_id], "to": sector})
 	_m4_seen[peer_id] = sector
 
+func _on_physics_frame() -> void:
+	super()
+	if _m4_listener != null:
+		while _m4_listener.is_connection_available():
+			_m4_connections.append(_m4_listener.take_connection())
+	if not _m4_started or _m4_finished:
+		return
+	var next_sample: int = _m4_report["samples"].size() + 1
+	if next_sample == 10:
+		_m4_start_worker_probe()
+		for index: int in range(4):
+			_m4_background.request_provisional_sector("sector-%d-10" % index, "Isolated M4 bounded fixture")
+	_m4_poll_workers()
+	if next_sample == 20:
+		_m4_inject_sector_fault()
+
 func _m4_tick(frame_time: float, process_time: float, physics_time: float, physics_frame_time: float) -> void:
+	var observation_started: int = Time.get_ticks_usec()
 	if _m4_finished or _m4_bodies.is_empty():
 		return
-	while _m4_listener.is_connection_available():
-		_m4_connections.append(_m4_listener.take_connection())
 	var frame: int = Engine.get_physics_frames()
 	var step_count: int = frame - _m4_last_frame
 	_m4_last_frame = frame
@@ -190,8 +212,23 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 				ready += 1
 	for body: MovingBody in _m4_bodies:
 		sectors[SectorBoundaryDetectorScript.sector_id_for_position(body.position)] = true
+	var active_sectors: Array[String] = []
+	for sector: String in SECTORS:
+		if sectors.has(sector) and _frontier_details.has(sector) and _frontier_versions.has(sector):
+			active_sectors.append(sector)
+	var advanced_bodies: int = 0
+	for index: int in range(_m4_bodies.size()):
+		if _m4_bodies[index].steps > _m4_last_body_steps[index]:
+			advanced_bodies += 1
+		_m4_last_body_steps[index] = _m4_bodies[index].steps
+	var active_triggers: int = 0
+	for trigger: Area3D in _m4_triggers:
+		if trigger.is_inside_tree() and trigger.monitoring and trigger.collision_mask == 4:
+			active_triggers += 1
+	var advanced_npcs: int = _town_npc_manager.npc_count() if _town_npc_tick > _m4_last_npc_tick else 0
+	_m4_last_npc_tick = _town_npc_tick
 	if not _m4_started:
-		_m4_ready_ticks = _m4_ready_ticks + 1 if peers == 10 and ready == 10 else 0
+		_m4_ready_ticks = _m4_ready_ticks + 1 if peers == 10 and ready == 10 and active_sectors.size() == 4 else 0
 		if _m4_ready_ticks < 60:
 			return
 		_m4_started = true
@@ -204,18 +241,13 @@ func _m4_tick(frame_time: float, process_time: float, physics_time: float, physi
 	var sample: Dictionary = {"tick": frame, "duration_ms": physics_time * 1000.0,
 		"engine_frame_ms": frame_time * 1000.0, "engine_process_ms": process_time * 1000.0,
 		"physics_step_seconds": physics_frame_time, "monotonic_usec": Time.get_ticks_usec(),
-		"peers": peers, "ready": ready, "sectors": sectors.size(), "npcs": _town_npc_manager.npc_count(),
-		"bodies": _m4_bodies.size(), "triggers": _m4_triggers.size(), "trigger_entries": _m4_trigger_entries}
+		"peers": peers, "ready": ready, "sectors": active_sectors.size(), "active_sector_maps": active_sectors, "npcs": advanced_npcs,
+		"bodies": advanced_bodies, "triggers": active_triggers, "trigger_entries": _m4_trigger_entries}
 	_m4_report["samples"].append(sample)
 	var count: int = _m4_report["samples"].size()
-	if count == 10:
-		_m4_start_worker_probe()
-		# Concurrent real asynchronous generation requests wait on a private loopback endpoint.
-		for index: int in range(4):
-			_m4_background.request_provisional_sector("sector-%d-10" % index, "Isolated M4 bounded fixture")
-	_m4_poll_workers()
-	if count == 20:
-		_m4_inject_sector_fault()
+	var observer_usec: int = Time.get_ticks_usec() - observation_started
+	sample["observer_usec"] = observer_usec
+	sample["duration_ms"] += float(observer_usec) / 1000.0
 	if count >= _m4_required_ticks:
 		_m4_finish()
 
@@ -273,6 +305,7 @@ func _m4_finish() -> void:
 		"blocking_wait_usec_in_window": _m4_blocking_wait_usec,
 		"scope": "Application-owned worker probe explicit waits only. Native engine synchronization is not observed. Joins occur after measured window."}
 	_m4_report["body_activity"] = _m4_bodies.map(func(body: MovingBody) -> Dictionary: return {"steps": body.steps, "travel": body.travel})
+	_m4_report["entries_by_trigger"] = _m4_entries_by_trigger
 	_m4_report["fault"] = _m4_fault
 	_m4_report["background"] = {"accepted_connections": _m4_connections.size(), "results": _m4_background_results}
 	_m4_report["isolation"] = {
