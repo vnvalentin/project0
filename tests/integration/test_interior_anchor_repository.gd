@@ -254,3 +254,26 @@ func test_stamped_canon_guid_is_bound_instead_of_legacy_derivation() -> void:
 	intent["exterior_entity_guid"] = GuidScript.derive("sector-1-0", "structure", "village_hall")
 	assert_eq(repository.resolve_entry(intent)["outcome"], "orphan_anchor")
 	assert_eq(_canon.get_canonical_sector("sector-1-0")["sector"]["blueprint"], stamped)
+
+
+func test_corrupt_persisted_anchor_fails_closed_without_repair_after_reopen() -> void:
+	var repository_script: Script = load("res://server/interior_anchor_repository.gd")
+	var repository: RefCounted = repository_script.new(_store)
+	assert_eq(repository.ensure_schema()["outcome"], "ok")
+	var first: Dictionary = repository.register_anchor(_descriptor())
+	assert_eq(first["outcome"], "ok")
+	var interior_id: String = first["anchor"].interior_id
+	# Owned fixture fault; a JSON object cannot substitute for the entry vector.
+	assert_eq(_store.query_with_bindings("UPDATE interior_anchors SET entry_json = ? WHERE interior_id = ?;", ["{}", interior_id])["outcome"], "ok")
+	assert_eq(repository.get_anchor(interior_id)["outcome"], "invalid_record")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "invalid_record")
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "invalid_record")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_path)["outcome"], "ok")
+	_canon = CanonScript.new(_store)
+	repository = repository_script.new(_store)
+	assert_eq(repository.get_anchor(interior_id)["outcome"], "invalid_record")
+	assert_eq(repository.resolve_entry(_intent())["outcome"], "invalid_record")
+	assert_eq(repository.register_anchor(_descriptor())["outcome"], "invalid_record")
+	assert_eq(_canon.get_canonical_sector("sector-0-0")["sector"]["blueprint"], _blueprint)
