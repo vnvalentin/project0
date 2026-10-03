@@ -161,7 +161,13 @@ func test_creation_properties_commit_with_instance_and_recover_exactly() -> void
 
 	var writes: Dictionary = _store.dml_statement_counters()
 	assert_eq(writes.observation_status, "OBSERVED")
+	assert_eq(writes.totals.committed.insert, 6)
 	assert_eq(writes.by_table.canon_item_instances.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_creation_profiles.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_creation_properties.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_owners.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_locations.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_operations.committed.insert, 1)
 
 	_store.close()
 	_store = StoreScript.new()
@@ -179,13 +185,34 @@ func test_creation_properties_commit_with_instance_and_recover_exactly() -> void
 	var loaded_properties: Dictionary = ledger.call("get_creation_properties", original.instance_id)
 	assert_eq(loaded_properties.outcome, "ok", str(loaded_properties))
 	assert_eq(loaded_properties.properties, derived.properties)
-	assert_true(loaded_properties.properties.inputs.material_purity is int)
-	assert_true(loaded_properties.properties.values.durability is int)
+	for input_name: String in ["material_purity", "catalyst_quality", "workstation_parameter"]:
+		assert_true(loaded_properties.properties.inputs[input_name] is int)
+	for value_name: String in ["purity", "quality", "durability"]:
+		assert_true(loaded_properties.properties.values[value_name] is int)
 	assert_eq(ledger.get_owner_revision(original.owner).revision, 1)
 	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 1)
 	var retired: Dictionary = ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "consumed", 50)
 	assert_eq(retired.outcome, "ok")
 	assert_eq(ledger.get_creation_properties(original.instance_id).properties, derived.properties)
+
+
+func test_creation_property_operation_keys_remain_actor_scoped() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	var first: Dictionary = ledger.call("create_instance_with_properties", "character:one", "operation:create", _instance_wire(), 0, 0, profile_wire, inputs)
+	assert_eq(first.outcome, "ok")
+	var second_wire: Dictionary = _instance_wire()
+	second_wire.instance_id = "instance:other-sword"
+	second_wire.owner.id = "character:other"
+	var second: Dictionary = ledger.call("create_instance_with_properties", "character:other", "operation:create", second_wire, 0, 0, profile_wire, inputs)
+	assert_eq(second.outcome, "ok", "the same operation key is independent for another actor")
+	assert_eq(first.receipt.operation_id, second.receipt.operation_id)
+	assert_ne(first.receipt.actor_character_id, second.receipt.actor_character_id)
+	assert_eq(ledger.get_creation_properties("instance:sword").outcome, "ok")
+	assert_eq(ledger.get_creation_properties("instance:other-sword").outcome, "ok")
 
 
 func test_creation_property_replay_conflicts_and_rejections_issue_no_writes() -> void:
