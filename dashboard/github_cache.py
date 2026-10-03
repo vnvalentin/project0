@@ -76,8 +76,6 @@ def fetch_github_feed(repo: str, previous: dict) -> dict:
                     "items": [project(item) for item in payload if resource != "issues" or "pull_request" not in item],
                     "more": len(payload) == 100,
                 }
-            elif status == 422 and resource == "issues" and feed[resource]:
-                break
             else:
                 raise RuntimeError(f"GitHub {resource} request failed (HTTP {status})")
             feed["pages"][endpoint] = response
@@ -121,7 +119,7 @@ class GitHubFeedCache:
             if snapshot.get("schema_version") != 1 or snapshot.get("repo") != repo:
                 raise ValueError("Cache schema or repository mismatch")
             updated_at = snapshot.get("updated_at")
-            if not isinstance(updated_at, (int, float)) or not math.isfinite(updated_at) or updated_at <= 0:
+            if type(updated_at) not in (int, float) or not math.isfinite(updated_at) or not 0 < updated_at <= self.clock():
                 raise ValueError("Invalid cache timestamp")
             self._validate(snapshot)
             self._snapshot = snapshot

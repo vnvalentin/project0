@@ -1,10 +1,12 @@
 import json
 import sys
 import threading
+import subprocess
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from urllib.error import HTTPError
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from app import _roadmap_milestones, delivery_projection, render_delivery, render_tracker
@@ -149,7 +151,7 @@ def test_github_issue_feed_keeps_issues_beyond_five_pages(monkeypatch) -> None:
             if page == 6:
                 payload[0]["number"] = 551
             return 200, {}, payload
-        return 422, {}, {"message": "pagination limit"}
+        return 200, {}, []
 
     monkeypatch.setattr(github_cache, "run_api", fake_api)
     feed = github_cache.fetch_github_feed("example/project", {})
@@ -181,6 +183,83 @@ def test_unchanged_github_pages_use_etags_and_keep_complete_feed(monkeypatch) ->
     assert len(second["milestones"]) == 1
     assert len(calls) == 4
     assert all(etag == '"unchanged"' for _, etag in calls[2:])
+
+
+def test_incomplete_github_sync_is_not_published(monkeypatch) -> None:
+    import github_cache
+
+    def fake_api(endpoint: str, etag: str):
+        if "/milestones?" in endpoint:
+            return 503, {}, None
+        return 200, {}, [{"number": 1433, "title": "Cache", "state": "open"}]
+
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    with pytest.raises(RuntimeError, match="milestones.*503"):
+        github_cache.fetch_github_feed("example/project", {})
+
+
+def test_github_pagination_error_does_not_silently_truncate(monkeypatch) -> None:
+    import github_cache
+
+    def fake_api(endpoint: str, etag: str):
+        if endpoint.endswith("page=1"):
+            return 200, {}, [{"number": number, "state": "open"} for number in range(1, 101)]
+        return 422, {}, None
+
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    with pytest.raises(RuntimeError, match="issues.*422"):
+        github_cache.fetch_github_feed("example/project", {})
+
+
+@pytest.mark.parametrize("status,payload", [(200, [{"number": 1433}]), (304, None)])
+def test_github_cli_response_framing_and_conditional_header(monkeypatch, status, payload) -> None:
+    import github_cache
+
+    def run(command: list[str], **kwargs):
+        assert command[:5] == ["gh", "api", "--method", "GET", "--include"]
+        assert 'If-None-Match: "cached"' in command
+        assert kwargs["timeout"] == 20
+        body = json.dumps(payload) if payload is not None else ""
+        return subprocess.CompletedProcess(command, 0, f'HTTP/2.0 {status} OK\r\nEtag: "new"\r\n\r\n{body}', "")
+
+    monkeypatch.setattr(github_cache.subprocess, "run", run)
+    code, headers, result = github_cache.run_api("repos/example/project/issues", '"cached"')
+    assert code == status
+    assert headers["etag"] == '"new"'
+    assert result == payload
+
+
+def test_background_refresh_runs_without_page_requests(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    entered = threading.Event()
+
+    def fetch(previous: dict) -> dict:
+        entered.set()
+        return {"issues": [], "milestones": []}
+
+    cache = GitHubFeedCache(tmp_path / "feed.json", "example/project", fetch)
+    try:
+        cache.start()
+        cache.start()
+        assert entered.wait(2)
+        assert cache.wait_for_refresh(2)
+        assert cache.read()["available"] is True
+    finally:
+        cache.close()
+
+
+def test_corrupt_cache_is_unavailable_until_manually_repaired(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    path = tmp_path / "feed.json"
+    path.write_text('{"schema_version": 1, "repo": "example/project", "updated_at": 1e300, "issues": [], "milestones": []}')
+    cache = GitHubFeedCache(path, "example/project", lambda previous: {"issues": [], "milestones": []})
+    assert cache.read()["available"] is False
+    assert "timestamp" in cache.read()["error"]
+    assert cache.request_refresh()
+    assert cache.wait_for_refresh(2)
+    assert cache.read()["available"] is True
 
 
 def test_dashboard_manual_refresh_is_same_origin_and_browsing_never_fetches(tmp_path: Path, monkeypatch) -> None:
