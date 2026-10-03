@@ -2,9 +2,9 @@ extends GutTest
 ## GUT wrapper for the real three-process E2E harness
 ## scripts/test_multi_peer_replication.gd (Slice 007 evidence, cited by
 ## docs/slices/007-multi-peer-player-replication.md and FEATURE-LIST.md). The
-## harness itself is not modified or renamed (DT-006 Option A) — it spawns and
-## tears down its own real server process plus two client harness processes,
-## bound to 127.0.0.1:9999. This wrapper only runs it as a blocking child
+## harness spawns and tears down an owned server plus two real client
+## processes on isolated loopback ports, with disjoint state and listening
+## ownership proven before client startup. This wrapper runs it as a child
 ## process so it appears as a testsuite in build/validation/gut.xml under
 ## scripts/run_gut_validation.sh.
 ##
