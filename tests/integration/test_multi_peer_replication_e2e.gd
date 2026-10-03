@@ -2,9 +2,9 @@ extends GutTest
 ## GUT wrapper for the real three-process E2E harness
 ## scripts/test_multi_peer_replication.gd (Slice 007 evidence, cited by
 ## docs/slices/007-multi-peer-player-replication.md and FEATURE-LIST.md). The
-## harness itself is not modified or renamed (DT-006 Option A) — it spawns and
-## tears down its own real server process plus two client harness processes,
-## bound to 127.0.0.1:9999. This wrapper only runs it as a blocking child
+## harness spawns and tears down an owned server plus two real client
+## processes on isolated loopback ports, with disjoint state and listening
+## ownership proven before client startup. This wrapper runs it as a child
 ## process so it appears as a testsuite in build/validation/gut.xml under
 ## scripts/run_gut_validation.sh.
 ##
@@ -20,6 +20,100 @@ class SnapshotClient extends "res://scripts/multi_peer_client_harness.gd":
 
 class SnapshotNetwork extends Node:
 	var status: String = "connected: player spawned"
+
+
+func test_harness_avoids_foreign_game_and_control_listeners() -> void:
+	var foreign_game: PacketPeerUDP = PacketPeerUDP.new()
+	var foreign_control: TCPServer = TCPServer.new()
+	var game_bound: Error = foreign_game.bind(9999, "127.0.0.1")
+	var control_bound: Error = foreign_control.listen(8097, "127.0.0.1")
+	assert_eq(game_bound, OK, "isolated probe owns the foreign game listener")
+	assert_eq(control_bound, OK, "isolated probe owns the foreign control listener")
+	if game_bound != OK or control_bound != OK:
+		foreign_game.close()
+		foreign_control.stop()
+		return
+	var output: Array = []
+	var exit_code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"-s", "scripts/test_multi_peer_replication.gd",
+	]), output, true)
+	var packets: int = foreign_game.get_available_packet_count()
+	var control_contacted: bool = foreign_control.is_connection_available()
+	foreign_game.close()
+	foreign_control.stop()
+	var joined_output: String = "\n".join(output)
+	_save_output("multi-peer-1339-foreign-listeners", joined_output)
+	assert_eq(exit_code, 0, "owned harness completes despite foreign default listeners")
+	assert_true(joined_output.contains("ALL PASS"), "all original replication assertions pass")
+	assert_eq(packets, 0, "clients send no traffic to the foreign game listener")
+	assert_false(control_contacted, "harness never uses the foreign control listener")
+	assert_false(joined_output.contains("SCRIPT ERROR:"), "collision isolation has no script errors")
+
+
+func test_selected_port_collision_fails_before_clients_start() -> void:
+	var output: Array = []
+	var exit_code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"-s", "tests/fixtures/occupied_multi_peer_port.gd", "--", "--occupy-selected-port",
+	]), output, true)
+	var text: String = "\n".join(output)
+	_save_output("multi-peer-1339-selected-port-collision", text)
+	var failure: Dictionary = _event(text, "HARNESS_STARTUP_FAILED ")
+	var probe: Dictionary = _event(text, "HARNESS_COLLISION_PROBE ")
+	assert_eq(exit_code, 1, "lost port allocation fails the owned harness")
+	assert_eq(failure.get("reason", ""), "process_exited", "failed server startup is observed before client admission")
+	assert_gt(int(failure.get("game_port", 0)), 0, "startup diagnostic identifies the selected port")
+	assert_false(probe.get("clients_started", true), "neither client starts without owned listening proof")
+	assert_eq(int(probe.get("packets", -1)), 0, "selected foreign listener receives no client traffic")
+	assert_false(text.contains("ALL PASS"), "failed startup cannot pass")
+	assert_false(text.contains("SCRIPT ERROR:"), "startup rejection does not cascade into script errors")
+	assert_true(text.contains("PASS: owned authenticated fixture database removed"), "failed startup cleans up authenticated state")
+
+
+func test_concurrent_harnesses_use_disjoint_endpoints_and_state() -> void:
+	var identity: String = "%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	var paths: Array[String] = ["user://multi_peer_parallel_%s_a.json" % identity, "user://multi_peer_parallel_%s_b.json" % identity]
+	var processes: Array[int] = []
+	for path: String in paths:
+		assert_false(FileAccess.file_exists(path), "owned concurrent report starts absent")
+		processes.append(OS.create_process(OS.get_executable_path(), PackedStringArray([
+			"--headless", "--path", ProjectSettings.globalize_path("res://"),
+			"-s", "tests/fixtures/occupied_multi_peer_port.gd", "--", "--report-file=%s" % ProjectSettings.globalize_path(path),
+		])))
+		assert_gt(processes[-1], 0, "independent harness process starts")
+	var deadline: int = Time.get_ticks_msec() + 60000
+	while Time.get_ticks_msec() < deadline:
+		var finished: bool = true
+		for process_id: int in processes:
+			finished = finished and (process_id <= 0 or not OS.is_process_running(process_id))
+		if finished:
+			break
+		await get_tree().process_frame
+	var reports: Array[Dictionary] = []
+	for process_id: int in processes:
+		assert_false(process_id > 0 and OS.is_process_running(process_id), "concurrent harness terminates within its orchestration deadline")
+		if process_id > 0 and OS.is_process_running(process_id):
+			OS.kill(process_id)
+	for path: String in paths:
+		var report: Dictionary = {}
+		if FileAccess.file_exists(path):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if parsed is Dictionary:
+				report = parsed
+		reports.append(report)
+		assert_eq(report.get("failures", -1), 0, "each harness completes its unchanged replication journey")
+		assert_true(report.get("paths_removed", false), "each harness removes only its own state")
+		for candidate: String in [path, path + ".pending"]:
+			if FileAccess.file_exists(candidate):
+				assert_eq(DirAccess.remove_absolute(candidate), OK, "owned concurrent report is removed")
+	if reports[0].is_empty() or reports[1].is_empty():
+		return
+	assert_ne(reports[0]["identity"], reports[1]["identity"], "simultaneous harness identities are disjoint")
+	assert_ne(reports[0]["state_a"], reports[1]["state_a"], "client A state cannot be read or removed by another harness")
+	assert_ne(reports[0]["state_b"], reports[1]["state_b"], "client B state cannot be read or removed by another harness")
+	assert_ne(reports[0]["endpoints"]["game_port"], reports[1]["endpoints"]["game_port"], "simultaneous game endpoints are distinct")
+	assert_ne(reports[0]["endpoints"]["control_port"], reports[1]["endpoints"]["control_port"], "simultaneous control endpoints are distinct")
 
 
 func test_snapshot_publication_preserves_an_in_flight_reader() -> void:
