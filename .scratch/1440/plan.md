@@ -7,7 +7,7 @@ Milestone 3, M3.2 Item Ownership and Transaction Ledger. Parents: equipment Epic
 
 Given a fixture-authored profile set and a pinned bag definition, return its exact immutable capacity profile or a bounded rejection. Two pure shared values, ItemCapacityProfile and ItemCapacityBindings, own validation, independent snapshots and read-only exact-pin resolution. The server chooses the authored set; parsing grants no recipient, ownership or carrying authority.
 
-This preparation owns records and one public tracer only. No capacity application module is implemented before qualified RED. No catalog/database adoption, ledger enforcement, existing item/stat schema change, transfers, equipment movement, GUID/revision/receipt mutation, production tuning, nested bags, mass/volume, client/Windows change or executor belongs here. Capacity 4 and boundary examples are fixture data only.
+The first guarded public tracer has qualified RED. This increment implements only the two approved pure capacity values and their public-seam boundary, alias and conflict coverage. No catalog/database adoption, ledger enforcement, existing item/stat schema change, transfers, equipment movement, GUID/revision/receipt mutation, production tuning, nested bags, mass/volume, client/Windows change or executor belongs here. Capacity 4 and boundary examples are fixture data only.
 
 Unacceptable outcomes: coercion or fallback, neighboring revision selection, open wire fields, aliases to retained values, conflicting partial bindings, rejected payloads echoed in details, parse/load failure substituted for RED, or static checks presented as runtime acceptance.
 
@@ -25,7 +25,7 @@ Bindings validate/snapshot the entire supplied Array and use unambiguous composi
 
 Given a validated fixture bag definition and one six-field authored capacity profile with count 4, when the profile is parsed, bound and resolved for that exact definition revision, then its six-field snapshot and count round-trip exactly.
 
-Subsequent vertical cycles cover bounds and independent snapshots; malformed/open fields and unsupported schema/count types; null/invalid/non-bag definitions and absent exact pins; then duplicates, conflicts and independent definition revisions. Existing item definition, instance and creation-profile compatibility checks preserve their closed schemas. These scenarios are not implemented or observed by preparation alone.
+Subsequent vertical cycles cover bounds and independent snapshots; malformed/open fields and unsupported schema/count types; null/invalid/non-bag definitions and absent exact pins; then duplicates, conflicts and independent definition revisions. Existing item definition, instance and creation-profile compatibility checks preserve their closed schemas. Public-seam coverage is now prepared for these bounded scenarios; native results beyond the first tracer remain pending.
 
 ## TDD public seam
 
@@ -33,18 +33,18 @@ Hypothesis: validated pure values and immutable exact-pin bindings express fixtu
 
 The test guards module presence before dynamic loading and declared factories before calls. It never preloads or annotates either absent capacity class. An absent module/factory produces one fixed failed assertion and immediate return. Subsequent steps exercise the agreed public factories, resolve and to_wire_dict. Crashes, script/parse/load errors, timeouts or setup failures cannot qualify RED. GREEN requires the selected public round-trip to pass.
 
-The two proposed shared values and their capacity unit files remain subject to one test/implementation cycle at a time. Only the initial binding round-trip tracer is prepared at this checkpoint; no implementation scaffold is added. Script factory detection uses the Godot 4.3 public Script method-list API before invocation; native parse and behavior remain unobserved.
+The initial public round-trip was observed RED through its guarded public seam before implementation. The approved pure values and necessary negative/boundary coverage form the next bounded increment. The original tracer remains unchanged. Script factory detection uses the Godot 4.3 public Script method-list API. Native parsing and GREEN for the new implementation remain pending coordinator validation.
 
 ## Validation status and next action
 
-Static records and ownership preparation passed; the single parse-safe tracer is now prepared for review. The exact machine-readable plan, selected commands, host/tool/source bindings, private reports and execution/capture/teardown contract are retained locally rather than published. A successful static plan check grants no native execution.
+Static records and ownership preparation passed. The first public tracer qualified RED, and the additive pure implementation with public-seam tests is prepared for review. The exact machine-readable plan, selected commands, host/tool/source bindings, private reports and execution/capture/teardown contract are retained locally rather than published. A successful static plan check grants no native execution.
 
-After qualified RED, implement the smallest pure behavior, then verify GREEN. Subsequent focused validation includes both capacity unit files and existing item definition, instance and creation-profile compatibility coverage. Final delivery still requires the full standard GUT gate, record synchronization and independent Standards/Spec review at the final revision. A separate exact private full inventory is required; a short focused list never represents the full suite.
+Next verify the unchanged tracer GREEN, then focused validation including both capacity unit files and existing item definition, instance and creation-profile compatibility coverage. Final delivery still requires the full standard GUT gate, record synchronization and independent Standards/Spec review at the final revision. A separate exact private full inventory is required; a short focused list never represents the full suite.
 
-Native preparation/parse, RED/GREEN, focused compatibility, full validation and final review remain NOT_OBSERVED. Coordinator reviews the frozen tracer and isolated lifecycle, grants the serialized RED window, and authorizes implementation only after qualified RED. Public records contain status, scope, dependencies and next action. This increment does not establish playable inventory, workshop acceptance, affinity, latency or Milestone 3 completion.
+The first tracer RED is qualified. Implementation GREEN, broader focused compatibility, full validation and final review remain pending. The coordinator owns the serialized native window and final source-bound review. The mandatory full gate remains blocked by the separate multiplayer-readiness dependency; this pure increment does not waive it. Public records contain status, scope, dependencies and next action. This increment does not establish playable inventory, workshop acceptance, affinity, latency or Milestone 3 completion.
 
 ## Rollback and root-cause learning
 
-Rollback is a reviewed revert of additive values/tests before adoption; no database or deployment change occurs. No unexpected native failure is observed during preparation. The known gap is absent capacity modules at the approved public seam; the next discriminating check is the named parse-safe tracer. Any unexpected check failure must be captured and classified before continuation.
+Rollback is a reviewed revert of additive values/tests before adoption; no database or deployment change occurs. The guarded absent-module RED established the expected missing behavior at the approved public seam. The countermeasure is the additive pure values and public-seam validation tests. The next discriminating check is GREEN of the unchanged tracer, followed by boundary and compatibility coverage. No unrelated runtime cause or delivery acceptance is claimed. Any unexpected check failure must be captured and classified before continuation.
 
 Automatic approval review rejected publishing internal execution details in the initial record layout. The exact plan remains private, while this public record preserves approved product scope and the next validation gate. This placement follows the user's explicit local-evidence boundary.
