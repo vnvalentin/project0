@@ -55,6 +55,33 @@ historical or explanatory context only:
   See [Record Ownership](../docs/RECORD-OWNERSHIP.md).
 - [Project Tracker](../docs/PROJECT-TRACKER.md) and [Technical Debt Tracker](../docs/TECHNICAL-DEBT-TRACKER.md) are frozen archives and must not be updated for new active work. Do not use them as status, phase, track, or queue authorities.
 
+## GitHub API Efficiency
+
+GitHub Projects V2 and `gh project` are GraphQL-backed; REST quota remaining
+does not prove GraphQL availability. For work that requires Project V2, run one
+read-only preflight before implementation or expensive validation with the
+configured project Python interpreter. Set `PROJECT0_PYTHON` to that
+interpreter; on the designated Linux host use
+`/data/code/project0/.venv-enrollment/bin/python`:
+
+```sh
+"$PROJECT0_PYTHON" scripts/github_api_guard.py preflight \
+  --evidence "build/validation/github-api/<issue>/preflight-<run-id>.json"
+```
+
+Do not preflight unrelated work. Run each `gh project` or direct GraphQL
+operation exactly once through `scripts/github_api_guard.py run`, using a new
+evidence path; use direct authenticated `gh api` REST endpoints for supported
+issue operations. Keep Project queries scoped, serialize mutations, and verify
+mutations with a targeted readback. Fetch `gh project field-list` or broad item
+inventories only when needed and reuse their run-scoped results; do not repeat
+them for each issue. The guard captures exact failures and a REST quota snapshot
+without retrying. On failure, stop the affected delivery
+path, record the blocker, and do not claim Project synchronization until
+readback succeeds. Retry only one deliberate read-only probe after a recorded
+reset or confirmed recovery. See [AGENTS.md](../AGENTS.md) for the full
+operating contract.
+
 ## Implementation ownership
 
 Copilot implements application code, tests, and implementation-facing delivery
