@@ -56,7 +56,7 @@
       "suite": "linux-container-tooling",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "PROJECT0_GUT_VALIDATION_IMAGE=project0-gut-validation:pr1419-deb71f1 bash scripts/test_hosted_gut_container.sh && PROJECT0_GUT_VALIDATION_IMAGE=project0-gut-validation:pr1419-deb71f1 bash scripts/run_hosted_gut_container.sh",
+      "command": "export PROJECT0_GUT_VALIDATION_IMAGE=project0-gut-validation:pr1419-$(git rev-parse --short HEAD)-$$; bash scripts/test_hosted_gut_container.sh && bash scripts/run_hosted_gut_container.sh",
       "dependencies": [
         "bash",
         "docker",
