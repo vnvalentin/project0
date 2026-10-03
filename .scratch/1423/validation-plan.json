@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": "https://github.com/vnvalentin/project0/issues/1423",
+  "steps": [{
+    "suite": "godot-server", "platform": "linux", "host": "192.168.1.254",
+    "command": "python3 .scratch/1423/run-focused.py --source-revision <exact-clean-HEAD> --run-id <new-id> --mode <red|green>",
+    "dependencies": ["godot", "sqlite", "python"],
+    "tests": ["tests/unit/test_lan_config.gd"],
+    "artifacts": ["build/validation/1423/<run-id>/result.json", "build/validation/1423/<run-id>/prepare.json", "build/validation/1423/<run-id>/prepare-bootstrap.log", "build/validation/1423/<run-id>/prepare-qualification.log", "build/validation/1423/<run-id>/gut.xml"]
+  }],
+  "setup": "Coordinator-reviewed native window only. Clean exact source, SHA-pinned private child-custody module and preparation helper snapshot, engine4.3 query from owned empty root, two-phase preparation and exact restored source/configuration/registry qualification before the sole pure GUT test prefix under fixed loopback overrides; fresh minimal HOME/XDG and disabled file logging.",
+  "cleanup": "Entire lifecycle holds shared lock. Default SIGCHLD/WNOWAIT/pidfd and subreaper cleanup verify owned children gone; source, selected copy bytes/modes, original configuration, registry and logging override are freshly qualified before removing only owned temporary state. Unknown custody preserves stage and fails cleanup/result. Raw pipe text is never retained; reduced selected-case XML and canonical preparation receipts remain private.",
+  "rollback": "Revert only test/owned validation records; preserve application defaults, containment, unknown edits and prior evidence. Full delivery gates remain separate."
+}
