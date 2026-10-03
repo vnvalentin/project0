@@ -1,0 +1,42 @@
+# #1435 — committed creation replay after retirement
+
+Governing issue: https://github.com/vnvalentin/project0/issues/1435.
+Parent delivery #1341; accepted primitive #1425; Feature #950. Milestone 3, group M3.2 Item Ownership and Transaction Ledger. The root coordinator owns Project/milestone mapping, public delivery checkpoints and native scheduling.
+
+## Orientation, outcome and boundaries
+
+This new isolated Linux checkout and fix/1435-creation-replay branch were cut from freshly resolved origin/main. Accepted foundation setup remains complete: the marker is absent and the active foundation/configuration placeholder scan has no matches. This is a source gate observation, not a full record-sync or runtime pass. The continuation reuses actual shared Harness NORTH_STAR/AGENTS reads at verified 77de008a0f28eb91726527d543adb435735a2157; current repository guidance has no changes from the accepted revision already consumed. Source identities and static results remain private local evidence.
+
+User outcome: an exact retry returns the original successful creation receipt after a legitimate retirement, without reviving the item or writing any command state. Scope is the existing server ItemLedgerRepository public creation-with-properties replay check and its real-SQLite integration regression. Actor authentication, acquisition/recipient authority and lifecycle policy remain caller responsibilities.
+
+Non-goals: ItemInstance/schema changes, new fields or dependencies, cross-owner/equipment/capacity policy, production tuning or startup wiring, a persistence executor/thread transfer, live Canon access, workshop/input-consumption journey, client/Windows behavior, deployment or milestone acceptance. The separately identified cross-record profile-digest liability is owned by #1436; do not fold it into this repair. Preserve all unrelated accepted #1425 behavior and other checkouts.
+
+Unacceptable outcomes: losing a committed receipt on retirement; accepting changed intent, invalid typed receipt or corrupted immutable data; reviving/repairing retired state; duplicate GUIDs; any retry DML; payload disclosure; missing observation being called zero; or runtime claims from static preparation.
+
+## SDD/BDD and first discriminating behavior
+
+Established public seams: create_instance_with_properties, retire_instance, get_instance, get_creation_properties, owner/location revision readers, list_owner and SqliteStore's qualified DML observer. #1435 explicitly defines this seam; no new private test interface is needed. The existing plain creation contract recognizes the actor-scoped committed fingerprint/typed receipt independently of current lifecycle state. The new command currently also compares the complete present instance against the historical active snapshot.
+
+Hypothesis: that complete comparison rejects an exact creation retry after legal owner/location/revision/terminal changes. The cheapest check is one public create-with-properties -> retire -> close/reopen -> observe -> retry cycle. First prepare exactly one regression in tests/integration/test_item_ledger_repository.gd named test_creation_property_retry_after_retirement_preserves_committed_receipt_without_writes. Reuse existing setup/teardown, fixture-only authored profile, instance/definition and legal equipped address.
+
+Given a successful creation with expected owner/location revisions 0/0, and its legitimate retirement with expected revisions 1/1, when the store reopens and the original creation is retried with only acquisition.server_tick changed, then return the exact original success result. Preserve the terminal instance (null owner/location, instance_revision 1, consumed terminal metadata), original companion, revision values 2/2 and empty active owner list. All attempted/committed/rolled-back/failed INSERT/REPLACE/UPDATE/DELETE counts remain zero.
+
+The single discriminating assertion uses a Boolean comparison and the fixed harmless label: `1435 exact creation replay returns original committed result after retirement`. Setup/load/observer preconditions must fail explicitly and return before unsafe access; no missing method/script/error can stand in for the intended RED. The fixture's normal after_each closes and removes only its unique DB/WAL/SHM/journal files.
+
+No application fix, native launch or RED result is authorized/claimed at this preparation freeze. Root must review the exact frozen source/controller and run the bounded owning-Linux RED first. Only after observed RED may a later authorized behavior cycle make the smallest repair. Preserve fingerprint discrimination, exact typed expected receipt, legal stored representation, pinned definition/immutable identity/provenance and immutable companion checks while distinguishing legitimate lifecycle state. Do not rederive/repair stored properties or weaken conflicting-intent rejection.
+
+## Planned validation and custody
+
+The machine-readable plan below selects the one new method for the first RED. The existing godot-server suite owns this script on Linux with Godot/SQLite; the exact selected method is declared by the GUT filter and must be the only observed test. Ownership preflight is static source/plan validation, not runtime acceptance.
+
+Root owns a reviewed single noninteractive lifecycle: source-bound prepared copy, engine/native identity, preexcluded synthetic inputs/environment/logging, fresh runtime/result directories, bounded owned Godot child, exact selected JUnit inventory, fixed-label RED classification, timeout/crash handling, source/copy custody and finally qualified process/database/runtime cleanup. Unknown observations/custody fail closed and are retained privately. Do not launch the consumer alone, a preparer, Docker or an alternate native path during this preparation task.
+
+After the minimal GREEN, keep focused public negative coverage for missing/corrupt immutable identity/provenance, malformed typed receipts/companions and conflicting intent; record the concrete cases before each subsequent edit/run. Run the complete existing ledger/profile scripts, independent Standards and Spec review bound to final source, unchanged standard full GUT and check_record_sync.sh gates before closure. No suite filtering replaces full delivery validation.
+
+Detailed commands, source/engine identities, assertion counts, root-cause diagnostics and runtime artifacts remain private local evidence. Public status reports may describe scope/dependencies/next action but cannot claim unrun results. The tracked plan describes future synthetic validation only.
+
+## Root-cause learning, rollback and continuation
+
+Source symptom: exact creation-with-properties replay after retirement is predicted to return corrupt_record. Public seam and hypothesis are stated above. Existing companion coverage checks retirement immutability and pre-retirement replay separately; the combined path is absent. Confirmed runtime cause, RED/GREEN and final results remain NOT_OBSERVED until qualified native execution. Record the actual discriminating result/countermeasure/evidence and limitations before closure.
+
+Rollback is a reviewed revert of this bounded ledger/test repair; only disposable validation state is created, never a live store migration. Next actor: root completes record mapping, reviews frozen test/plan and owned runtime path, then establishes the first RED. Parent #1341/#950 and M3 acceptance remain open. Workshop <=150 ms and zero main-thread synchronization-wait plus synchronous-SQLite requirements, and separate #1256 timing debt, remain unwaived.
