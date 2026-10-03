@@ -131,12 +131,10 @@ func _test_authoritative_melee_strike() -> void:
 	var network_client: Node = root.get_node("NetworkClient")
 	var authoritative_position: Array[Vector3] = [Vector3.INF]
 	var authoritative_sequence: Array[int] = [-1]
-	var authoritative_update_count: Array[int] = [0]
 	network_client.authoritative_position_received.connect(
 		func(position: Vector3, sequence: int) -> void:
 			authoritative_position[0] = position
 			authoritative_sequence[0] = sequence
-			authoritative_update_count[0] += 1
 	)
 
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
@@ -173,12 +171,6 @@ func _test_authoritative_melee_strike() -> void:
 	# is within reach, so this does not depend on knowing which start slot
 	# this run was assigned.
 	var target_dummy_position: Vector3 = Vector3(0.0, 1.0, -2.0)
-	var diagnostics_enabled: bool = not OS.get_environment("PROJECT0_MELEE_DIAGNOSTICS").is_empty()
-	var nakama_bridge_available: bool = false
-	var gameplay_bridge: Object = network_client.get("_nakama_gameplay_bridge")
-	if gameplay_bridge != null:
-		nakama_bridge_available = bool(gameplay_bridge.call("available"))
-	var movement_started_usec: int = Time.get_ticks_usec()
 	Input.action_press("move_forward")
 	Input.action_press("move_left")
 	var move_ticks: int = 0
@@ -210,16 +202,10 @@ func _test_authoritative_melee_strike() -> void:
 	var settled_server_sequence: int = authoritative_sequence[0]
 	var settled_sequence_gap: int = settled_client_sequence - settled_server_sequence
 	var released_input_acknowledged: bool = first_released_input_sequence >= 0 and settled_server_sequence >= first_released_input_sequence
-	var settled_pending_inputs: Variant = player.get("_pending_inputs")
-	var settled_pending_count: int = settled_pending_inputs.size() if settled_pending_inputs is Array else -1
-	if diagnostics_enabled:
-		var bridge_available: String = "nakama" if nakama_bridge_available else "enet"
-		print("[DEBUG-1439] route=%s movement_start_usec=%d loop_exit_ticks=%d predicted_client=%s authoritative_server=%s client_sequence=%d server_sequence=%d sequence_gap=%d updates=%d" % [bridge_available, movement_started_usec, move_ticks, predicted_reach_client_position, predicted_reach_server_position, predicted_reach_client_sequence, predicted_reach_server_sequence, predicted_reach_client_sequence - predicted_reach_server_sequence, authoritative_update_count[0]])
-		print("[DEBUG-1439] settle_ticks=%d release_sequence=%d release_acknowledged=%s client_position=%s authoritative_position=%s client_sequence=%d server_sequence=%d sequence_gap=%d pending_inputs=%d elapsed_msec=%d" % [settle_ticks, first_released_input_sequence, released_input_acknowledged, player.position, authoritative_position[0], settled_client_sequence, settled_server_sequence, settled_sequence_gap, settled_pending_count, int((Time.get_ticks_usec() - movement_started_usec) / 1000)])
 
 	_assert(player.position.distance_to(target_dummy_position) < 2.0, "the red Player's predicted position is within melee reach of the target dummy before attacking (position: %s)" % player.position)
 	_assert(released_input_acknowledged, "server acknowledges the first released movement input (target_sequence: %d, server_sequence: %d)" % [first_released_input_sequence, settled_server_sequence])
-	_assert(authoritative_position[0].distance_to(target_dummy_position) < 2.0, "authoritative player is in melee reach before attacking (position: %s, server_sequence: %d, client_sequence: %d, sequence_gap: %d, pending_inputs: %d)" % [authoritative_position[0], settled_server_sequence, settled_client_sequence, settled_sequence_gap, settled_pending_count])
+	_assert(authoritative_position[0].distance_to(target_dummy_position) < 2.0, "authoritative player is in melee reach before attacking (position: %s, server_sequence: %d, client_sequence: %d, sequence_gap: %d)" % [authoritative_position[0], settled_server_sequence, settled_client_sequence, settled_sequence_gap])
 
 	# --- Submit a melee ActionIntent over the real RPC seam -----------------
 	var resolution_received: Array = [false, "", ""]
