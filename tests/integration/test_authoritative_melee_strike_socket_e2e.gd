@@ -34,6 +34,8 @@ func test_authoritative_melee_strike_socket_harness_passes() -> void:
 	)
 
 	var joined_output: String = "\n".join(output)
+	if not OS.get_environment("PROJECT0_MELEE_DIAGNOSTICS").is_empty():
+		print(joined_output)
 	assert_eq(exit_code, 0, "authoritative melee strike socket E2E harness exits 0 — output tail:\n%s" % _tail(joined_output))
 	assert_true(joined_output.contains("ALL PASS"), "authoritative melee strike socket E2E harness prints ALL PASS — output tail:\n%s" % _tail(joined_output))
 

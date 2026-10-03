@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "run_id=$(date -u +%Y%m%dT%H%M%SZ); PROJECT0_MELEE_DIAGNOSTICS=1 godot --headless --path . -s addons/gut/gut_cmdln.gd -gconfig= -gtest=res://tests/integration/test_authoritative_melee_strike_socket_e2e.gd -gexit -gjunit_xml_file=build/validation/1439/diagnostic-$run_id.xml",
+      "dependencies": ["godot", "sqlite"],
+      "tests": [
+        "tests/integration/test_authoritative_melee_strike_socket_e2e.gd",
+        "scripts/test_authoritative_melee_strike_e2e.gd"
+      ],
+      "artifacts": ["build/validation/1439/diagnostic-<run-id>.xml"]
+    }
+  ]
+}
