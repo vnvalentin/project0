@@ -18,6 +18,7 @@ const REQUEST_VERBS: PackedStringArray = [
 const MAX_REQUEST_VALUE_NODES: int = 2048
 const MAX_REQUEST_CONTAINERS: int = 256
 const MAX_REQUEST_CONTAINER_DEPTH: int = 32
+const MAX_REQUEST_TEXT_CODEPOINTS: int = 65536
 
 
 static func parse_client_request(raw: Variant) -> Dictionary:
@@ -48,6 +49,7 @@ static func _contains_only_wire_values(value: Variant) -> bool:
 	var inspected_containers: Array[Variant] = []
 	var value_node_count: int = 0
 	var container_count: int = 0
+	var text_codepoint_count: int = 0
 	while not pending.is_empty():
 		var entry: Dictionary = pending.pop_back()
 		var current: Variant = entry["value"]
@@ -56,7 +58,12 @@ static func _contains_only_wire_values(value: Variant) -> bool:
 		if value_node_count > MAX_REQUEST_VALUE_NODES:
 			return false
 		match typeof(current):
-			TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_STRING:
+			TYPE_NIL, TYPE_BOOL, TYPE_INT:
+				continue
+			TYPE_STRING:
+				text_codepoint_count += current.length()
+				if text_codepoint_count > MAX_REQUEST_TEXT_CODEPOINTS:
+					return false
 				continue
 			TYPE_FLOAT:
 				if not is_finite(current):
@@ -87,6 +94,9 @@ static func _contains_only_wire_values(value: Variant) -> bool:
 				var dictionary: Dictionary = current
 				for key: Variant in dictionary:
 					if not (key is String):
+						return false
+					text_codepoint_count += key.length()
+					if text_codepoint_count > MAX_REQUEST_TEXT_CODEPOINTS:
 						return false
 					pending.append({"value": dictionary[key], "depth": depth + 1})
 			_:
