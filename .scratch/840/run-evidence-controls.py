@@ -141,7 +141,7 @@ def serializer_control(context, variation):
         tree.write(out / 'gut.xml')
     script = (root / SOURCES[2]).read_text().split("<<'PY'\n", 1)[1].split('\nPY\n', 1)[0]
     command = [sys.executable, '-c', script, str(out), variation, HEAD, HEAD,
-               '4.3.stable.fixture', 'gut', str(exit_code), 'true', 'true', 'true', mode]
+               '4.3.stable.fixture', 'gut', str(exit_code), 'true', 'true', 'true', mode, 'true']
     code, _, stderr = run_owned(command, root, env)
     report = json.loads((out / 'focused-result.json').read_text())
     accepted = variation in ('red', 'green')
