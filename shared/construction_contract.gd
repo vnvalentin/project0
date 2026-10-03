@@ -56,7 +56,11 @@ static func _contains_only_wire_values(value: Variant) -> bool:
 		if value_node_count > MAX_REQUEST_VALUE_NODES:
 			return false
 		match typeof(current):
-			TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
+			TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_STRING:
+				continue
+			TYPE_FLOAT:
+				if not is_finite(current):
+					return false
 				continue
 			TYPE_ARRAY:
 				if value_node_count + pending.size() + current.size() > MAX_REQUEST_VALUE_NODES:
