@@ -53,12 +53,18 @@ func _run() -> void:
 
 	_network_client = root.get_node("NetworkClient")
 	_network_client.geometry_assembly_completed.connect(_record_geometry_ready)
+	_network_client.connect_to_server(NetworkConfigScript.resolve_client_target_host(), NetworkConfigScript.resolve_server_port())
+	var connection_deadline: int = Time.get_ticks_msec() + 5000
+	while not String(_network_client.status).begins_with("connected") and Time.get_ticks_msec() < connection_deadline:
+		await process_frame
+	if not String(_network_client.status).begins_with("connected"):
+		push_error("Owned test client transport connection failed")
+		quit(1)
+		return
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
 	root.add_child(_gameplay_instance)
 	current_scene = _gameplay_instance
 	await process_frame
-
-	_network_client.connect_to_server(NetworkConfigScript.resolve_client_target_host(), NetworkConfigScript.SERVER_PORT)
 
 	if not await GameplayTestSessionScript.enter_world(_network_client):
 		push_error("Test client session admission failed")
