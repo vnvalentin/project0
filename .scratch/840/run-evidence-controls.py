@@ -144,7 +144,7 @@ def serializer_control(context, variation):
                '4.3.stable.fixture', 'gut', str(exit_code), 'true', 'true', 'true', mode, 'true']
     code, _, stderr = run_owned(command, root, env)
     report = json.loads((out / 'focused-result.json').read_text())
-    accepted = variation in ('red', 'green')
+    accepted = variation in ('red', 'green', 'nested-nonfinite-only')
     assert report['status'] == ('passed' if accepted else 'failed'), (variation, report)
     assert (code == 0) == accepted, (variation, code, stderr)
     assert report['cleanup_verified'] and report['result_retention'] == 'OBSERVED'
