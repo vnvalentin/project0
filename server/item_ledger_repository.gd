@@ -80,6 +80,7 @@ func ensure_schema() -> Dictionary:
 			schema_version INTEGER NOT NULL CHECK (typeof(schema_version) = 'integer' AND schema_version = 1),
 			profile_id TEXT NOT NULL, profile_revision TEXT NOT NULL,
 			profile_sha256 TEXT NOT NULL CHECK (length(profile_sha256) = 64),
+			payload_sha256 TEXT NOT NULL CHECK (length(payload_sha256) = 64),
 			blueprint_id TEXT NOT NULL, blueprint_revision TEXT NOT NULL, tuning_version TEXT NOT NULL,
 			arithmetic_version INTEGER NOT NULL CHECK (typeof(arithmetic_version) = 'integer' AND arithmetic_version = 1),
 			material_purity INTEGER NOT NULL CHECK (typeof(material_purity) = 'integer' AND material_purity >= 0),
@@ -344,9 +345,10 @@ func _insert_creation_properties(instance_id: String, properties: Dictionary) ->
 	var inputs: Dictionary = properties.inputs
 	var values: Dictionary = properties.values
 	var units: Dictionary = properties.units
+	var payload_sha256: String = JSON.stringify(_canonical(properties), "", true).sha256_text()
 	return _store.query_with_bindings(
-		"INSERT INTO canon_item_creation_properties (instance_id, schema_version, profile_id, profile_revision, profile_sha256, blueprint_id, blueprint_revision, tuning_version, arithmetic_version, material_purity, catalyst_quality, workstation_parameter, purity, quality, durability, purity_unit, quality_unit, durability_unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-		[instance_id, properties.schema_version, properties.profile_id, properties.profile_revision, properties.profile_sha256,
+		"INSERT INTO canon_item_creation_properties (instance_id, schema_version, profile_id, profile_revision, profile_sha256, payload_sha256, blueprint_id, blueprint_revision, tuning_version, arithmetic_version, material_purity, catalyst_quality, workstation_parameter, purity, quality, durability, purity_unit, quality_unit, durability_unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+		[instance_id, properties.schema_version, properties.profile_id, properties.profile_revision, properties.profile_sha256, payload_sha256,
 			properties.blueprint_id, properties.blueprint_revision, properties.tuning_version, properties.arithmetic_version,
 			inputs.material_purity, inputs.catalyst_quality, inputs.workstation_parameter,
 			values.purity, values.quality, values.durability, units.purity, units.quality, units.durability]
@@ -368,6 +370,21 @@ func _creation_properties_from_row(row: Dictionary) -> Dictionary:
 		return _creation_properties_result("query_failed", profile.detail)
 	if profile.rows.size() != 1 or profile.rows[0].content_sha256 != profile.rows[0].profile_wire.sha256_text():
 		return _creation_properties_result("corrupt_record", "authored profile identity is missing or corrupt")
+	var authored_wire: Variant = JSON.parse_string(profile.rows[0].profile_wire)
+	if not (authored_wire is Dictionary) or not (authored_wire.get("outputs") is Dictionary):
+		return _creation_properties_result("corrupt_record", "authored profile cannot be recovered")
+	var authored: Dictionary = authored_wire
+	var outputs: Dictionary = authored.outputs
+	for output: String in CreationProfileScript.OUTPUTS:
+		if not (outputs.get(output) is Dictionary) or not _identifier(outputs[output].get("unit")):
+			return _creation_properties_result("corrupt_record", "authored profile output unit is invalid")
+	if authored.profile_id != row.profile_id or authored.profile_revision != row.profile_revision \
+		or authored.blueprint_id != row.blueprint_id or authored.blueprint_revision != row.blueprint_revision \
+		or authored.tuning_version != row.tuning_version or authored.schema_version != row.schema_version \
+		or authored.arithmetic_version != row.arithmetic_version \
+		or outputs.purity.unit != row.purity_unit or outputs.quality.unit != row.quality_unit \
+		or outputs.durability.unit != row.durability_unit:
+		return _creation_properties_result("corrupt_record", "creation properties do not match their authored pins and units")
 	var properties: Dictionary = {
 		"schema_version": row.schema_version,
 		"profile_id": row.profile_id, "profile_revision": row.profile_revision,
@@ -382,6 +399,8 @@ func _creation_properties_from_row(row: Dictionary) -> Dictionary:
 		"values": {"purity": row.purity, "quality": row.quality, "durability": row.durability},
 		"units": {"purity": row.purity_unit, "quality": row.quality_unit, "durability": row.durability_unit},
 	}
+	if JSON.stringify(_canonical(properties), "", true).sha256_text() != row.payload_sha256:
+		return _creation_properties_result("corrupt_record", "creation property payload digest does not match")
 	return _creation_properties_result("ok", "", properties)
 
 

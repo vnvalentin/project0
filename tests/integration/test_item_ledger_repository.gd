@@ -177,7 +177,7 @@ func test_creation_properties_commit_with_instance_and_recover_exactly() -> void
 	if not ledger.has_method("get_creation_properties"):
 		return
 	var loaded_properties: Dictionary = ledger.call("get_creation_properties", original.instance_id)
-	assert_eq(loaded_properties.outcome, "ok")
+	assert_eq(loaded_properties.outcome, "ok", str(loaded_properties))
 	assert_eq(loaded_properties.properties, derived.properties)
 	assert_true(loaded_properties.properties.inputs.material_purity is int)
 	assert_true(loaded_properties.properties.values.durability is int)
