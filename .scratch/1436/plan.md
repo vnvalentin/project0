@@ -17,9 +17,9 @@ Hypothesis: recovery checks each record's own digest and metadata/units but omit
 the cross-record digest match. A self-consistent changed authored rule under the
 same pins can therefore recover an incompatible unchanged companion.
 
-Current stage is records and one behavior-first regression only. Product repair
-waits for root-qualified native RED. Root owns runtime scheduling and controller
-review; this record is not execution authorization.
+The public tracer has qualified native RED. The bounded recovery guard is now
+implemented; GREEN and final delivery gates remain pending. Root owns runtime
+scheduling and controller review; this record is not execution authorization.
 
 ## SDD and safety
 
@@ -70,24 +70,32 @@ A complete actual full-suite inventory plan must precede the full run. No test
 selection or runtime evidence may be invented to make a gate pass.
 
 Public records contain scope/status/next actions only. Precise source, host,
-controller and runtime evidence remain private. At this stage native evidence is
-NOT_OBSERVED; no Godot, parse check, preparer or controls have been executed.
-The tracer is prepared and pushed. Static ownership preflight, diff checks and
-record sync passed; these are source/record checks, not a native test result.
+controller and runtime evidence remain private. Native RED is qualified through
+the reviewed owned controller; its original receipt and artifacts are retained
+locally. The tracer remains unchanged. The product guard awaits root-owned GREEN,
+focused regression, final independent review and full delivery validation. Static
+ownership preflight, diff checks and record sync are source/record checks, not
+proof that the product repair passes its native gate.
 
 ## Root-cause learning
 
-Symptom: source predicts success for individually self-consistent but incompatible
-profile/companion records. Public seam: get_creation_properties. Cheapest
-falsifying check is the profile-only replacement tracer above. Confirmed native
-cause is unknown pending RED. Existing tests cover self-digest/payload corruption,
-not this cross-record mismatch. Countermeasure is not yet implemented; regression
-and final delivery evidence remain pending.
+Symptom: native recovery accepts individually self-consistent but incompatible
+profile/companion records. Public seam: get_creation_properties. The profile-only
+replacement tracer qualified the predicted RED with the healthy premise and
+owned source/process/state cleanup intact. Confirmed cause: recovery checks the
+stored profile self-digest, pins/units and companion payload self-digest but omits
+the equality between the companion profile_sha256 and verified authored
+content_sha256. Existing tests cover self-digest/payload corruption, not replacement
+with a matching new profile self-digest. Countermeasure: compare those digests
+after profile identity verification and reject mismatches as corrupt_record/null
+without DML, repair or rederivation. The original tracer is unchanged. GREEN and
+final delivery evidence remain pending; no broader M3 acceptance is inferred.
 
 ## Rollback and next owner
 
-Revert only this governed test/record change; owned fixture cleanup removes only
-its disposable DB/WAL/SHM/journal after close/quiescence. No production state is
-mutated. The prepared tracer and draft PR await root review of the
-exact source/controller and owns one bounded native RED attempt before any
-product repair. This issue remains open and awaiting native evidence.
+Revert only this governed recovery-check/test/record change; owned fixture
+cleanup removes only its disposable DB/WAL/SHM/journal after close/quiescence. No
+production state is mutated. Root next binds independent Standards and Spec review
+to the final repair source and qualifies GREEN with the unchanged tracer, followed
+by focused regression and full delivery gates. This issue remains open and
+awaiting countermeasure and delivery evidence.
