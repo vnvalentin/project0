@@ -3,34 +3,16 @@
   "kind": "component",
   "issue": "https://github.com/vnvalentin/project0/issues/1407",
   "scope": "Compare the existing concurrent prediction harness with shared versus per-harness telemetry SQLite storage; preserve every gameplay assertion.",
-  "rollback": "Revert only the test-harness telemetry path override; the hosted runner removes its invocation-owned image/container, and the fixture removes its unique telemetry database plus SQLite sidecars. Do not touch application defaults or runtime databases.",
+  "rollback": "Revert only the test-harness telemetry path override and remove its unique telemetry database plus SQLite sidecars; do not touch application defaults or runtime databases.",
   "steps": [
-    {
-      "suite": "linux-container-tooling",
-      "platform": "linux",
-      "host": "192.168.1.254",
-      "command": "PROJECT0_GUT_VALIDATION_IMAGE=project0-gut-validation:pr1407-$(git rev-parse --short HEAD)-$$ bash scripts/test_hosted_gut_container.sh",
-      "dependencies": [
-        "bash",
-        "docker",
-        "python"
-      ],
-      "tests": [
-        "scripts/test_hosted_gut_container.sh"
-      ],
-      "artifacts": [
-        "build/validation/hosted-container-tests.json",
-        "build/validation/hosted-container-failure.json"
-      ]
-    },
     {
       "suite": "godot-server",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "PROJECT0_GUT_VALIDATION_IMAGE=project0-gut-validation:pr1407-$(git rev-parse --short HEAD)-$$ bash scripts/run_hosted_gut_container.sh",
+      "command": "env -u PROJECT0_TELEMETRY_DB_PATH -u PROJECT0_SERVER_BIND_ADDRESS -u PROJECT0_SERVER_HOST -u PROJECT0_SERVER_PORT PROJECT0_TEST_STATE_DIR=build/validation/runtime bash scripts/run_gut_validation.sh",
       "dependencies": [
         "bash",
-        "docker",
+        "coreutils",
         "git",
         "godot",
         "python",
