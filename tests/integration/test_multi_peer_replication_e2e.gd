@@ -71,16 +71,43 @@ func test_selected_port_collision_fails_before_clients_start() -> void:
 	assert_true(text.contains("PASS: owned authenticated fixture database removed"), "failed startup cleans up authenticated state")
 
 
+func test_parallel_timeout_removes_owned_descendants_and_state() -> void:
+	var path: String = "user://multi_peer_timeout_%d_%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
+	var process_id: int = _start_contained_harness(path, true)
+	assert_gt(process_id, 0, "timeout probe starts an owned orchestrator")
+	var deadline: int = Time.get_ticks_msec() + 10000
+	var report: Dictionary = {}
+	while Time.get_ticks_msec() < deadline:
+		if FileAccess.file_exists(path):
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+			if parsed is Dictionary:
+				report = parsed
+		if report.get("phase", "") == "held":
+			break
+		await get_tree().process_frame
+	assert_eq(report.get("phase", ""), "held", "timeout is injected with actual owned server and clients alive")
+	var cleanup: Dictionary = _stop_contained_harness(path, process_id)
+	assert_true(cleanup.get("passed", false), "forced timeout cleanup proves process-group ownership and completion")
+	assert_gte(int(cleanup.get("processes_terminated", 0)), 4, "timeout terminates the actual orchestrator, server and two clients")
+	await get_tree().process_frame
+	for child_id: int in report.get("children", []):
+		assert_false(child_id > 0 and OS.is_process_running(child_id), "timeout leaves no owned descendant running")
+	for state_path: String in report.get("paths", []):
+		assert_false(FileAccess.file_exists(state_path), "timeout removes owned published state")
+		assert_false(FileAccess.file_exists(state_path + ".pending"), "timeout removes pending publication state")
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		assert_false(FileAccess.file_exists(str(report.get("database", "")) + suffix), "timeout removes the owned authenticated database and sidecars")
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+
+
 func test_concurrent_harnesses_use_disjoint_endpoints_and_state() -> void:
 	var identity: String = "%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	var paths: Array[String] = ["user://multi_peer_parallel_%s_a.json" % identity, "user://multi_peer_parallel_%s_b.json" % identity]
 	var processes: Array[int] = []
 	for path: String in paths:
 		assert_false(FileAccess.file_exists(path), "owned concurrent report starts absent")
-		processes.append(OS.create_process(OS.get_executable_path(), PackedStringArray([
-			"--headless", "--path", ProjectSettings.globalize_path("res://"),
-			"-s", "tests/fixtures/occupied_multi_peer_port.gd", "--", "--report-file=%s" % ProjectSettings.globalize_path(path),
-		])))
+		processes.append(_start_contained_harness(path, false))
 		assert_gt(processes[-1], 0, "independent harness process starts")
 	var deadline: int = Time.get_ticks_msec() + 60000
 	while Time.get_ticks_msec() < deadline:
@@ -91,10 +118,10 @@ func test_concurrent_harnesses_use_disjoint_endpoints_and_state() -> void:
 			break
 		await get_tree().process_frame
 	var reports: Array[Dictionary] = []
-	for process_id: int in processes:
+	for index: int in range(processes.size()):
+		var process_id: int = processes[index]
 		assert_false(process_id > 0 and OS.is_process_running(process_id), "concurrent harness terminates within its orchestration deadline")
-		if process_id > 0 and OS.is_process_running(process_id):
-			OS.kill(process_id)
+		assert_true(_stop_contained_harness(paths[index], process_id).get("passed", false), "concurrent process group and remaining owned state are cleaned up")
 	for path: String in paths:
 		var report: Dictionary = {}
 		if FileAccess.file_exists(path):
@@ -114,6 +141,31 @@ func test_concurrent_harnesses_use_disjoint_endpoints_and_state() -> void:
 	assert_ne(reports[0]["state_b"], reports[1]["state_b"], "client B state cannot be read or removed by another harness")
 	assert_ne(reports[0]["endpoints"]["game_port"], reports[1]["endpoints"]["game_port"], "simultaneous game endpoints are distinct")
 	assert_ne(reports[0]["endpoints"]["control_port"], reports[1]["endpoints"]["control_port"], "simultaneous control endpoints are distinct")
+
+
+func _start_contained_harness(report_path: String, held: bool) -> int:
+	var arguments: PackedStringArray = [
+		ProjectSettings.globalize_path("res://tests/fixtures/contained_multi_peer.py"), "run",
+		ProjectSettings.globalize_path(report_path), report_path.get_file(), OS.get_executable_path(),
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"-s", "tests/fixtures/occupied_multi_peer_port.gd", "--", "--report-file=%s" % ProjectSettings.globalize_path(report_path),
+	]
+	if held:
+		arguments.append("--hold-owned-processes")
+	return OS.create_process("/usr/bin/python3", arguments)
+
+
+func _stop_contained_harness(report_path: String, process_id: int) -> Dictionary:
+	if process_id <= 0:
+		return {"passed": false}
+	var output: Array = []
+	var code: int = OS.execute("/usr/bin/python3", PackedStringArray([
+		ProjectSettings.globalize_path("res://tests/fixtures/contained_multi_peer.py"), "stop",
+		ProjectSettings.globalize_path(report_path), report_path.get_file(), str(process_id),
+	]), output, true)
+	var result: Dictionary = _event("\n".join(output), "CONTAINED_CLEANUP ")
+	result["passed"] = code == 0 and result.get("passed", false)
+	return result
 
 
 func test_snapshot_publication_preserves_an_in_flight_reader() -> void:
