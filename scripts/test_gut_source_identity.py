@@ -467,10 +467,13 @@ raise SystemExit(''' + str(code) + ')\n')
         self.assertNotIn("--push", build)
 
     def test_hosted_command_rejects_invalid_image_name_before_docker(self):
-        self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "--network=host"
-        result = self.run_command("run_hosted_gut_container.sh")
-        self.assertEqual(result.returncode, 2)
-        self.assertFalse(self.docker_calls.exists())
+        for image in ("--network=host", "project0-gut-validation:",
+                      "Project0:tag", "repository//name:tag", "repository:invalid tag"):
+            with self.subTest(image=image):
+                self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = image
+                result = self.run_command("run_hosted_gut_container.sh")
+                self.assertEqual(result.returncode, 2)
+                self.assertFalse(self.docker_calls.exists())
 
     def test_hosted_build_failure_stops_consumer_and_retains_dependency_evidence(self):
         self.env["FAKE_DOCKER_BUILD_EXIT"] = "7"

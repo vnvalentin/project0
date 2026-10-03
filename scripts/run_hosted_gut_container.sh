@@ -25,8 +25,9 @@ if [[ ${M4_SOURCE_REVISION+x} && "$M4_SOURCE_REVISION" != "$source_revision" ]];
 fi
 base_image="ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
 image="${PROJECT0_GUT_VALIDATION_IMAGE:-project0-gut-validation:local}"
-if [[ ! "$image" =~ ^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$ ]]; then
-  echo "VALIDATION GATE ERROR: invalid hosted GUT validation image name." >&2
+image_repository="${image%%:*}"
+if [[ ${#image_repository} -gt 255 || ! "$image" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+  echo "VALIDATION GATE ERROR: expected a valid local Docker repository:tag." >&2
   exit 2
 fi
 install -d -m 2775 "$root/build/validation/runtime" "$root/.godot" "$root/logs/experiments"
