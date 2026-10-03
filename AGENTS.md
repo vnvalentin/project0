@@ -169,6 +169,44 @@ Do not create implementation slices or product code while this gate is open.
   reviewed repository helper; do not use raw HTTP clients, direct API tooling
   outside `gh`, browser scraping, or alternate GitHub integration tools. The
   milestone lifecycle helper is `scripts/gh_milestone.sh`.
+- GitHub API efficiency and Project V2 failure handling: GitHub Projects V2 and
+  `gh project` are GraphQL-backed. The REST `/rate_limit` response is useful
+  quota telemetry but does not prove that a GraphQL request will succeed. For
+  work that requires Project V2, run the repository's single-query preflight
+  before implementation or expensive validation, using the configured project
+  Python interpreter. Set `PROJECT0_PYTHON` to that interpreter; on the
+  designated Linux host the configured path is
+  `/data/code/project0/.venv-enrollment/bin/python`.
+
+  ```sh
+  "$PROJECT0_PYTHON" scripts/github_api_guard.py preflight \
+    --evidence "build/validation/github-api/<issue>/preflight-<run-id>.json"
+  ```
+
+  Do not run this preflight for work that does not need Project V2. A failed
+  preflight is a stop signal for the affected delivery path, not a reason to
+  retry. Execute each `gh project` or direct GraphQL operation once through the
+  guard, with a new evidence path for each operation:
+
+  ```sh
+  "$PROJECT0_PYTHON" scripts/github_api_guard.py run \
+    --evidence "build/validation/github-api/<issue>/<operation>-<run-id>.json" \
+    -- gh project view 2 --owner vnvalentin --format json
+  ```
+
+  Use direct authenticated `gh api` REST endpoints for issue reads and writes
+  when REST supports the operation; some convenient `gh issue` commands use
+  GraphQL. Keep Project queries scoped to the target issue/item and required
+  fields, paginate only when needed, and serialize mutations. The guard never
+  retries; on command failure it preserves the exact stderr/exit status and
+  takes one REST quota snapshot. Stop, retain the evidence, and keep Project
+  synchronization blocked until a targeted readback succeeds. Do not infer
+  GraphQL availability from remaining REST-reported points. After a recorded
+  reset or confirmed recovery, permit one deliberate read-only probe. For an
+  uncertain mutation result, read the target state before considering another
+  mutation. Never claim Project synchronization from a successful mutation
+  response alone. Evidence files are created exclusively with restrictive
+  permissions and are not overwritten.
 - Implementation ownership: Copilot implements application code, tests, and
   implementation-facing delivery records directly, and owns validation and
   review. No external CLI handoff or fallback authorization is required.
