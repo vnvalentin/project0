@@ -351,7 +351,30 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if not re.fullmatch('[0-9a-f]{40}',args.source_revision) or not re.fullmatch('[A-Za-z0-9_-]+',args.run_id):
         parser.error('exact revision and new simple run id required')
-    lifecycle,_ = pinned_module(LIFECYCLE,LIFECYCLE_SHA,'owned_lifecycle')
+    try:
+        lifecycle,_ = pinned_module(LIFECYCLE,LIFECYCLE_SHA,'owned_lifecycle')
+    except (OSError,ValueError,UnicodeError,SyntaxError):
+        # Prerequisite absence/drift must retain a fixed failure record without
+        # importing unqualified code or launching any child/native command.
+        destination = ROOT/'build/validation/1423'/args.run_id
+        try:
+            for parent in destination.parent.parents:
+                if not stat.S_ISDIR(parent.lstat().st_mode):
+                    raise ValueError('result_parent_unqualified')
+            if destination.parent.exists() and not stat.S_ISDIR(destination.parent.lstat().st_mode):
+                raise ValueError('result_parent_unqualified')
+            destination.mkdir(parents=True,exist_ok=False,mode=0o700)
+            record = {'schema_version':1,'issue':1423,'status':'failed','stage':'lifecycle_prerequisite',
+                      'source_revision':args.source_revision,'mode':args.mode,
+                      'failure_class':'pinned_lifecycle_unavailable','native_execution':NOT,
+                      'temporary_cleanup_verified':True,'owned_processes_started':False,
+                      'process_cleanup_verified':NOT}
+            with (destination/'result.json').open('x') as stream:
+                stream.write(json.dumps(record,indent=2)+'\n')
+            print(json.dumps({'status':'failed','artifact':str(destination/'result.json')}))
+        except (OSError,ValueError):
+            print(json.dumps({'status':'failed','result_retention':NOT}))
+        raise SystemExit(1)
     def interrupted(_signal,_frame):
         raise RuntimeError('focused_interrupted')
     signal.signal(signal.SIGTERM,interrupted)
