@@ -50,6 +50,18 @@ func test_cancel_action_is_excluded_from_the_closed_verb_set() -> void:
 	assert_null(parsed.get("request"))
 
 
+func test_nested_object_values_are_rejected() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	raw["target"]["metadata"] = {"owner": RefCounted.new()}
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
 func _request() -> Dictionary:
 	return {
 		"schema_version": 1, "client_sequence": 7, "verb": "PLACE", "expected_revision": 0,

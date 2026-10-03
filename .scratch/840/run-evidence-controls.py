@@ -20,7 +20,8 @@ SOURCES = (
 )
 HEAD = 'a' * 40
 WORKED = 'test_place_request_preserves_pins_and_detaches_client_values'
-COUNTER = 'test_cancel_action_is_excluded_from_the_closed_verb_set'
+CANCEL = 'test_cancel_action_is_excluded_from_the_closed_verb_set'
+COUNTER = 'test_nested_object_values_are_rejected'
 TEST_PATH = SOURCES[0]
 
 
@@ -40,7 +41,7 @@ def run_owned(command, cwd, env):
     return child.returncode, stdout, stderr
 
 
-def make_xml(path, failed=(), names=(WORKED, COUNTER), suite=TEST_PATH, classname=TEST_PATH):
+def make_xml(path, failed=(), names=(WORKED, CANCEL, COUNTER), suite=TEST_PATH, classname=TEST_PATH):
     top = E.Element('testsuites')
     parent = E.SubElement(top, 'testsuite', name=suite)
     for name in names:
@@ -87,12 +88,13 @@ def serializer_control(context, variation):
     for name in ('import.log', 'gut.log'):
         (out / name).write_text('fixture phase completed\n')
     failed = (COUNTER,)
-    names = (WORKED, COUNTER)
+    names = (WORKED, CANCEL, COUNTER)
     suite = classname = TEST_PATH
     mode, exit_code = 'red', 1
     if variation == 'green': failed, mode, exit_code = (), 'green', 0
     if variation == 'prior-failure': failed = (WORKED,)
     if variation == 'both-fail': failed = (WORKED, COUNTER)
+    if variation == 'cancel-only': failed = (CANCEL,)
     if variation == 'counter-pass': failed = ()
     if variation == 'timeout-exit': exit_code = 124
     if variation == 'unsupported-exit': exit_code = 2
@@ -176,7 +178,7 @@ def main():
     cases = []
     failures = []
     contexts_removed = True
-    serializers = ('red', 'green', 'prior-failure', 'both-fail', 'counter-pass',
+    serializers = ('red', 'green', 'prior-failure', 'both-fail', 'cancel-only', 'counter-pass',
                    'timeout-exit', 'unsupported-exit', 'duplicate-case', 'missing-case',
                    'unknown-case', 'wrong-suite', 'wrong-class', 'green-failure',
                    'source-inventory', 'unattributed-failure', 'unexpected-skip',
