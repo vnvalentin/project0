@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": 1421,
+  "scope": "Standalone Windows 0.14.21 build and native package verification; authenticated world entry requires separate runtime evidence",
+  "steps": [
+    {
+      "suite": "windows-client",
+      "platform": "windows",
+      "host": "SETSUJOKU",
+      "dependencies": ["godot-client", "powershell"],
+      "command": "pwsh -NoProfile -File scripts/build_current_deployment.ps1 -Version 0.14.21 -GodotPath D:/code/project0-1213/build/tools/godot-4.7.2/Godot_v4.7.2-stable_win64.exe -RceditPath D:/code/project0/build/tools/rcedit/node_modules/rcedit/bin/rcedit-x64.exe; pwsh -NoProfile -File scripts/verify_standalone_package.ps1 -Version 0.14.21 -GodotPath D:/code/project0-1213/build/tools/godot-4.7.2/Godot_v4.7.2-stable_win64.exe -Windowed",
+      "tests": [
+        "scripts/check_windows_client_package.ps1",
+        "scripts/verify_standalone_package.ps1"
+      ],
+      "artifacts": [
+        "dist/standalone/0.14.21/deployment-manifest.json",
+        "dist/standalone/0.14.21/Project0-client-windows-x64-0.14.21.zip",
+        "build/validation/standalone-build-0.14.21-*/result.json",
+        "build/validation/standalone-package-0.14.21-*/result.json"
+      ]
+    }
+  ]
+}
