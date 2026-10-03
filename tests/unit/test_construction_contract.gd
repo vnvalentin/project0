@@ -2,6 +2,10 @@ extends GutTest
 ## #840 pure closed construction contract; public-seam construction request tracers.
 
 const CONTRACT_PATH: String = "res://shared/construction_contract.gd"
+const LOCKED_VERBS: PackedStringArray = [
+	"PLACE", "REMOVE", "ROTATE", "ANCHOR", "CONNECT", "REPAIR",
+	"UPGRADE", "CLAIM", "PERMIT", "BLUEPRINT", "MEASURE", "INSPECT",
+]
 
 
 func test_place_request_preserves_pins_and_detaches_client_values() -> void:
@@ -48,6 +52,18 @@ func test_cancel_action_is_excluded_from_the_closed_verb_set() -> void:
 	var parsed: Dictionary = contract.call("parse_client_request", raw)
 	assert_eq(parsed.get("outcome"), "invalid_request")
 	assert_null(parsed.get("request"))
+
+
+func test_all_locked_verbs_are_accepted() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	for verb: String in LOCKED_VERBS:
+		var raw: Dictionary = _request()
+		raw["verb"] = verb
+		var parsed: Dictionary = contract.call("parse_client_request", raw)
+		assert_eq(parsed.get("outcome"), "ok", "locked verb should parse: " + verb)
 
 
 func test_nested_object_values_are_rejected() -> void:

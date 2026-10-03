@@ -21,6 +21,7 @@ SOURCES = (
 HEAD = 'a' * 40
 WORKED = 'test_place_request_preserves_pins_and_detaches_client_values'
 CANCEL = 'test_cancel_action_is_excluded_from_the_closed_verb_set'
+LOCKED_VERBS = 'test_all_locked_verbs_are_accepted'
 OBJECT = 'test_nested_object_values_are_rejected'
 COUNTER = 'test_cross_field_container_alias_is_rejected'
 DEPTH = 'test_request_depth_is_bounded'
@@ -29,7 +30,7 @@ CONTAINER_COUNT = 'test_request_container_count_is_bounded'
 ORIENTATION = 'test_orientation_must_be_finite_and_canonical_degrees'
 FIXED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT)
 RED_CASES = (ORIENTATION,)
-NAMES = (WORKED, CANCEL, OBJECT, *FIXED_CASES, ORIENTATION)
+NAMES = (WORKED, CANCEL, LOCKED_VERBS, OBJECT, *FIXED_CASES, ORIENTATION)
 TEST_PATH = SOURCES[0]
 
 
