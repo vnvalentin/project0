@@ -1,6 +1,8 @@
 import json
 import sys
 import threading
+from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 
@@ -179,6 +181,76 @@ def test_unchanged_github_pages_use_etags_and_keep_complete_feed(monkeypatch) ->
     assert len(second["milestones"]) == 1
     assert len(calls) == 4
     assert all(etag == '"unchanged"' for _, etag in calls[2:])
+
+
+def test_dashboard_manual_refresh_is_same_origin_and_browsing_never_fetches(tmp_path: Path, monkeypatch) -> None:
+    import app
+    from github_cache import GitHubFeedCache
+
+    calls = []
+    entered = threading.Event()
+    release = threading.Event()
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        entered.set()
+        assert release.wait(2)
+        return {"issues": [], "milestones": []}
+
+    cache = GitHubFeedCache(tmp_path / "feed.json", "example/project", fetch)
+    monkeypatch.setattr(app, "_ISSUE_CACHE", cache)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    connection = HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+    try:
+        connection.request("GET", "/roadmap")
+        response = connection.getresponse()
+        page = response.read().decode()
+        assert response.status == 200
+        assert "Refresh now" in page
+        assert "Last successful update" in page
+        assert calls == []
+        connection.request("GET", "/api/github/status")
+        response = connection.getresponse()
+        assert response.status == 200
+        assert json.loads(response.read())["available"] is False
+        assert calls == []
+        connection.request("POST", "/api/github/refresh", headers={"Origin": "https://untrusted.test", "X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 403
+        assert calls == []
+        connection.request("POST", "/api/github/refresh")
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 403
+        connection.request("POST", "/api/github/refresh", headers={"X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        assert response.status == 202
+        assert json.loads(response.read())["refreshing"] is True
+        assert entered.wait(2)
+        connection.request("POST", "/api/github/refresh", headers={"X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 202
+        assert len(calls) == 1
+        release.set()
+        assert cache.wait_for_refresh(2)
+        connection.request("GET", "/api/github/status")
+        response = connection.getresponse()
+        status = json.loads(response.read())
+        assert status["available"] is True
+        assert status["refreshing"] is False
+        assert status["interval_seconds"] == 1800
+        assert len(calls) == 1
+    finally:
+        release.set()
+        cache.wait_for_refresh(2)
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        worker.join(2)
 
 
 def test_delivery_page_shows_source_failure(monkeypatch) -> None:
