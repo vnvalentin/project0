@@ -1,7 +1,7 @@
 # #1440 — pinned authored item capacity
 
 Governing issue: https://github.com/vnvalentin/project0/issues/1440
-Milestone 3, M3.2 Item Ownership and Transaction Ledger. Parents: equipment Epic #1341 and Feature #950. Decision #310 keeps its native parent #302. Assigned owner: Philip Rabe's M3 agent. Project #2 remains In Progress / Evidence Missing / Awaiting dependency. The issue and milestone own delivery state; frozen archives are untouched. A draft pull request will link this preparation after the first checkpoint.
+Milestone 3, M3.2 Item Ownership and Transaction Ledger. Parents: equipment Epic #1341 and Feature #950. Decision #310 keeps its native parent #302. Assigned owner: Philip Rabe's M3 agent. Project #2 remains In Progress / Evidence Missing / Awaiting dependency. The issue and milestone own delivery state; frozen archives are untouched. Draft pull request: https://github.com/vnvalentin/project0/pull/1442 (Refs #1440).
 
 ## Outcome and scope
 
@@ -33,11 +33,11 @@ Hypothesis: validated pure values and immutable exact-pin bindings express fixtu
 
 The test guards module presence before dynamic loading and declared factories before calls. It never preloads or annotates either absent capacity class. An absent module/factory produces one fixed failed assertion and immediate return. Subsequent steps exercise the agreed public factories, resolve and to_wire_dict. Crashes, script/parse/load errors, timeouts or setup failures cannot qualify RED. GREEN requires the selected public round-trip to pass.
 
-The two proposed shared values and their capacity unit files remain subject to one test/implementation cycle at a time. Only the initial binding round-trip tracer is prepared at this checkpoint; no implementation scaffold is added.
+The two proposed shared values and their capacity unit files remain subject to one test/implementation cycle at a time. Only the initial binding round-trip tracer is prepared at this checkpoint; no implementation scaffold is added. Script factory detection uses the Godot 4.3 public Script method-list API before invocation; native parse and behavior remain unobserved.
 
 ## Validation status and next action
 
-Static records and ownership preparation is required before the tracer checkpoint. The exact machine-readable plan, selected commands, host/tool/source bindings, private reports and execution/capture/teardown contract are retained locally rather than published. A successful static plan check grants no native execution.
+Static records and ownership preparation passed; the single parse-safe tracer is now prepared for review. The exact machine-readable plan, selected commands, host/tool/source bindings, private reports and execution/capture/teardown contract are retained locally rather than published. A successful static plan check grants no native execution.
 
 After qualified RED, implement the smallest pure behavior, then verify GREEN. Subsequent focused validation includes both capacity unit files and existing item definition, instance and creation-profile compatibility coverage. Final delivery still requires the full standard GUT gate, record synchronization and independent Standards/Spec review at the final revision. A separate exact private full inventory is required; a short focused list never represents the full suite.
 
