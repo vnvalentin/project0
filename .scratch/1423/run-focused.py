@@ -218,23 +218,46 @@ def reduced_xml(contract, raw, destination, expected, mode):
         raise ValueError('xml_size_unqualified')
     tree = ET.fromstring(raw.read_bytes())
     suites = list(tree.iter('testsuite'))
-    if tree.tag != 'testsuites' or len(suites) != 1 or suites[0].get('name') != TEST:
+    if (tree.tag != 'testsuites' or len(suites) != 1 or list(tree) != suites or
+        suites[0].get('name') != TEST):
         raise ValueError('selected_suite_unqualified')
     cases = list(tree.iter('testcase'))
+    if list(suites[0]) != cases:
+        raise ValueError('selected_case_structure_unqualified')
     names = [case.get('name') for case in cases]
     if len(names) != len(expected) or set(names) != set(expected) or len(set(names)) != len(names):
         raise ValueError('selected_cases_unqualified')
-    if int(suites[0].get('tests', '-1')) != len(cases):
+    def declared(element, name, default=None):
+        text = element.get(name)
+        if text is None and default is not None:
+            return default
+        if text is None or not re.fullmatch(r'[0-9]+', text):
+            raise ValueError('declared_count_unqualified')
+        return int(text)
+
+    if declared(suites[0], 'tests') != len(cases) or declared(tree, 'tests') != len(cases):
         raise ValueError('selected_count_unqualified')
+    failed_assertion_ceiling = 0
     for case in cases:
         failures_in_case = len(case.findall('failure'))
+        assertions = declared(case, 'assertions')
         if (case.get('classname') != TEST or int(case.get('assertions', '0')) < 1 or
             case.get('status') not in {'pass','fail'} or failures_in_case > 1 or
             (case.get('status') == 'fail') != bool(failures_in_case)):
             raise ValueError('selected_case_verdict_unqualified')
-    failures = sum(len(case.findall('failure')) for case in cases)
+        if failures_in_case:
+            failed_assertion_ceiling += assertions
+    failing_cases = sum(len(case.findall('failure')) for case in cases)
+    # GUT exports failing assertion totals, but one <failure> per failing
+    # testcase. XML cannot reveal the exact failed/passed assertion split.
+    failures = declared(suites[0], 'failures')
+    if not failing_cases <= failures <= failed_assertion_ceiling or declared(tree, 'failures') != failures:
+        raise ValueError('declared_failure_count_unqualified')
     errors = sum(len(case.findall('error')) for case in cases)
     skipped = sum(len(case.findall('skipped')) for case in cases)
+    if (declared(suites[0], 'errors', 0) != errors or declared(tree, 'errors', 0) != errors or
+        declared(suites[0], 'skipped') != skipped or declared(tree, 'skipped', skipped) != skipped):
+        raise ValueError('declared_error_or_skip_count_unqualified')
     counts = {'tests': len(cases), 'failures': failures, 'errors': errors, 'skipped': skipped}
     root = ET.Element('testsuites')
     suite = ET.SubElement(root, 'testsuite', name=TEST, **{k:str(v) for k,v in counts.items()})
@@ -248,7 +271,8 @@ def reduced_xml(contract, raw, destination, expected, mode):
         stream.write(payload)
     if destination.read_bytes() != payload:
         raise ValueError('xml_retention_unqualified')
-    counts['expected_verdict'] = errors == 0 and skipped == 0 and failures == (1 if mode == 'red' else 0)
+    counts['failing_testcases'] = failing_cases
+    counts['expected_verdict'] = errors == 0 and skipped == 0 and failing_cases == (1 if mode == 'red' else 0) and (failures > 0 if mode == 'red' else failures == 0)
     return counts
 
 

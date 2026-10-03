@@ -47,7 +47,17 @@ class FocusControls(unittest.TestCase):
         return subprocess.check_output(['/usr/bin/git','-c','core.fsmonitor=false','-c','core.hooksPath=/dev/null',*arguments],
             cwd=self.root,env=self.environment,stderr=subprocess.DEVNULL,timeout=10).decode().strip()
 
-    def configure(self,exit_code=1,lifecycle_missing=False,lifecycle_drift=False,lock_missing=False,helper_missing=False,helper_drift=False):
+    def configure(self,exit_code=1,lifecycle_missing=False,lifecycle_drift=False,lock_missing=False,helper_missing=False,helper_drift=False,green=False,suite_failures=None,root_failures=None,suite_errors=None,root_errors=None,suite_skipped=0,root_skipped=None):
+        self.mode='green' if green else 'red'
+        names=['test_defaults_to_localhost_with_no_override'+suffix for suffix in ('','_absent','_empty','_populated')] if green else ['test_defaults_to_localhost_with_no_override']
+        (self.root/'tests/unit/test_lan_config.gd').write_text('extends GutTest\n'+''.join('func '+name+'() -> void:\n\tpass\n' for name in names))
+        failures=(0 if green else 1) if suite_failures is None else suite_failures
+        root_failures=failures if root_failures is None else root_failures
+        optional=lambda name,value: '' if value is None else ' '+name+'="'+str(value)+'"'
+        xml='<testsuites tests="'+str(len(names))+'" failures="'+str(root_failures)+'"'+optional('errors',root_errors)+optional('skipped',root_skipped)+'><testsuite name="tests/unit/test_lan_config.gd" tests="'+str(len(names))+'" failures="'+str(failures)+'" skipped="'+str(suite_skipped)+'"'+optional('errors',suite_errors)+'>'
+        for name in names:
+            xml+='<testcase name="'+name+'" classname="tests/unit/test_lan_config.gd" assertions="3" status="'+('pass' if green else 'fail')+'">'+('' if green else '<failure message="synthetic">fixed copied assertion failure</failure>')+'</testcase>'
+        xml+='</testsuite></testsuites>'
         self.adapter.write_text('''#!/usr/bin/python3
 import json,os,signal,sys
 from pathlib import Path
@@ -57,7 +67,7 @@ if '--version' in sys.argv:
     print('4.3.stable.official.77dcf97d8');raise SystemExit(0)
 if '--import' in sys.argv: raise SystemExit(0)
 target=next(argument.split('=',1)[1] for argument in sys.argv if argument.startswith('-gjunit_xml_file='))
-Path(target).write_text('<testsuites tests="1" failures="1"><testsuite name="tests/unit/test_lan_config.gd" tests="1" failures="1" skipped="0"><testcase name="test_defaults_to_localhost_with_no_override" classname="tests/unit/test_lan_config.gd" assertions="3" status="fail"><failure message="synthetic">fixed copied assertion failure</failure></testcase></testsuite></testsuites>')
+Path(target).write_text('''+repr(xml)+''')
 code='''+repr(exit_code)+'''
 if code<0: os.kill(os.getpid(),-code)
 raise SystemExit(code)
@@ -96,7 +106,7 @@ raise SystemExit(code)
         self.revision=self.git('rev-parse','HEAD')
 
     def run_focus(self):
-        result=subprocess.run(['/usr/bin/python3',str(self.wrapper),'--source-revision',self.revision,'--run-id','control','--mode','red'],
+        result=subprocess.run(['/usr/bin/python3',str(self.wrapper),'--source-revision',self.revision,'--run-id','control','--mode',self.mode],
             cwd=self.root,env=self.environment,capture_output=True,text=True,timeout=140)
         path=self.root/'build/validation/1423/control/result.json'
         self.assertTrue(path.is_file(),'fixed structured failure result missing')
@@ -157,6 +167,44 @@ raise SystemExit(code)
         self.assertEqual(record['gut']['exit_code'],1)
         self.assertTrue(record['process_cleanup_verified'])
         self.assertTrue(record['temporary_cleanup_verified'])
+
+    def test_green_rejects_declared_failures_with_all_passing_cases(self):
+        self.configure(exit_code=0,green=True,suite_failures=1)
+        result,record=self.run_focus()
+        self.assertEqual(result.returncode,1)
+        self.assertEqual(record['status'],'failed')
+
+    def test_red_rejects_inconsistent_root_assertion_failure_count(self):
+        self.configure(root_failures=2)
+        result,record=self.run_focus()
+        self.assertEqual(result.returncode,1)
+        self.assertEqual(record['status'],'failed')
+
+    def test_green_rejects_declared_errors_or_skips_without_case_markers(self):
+        for field in ('suite_errors','root_errors','suite_skipped','root_skipped'):
+            with self.subTest(field=field):
+                if field!='suite_errors':
+                    self.temporary.cleanup();self.setUp()
+                self.configure(exit_code=0,green=True,**{field:1})
+                result,record=self.run_focus()
+                self.assertEqual(result.returncode,1)
+                self.assertEqual(record['status'],'failed')
+
+    def test_red_accepts_multiple_failed_assertions_in_one_case(self):
+        self.configure(suite_failures=2)
+        result,record=self.run_focus()
+        self.assertEqual(result.returncode,0)
+        self.assertEqual(record['status'],'passed')
+        self.assertEqual(record['junit']['failures'],2)
+        self.assertEqual(record['junit']['failing_testcases'],1)
+
+    def test_green_accepts_consistent_zero_totals(self):
+        self.configure(exit_code=0,green=True)
+        result,record=self.run_focus()
+        self.assertEqual(result.returncode,0)
+        self.assertEqual(record['status'],'passed')
+        self.assertEqual(record['junit']['tests'],4)
+        self.assertEqual(record['junit']['failures'],0)
 
 
 if __name__=='__main__':
