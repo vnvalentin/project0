@@ -29,6 +29,52 @@ LOGGING = '[debug]\nfile_logging/enable_file_logging=false\nfile_logging/enable_
 NOT = 'NOT_OBSERVED'
 
 
+def reserve_result(run_id):
+    for parent in (ROOT, *ROOT.parents):
+        if not stat.S_ISDIR(parent.lstat().st_mode):
+            raise ValueError('result_parent_unqualified')
+    parent = ROOT
+    for component in ('build', 'validation', '1423'):
+        parent = parent / component
+        try:
+            parent.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+        if not stat.S_ISDIR(parent.lstat().st_mode):
+            raise ValueError('result_parent_unqualified')
+    destination = parent / run_id
+    destination.mkdir(mode=0o700)
+    return destination
+
+
+def retain_result(destination, record):
+    payload = (json.dumps(record, indent=2) + '\n').encode()
+    path = destination / 'result.json'
+    try:
+        for parent in (destination, *destination.parents):
+            if not stat.S_ISDIR(parent.lstat().st_mode):
+                raise ValueError('result_parent_unqualified')
+        with path.open('xb') as stream:
+            stream.write(payload)
+        if not stat.S_ISREG(path.lstat().st_mode) or path.read_bytes() != payload:
+            raise ValueError('result_retention_unqualified')
+    except (OSError, ValueError):
+        print(json.dumps({'status':'failed', 'result_retention':NOT}))
+        return False
+    print(json.dumps({'status':record['status'], 'artifact':str(path)}))
+    return True
+
+
+def setup_failure(destination, args, stage):
+    record = {'schema_version':1, 'issue':1423, 'status':'failed', 'stage':stage,
+              'source_revision':args.source_revision, 'mode':args.mode,
+              'failure_class':'setup_prerequisite_unqualified', 'native_execution':NOT,
+              'temporary_cleanup_verified':True, 'owned_processes_started':False,
+              'process_cleanup_verified':NOT}
+    retain_result(destination, record)
+    return 1
+
+
 def pinned_module(path, digest, name):
     for parent in path.parents:
         if not stat.S_ISDIR(parent.lstat().st_mode):
@@ -206,11 +252,9 @@ def reduced_xml(contract, raw, destination, expected, mode):
     return counts
 
 
-def run(args, lifecycle):
+def run(args, lifecycle, destination):
     lifecycle.ROOT = ROOT
     lifecycle.DEADLINE = time.monotonic() + 150
-    destination = ROOT / 'build/validation/1423' / args.run_id
-    destination.mkdir(parents=True, exist_ok=False, mode=0o700)
     result = {'schema_version':1, 'issue':1423, 'status':'failed', 'stage':'setup',
               'source_revision':args.source_revision, 'mode':args.mode, 'source_start':False, 'source_end':False,
               'lifecycle_sha256':LIFECYCLE_SHA, 'helper_sha256':HELPER_SHA,
@@ -288,7 +332,7 @@ def run(args, lifecycle):
         result['gut'] = gut_observation(lifecycle,command,env)
         result['junit'] = reduced_xml(contract,raw,destination/'gut.xml',names,args.mode)
         observation = result['gut']
-        expected_exit = observation['exit_code'] != 0 if args.mode == 'red' else observation['exit_code'] == 0
+        expected_exit = observation['exit_code'] == (1 if args.mode == 'red' else 0)
         if (type(observation['exit_code']) is not int or not expected_exit or observation['timed_out'] or
             observation['script_error_observed'] or not observation['output_valid'] or not result['junit']['expected_verdict']):
             raise ValueError('focused_verdict_failed')
@@ -333,13 +377,8 @@ def run(args, lifecycle):
             result['retained_stage'] = str(temporary)
         if not result['process_cleanup_verified'] or not result['temporary_cleanup_verified'] or not result['source_end']:
             result['status'] = 'failed'
-        try:
-            with (destination/'result.json').open('x') as stream:
-                stream.write(json.dumps(result,indent=2)+'\n')
-        except OSError:
-            print(json.dumps({'status':'failed','result_retention':NOT}))
+        if not retain_result(destination, result):
             return 1
-    print(json.dumps({'status':result['status'],'artifact':str(destination/'result.json')}))
     return 0 if result['status']=='passed' else 1
 
 
@@ -352,36 +391,31 @@ if __name__ == '__main__':
     if not re.fullmatch('[0-9a-f]{40}',args.source_revision) or not re.fullmatch('[A-Za-z0-9_-]+',args.run_id):
         parser.error('exact revision and new simple run id required')
     try:
+        destination = reserve_result(args.run_id)
+    except (OSError, ValueError):
+        print(json.dumps({'status':'failed','result_retention':NOT}))
+        raise SystemExit(1)
+    try:
         lifecycle,_ = pinned_module(LIFECYCLE,LIFECYCLE_SHA,'owned_lifecycle')
     except (OSError,ValueError,UnicodeError,SyntaxError):
-        # Prerequisite absence/drift must retain a fixed failure record without
-        # importing unqualified code or launching any child/native command.
-        destination = ROOT/'build/validation/1423'/args.run_id
-        try:
-            for parent in destination.parent.parents:
-                if not stat.S_ISDIR(parent.lstat().st_mode):
-                    raise ValueError('result_parent_unqualified')
-            if destination.parent.exists() and not stat.S_ISDIR(destination.parent.lstat().st_mode):
-                raise ValueError('result_parent_unqualified')
-            destination.mkdir(parents=True,exist_ok=False,mode=0o700)
-            record = {'schema_version':1,'issue':1423,'status':'failed','stage':'lifecycle_prerequisite',
-                      'source_revision':args.source_revision,'mode':args.mode,
-                      'failure_class':'pinned_lifecycle_unavailable','native_execution':NOT,
-                      'temporary_cleanup_verified':True,'owned_processes_started':False,
-                      'process_cleanup_verified':NOT}
-            with (destination/'result.json').open('x') as stream:
-                stream.write(json.dumps(record,indent=2)+'\n')
-            print(json.dumps({'status':'failed','artifact':str(destination/'result.json')}))
-        except (OSError,ValueError):
-            print(json.dumps({'status':'failed','result_retention':NOT}))
-        raise SystemExit(1)
+        raise SystemExit(setup_failure(destination,args,'lifecycle_prerequisite'))
     def interrupted(_signal,_frame):
         raise RuntimeError('focused_interrupted')
     signal.signal(signal.SIGTERM,interrupted)
     signal.signal(signal.SIGINT,interrupted)
-    with lifecycle.LOCK.open('a') as lock:
+    try:
+        for parent in lifecycle.LOCK.parents:
+            if not stat.S_ISDIR(parent.lstat().st_mode):
+                raise ValueError('lock_parent_unqualified')
+        descriptor = os.open(lifecycle.LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+        lock = os.fdopen(descriptor, 'a')
+    except (OSError, ValueError):
+        raise SystemExit(setup_failure(destination,args,'lock_prerequisite'))
+    with lock:
         try:
+            if not stat.S_ISREG(os.fstat(lock.fileno()).st_mode):
+                raise ValueError('lock_unqualified')
             fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise SystemExit('native_window_unavailable')
-        raise SystemExit(run(args,lifecycle))
+        except (OSError, ValueError):
+            raise SystemExit(setup_failure(destination,args,'lock_prerequisite'))
+        raise SystemExit(run(args,lifecycle,destination))
