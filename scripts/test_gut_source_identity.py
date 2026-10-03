@@ -128,7 +128,12 @@ if sys.argv[1:3] == ["image", "rm"]:
         state.unlink(missing_ok=True)
     sys.exit(status)
 if sys.argv[1:3] == ["container", "inspect"]:
-    sys.exit(0 if container_state.is_file() else 1)
+    if container_state.is_file():
+        container = json.loads(container_state.read_text())
+        if "--format" in sys.argv:
+            print(container["label"])
+        sys.exit(0)
+    sys.exit(1)
 if sys.argv[1:2] == ["rm"]:
     if container_state.is_file():
         container_state.unlink()
@@ -532,11 +537,15 @@ raise SystemExit(''' + str(code) + ')\n')
         self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:container-race"
         self.env["FAKE_DOCKER_CONTAINER_RACE"] = "1"
         result = self.run_command("run_hosted_gut_container.sh")
-        self.assertEqual(result.returncode, 125, result.stderr + result.stdout)
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
         foreign = json.loads(self.docker_container_state.read_text())
         self.assertEqual(foreign["label"], "foreign-container")
         calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
         self.assertFalse(any(call[:1] == ["rm"] for call in calls))
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["stage"], "validation-image-cleanup")
+        self.assertFalse(summary["container_cleanup_verified"])
+        self.assertTrue(summary["validation_image_removed"])
 
     def test_hosted_command_preserves_replaced_image_and_fails_cleanup(self):
         self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:replaced"

@@ -31,7 +31,7 @@ if [[ ${#image_repository} -gt 255 || ! "$image" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:
   exit 2
 fi
 install -d -m 2775 "$root/build/validation/runtime" "$root/.godot" "$root/logs/experiments"
-container="project0-hosted-gut-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}"
+container="project0-hosted-gut-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}-$$"
 label="${PROJECT0_HOSTED_GUT_TEST_ID:-$container}"
 if docker container inspect "$container" >/dev/null 2>&1; then
   echo "owned container already exists: $container" >&2
@@ -87,10 +87,12 @@ image_id_file="$(mktemp "${TMPDIR:-/tmp}/project0-gut-image-id.XXXXXX")" || {
 }
 image_id=""
 image_created=false
-record_image_cleanup_failure() {
+record_cleanup_failure() {
+  local image_removed="$1"
+  local container_verified="$2"
   local summary="$root/build/validation/validation-summary.json"
   local python_bin="${PYTHON_BIN:-python3}"
-  if ! "$python_bin" - "$summary" >/dev/null 2>&1 <<'PYCLEANUP'
+  if ! "$python_bin" - "$summary" "$image_removed" "$container_verified" >/dev/null 2>&1 <<'PYCLEANUP'
 import json, sys
 from pathlib import Path
 path = Path(sys.argv[1])
@@ -101,20 +103,40 @@ try:
 except (OSError, ValueError):
     result = {}
 result.update(status="failed", stage="validation-image-cleanup", exit_code=1,
-              validation_image_removed=False)
+              validation_image_removed=sys.argv[2] == "true",
+              container_cleanup_verified=sys.argv[3] == "true")
 path.write_text(json.dumps(result, indent=2) + "\n")
 PYCLEANUP
   then
-    printf '%s\n' '{"schema_version":1,"runner":"GUT","status":"failed","stage":"validation-image-cleanup","exit_code":1,"validation_image_removed":false}' > "$summary"
+    printf '%s\n' '{"schema_version":1,"runner":"GUT","status":"failed","stage":"validation-image-cleanup","exit_code":1,"validation_image_removed":false,"container_cleanup_verified":false}' > "$summary"
   fi
 }
 cleanup() {
   local runner_exit=$?
   local image_cleanup_failed=false
+  local container_cleanup_failed=false
   local current_image_id
+  local existing_label
   local inspect_status
+  local label_status
   trap - EXIT
-  docker rm -f "$container" >/dev/null 2>&1 || true
+  set +e
+  docker container inspect "$container" >/dev/null 2>&1
+  inspect_status=$?
+  if [[ "$inspect_status" -eq 0 ]]; then
+    existing_label="$(docker container inspect "$container" --format '{{ index .Config.Labels "project0.hosted-gut" }}' 2>/dev/null)"
+    label_status=$?
+    if [[ "$label_status" -eq 0 && "$existing_label" == "$label" ]]; then
+      if ! docker rm -f "$container" >/dev/null 2>&1; then
+        container_cleanup_failed=true
+      fi
+    else
+      container_cleanup_failed=true
+    fi
+  elif ! docker info >/dev/null 2>&1; then
+    container_cleanup_failed=true
+  fi
+  set -e
   if [[ "$image_created" == true ]]; then
     if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
       image_cleanup_failed=true
@@ -139,9 +161,13 @@ cleanup() {
   if ! rm -f -- "$image_id_file"; then
     image_cleanup_failed=true
   fi
-  if [[ "$image_cleanup_failed" == true ]]; then
-    record_image_cleanup_failure
-    echo "VALIDATION GATE ERROR: run-owned validation image cleanup was not qualified." >&2
+  if [[ "$image_cleanup_failed" == true || "$container_cleanup_failed" == true ]]; then
+    local image_removed=true
+    local container_verified=true
+    if [[ "$image_cleanup_failed" == true ]]; then image_removed=false; fi
+    if [[ "$container_cleanup_failed" == true ]]; then container_verified=false; fi
+    record_cleanup_failure "$image_removed" "$container_verified"
+    echo "VALIDATION GATE ERROR: run-owned container/image cleanup was not qualified." >&2
     runner_exit=1
   fi
   exit "$runner_exit"
