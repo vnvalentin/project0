@@ -117,6 +117,11 @@ with open(os.environ["FAKE_DOCKER_CALLS"], "a") as output:
     output.write(json.dumps(sys.argv[1:]) + "\\n")
 state = Path(os.environ["FAKE_DOCKER_IMAGE_STATE"])
 container_state = Path(os.environ["FAKE_DOCKER_CONTAINER_STATE"])
+if sys.argv[1:3] == ["container", "ls"]:
+    status = int(os.environ.get("FAKE_DOCKER_CONTAINER_LIST_EXIT", "0"))
+    if status == 0 and container_state.is_file():
+        print(json.loads(container_state.read_text())["name"])
+    sys.exit(status)
 if sys.argv[1:3] == ["image", "inspect"]:
     if state.is_file():
         print(state.read_text())
@@ -542,6 +547,16 @@ raise SystemExit(''' + str(code) + ')\n')
         self.assertEqual(foreign["label"], "foreign-container")
         calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
         self.assertFalse(any(call[:1] == ["rm"] for call in calls))
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["stage"], "validation-image-cleanup")
+        self.assertFalse(summary["container_cleanup_verified"])
+        self.assertTrue(summary["validation_image_removed"])
+
+    def test_hosted_command_fails_closed_when_container_inventory_is_unavailable(self):
+        self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:container-list-error"
+        self.env["FAKE_DOCKER_CONTAINER_LIST_EXIT"] = "2"
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
         summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
         self.assertEqual(summary["stage"], "validation-image-cleanup")
         self.assertFalse(summary["container_cleanup_verified"])

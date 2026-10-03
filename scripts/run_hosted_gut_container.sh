@@ -116,24 +116,28 @@ cleanup() {
   local image_cleanup_failed=false
   local container_cleanup_failed=false
   local current_image_id
+  local existing_containers
   local existing_label
   local inspect_status
   local label_status
+  local list_status
   trap - EXIT
   set +e
-  docker container inspect "$container" >/dev/null 2>&1
-  inspect_status=$?
-  if [[ "$inspect_status" -eq 0 ]]; then
-    existing_label="$(docker container inspect "$container" --format '{{ index .Config.Labels "project0.hosted-gut" }}' 2>/dev/null)"
-    label_status=$?
-    if [[ "$label_status" -eq 0 && "$existing_label" == "$label" ]]; then
-      if ! docker rm -f "$container" >/dev/null 2>&1; then
+  existing_containers="$(docker container ls --all --format '{{.Names}}' 2>/dev/null)"
+  list_status=$?
+  if [[ "$list_status" -eq 0 ]]; then
+    if [[ $'\n'"$existing_containers"$'\n' == *$'\n'"$container"$'\n'* ]]; then
+      existing_label="$(docker container inspect "$container" --format '{{ index .Config.Labels "project0.hosted-gut" }}' 2>/dev/null)"
+      inspect_status=$?
+      if [[ "$inspect_status" -eq 0 && "$existing_label" == "$label" ]]; then
+        if ! docker rm -f "$container" >/dev/null 2>&1; then
+          container_cleanup_failed=true
+        fi
+      else
         container_cleanup_failed=true
       fi
-    else
-      container_cleanup_failed=true
     fi
-  elif ! docker info >/dev/null 2>&1; then
+  else
     container_cleanup_failed=true
   fi
   set -e
