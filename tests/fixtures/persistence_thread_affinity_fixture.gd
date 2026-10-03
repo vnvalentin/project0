@@ -302,7 +302,9 @@ func _worker_main() -> Dictionary:
 func _owner_lifecycle(path: String, owner: int, role: String) -> Dictionary:
 	var result: Dictionary = {"role": role, "success": true, "cycles": [], "spans": []}
 	var events: Array[Dictionary] = []
-	var cycles: Array[String] = ["first", "reopen"] if role == "worker" else ["first"]
+	var cycles: Array[String] = ["first"]
+	if role == "worker":
+		cycles.append("reopen")
 	for cycle: String in cycles:
 		var value: Dictionary = _native_cycle(path, owner, role, cycle, events)
 		result["cycles"].append(value)
