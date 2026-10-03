@@ -777,7 +777,7 @@ func _remove_owned_state() -> bool:
 	if not directory.get_directories().is_empty():
 		return false
 	for entry: String in directory.get_files():
-		if _ordinary_chain(_directory) != _owned_chain or directory.is_link(entry) or directory.remove(entry) != OK:
+		if not allowed.has(entry) or _ordinary_chain(_directory) != _owned_chain or directory.is_link(entry) or directory.remove(entry) != OK:
 			return false
 	if _ordinary_chain(_directory) != _owned_chain:
 		return false
