@@ -9,6 +9,30 @@ from tracker import inline_markdown, load_tracker, validate_tracker
 import tracker as tracker_module
 
 
+def test_cached_feed_reads_survive_restart_without_network(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    calls = []
+    payload = {"issues": [{"number": 1433, "title": "Cache", "state": "open"}], "milestones": []}
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        return payload
+
+    path = tmp_path / "feed.json"
+    cache = GitHubFeedCache(path, "example/project", fetch, clock=lambda: 100.0)
+    assert cache.read()["available"] is False
+    assert calls == []
+    assert cache.request_refresh() is True
+    assert cache.wait_for_refresh(2) is True
+    assert cache.read()["issues"][0]["number"] == 1433
+    restarted = GitHubFeedCache(path, "example/project", fetch, clock=lambda: 200.0)
+    assert restarted.read()["available"] is True
+    assert restarted.read()["updated_at"] == 100.0
+    assert restarted.read()["stale"] is False
+    assert len(calls) == 1
+
+
 def test_tracker_model_extracts_phases_and_queue(tmp_path: Path) -> None:
     tracker = tmp_path / "docs" / "PROJECT-TRACKER.md"
     tracker.parent.mkdir()
