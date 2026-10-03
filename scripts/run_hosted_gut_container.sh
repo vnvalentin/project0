@@ -24,9 +24,14 @@ if [[ ${M4_SOURCE_REVISION+x} && "$M4_SOURCE_REVISION" != "$source_revision" ]];
   exit 2
 fi
 base_image="ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602"
-image="project0-gut-validation:local"
+image="${PROJECT0_GUT_VALIDATION_IMAGE:-project0-gut-validation:local}"
+image_repository="${image%%:*}"
+if [[ ${#image_repository} -gt 255 || ! "$image" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+  echo "VALIDATION GATE ERROR: expected a valid local Docker repository:tag." >&2
+  exit 2
+fi
 install -d -m 2775 "$root/build/validation/runtime" "$root/.godot" "$root/logs/experiments"
-container="project0-hosted-gut-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}"
+container="project0-hosted-gut-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-local}-$$"
 label="${PROJECT0_HOSTED_GUT_TEST_ID:-$container}"
 if docker container inspect "$container" >/dev/null 2>&1; then
   echo "owned container already exists: $container" >&2
@@ -70,19 +75,123 @@ if ! validation_context_qualified; then
   echo "VALIDATION GATE ERROR: validation build context is not the single owned recipe." >&2
   exit 2
 fi
-if docker build --build-arg "GODOT_IMAGE=$base_image" --tag "$image" \
-    "$root/deploy/validation" >/dev/null 2>&1; then
-  :
+if docker image inspect "$image" >/dev/null 2>&1; then
+  record_image_failure 2 false
+  echo "VALIDATION GATE ERROR: validation image tag already exists; preserving it." >&2
+  exit 2
+fi
+image_id_file="$(mktemp "${TMPDIR:-/tmp}/project0-gut-image-id.XXXXXX")" || {
+  record_image_failure 2 false
+  echo "VALIDATION GATE ERROR: image identity evidence path is unavailable." >&2
+  exit 2
+}
+image_id=""
+image_created=false
+record_cleanup_failure() {
+  local image_removed="$1"
+  local container_verified="$2"
+  local summary="$root/build/validation/validation-summary.json"
+  local python_bin="${PYTHON_BIN:-python3}"
+  if ! "$python_bin" - "$summary" "$image_removed" "$container_verified" >/dev/null 2>&1 <<'PYCLEANUP'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+try:
+    result = json.loads(path.read_text()) if path.is_file() and not path.is_symlink() else {}
+    if not isinstance(result, dict):
+        result = {}
+except (OSError, ValueError):
+    result = {}
+result.update(status="failed", stage="validation-image-cleanup", exit_code=1,
+              validation_image_removed=sys.argv[2] == "true",
+              container_cleanup_verified=sys.argv[3] == "true")
+path.write_text(json.dumps(result, indent=2) + "\n")
+PYCLEANUP
+  then
+    printf '%s\n' '{"schema_version":1,"runner":"GUT","status":"failed","stage":"validation-image-cleanup","exit_code":1,"validation_image_removed":false,"container_cleanup_verified":false}' > "$summary"
+  fi
+}
+cleanup() {
+  local runner_exit=$?
+  local image_cleanup_failed=false
+  local container_cleanup_failed=false
+  local current_image_id
+  local existing_containers
+  local existing_label
+  local inspect_status
+  local label_status
+  local list_status
+  trap - EXIT
+  set +e
+  existing_containers="$(docker container ls --all --format '{{.Names}}' 2>/dev/null)"
+  list_status=$?
+  if [[ "$list_status" -eq 0 ]]; then
+    if [[ $'\n'"$existing_containers"$'\n' == *$'\n'"$container"$'\n'* ]]; then
+      existing_label="$(docker container inspect "$container" --format '{{ index .Config.Labels "project0.hosted-gut" }}' 2>/dev/null)"
+      inspect_status=$?
+      if [[ "$inspect_status" -eq 0 && "$existing_label" == "$label" ]]; then
+        if ! docker rm -f "$container" >/dev/null 2>&1; then
+          container_cleanup_failed=true
+        fi
+      else
+        container_cleanup_failed=true
+      fi
+    fi
+  else
+    container_cleanup_failed=true
+  fi
+  set -e
+  if [[ "$image_created" == true ]]; then
+    if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      image_cleanup_failed=true
+    else
+      set +e
+      current_image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null)"
+      inspect_status=$?
+      set -e
+      if [[ "$inspect_status" -eq 0 ]]; then
+        if [[ "$current_image_id" == "$image_id" ]]; then
+          if ! docker image rm "$image" >/dev/null 2>&1; then
+            image_cleanup_failed=true
+          fi
+        else
+          image_cleanup_failed=true
+        fi
+      elif ! docker info >/dev/null 2>&1; then
+        image_cleanup_failed=true
+      fi
+    fi
+  fi
+  if ! rm -f -- "$image_id_file"; then
+    image_cleanup_failed=true
+  fi
+  if [[ "$image_cleanup_failed" == true || "$container_cleanup_failed" == true ]]; then
+    local image_removed=true
+    local container_verified=true
+    if [[ "$image_cleanup_failed" == true ]]; then image_removed=false; fi
+    if [[ "$container_cleanup_failed" == true ]]; then container_verified=false; fi
+    record_cleanup_failure "$image_removed" "$container_verified"
+    echo "VALIDATION GATE ERROR: run-owned container/image cleanup was not qualified." >&2
+    runner_exit=1
+  fi
+  exit "$runner_exit"
+}
+trap cleanup EXIT
+if docker build --iidfile "$image_id_file" --build-arg "GODOT_IMAGE=$base_image" \
+    --tag "$image" "$root/deploy/validation" >/dev/null 2>&1; then
+  image_created=true
 else
   build_status=$?
   record_image_failure "$build_status"
   echo "VALIDATION GATE ERROR: validation image dependencies could not be built." >&2
   exit "$build_status"
 fi
-cleanup() {
-  docker rm -f "$container" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
+image_id="$(<"$image_id_file")"
+if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  record_image_failure 2 true
+  echo "VALIDATION GATE ERROR: built validation image identity is invalid." >&2
+  exit 2
+fi
 
 container_command=(bash -c 'umask 0002; exec bash scripts/run_gut_validation.sh')
 if [[ "$mode" == "--probe" ]]; then
@@ -103,7 +212,7 @@ docker run --rm --name "$container" --label "project0.hosted-gut=$label" \
   -w /app --entrypoint /usr/bin/env "$image" \
   -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home \
   XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache \
-  TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard \
+  TMPDIR=/app/.godot RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard \
   PROJECT0_TEST_STATE_DIR=build/validation/runtime M4_SOURCE_REVISION="$source_revision" \
   "${container_command[@]}"
 container_status=$?
