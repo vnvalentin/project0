@@ -13,7 +13,12 @@ func _publish_progress(phase: String) -> void:
 			if output == null:
 				quit(1)
 				return
-			output.store_string(JSON.stringify({"phase": phase, "process_id": OS.get_process_id(), "children": [_server_process_id, _client_a_process_id, _client_b_process_id], "paths": [_state_file_a, _state_file_b, _server_ready_file, _movement_gate], "database": ProjectSettings.globalize_path("user://" + OS.get_environment("PROJECT0_ACCOUNTS_DB_PATH"))}))
+			var children: Array[int] = [_server_process_id, _client_a_process_id, _client_b_process_id]
+			var registered: Array[int] = children.duplicate()
+			if OS.get_cmdline_user_args().has("--omit-client-registration"):
+				registered.clear()
+				registered.append(_server_process_id)
+			output.store_string(JSON.stringify({"phase": phase, "process_id": OS.get_process_id(), "children": registered, "probe_children": children, "paths": [_state_file_a, _state_file_b, _server_ready_file, _movement_gate], "database": ProjectSettings.globalize_path("user://" + OS.get_environment("PROJECT0_ACCOUNTS_DB_PATH"))}))
 			output.close()
 			if DirAccess.rename_absolute(report_path + ".pending", report_path) != OK:
 				quit(1)

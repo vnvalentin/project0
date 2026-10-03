@@ -72,8 +72,16 @@ func test_selected_port_collision_fails_before_clients_start() -> void:
 
 
 func test_parallel_timeout_removes_owned_descendants_and_state() -> void:
+	await _assert_contained_timeout(false)
+
+
+func test_parallel_timeout_finds_unregistered_owned_sessions() -> void:
+	await _assert_contained_timeout(true)
+
+
+func _assert_contained_timeout(omit_registration: bool) -> void:
 	var path: String = "user://multi_peer_timeout_%d_%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
-	var process_id: int = _start_contained_harness(path, true)
+	var process_id: int = _start_contained_harness(path, true, omit_registration)
 	assert_gt(process_id, 0, "timeout probe starts an owned orchestrator")
 	var deadline: int = Time.get_ticks_msec() + 10000
 	var report: Dictionary = {}
@@ -90,7 +98,7 @@ func test_parallel_timeout_removes_owned_descendants_and_state() -> void:
 	assert_true(cleanup.get("passed", false), "forced timeout cleanup proves process-group ownership and completion")
 	assert_gte(int(cleanup.get("processes_terminated", 0)), 4, "timeout terminates the actual orchestrator, server and two clients")
 	await get_tree().process_frame
-	for child_id: int in report.get("children", []):
+	for child_id: int in report.get("probe_children", []):
 		assert_false(child_id > 0 and OS.is_process_running(child_id), "timeout leaves no owned descendant running")
 	for state_path: String in report.get("paths", []):
 		assert_false(FileAccess.file_exists(state_path), "timeout removes owned published state")
@@ -143,7 +151,7 @@ func test_concurrent_harnesses_use_disjoint_endpoints_and_state() -> void:
 	assert_ne(reports[0]["endpoints"]["control_port"], reports[1]["endpoints"]["control_port"], "simultaneous control endpoints are distinct")
 
 
-func _start_contained_harness(report_path: String, held: bool) -> int:
+func _start_contained_harness(report_path: String, held: bool, omit_registration: bool = false) -> int:
 	var arguments: PackedStringArray = [
 		ProjectSettings.globalize_path("res://tests/fixtures/contained_multi_peer.py"), "run",
 		ProjectSettings.globalize_path(report_path), report_path.get_file(), OS.get_executable_path(),
@@ -152,6 +160,8 @@ func _start_contained_harness(report_path: String, held: bool) -> int:
 	]
 	if held:
 		arguments.append("--hold-owned-processes")
+	if omit_registration:
+		arguments.append("--omit-client-registration")
 	return OS.create_process("/usr/bin/python3", arguments)
 
 

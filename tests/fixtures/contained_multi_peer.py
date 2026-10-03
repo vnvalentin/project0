@@ -38,6 +38,27 @@ def group_members(pid: int, started: int, nonce: str) -> list[dict]:
     return members
 
 
+def owned_groups(started: int, nonce: str) -> dict[int, int]:
+    groups = {}
+    marker = f"{MARKER}={nonce}".encode()
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdecimal():
+            continue
+        process = process_info(int(entry.name))
+        if not process or process["state"] == "Z":
+            continue
+        try:
+            environment = (entry / "environ").read_bytes().split(b"\0")
+        except (FileNotFoundError, PermissionError, ProcessLookupError):
+            continue
+        if marker not in environment:
+            continue
+        if process["group"] <= 0 or process["session"] != process["group"] or process["started"] < started:
+            raise ValueError("Owned session custody mismatch")
+        groups[process["group"]] = started
+    return groups
+
+
 def stop(report_path: Path, nonce: str, pid: int) -> dict:
     lease_path = Path(str(report_path) + ".group.json")
     lease = json.loads(lease_path.read_text())
@@ -49,27 +70,20 @@ def stop(report_path: Path, nonce: str, pid: int) -> dict:
     report = json.loads(report_path.read_text()) if report_path.exists() else {}
     if report and report.get("process_id") != pid:
         raise ValueError("Fixture report identity mismatch")
-    groups = {pid: lease["started"]}
-    for child in report.get("children", []):
-        if type(child) is not int:
-            raise ValueError("Invalid child registration")
-        process = process_info(child) if child > 0 else {}
-        if not process or process["state"] == "Z":
-            continue
-        if process["group"] != child or process["session"] != child or process["started"] < lease["started"]:
-            raise ValueError("Child session identity mismatch")
-        groups[child] = process["started"]
-    members = [member for group, started in groups.items() for member in group_members(group, started, nonce)]
-    for group, started in groups.items():
-        if group_members(group, started, nonce):
+    deadline = time.monotonic() + 5
+    terminated = set()
+    groups = owned_groups(lease["started"], nonce)
+    while groups and time.monotonic() < deadline:
+        members = {group: group_members(group, started, nonce) for group, started in groups.items()}
+        for group, processes in members.items():
+            terminated.update(process["pid"] for process in processes)
             try:
                 os.killpg(group, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-    deadline = time.monotonic() + 5
-    while any(group_members(group, started, nonce) for group, started in groups.items()) and time.monotonic() < deadline:
         threading.Event().wait(0.01)
-    if any(group_members(group, started, nonce) for group, started in groups.items()):
+        groups = owned_groups(lease["started"], nonce)
+    if owned_groups(lease["started"], nonce):
         raise RuntimeError("Owned process group did not stop")
     removed = 0
     if report_path.exists():
@@ -90,7 +104,7 @@ def stop(report_path: Path, nonce: str, pid: int) -> dict:
                     candidate.unlink()
                     removed += 1
     lease_path.unlink()
-    return {"passed": True, "processes_terminated": len(members), "remaining": 0, "state_removed": removed}
+    return {"passed": True, "processes_terminated": len(terminated), "remaining": 0, "state_removed": removed}
 
 
 def main() -> int:
