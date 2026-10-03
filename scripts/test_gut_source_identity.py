@@ -555,8 +555,13 @@ raise SystemExit(''' + str(code) + ')\n')
     def test_hosted_command_fails_closed_when_container_inventory_is_unavailable(self):
         self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:container-list-error"
         self.env["FAKE_DOCKER_CONTAINER_LIST_EXIT"] = "2"
+        self.env["FAKE_DOCKER_CONTAINER_RACE"] = "1"
         result = self.run_command("run_hosted_gut_container.sh")
         self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        foreign = json.loads(self.docker_container_state.read_text())
+        self.assertEqual(foreign["label"], "foreign-container")
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        self.assertFalse(any(call[:1] == ["rm"] for call in calls))
         summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
         self.assertEqual(summary["stage"], "validation-image-cleanup")
         self.assertFalse(summary["container_cleanup_verified"])
