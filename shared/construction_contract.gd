@@ -33,10 +33,13 @@ static func parse_client_request(raw: Variant) -> Dictionary:
 		return {"outcome": "invalid_request", "detail": "verb must belong to the closed request set", "request": null}
 	if not (data["orientation_degrees"] is int or data["orientation_degrees"] is float):
 		return {"outcome": "invalid_request", "detail": "orientation must be numeric", "request": null}
+	var orientation_degrees: float = float(data["orientation_degrees"])
+	if not is_finite(orientation_degrees) or orientation_degrees < 0.0 or orientation_degrees >= 360.0:
+		return {"outcome": "invalid_request", "detail": "orientation must be finite canonical degrees", "request": null}
 	if not _contains_only_wire_values(data):
 		return {"outcome": "invalid_request", "detail": "request values must use bounded detached wire types", "request": null}
 	var request: Dictionary = data.duplicate(true)
-	request["orientation_degrees"] = float(data["orientation_degrees"])
+	request["orientation_degrees"] = orientation_degrees
 	return {"outcome": "ok", "detail": "", "request": request}
 
 
