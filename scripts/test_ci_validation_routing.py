@@ -404,6 +404,7 @@ class RoutingTests(unittest.TestCase):
         self.assertIn('-v "$root/logs/experiments:/app/logs/experiments"', container)
         self.assertIn("--network none --no-healthcheck --read-only --cap-drop ALL", container)
         self.assertIn("--security-opt no-new-privileges", container)
+        self.assertIn("--tmpfs /tmp:rw,nosuid,nodev,exec", container)
         self.assertIn("scripts/.hosted-write-probe", container)
         self.assertIn("PROJECT0_TEST_STATE_DIR=build/validation/runtime", container)
         self.assertIn('stat -c %g "$artifact"', container)
