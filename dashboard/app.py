@@ -1101,6 +1101,7 @@ DELIVERY_MOCKUP_CSS = """
 .milestone-band .milestone-counts{flex-wrap:wrap}
 .milestone-slice{border-left:3px solid var(--cyan);padding-left:10px;margin:8px 0}
 .milestone-slice>summary{cursor:pointer;font-weight:700;font-size:12px}
+.milestone-gate-label{display:inline-block;margin-left:8px;color:var(--cyan);font-size:11px;font-weight:600}
 .milestone-activity{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:8px;font-size:12px;font-weight:400}
 .milestone-activity strong{font-weight:700}.milestone-activity .active{color:var(--cyan)}.milestone-activity .blocked{color:var(--amber)}
 .slice-description{max-width:760px;overflow-wrap:anywhere}.slice-description h2{font-size:22px;line-height:1.35;margin:20px 0}
@@ -1381,6 +1382,7 @@ def _milestone_slice_plan(description: str) -> dict:
                 if match:
                     current = {"id": match[1].strip(), "title": match[2].strip(),
                                "outcome": "", "complete when": "", "dependency": "",
+                               "membership": "delivery", "included issues defined": False,
                                "outcome evidence": "", "capability owner": "",
                                "supporting recovery coverage": "", "owning epic": "",
                                "context": "", "members": [], "warnings": []}
@@ -1388,7 +1390,7 @@ def _milestone_slice_plan(description: str) -> dict:
             continue
         if current is not None:
             match = re.match(
-                r"^(Outcome|Included issues|Complete when|Dependency|Outcome evidence|"
+                r"^(Outcome|Membership|Included issues|Complete when|Dependency|Outcome evidence|"
                 r"Capability owner|Supporting recovery coverage|Owning Epic|Context):\s*(.*)$",
                 line,
                 re.I,
@@ -1397,8 +1399,10 @@ def _milestone_slice_plan(description: str) -> dict:
                 field = match[1].lower()
                 if field != "included issues":
                     current[field] = match[2].strip()
-                elif match[2].strip():
-                    current["warnings"].append("Included issues must use one '- #number' entry per line.")
+                else:
+                    current["included issues defined"] = True
+                    if match[2].strip():
+                        current["warnings"].append("Included issues must use one '- #number' entry per line.")
             elif line and field == "included issues":
                 member = re.fullmatch(r"[-*]\s+#([1-9][0-9]*)", line)
                 if member:
@@ -1536,11 +1540,20 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
     for group in plan["slices"]:
         if sum(other["id"].lower() == group["id"].lower() for other in plan["slices"]) > 1:
             group["warnings"].append(f'Duplicate Slice identifier: {group["id"]}')
+        if group["membership"] not in {"delivery", "acceptance-gate-only"}:
+            group["warnings"].append(f'Unknown membership type: {group["membership"]}.')
+        gate_only = group["membership"] == "acceptance-gate-only"
+        if gate_only and group["members"]:
+            group["warnings"].append("Acceptance-gate-only groups cannot include delivery issues.")
         for required in ("title", "outcome", "complete when"):
             if not group[required] or re.search(r"\{\{.*?\}\}|\b(?:TBD|TODO)\b", group[required], re.I):
                 group["warnings"].append(f"Missing or unfinished {required}.")
         if not group["members"]:
-            group["warnings"].append("No included issues defined.")
+            if gate_only:
+                if not group["included issues defined"]:
+                    group["warnings"].append("Acceptance-gate-only groups must define an empty Included issues field.")
+            else:
+                group["warnings"].append("No included issues defined.")
         members = []
         for number in dict.fromkeys(group["members"]):
             if len(membership[number]) > 1:
@@ -1552,16 +1565,21 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
                 members.append(member)
                 if member.get("milestone_number") != record["number"]:
                     group["warnings"].append(f'Issue #{number} is not assigned to this milestone.')
-        state, reason = _milestone_group_state(
-            group, members, str(record.get("state", "")).lower() == "closed"
-        )
-        counts[state] += 1
+        if gate_only and not group["warnings"]:
+            state, reason = "gate", "Acceptance gate; not delivery membership"
+        else:
+            state, reason = _milestone_group_state(
+                group, members, str(record.get("state", "")).lower() == "closed"
+            )
+        if not gate_only:
+            counts[state] += 1
         detail_url = "/roadmap?" + urlencode({"milestone": record["number"], "slice": group["id"]})
         warnings = "".join(f'<p class="milestone-mapping-warning">{esc(warning)}</p>' for warning in group["warnings"])
         activity = _delivery_activity_html([member for member in members if member.get("milestone_number") == record["number"]])
+        membership_label = '<span class="milestone-gate-label">Acceptance gate only</span>' if gate_only else ""
         groups_html.append(
             f'<details id="{esc(_slice_anchor_id(record["number"], group["id"]))}" class="milestone-slice" data-slice-id="{esc(group["id"])}" data-state="{state}" data-reason="{esc(reason)}">'
-            f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}{activity}</summary>'
+            f'<summary>Slice {esc(group["id"])}: {esc(group["title"])}{membership_label}{activity}</summary>'
             f'{warnings}{_milestone_member_list(group["members"], by_number)}'
             f'<a class="slice-description-link" href="{esc(detail_url)}" '
             f'aria-label="View Slice {esc(group["id"])} description">View Slice description</a></details>'
@@ -1580,10 +1598,11 @@ def _delivery_mapped_band(record: dict, issue_feed: dict) -> str:
         groups_html.append('<p class="milestone-mapping-warning">No Slices defined in milestone description.</p>')
     introduction = re.split(r"(?m)^\s*#{1,6}\s", description, maxsplit=1)[0].strip()
     outcome = plan["outcome"] or introduction.split("\n\n", 1)[0]
+    delivery_group_count = sum(group["membership"] != "acceptance-gate-only" for group in plan["slices"])
     acceptance = (
-        f'Slice delivery: {counts["done"]}/{len(plan["slices"])} complete'
-        if plan["slices"] else "Outcome acceptance: not defined"
-    )
+        f'Slice delivery: {counts["done"]}/{delivery_group_count} complete'
+        if delivery_group_count else "Slice delivery: no delivery groups"
+    ) if plan["slices"] else "Outcome acceptance: not defined"
     attention = '<p class="milestone-mapping-warning">Unresolved scope or mapping requires attention.</p>' if scope or unmapped or shared_section or any(group["warnings"] for group in plan["slices"]) else ""
     return (
         f'<details class="milestone-band" data-milestone="{record["number"]}"><summary><h3>{esc(record["title"])}</h3>'
@@ -1659,6 +1678,8 @@ def _delivery_slice_description(issue_feed: dict, milestone_number: str, slice_i
                 f'<dt>{label}</dt><dd>{esc(group[name] or "Not specified")}</dd>'
                 for name, label in (("outcome", "Outcome"), ("complete when", "Completion description"), ("dependency", "Dependency"))
             )
+            if group["membership"] == "acceptance-gate-only":
+                fields += '<dt>Membership</dt><dd>Acceptance gate only</dd>'
             if group["outcome evidence"]:
                 fields += f'<dt>Outcome evidence</dt><dd>{esc(group["outcome evidence"])}</dd>'
             if group["context"]:

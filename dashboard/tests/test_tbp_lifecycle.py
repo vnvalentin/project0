@@ -621,6 +621,8 @@ Dependency: Exact-source candidate.
     assert "Slice delivery: 0/1 complete" in page
     assert "No included issues defined." not in page
     assert "Unresolved scope or mapping requires attention." not in page
+    detail = render_roadmap(milestone_number="1", slice_id="M8.2")
+    assert "<dt>Membership</dt><dd>Acceptance gate only</dd>" in detail
 
 
 @pytest.mark.parametrize(

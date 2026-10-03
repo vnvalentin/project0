@@ -105,6 +105,14 @@ section is not allowed (#1400): it is shown as a mapping warning and its issues
 count as unmapped. List a shared issue on the first Slice it relates to, under
 `Included issues:` when it is assigned to the milestone, otherwise in `Context:`.
 
+Groups default to delivery membership and require at least one included issue.
+An explicit `Membership: acceptance-gate-only` classifies a group as an
+acceptance gate, not delivery work. It must include an empty `Included issues:`
+field, remains visible with its own gate label, and is excluded from delivery
+completion counts. It cannot contain delivery issues. Unknown membership values
+and malformed gate-only groups fail closed with mapping warnings. Context
+references remain informational and do not create issue membership.
+
 Each card and defined group shows issue activity independently: closed/total,
 active, and blocked counts. These are issue counts, not accepted-outcome
 percentages. Milestone activity includes assigned issues outside defined groups;
