@@ -87,6 +87,11 @@ def feed_controls(feed: dict) -> str:
     const status = document.getElementById('feed-status');
     const error = document.getElementById('feed-error');
     const initialUpdate = Number(toolbar.dataset.updated);
+    let pollTimer;
+    function schedule(delay) {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(poll, delay);
+    }
     function show(data) {
         button.disabled = data.refreshing;
         button.textContent = data.refreshing ? 'Refreshing...' : 'Refresh now';
@@ -101,15 +106,18 @@ def feed_controls(feed: dict) -> str:
             if (!response.ok) throw new Error('Refresh status unavailable');
             const data = await response.json();
             show(data);
-            if (data.refreshing) setTimeout(poll, 1000);
+            if (data.refreshing) schedule(1000);
             else if (data.updated_at > initialUpdate) window.location.reload();
+            else schedule(30000);
         } catch (failure) {
             error.textContent = failure.message;
             button.disabled = false;
             button.textContent = 'Refresh now';
+            schedule(30000);
         }
     }
     button.addEventListener('click', async () => {
+        clearTimeout(pollTimer);
         button.disabled = true;
         button.textContent = 'Refreshing...';
         error.textContent = '';
@@ -122,9 +130,11 @@ def feed_controls(feed: dict) -> str:
             error.textContent = failure.message;
             button.disabled = false;
             button.textContent = 'Refresh now';
+            schedule(30000);
         }
     });
     if (button.disabled) poll();
+    else schedule(30000);
 })();
 </script>'''
 
@@ -2503,11 +2513,10 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {"error": "not found"})
             return
         origin = self.headers.get("Origin", "")
-        origin_url = urlparse(origin)
         if (
             self.headers.get("X-Dashboard-Refresh") != "1"
             or self.headers.get("Sec-Fetch-Site") == "cross-site"
-            or (origin and (origin_url.scheme not in ("http", "https") or origin_url.netloc != self.headers.get("Host")))
+            or (origin and origin != f"http://{self.headers.get('Host')}")
         ):
             self._send_json(403, {"error": "same-origin refresh required"})
             return

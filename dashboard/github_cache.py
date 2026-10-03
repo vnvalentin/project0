@@ -213,10 +213,15 @@ class GitHubFeedCache:
             with self._lock:
                 self._error = f"Refresh failed: {exc}"
         finally:
-            if temporary_path and os.path.exists(temporary_path):
-                os.unlink(temporary_path)
-            with self._lock:
-                self._refreshing = False
-                self._next_due = self.clock() + self.interval
-                self._done.set()
-                self._wake.set()
+            try:
+                if temporary_path and os.path.exists(temporary_path):
+                    os.unlink(temporary_path)
+            except OSError as exc:
+                with self._lock:
+                    self._error += f"; Cache cleanup failed: {exc}"
+            finally:
+                with self._lock:
+                    self._refreshing = False
+                    self._next_due = self.clock() + self.interval
+                    self._done.set()
+                    self._wake.set()

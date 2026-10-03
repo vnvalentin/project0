@@ -262,6 +262,29 @@ def test_corrupt_cache_is_unavailable_until_manually_repaired(tmp_path: Path) ->
     assert cache.read()["available"] is True
 
 
+def test_failed_snapshot_cleanup_does_not_wedge_future_refreshes(tmp_path: Path, monkeypatch) -> None:
+    import github_cache
+
+    cache = github_cache.GitHubFeedCache(tmp_path / "feed.json", "example/project", lambda previous: {"issues": [], "milestones": []})
+    assert cache.request_refresh()
+    assert cache.wait_for_refresh(2)
+
+    def fail(*args):
+        raise OSError("storage unavailable")
+
+    with monkeypatch.context() as storage:
+        storage.setattr(github_cache.os, "replace", fail)
+        storage.setattr(github_cache.os, "unlink", fail)
+        assert cache.request_refresh()
+        assert cache.wait_for_refresh(2)
+        assert cache.read()["refreshing"] is False
+        assert cache.read()["available"] is True
+        assert "cleanup" in cache.read()["error"].lower()
+    assert cache.request_refresh()
+    assert cache.wait_for_refresh(2)
+    assert cache.read()["error"] == ""
+
+
 def test_dashboard_manual_refresh_is_same_origin_and_browsing_never_fetches(tmp_path: Path, monkeypatch) -> None:
     import app
     from github_cache import GitHubFeedCache
@@ -296,6 +319,11 @@ def test_dashboard_manual_refresh_is_same_origin_and_browsing_never_fetches(tmp_
         assert json.loads(response.read())["available"] is False
         assert calls == []
         connection.request("POST", "/api/github/refresh", headers={"Origin": "https://untrusted.test", "X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 403
+        assert calls == []
+        connection.request("POST", "/api/github/refresh", headers={"Origin": f"https://127.0.0.1:{server.server_port}", "X-Dashboard-Refresh": "1"})
         response = connection.getresponse()
         response.read()
         assert response.status == 403
