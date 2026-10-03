@@ -19,6 +19,7 @@ func test_defaults_to_localhost_with_no_override() -> void:
 	var server_port: int = NetworkConfigScript.resolve_server_port()
 	_restore_network_environment(original_environment)
 
+	assert_eq(_capture_network_environment(), original_environment, "default check restores inherited environment")
 	assert_eq(bind_address, NetworkConfigScript.SERVER_ADDRESS, "server bind address defaults to localhost")
 	assert_eq(
 		target_host,
@@ -38,6 +39,7 @@ func test_empty_network_environment_overrides_fall_back_to_defaults() -> void:
 	var server_port: int = NetworkConfigScript.resolve_server_port()
 	_restore_network_environment(original_environment)
 
+	assert_eq(_capture_network_environment(), original_environment, "empty-override check restores inherited environment")
 	assert_eq(bind_address, NetworkConfigScript.SERVER_ADDRESS)
 	assert_eq(target_host, NetworkConfigScript.DEFAULT_TARGET_HOST)
 	assert_eq(server_port, NetworkConfigScript.SERVER_PORT)
@@ -173,6 +175,7 @@ func test_server_port_env_override_and_invalid_fallback() -> void:
 	var out_of_range_server_port: int = NetworkConfigScript.resolve_server_port()
 	_restore_network_environment(original_environment)
 
+	assert_eq(_capture_network_environment(), original_environment, "populated-override check restores inherited environment")
 	assert_eq(bind_address, "0.0.0.0", "env var overrides the server bind address")
 	assert_eq(target_host, "play.example.com", "env var overrides the client target host")
 	assert_eq(server_port, 40000, "env var overrides the server port")
