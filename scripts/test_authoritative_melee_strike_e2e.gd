@@ -130,8 +130,11 @@ func _test_authoritative_melee_strike() -> void:
 
 	var network_client: Node = root.get_node("NetworkClient")
 	var authoritative_position: Array[Vector3] = [Vector3.INF]
+	var authoritative_sequence: Array[int] = [-1]
 	network_client.authoritative_position_received.connect(
-		func(position: Vector3, _sequence: int) -> void: authoritative_position[0] = position
+		func(position: Vector3, sequence: int) -> void:
+			authoritative_position[0] = position
+			authoritative_sequence[0] = sequence
 	)
 
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
@@ -174,16 +177,29 @@ func _test_authoritative_melee_strike() -> void:
 	while player.position.distance_to(target_dummy_position) > 1.5 and move_ticks < 300:
 		await physics_frame
 		move_ticks += 1
+	var client_sequence_before_release: int = int(network_client.get("_next_input_sequence")) - 1
 	Input.action_release("move_forward")
 	Input.action_release("move_left")
 
-	var settle_ticks: int = 0
-	while settle_ticks < 15:
+	var first_released_input_sequence: int = -1
+	var settle_deadline_msec: int = Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < settle_deadline_msec:
 		await physics_frame
-		settle_ticks += 1
+		var latest_client_sequence: int = int(network_client.get("_next_input_sequence")) - 1
+		if first_released_input_sequence == -1 and latest_client_sequence > client_sequence_before_release:
+			first_released_input_sequence = latest_client_sequence
+		if first_released_input_sequence >= 0 \
+		and authoritative_sequence[0] >= first_released_input_sequence \
+		and authoritative_position[0].distance_to(target_dummy_position) < 2.0:
+			break
+	var settled_client_sequence: int = int(network_client.get("_next_input_sequence")) - 1
+	var settled_server_sequence: int = authoritative_sequence[0]
+	var settled_sequence_gap: int = settled_client_sequence - settled_server_sequence
+	var released_input_acknowledged: bool = first_released_input_sequence >= 0 and settled_server_sequence >= first_released_input_sequence
 
 	_assert(player.position.distance_to(target_dummy_position) < 2.0, "the red Player's predicted position is within melee reach of the target dummy before attacking (position: %s)" % player.position)
-	_assert(authoritative_position[0].distance_to(target_dummy_position) < 2.0, "authoritative player is in melee reach before attacking (position: %s)" % authoritative_position[0])
+	_assert(released_input_acknowledged, "server acknowledges the first released movement input (target_sequence: %d, server_sequence: %d)" % [first_released_input_sequence, settled_server_sequence])
+	_assert(authoritative_position[0].distance_to(target_dummy_position) < 2.0, "authoritative player is in melee reach before attacking (position: %s, server_sequence: %d, client_sequence: %d, sequence_gap: %d)" % [authoritative_position[0], settled_server_sequence, settled_client_sequence, settled_sequence_gap])
 
 	# --- Submit a melee ActionIntent over the real RPC seam -----------------
 	var resolution_received: Array = [false, "", ""]

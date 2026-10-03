@@ -1,12 +1,104 @@
 import json
 import sys
+import threading
+import subprocess
+from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 from pathlib import Path
-from urllib.error import HTTPError
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from app import _roadmap_milestones, delivery_projection, render_delivery, render_tracker
 from tracker import inline_markdown, load_tracker, validate_tracker
 import tracker as tracker_module
+
+
+def test_cached_feed_reads_survive_restart_without_network(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    calls = []
+    payload = {"issues": [{"number": 1433, "title": "Cache", "state": "open"}], "milestones": []}
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        return payload
+
+    path = tmp_path / "feed.json"
+    cache = GitHubFeedCache(path, "example/project", fetch, clock=lambda: 100.0)
+    assert cache.read()["available"] is False
+    assert calls == []
+    assert cache.request_refresh() is True
+    assert cache.wait_for_refresh(2) is True
+    assert cache.read()["issues"][0]["number"] == 1433
+    restarted = GitHubFeedCache(path, "example/project", fetch, clock=lambda: 200.0)
+    assert restarted.read()["available"] is True
+    assert restarted.read()["updated_at"] == 100.0
+    assert restarted.read()["stale"] is False
+    assert len(calls) == 1
+
+
+def test_refresh_schedule_and_failure_preserve_last_good_snapshot(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    now = [100.0]
+    calls = []
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        if len(calls) > 1:
+            raise RuntimeError("GitHub unavailable")
+        return {"issues": [{"number": 1433, "title": "Cache", "state": "open"}], "milestones": []}
+
+    path = tmp_path / "feed.json"
+    cache = GitHubFeedCache(path, "example/project", fetch, clock=lambda: now[0])
+    assert cache.refresh_if_due() is True
+    assert cache.wait_for_refresh(2) is True
+    for _ in range(10):
+        assert cache.read()["available"] is True
+        assert cache.refresh_if_due() is False
+    now[0] = 1899.0
+    assert cache.refresh_if_due() is False
+    now[0] = 1900.0
+    assert cache.refresh_if_due() is True
+    assert cache.wait_for_refresh(2) is True
+    assert len(calls) == 2
+    assert cache.read()["available"] is True
+    assert cache.read()["issues"][0]["number"] == 1433
+    assert cache.read()["stale"] is True
+    assert "GitHub unavailable" in cache.read()["error"]
+    assert cache.refresh_if_due() is False
+    assert json.loads(path.read_text())["updated_at"] == 100.0
+
+
+def test_simultaneous_manual_refreshes_share_one_fetch(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        entered.set()
+        assert release.wait(2)
+        return {"issues": [], "milestones": []}
+
+    cache = GitHubFeedCache(tmp_path / "feed.json", "example/project", fetch)
+    try:
+        assert cache.request_refresh() is True
+        assert entered.wait(2)
+        assert cache.read()["refreshing"] is True
+        assert cache.request_refresh() is False
+        assert cache.request_refresh() is False
+        assert calls == [{}]
+    finally:
+        release.set()
+        assert cache.wait_for_refresh(2)
+    assert cache.read()["refreshing"] is False
+    assert cache.request_refresh() is True
+    assert cache.wait_for_refresh(2)
+    assert len(calls) == 2
 
 
 def test_tracker_model_extracts_phases_and_queue(tmp_path: Path) -> None:
@@ -48,40 +140,224 @@ def test_delivery_projection_normalizes_issue_native_fields() -> None:
 
 
 def test_github_issue_feed_keeps_issues_beyond_five_pages(monkeypatch) -> None:
-    import app
+    import github_cache
 
-    class FakeResponse:
-        def __init__(self, payload: list[dict]) -> None:
-            self.payload = payload
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps(self.payload).encode("utf-8")
-
-    def fake_urlopen(request, timeout: int):
-        assert timeout == 5
-        if "/milestones?" in request.full_url:
-            return FakeResponse([])
-        page = int(request.full_url.rsplit("page=", 1)[1])
+    def fake_api(endpoint: str, etag: str):
+        if "/milestones?" in endpoint:
+            return 200, {}, []
+        page = int(endpoint.rsplit("page=", 1)[1])
         if page <= 6:
             payload = [{"number": page * 100 + offset, "state": "open"} for offset in range(100)]
             if page == 6:
                 payload[0]["number"] = 551
-            return FakeResponse(payload)
-        raise HTTPError(request.full_url, 422, "pagination limit", {}, None)
+            return 200, {}, payload
+        return 200, {}, []
 
-    monkeypatch.setattr(app, "urlopen", fake_urlopen)
-    app._ISSUE_CACHE.update({"at": 0.0, "data": {"available": False}})
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    feed = github_cache.fetch_github_feed("example/project", {})
 
-    feed = app.github_issues()
-
-    assert feed["available"] is True
     assert any(issue["number"] == 551 for issue in feed["issues"])
+
+
+def test_unchanged_github_pages_use_etags_and_keep_complete_feed(monkeypatch) -> None:
+    import github_cache
+
+    calls = []
+
+    def fake_api(endpoint: str, etag: str):
+        calls.append((endpoint, etag))
+        if etag:
+            assert etag == '"unchanged"'
+            return 304, {}, None
+        payload = [{"number": 1433, "title": "Cache", "state": "open"}]
+        if "/issues?" in endpoint:
+            payload.append({"number": 1434, "pull_request": {}, "state": "open"})
+        return 200, {"etag": '"unchanged"'}, payload
+
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    first = github_cache.fetch_github_feed("example/project", {})
+    second = github_cache.fetch_github_feed("example/project", first)
+    assert first["issues"] == second["issues"]
+    assert first["milestones"] == second["milestones"]
+    assert len(second["issues"]) == 1
+    assert len(second["milestones"]) == 1
+    assert len(calls) == 4
+    assert all(etag == '"unchanged"' for _, etag in calls[2:])
+
+
+def test_incomplete_github_sync_is_not_published(monkeypatch) -> None:
+    import github_cache
+
+    def fake_api(endpoint: str, etag: str):
+        if "/milestones?" in endpoint:
+            return 503, {}, None
+        return 200, {}, [{"number": 1433, "title": "Cache", "state": "open"}]
+
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    with pytest.raises(RuntimeError, match="milestones.*503"):
+        github_cache.fetch_github_feed("example/project", {})
+
+
+def test_github_pagination_error_does_not_silently_truncate(monkeypatch) -> None:
+    import github_cache
+
+    def fake_api(endpoint: str, etag: str):
+        if endpoint.endswith("page=1"):
+            return 200, {}, [{"number": number, "state": "open"} for number in range(1, 101)]
+        return 422, {}, None
+
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    with pytest.raises(RuntimeError, match="issues.*422"):
+        github_cache.fetch_github_feed("example/project", {})
+
+
+@pytest.mark.parametrize("status,payload", [(200, [{"number": 1433}]), (304, None)])
+def test_github_cli_response_framing_and_conditional_header(monkeypatch, status, payload) -> None:
+    import github_cache
+
+    def run(command: list[str], **kwargs):
+        assert command[:5] == ["gh", "api", "--method", "GET", "--include"]
+        assert 'If-None-Match: "cached"' in command
+        assert kwargs["timeout"] == 20
+        body = json.dumps(payload) if payload is not None else ""
+        return subprocess.CompletedProcess(command, 0, f'HTTP/2.0 {status} OK\r\nEtag: "new"\r\n\r\n{body}', "")
+
+    monkeypatch.setattr(github_cache.subprocess, "run", run)
+    code, headers, result = github_cache.run_api("repos/example/project/issues", '"cached"')
+    assert code == status
+    assert headers["etag"] == '"new"'
+    assert result == payload
+
+
+def test_background_refresh_runs_without_page_requests(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    entered = threading.Event()
+
+    def fetch(previous: dict) -> dict:
+        entered.set()
+        return {"issues": [], "milestones": []}
+
+    cache = GitHubFeedCache(tmp_path / "feed.json", "example/project", fetch)
+    try:
+        cache.start()
+        cache.start()
+        assert entered.wait(2)
+        assert cache.wait_for_refresh(2)
+        assert cache.read()["available"] is True
+    finally:
+        cache.close()
+
+
+def test_corrupt_cache_is_unavailable_until_manually_repaired(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    path = tmp_path / "feed.json"
+    path.write_text('{"schema_version": 1, "repo": "example/project", "updated_at": 1e300, "issues": [], "milestones": []}')
+    cache = GitHubFeedCache(path, "example/project", lambda previous: {"issues": [], "milestones": []})
+    assert cache.read()["available"] is False
+    assert "timestamp" in cache.read()["error"]
+    assert cache.request_refresh()
+    assert cache.wait_for_refresh(2)
+    assert cache.read()["available"] is True
+
+
+def test_failed_snapshot_cleanup_does_not_wedge_future_refreshes(tmp_path: Path, monkeypatch) -> None:
+    import github_cache
+
+    cache = github_cache.GitHubFeedCache(tmp_path / "feed.json", "example/project", lambda previous: {"issues": [], "milestones": []})
+    assert cache.request_refresh()
+    assert cache.wait_for_refresh(2)
+
+    def fail(*args):
+        raise OSError("storage unavailable")
+
+    with monkeypatch.context() as storage:
+        storage.setattr(github_cache.os, "replace", fail)
+        storage.setattr(github_cache.os, "unlink", fail)
+        assert cache.request_refresh()
+        assert cache.wait_for_refresh(2)
+        assert cache.read()["refreshing"] is False
+        assert cache.read()["available"] is True
+        assert "cleanup" in cache.read()["error"].lower()
+    assert cache.request_refresh()
+    assert cache.wait_for_refresh(2)
+    assert cache.read()["error"] == ""
+
+
+def test_dashboard_manual_refresh_is_same_origin_and_browsing_never_fetches(tmp_path: Path, monkeypatch) -> None:
+    import app
+    from github_cache import GitHubFeedCache
+
+    calls = []
+    entered = threading.Event()
+    release = threading.Event()
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        entered.set()
+        assert release.wait(2)
+        return {"issues": [], "milestones": []}
+
+    cache = GitHubFeedCache(tmp_path / "feed.json", "example/project", fetch)
+    monkeypatch.setattr(app, "_ISSUE_CACHE", cache)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    connection = HTTPConnection("127.0.0.1", server.server_port, timeout=2)
+    try:
+        connection.request("GET", "/roadmap")
+        response = connection.getresponse()
+        page = response.read().decode()
+        assert response.status == 200
+        assert "Refresh now" in page
+        assert "Last successful update" in page
+        assert calls == []
+        connection.request("GET", "/api/github/status")
+        response = connection.getresponse()
+        assert response.status == 200
+        assert json.loads(response.read())["available"] is False
+        assert calls == []
+        connection.request("POST", "/api/github/refresh", headers={"Origin": "https://untrusted.test", "X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 403
+        assert calls == []
+        connection.request("POST", "/api/github/refresh", headers={"Origin": f"https://127.0.0.1:{server.server_port}", "X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 403
+        assert calls == []
+        connection.request("POST", "/api/github/refresh")
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 403
+        connection.request("POST", "/api/github/refresh", headers={"X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        assert response.status == 202
+        assert json.loads(response.read())["refreshing"] is True
+        assert entered.wait(2)
+        connection.request("POST", "/api/github/refresh", headers={"X-Dashboard-Refresh": "1"})
+        response = connection.getresponse()
+        response.read()
+        assert response.status == 202
+        assert len(calls) == 1
+        release.set()
+        assert cache.wait_for_refresh(2)
+        connection.request("GET", "/api/github/status")
+        response = connection.getresponse()
+        status = json.loads(response.read())
+        assert status["available"] is True
+        assert status["refreshing"] is False
+        assert status["interval_seconds"] == 1800
+        assert len(calls) == 1
+    finally:
+        release.set()
+        cache.wait_for_refresh(2)
+        connection.close()
+        server.shutdown()
+        server.server_close()
+        worker.join(2)
 
 
 def test_delivery_page_shows_source_failure(monkeypatch) -> None:

@@ -33,20 +33,41 @@ The master roadmap page is available at
 http://192.168.1.254:18083/roadmap. The root URL serves the same page for
 backward compatibility.
 
-The container mounts the repository read-only and has no write endpoint. It
-refreshes the roadmap every 60 seconds, so planning changes appear without
-rebuilding the image. The full backlog uses `tbp:hoshin`, `tbp:theme`,
+The container mounts the repository read-only. Page refreshes every 60 seconds
+read a local snapshot, not GitHub. The only POST endpoint requests a cache
+refresh; it does not change GitHub records. The full backlog uses `tbp:hoshin`, `tbp:theme`,
 `tbp:feature`, `tbp:epic`, and `tbp:experiment` labels plus their parent links.
 The next-work view follows an in-progress branch; when none exists, it clearly
 labels the deterministic ready-to-pull branch as proposed rather than active.
 
-The page reads GitHub issues from `GITHUB_REPO` (default
-`vnvalentin/project0`) and caches the result for `GITHUB_ISSUE_CACHE_SECONDS`
-(default `300`). The markdown vision remains the local source of truth. If
-GitHub is temporarily unreachable, the page shows a visible source warning
-rather than silently inventing a status. The `/tracker` page is retained only
+One background worker reads GitHub issues and milestones from `GITHUB_REPO`
+(default `vnvalentin/project0`) through `gh api`. Automatic refresh runs every
+`GITHUB_ISSUE_CACHE_SECONDS` (default `1800`, or 30 minutes). The **Refresh now**
+button requests an immediate asynchronous refresh; simultaneous requests share
+the current refresh. Unchanged pages are conditionally requested with ETags.
+Neither browsing nor refresh-status polling contacts GitHub.
+
+The last successful snapshot and ETags are stored atomically at
+`GITHUB_CACHE_PATH` (default `/cache/github-feed.json`) in the dedicated Compose
+cache volume. Restarting loads that snapshot and preserves its next scheduled
+refresh time. Do not run multiple dashboard instances against one cache volume.
+Tokens are supplied through `GITHUB_TOKEN` or `GH_TOKEN`, never written to the
+snapshot. The image includes `gh`; no interactive authentication is performed.
+
+GitHub remains authoritative. The toolbar displays last successful update,
+refresh progress and stale/failure state. A failed issue or milestone fetch
+preserves the entire previous snapshot and does not immediately retry; manual
+refresh remains available. Before the first successful refresh the source is
+explicitly unavailable. The cache is disposable operational data, not a second
+delivery record. Removing its volume forces a cold full fetch. The markdown
+vision remains the local source of truth. The `/tracker` page is retained only
 as a read-only viewer of the frozen `docs/PROJECT-TRACKER.md` archive; it does
 not project active status or enforce tracker parity.
+
+`GET /api/github/status` returns local freshness/progress and counts, not issue
+bodies. `POST /api/github/refresh` requires `X-Dashboard-Refresh: 1` and rejects
+cross-origin browser requests; the button sends this automatically. It returns
+`202` without waiting for GitHub. Existing LAN-only exposure is unchanged.
 
 The `/delivery` page is the local operational view for active GitHub Issues. It
 shows the active delivery table and groups work by Outcome and Phase, with
