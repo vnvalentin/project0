@@ -20,10 +20,12 @@ extends SceneTree
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
+const TELEMETRY_DB_PATH_ENV_VAR: String = "PROJECT0_TELEMETRY_DB_PATH"
 
 var _failures: int = 0
 var _server_process_id: int = -1
 var _gameplay_instance: Node3D
+var _telemetry_db_path: String = ""
 
 
 func _initialize() -> void:
@@ -31,6 +33,10 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var had_telemetry_override: bool = OS.has_environment(TELEMETRY_DB_PATH_ENV_VAR)
+	var previous_telemetry_override: String = OS.get_environment(TELEMETRY_DB_PATH_ENV_VAR)
+	_telemetry_db_path = "test_prediction_telemetry_%d_%d.db" % [OS.get_process_id(), Time.get_ticks_usec()]
+	OS.set_environment(TELEMETRY_DB_PATH_ENV_VAR, _telemetry_db_path)
 	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_prediction_and_reconciliation()
 
@@ -38,12 +44,30 @@ func _run() -> void:
 		OS.kill(_server_process_id)
 
 	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
+	_assert(
+		_restore_telemetry_database(had_telemetry_override, previous_telemetry_override),
+		"owned telemetry fixture database removed"
+	)
 	if _failures == 0:
 		print("ALL PASS")
 		quit(0)
 	else:
 		push_error("%d assertion(s) failed" % _failures)
 		quit(1)
+
+
+func _restore_telemetry_database(had_override: bool, previous_override: String) -> bool:
+	if had_override:
+		OS.set_environment(TELEMETRY_DB_PATH_ENV_VAR, previous_override)
+	else:
+		OS.unset_environment(TELEMETRY_DB_PATH_ENV_VAR)
+
+	var removed: bool = true
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		var path: String = "user://" + _telemetry_db_path + suffix
+		if FileAccess.file_exists(path) and DirAccess.remove_absolute(path) != OK:
+			removed = false
+	return removed
 
 
 func _assert(condition: bool, message: String) -> void:
