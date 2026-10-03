@@ -213,9 +213,14 @@ services:
       - "${REPO_DIR:-/data/code/project0}:/repo:ro"
       # Slice 165 (telemetry map #282, decision #290): read-only view of the
       # game server's user:// data directory, so the /telemetry page can open
-      # telemetry.db. Never mounted read-write — the dashboard has no write
-      # endpoint anywhere.
+      # telemetry.db. Never mounted read-write.
       - "${GAME_DATA_DIR:-/var/lib/project0/game}:/gamedata:ro"
+      - dashboard-cache:/cache
+    environment:
+      GITHUB_REPO: ${GITHUB_REPO:-vnvalentin/project0}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-${GH_TOKEN:-}}
+      GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-1800}
+      GITHUB_CACHE_PATH: /cache/github-feed.json
     mem_limit: 256m
     cpus: 0.5
     restart: unless-stopped
@@ -246,3 +251,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+volumes:
+  dashboard-cache:
