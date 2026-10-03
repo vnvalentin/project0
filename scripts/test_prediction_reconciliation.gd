@@ -20,10 +20,12 @@ extends SceneTree
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
+const TELEMETRY_DB_PATH_ENV_VAR: String = "PROJECT0_TELEMETRY_DB_PATH"
 
 var _failures: int = 0
 var _server_process_id: int = -1
 var _gameplay_instance: Node3D
+var _telemetry_db_path: String = ""
 
 
 func _initialize() -> void:
@@ -31,19 +33,67 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	var had_telemetry_override: bool = OS.has_environment(TELEMETRY_DB_PATH_ENV_VAR)
+	var previous_telemetry_override: String = OS.get_environment(TELEMETRY_DB_PATH_ENV_VAR)
+	_telemetry_db_path = "test_prediction_telemetry_%d_%d.db" % [OS.get_process_id(), Time.get_ticks_usec()]
+	OS.set_environment(TELEMETRY_DB_PATH_ENV_VAR, _telemetry_db_path)
 	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_prediction_and_reconciliation()
 
-	if _server_process_id != -1 and OS.is_process_running(_server_process_id):
-		OS.kill(_server_process_id)
-
-	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
+	var server_stopped: bool = await _stop_server_process()
+	_assert(server_stopped, "owned server child process stopped before fixture cleanup")
+	if server_stopped:
+		_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
+	else:
+		_restore_environment(session_environment["environment"])
+	_assert(
+		_restore_telemetry_database(had_telemetry_override, previous_telemetry_override, server_stopped),
+		"owned telemetry fixture database removed"
+	)
 	if _failures == 0:
 		print("ALL PASS")
 		quit(0)
 	else:
 		push_error("%d assertion(s) failed" % _failures)
 		quit(1)
+
+
+func _stop_server_process() -> bool:
+	if _server_process_id == -1:
+		return true
+	if OS.is_process_running(_server_process_id):
+		OS.kill(_server_process_id)
+	var deadline_msec: int = Time.get_ticks_msec() + 5000
+	while OS.is_process_running(_server_process_id) and Time.get_ticks_msec() < deadline_msec:
+		await process_frame
+	var stopped: bool = not OS.is_process_running(_server_process_id)
+	if stopped:
+		_server_process_id = -1
+	return stopped
+
+
+func _restore_environment(environment: Dictionary) -> void:
+	for key: String in environment:
+		if environment[key] == null:
+			OS.unset_environment(key)
+		else:
+			OS.set_environment(key, environment[key])
+
+
+func _restore_telemetry_database(had_override: bool, previous_override: String, server_stopped: bool) -> bool:
+	if had_override:
+		OS.set_environment(TELEMETRY_DB_PATH_ENV_VAR, previous_override)
+	else:
+		OS.unset_environment(TELEMETRY_DB_PATH_ENV_VAR)
+	if not server_stopped:
+		return false
+
+	var removed: bool = true
+	for suffix: String in ["", "-wal", "-shm", "-journal"]:
+		var path: String = "user://" + _telemetry_db_path + suffix
+		if FileAccess.file_exists(path) and DirAccess.remove_absolute(path) != OK:
+			removed = false
+	return removed
 
 
 func _assert(condition: bool, message: String) -> void:
@@ -190,9 +240,10 @@ func _test_prediction_and_reconciliation() -> void:
 	# sequence acknowledgement) and in scripts/test_authoritative_movement.gd
 	# (Slice 004); this section isolates only the client-side smoothing
 	# behavior added in Slice 005.
-	if _server_process_id != -1 and OS.is_process_running(_server_process_id):
-		OS.kill(_server_process_id)
-		_server_process_id = -1
+	var server_stopped: bool = await _stop_server_process()
+	_assert(server_stopped, "server process stops before client-only smoothing checks")
+	if not server_stopped:
+		return
 
 	# OS.kill() ends the server process but does not recall UDP packets it
 	# already sent before dying; without draining a few frames here, one of
