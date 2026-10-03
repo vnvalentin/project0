@@ -172,11 +172,27 @@ print('4.3.stable.fixture')
     runner = root / SOURCES[2]
     copied = runner.read_text().replace('/usr/local/bin/godot', str(godot))
     copied = copied.replace('10s git', '0.1s git').replace('10s ' + str(godot), '0.1s ' + str(godot))
+    sentinel = None
+    if variation == 'evidence_collision':
+        collision = root / 'build/validation/840/collided'
+        collision.mkdir(parents=True)
+        sentinel = collision / 'sentinel'
+        sentinel.write_text('preserve existing evidence')
+        copied = copied.replace('out="$PWD/build/validation/840/$run_id"',
+                                'out="$PWD/build/validation/840/collided"')
     runner.write_text(copied)
     checker = root / 'scripts/check_validation_ownership.py'
     checker.parent.mkdir()
     checker.write_text('import sys\nfrom pathlib import Path\nPath(sys.argv[sys.argv.index("--output")+1]).write_text("{}")\n')
-    code, _, stderr = run_owned(['bash', str(runner), 'copied-control', HEAD, 'red'], root, env)
+    code, stdout, stderr = run_owned(['bash', str(runner), 'copied-control', HEAD, 'red'], root, env)
+    if variation == 'evidence_collision':
+        report = json.loads(stdout.strip().splitlines()[-1])
+        assert code != 0 and report['status'] == 'failed', (variation, code, report, stderr)
+        assert report['result_retention'] == 'NOT_OBSERVED'
+        assert 'evidence_directory_not_reserved' in report['errors']
+        assert sentinel.read_text() == 'preserve existing evidence'
+        assert not (context / 'unexpected-runtime').exists()
+        return {'case': variation, 'expected_acceptance': False, 'status': 'passed'}
     reports = list((root / 'build/validation/840').glob('*/focused-result.json'))
     assert len(reports) == 1, (variation, code, stderr)
     report = json.loads(reports[0].read_text())
@@ -214,20 +230,22 @@ def main():
                    'prior-not-run', 'prior-no-assertions')
     whole = ('status_failure', 'status_unavailable', 'status_timeout',
              'engine_unavailable', 'engine_timeout', 'engine_empty', 'engine_malformed')
-    for variation, operation in [(c, serializer_control) for c in serializers] + [(c, whole_control) for c in whole]:
-        context = Path(tempfile.mkdtemp(prefix='project0-840-copied-evidence-'))
+    for variation, operation in [(c, serializer_control) for c in serializers] + [(c, whole_control) for c in whole + ('evidence_collision',)]:
+        context = None
         try:
+            context = Path(tempfile.mkdtemp(prefix='project0-840-copied-evidence-'))
             cases.append(operation(context, variation))
         except Exception as exc:
             failures.append({'case': variation, 'error': str(exc)})
         finally:
-            try:
-                shutil.rmtree(context)
-                if context.exists():
-                    raise OSError('temporary context still exists after cleanup')
-            except Exception as exc:
-                contexts_removed = False
-                failures.append({'case': variation, 'cleanup_error': str(exc)})
+            if context is not None:
+                try:
+                    shutil.rmtree(context)
+                    if context.exists():
+                        raise OSError('temporary context still exists after cleanup')
+                except Exception as exc:
+                    contexts_removed = False
+                    failures.append({'case': variation, 'cleanup_error': str(exc)})
     try:
         preserved = before == hashes(ROOT)
     except Exception as exc:

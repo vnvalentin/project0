@@ -7,8 +7,7 @@ mode="${3:-green}"
 [[ "$label" =~ ^[a-z0-9-]+$ && "$expected_head" =~ ^[a-f0-9]{40}$ && "$mode" =~ ^(red|green)$ ]] || exit 2
 run_id="$(date -u +%Y%m%dT%H%M%SZ)-${label}-$$"
 out="$PWD/build/validation/840/$run_id"
-test ! -e "$out"
-mkdir -p "$out"
+out_reserved=false
 state=""
 revision=NOT_OBSERVED
 engine=NOT_OBSERVED
@@ -30,10 +29,10 @@ finish() {
   case "$state" in "") ;; /tmp/project0-840-focused-*) rm -rf -- "$state" ;; *) state_guard_failed=true ;; esac
   cleanup=false
   [[ -z "$state" || ! -e "$state" ]] && [[ "${state_guard_failed:-false}" == false ]] && cleanup=true
-  python3 - "$out" "$label" "$revision" "$expected_head" "$engine" "$stage" "$native_exit" "$execution_complete" "$source_clean_start" "$cleanup" "$mode" <<'PY'
+  python3 - "$out" "$label" "$revision" "$expected_head" "$engine" "$stage" "$native_exit" "$execution_complete" "$source_clean_start" "$cleanup" "$mode" "$out_reserved" <<'PY'
 import hashlib,json,re,subprocess,sys,xml.etree.ElementTree as E
 from pathlib import Path
-out,label,revision,expected,engine,stage,native_exit,complete,clean_start,cleanup,mode=sys.argv[1:]
+out,label,revision,expected,engine,stage,native_exit,complete,clean_start,cleanup,mode,out_reserved=sys.argv[1:]
 out=Path(out);errors=[]
 source_paths=['tests/unit/test_construction_contract.gd','shared/construction_contract.gd','.scratch/840/run-focused.sh','.scratch/840/validation-plan.json','.scratch/840/run-evidence-controls.py']
 sources={}
@@ -102,6 +101,9 @@ if mode=='green':
 else:
   if int(native_exit)!=1 or failed_cases!=list(red_cases) or counts['failures']!=len(red_cases): errors.append('red_not_observed')
 report={'schema_version':1,'issue':840,'host':'192.168.1.254','revision':revision,'final_revision':final_revision,'expected_head':expected,'engine':engine,'command':'bash .scratch/840/run-focused.sh '+label+' '+expected+' '+mode,'mode':mode,'stage':stage,'native_exit_code':int(native_exit),'status':'passed' if not errors else 'failed','expected_tests':expected_tests,**counts,'source_clean_start':clean_start=='true','source_clean_end':clean_end,'source_sha256':sources,'cleanup_verified':cleanup=='true','errors':errors,'action_validation':'NOT_OBSERVED','persistence':'NOT_OBSERVED','windows_runtime':'NOT_OBSERVED','result_retention':'OBSERVED'}
+if out_reserved!='true':
+  report['status']='failed';report['result_retention']='NOT_OBSERVED';report['errors'].append('evidence_directory_not_reserved')
+  print(json.dumps(report));raise SystemExit(1)
 try:
     (out/'focused-result.json').write_text(json.dumps(report,indent=2)+'\n')
 except OSError:
@@ -113,6 +115,16 @@ PY
   exit "$?"
 }
 trap finish EXIT
+stage=evidence_directory
+if ! mkdir -p -- "$(dirname "$out")"; then
+  printf 'Could not create evidence parent directory: %s\n' "$(dirname "$out")" >&2
+  exit 1
+fi
+if ! mkdir -- "$out"; then
+  printf 'Could not reserve unique evidence directory: %s\n' "$out" >&2
+  exit 1
+fi
+out_reserved=true
 stage=initial_identity
 if initial_revision="$(timeout --kill-after=1s 10s git rev-parse HEAD 2>/dev/null)"; then
   [[ "$initial_revision" =~ ^[0-9a-f]{40}$ ]] || exit 1
