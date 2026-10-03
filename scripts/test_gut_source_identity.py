@@ -451,6 +451,8 @@ raise SystemExit(''' + str(code) + ')\n')
         self.assertFalse(self.engine_calls.exists())
 
     def test_hosted_command_builds_dependency_image_before_consumer_with_only_recipe_context(self):
+        image = "project0-gut-validation:test"
+        self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = image
         result = self.run_command("run_hosted_gut_container.sh")
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
@@ -458,9 +460,16 @@ raise SystemExit(''' + str(code) + ')\n')
         run = next(call for call in calls if call[0] == "run")
         self.assertLess(calls.index(build), calls.index(run))
         self.assertEqual(build[-1], str(self.root / "deploy/validation"))
+        self.assertEqual(build[build.index("--tag") + 1], image)
         self.assertIn("GODOT_IMAGE=ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602", build)
-        self.assertIn("project0-gut-validation:local", run)
+        self.assertIn(image, run)
         self.assertNotIn("--push", build)
+
+    def test_hosted_command_rejects_invalid_image_name_before_docker(self):
+        self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "--network=host"
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse(self.docker_calls.exists())
 
     def test_hosted_build_failure_stops_consumer_and_retains_dependency_evidence(self):
         self.env["FAKE_DOCKER_BUILD_EXIT"] = "7"
