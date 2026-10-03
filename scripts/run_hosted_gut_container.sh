@@ -75,6 +75,11 @@ if ! validation_context_qualified; then
   echo "VALIDATION GATE ERROR: validation build context is not the single owned recipe." >&2
   exit 2
 fi
+if docker image inspect "$image" >/dev/null 2>&1; then
+  record_image_failure 2 false
+  echo "VALIDATION GATE ERROR: validation image tag already exists; preserving it." >&2
+  exit 2
+fi
 if docker build --build-arg "GODOT_IMAGE=$base_image" --tag "$image" \
     "$root/deploy/validation" >/dev/null 2>&1; then
   :
@@ -84,8 +89,65 @@ else
   echo "VALIDATION GATE ERROR: validation image dependencies could not be built." >&2
   exit "$build_status"
 fi
+image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null)" || {
+  record_image_failure 2 true
+  echo "VALIDATION GATE ERROR: built validation image identity is unavailable." >&2
+  exit 2
+}
+if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  record_image_failure 2 true
+  echo "VALIDATION GATE ERROR: built validation image identity is invalid." >&2
+  exit 2
+fi
+record_image_cleanup_failure() {
+  local summary="$root/build/validation/validation-summary.json"
+  local python_bin="${PYTHON_BIN:-python3}"
+  if ! "$python_bin" - "$summary" >/dev/null 2>&1 <<'PYCLEANUP'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+try:
+    result = json.loads(path.read_text()) if path.is_file() and not path.is_symlink() else {}
+    if not isinstance(result, dict):
+        result = {}
+except (OSError, ValueError):
+    result = {}
+result.update(status="failed", stage="validation-image-cleanup", exit_code=1,
+              validation_image_removed=False)
+path.write_text(json.dumps(result, indent=2) + "\n")
+PYCLEANUP
+  then
+    printf '%s\n' '{"schema_version":1,"runner":"GUT","status":"failed","stage":"validation-image-cleanup","exit_code":1,"validation_image_removed":false}' > "$summary"
+  fi
+}
 cleanup() {
+  local runner_exit=$?
+  local image_cleanup_failed=false
+  local current_image_id
+  local inspect_status
+  trap - EXIT
   docker rm -f "$container" >/dev/null 2>&1 || true
+  set +e
+  current_image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null)"
+  inspect_status=$?
+  set -e
+  if [[ "$inspect_status" -eq 0 ]]; then
+    if [[ "$current_image_id" == "$image_id" ]]; then
+      if ! docker image rm "$image" >/dev/null 2>&1; then
+        image_cleanup_failed=true
+      fi
+    else
+      image_cleanup_failed=true
+    fi
+  elif ! docker info >/dev/null 2>&1; then
+    image_cleanup_failed=true
+  fi
+  if [[ "$image_cleanup_failed" == true ]]; then
+    record_image_cleanup_failure
+    echo "VALIDATION GATE ERROR: run-owned validation image cleanup was not qualified." >&2
+    runner_exit=1
+  fi
+  exit "$runner_exit"
 }
 trap cleanup EXIT
 
