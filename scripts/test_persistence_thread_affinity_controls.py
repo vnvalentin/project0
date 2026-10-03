@@ -303,6 +303,22 @@ class PersistenceThreadAffinityControls(unittest.TestCase):
         inputs[1]["expected_provenance"]["release_artifact_sha256"] = "0" * 64
         self.assert_rejected(inputs, "provenance")
 
+    def test_unqualified_source_or_provenance_yields_no_numeric_measurements(self):
+        for kind in ("source_binding", "source_inventory", "provenance"):
+            with self.subTest(upstream=kind):
+                inputs = list(canonical_inputs())
+                if kind == "source_binding":
+                    inputs[1]["source_hashes"]["fixture"] = "0" * 64
+                elif kind == "source_inventory":
+                    inputs[2] += b"\ndatabase.query(\"untraced\")\n"
+                    digest = hashlib.sha256(inputs[2]).hexdigest()
+                    inputs[1]["source_hashes"]["fixture"] = digest
+                    inputs[0]["source_fixture_sha256"] = digest
+                else:
+                    inputs[0]["loaded_addon"]["mapped_member_sha256"] = "0" * 64
+                verdict = self.assert_rejected(tuple(inputs), kind)
+                self.assertTrue(all(number is None for row in verdict["measurements"].values() for number in row.values()))
+
     def test_rehashed_source_with_untraced_native_or_blocking_calls_still_fails(self):
         for target, suffix in ((2, b"\ndatabase.query(\"untraced\")\n"), (2, b"\n_control.lock()\n"),
                                (2, b"\nvar alias: SQLite = database\n"), (3, b"\nOS.delay_usec(1)\n"),

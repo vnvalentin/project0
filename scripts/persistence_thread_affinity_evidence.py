@@ -633,6 +633,10 @@ def validate_evidence(report: object, expected_manifest: object,
                           <= clock["samples_usec"][-1] <= modes[0]["initialization_end_usec"], "clock", errors)
     except (TypeError, ValueError, KeyError, UnicodeError, OverflowError, AttributeError, RecursionError):
         errors.add("schema")
+    # Unqualified input provenance is not a source for numeric observations,
+    # including zero. Qualified mode-local failures may retain known partials.
+    if errors & {"source_binding", "source_inventory", "provenance"}:
+        measurements = {mode: dict.fromkeys(MEASUREMENT_KEYS) for mode in MODES}
     failed = [code for code in FAILURE_CODES if code in errors]
     return {"schema_version": 1, "passed": not failed,
             "coverage": NOT_OBSERVED if failed else "QUALIFIED", "failure_codes": failed,
