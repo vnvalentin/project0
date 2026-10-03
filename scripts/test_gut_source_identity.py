@@ -127,7 +127,11 @@ if sys.argv[1:3] == ["image", "rm"]:
 if sys.argv[1:2] == ["build"]:
     status = int(os.environ.get("FAKE_DOCKER_BUILD_EXIT", "0"))
     if status == 0:
-        state.write_text("sha256:" + "a" * 64)
+        image_id = "sha256:" + "a" * 64
+        state.write_text(image_id)
+        if os.environ.get("FAKE_DOCKER_IMAGE_ID_MISSING") != "1":
+            iidfile = Path(sys.argv[sys.argv.index("--iidfile") + 1])
+            iidfile.write_text(image_id)
     sys.exit(status)
 if sys.argv[1:2] == ["run"] and os.environ.get("FAKE_DOCKER_REPLACE_IMAGE") == "1":
     state.write_text("sha256:" + "b" * 64)
@@ -480,12 +484,24 @@ raise SystemExit(''' + str(code) + ')\n')
         run = next(call for call in calls if call[0] == "run")
         self.assertLess(calls.index(build), calls.index(run))
         self.assertEqual(build[-1], str(self.root / "deploy/validation"))
+        self.assertIn("--iidfile", build)
         self.assertEqual(build[build.index("--tag") + 1], image)
         self.assertIn("GODOT_IMAGE=ghcr.io/vnvalentin/project0-godot@sha256:801341fea24b22777e65e8ad5b38ca306c33e59b4adcdc14c37d8f461b162602", build)
         self.assertIn(image, run)
         self.assertNotIn("--push", build)
         self.assertFalse(self.docker_image_state.exists())
         self.assertIn(["image", "rm", image], calls)
+
+    def test_hosted_command_reports_unavailable_image_identity_without_unowned_removal(self):
+        self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:missing-id"
+        self.env["FAKE_DOCKER_IMAGE_ID_MISSING"] = "1"
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+        self.assertEqual(self.docker_image_state.read_text(), "sha256:" + "a" * 64)
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        self.assertFalse(any(call[:2] == ["image", "rm"] for call in calls))
+        summary = json.loads((self.root / "build/validation/validation-summary.json").read_text())
+        self.assertEqual(summary["stage"], "validation-image-cleanup")
 
     def test_hosted_command_preserves_preexisting_image_tag(self):
         image = "project0-gut-validation:existing"

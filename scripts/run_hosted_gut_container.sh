@@ -80,25 +80,13 @@ if docker image inspect "$image" >/dev/null 2>&1; then
   echo "VALIDATION GATE ERROR: validation image tag already exists; preserving it." >&2
   exit 2
 fi
-if docker build --build-arg "GODOT_IMAGE=$base_image" --tag "$image" \
-    "$root/deploy/validation" >/dev/null 2>&1; then
-  :
-else
-  build_status=$?
-  record_image_failure "$build_status"
-  echo "VALIDATION GATE ERROR: validation image dependencies could not be built." >&2
-  exit "$build_status"
-fi
-image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null)" || {
-  record_image_failure 2 true
-  echo "VALIDATION GATE ERROR: built validation image identity is unavailable." >&2
+image_id_file="$(mktemp "${TMPDIR:-/tmp}/project0-gut-image-id.XXXXXX")" || {
+  record_image_failure 2 false
+  echo "VALIDATION GATE ERROR: image identity evidence path is unavailable." >&2
   exit 2
 }
-if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-  record_image_failure 2 true
-  echo "VALIDATION GATE ERROR: built validation image identity is invalid." >&2
-  exit 2
-fi
+image_id=""
+image_created=false
 record_image_cleanup_failure() {
   local summary="$root/build/validation/validation-summary.json"
   local python_bin="${PYTHON_BIN:-python3}"
@@ -127,19 +115,28 @@ cleanup() {
   local inspect_status
   trap - EXIT
   docker rm -f "$container" >/dev/null 2>&1 || true
-  set +e
-  current_image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null)"
-  inspect_status=$?
-  set -e
-  if [[ "$inspect_status" -eq 0 ]]; then
-    if [[ "$current_image_id" == "$image_id" ]]; then
-      if ! docker image rm "$image" >/dev/null 2>&1; then
+  if [[ "$image_created" == true ]]; then
+    if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      image_cleanup_failed=true
+    else
+      set +e
+      current_image_id="$(docker image inspect "$image" --format '{{.Id}}' 2>/dev/null)"
+      inspect_status=$?
+      set -e
+      if [[ "$inspect_status" -eq 0 ]]; then
+        if [[ "$current_image_id" == "$image_id" ]]; then
+          if ! docker image rm "$image" >/dev/null 2>&1; then
+            image_cleanup_failed=true
+          fi
+        else
+          image_cleanup_failed=true
+        fi
+      elif ! docker info >/dev/null 2>&1; then
         image_cleanup_failed=true
       fi
-    else
-      image_cleanup_failed=true
     fi
-  elif ! docker info >/dev/null 2>&1; then
+  fi
+  if ! rm -f -- "$image_id_file"; then
     image_cleanup_failed=true
   fi
   if [[ "$image_cleanup_failed" == true ]]; then
@@ -150,6 +147,21 @@ cleanup() {
   exit "$runner_exit"
 }
 trap cleanup EXIT
+if docker build --iidfile "$image_id_file" --build-arg "GODOT_IMAGE=$base_image" \
+    --tag "$image" "$root/deploy/validation" >/dev/null 2>&1; then
+  image_created=true
+else
+  build_status=$?
+  record_image_failure "$build_status"
+  echo "VALIDATION GATE ERROR: validation image dependencies could not be built." >&2
+  exit "$build_status"
+fi
+image_id="$(<"$image_id_file")"
+if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  record_image_failure 2 true
+  echo "VALIDATION GATE ERROR: built validation image identity is invalid." >&2
+  exit 2
+fi
 
 container_command=(bash -c 'umask 0002; exec bash scripts/run_gut_validation.sh')
 if [[ "$mode" == "--probe" ]]; then
