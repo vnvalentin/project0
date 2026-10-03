@@ -42,8 +42,13 @@ call counts, exit behavior, quota snapshots, and retained failure evidence.
 - Given a `gh project` command fails, when run through the guard, it executes
   once, records exact stderr/exit and one REST quota snapshot, and does not
   report synchronization success.
+- Given a direct GraphQL command exits zero but returns GraphQL `errors`, the
+  guard records failure and the exact response rather than treating it as
+  success.
 - Given issue data has a REST endpoint, the documented process uses REST rather
   than spending GraphQL points for that operation.
+- Given project metadata was already fetched for this task, later operations
+  reuse that run-scoped result instead of repeating broad field/item inventories.
 - Given Project recovery, completion still requires a targeted field readback;
   a successful mutation alone is not synchronization evidence.
 
@@ -51,7 +56,8 @@ call counts, exit behavior, quota snapshots, and retained failure evidence.
 
 1. Add mock-based tests for preflight success, exhausted primary quota,
    GraphQL rejection with points remaining, malformed API responses, and
-   one-shot Project CLI failure evidence.
+  one-shot Project CLI failure evidence, including GraphQL errors with a zero
+  CLI exit status.
 2. Add the Python guard to satisfy the tests. It will make subprocess calls
    without a shell, never auto-retry, avoid logging credentials, and write
    machine-readable evidence on both success and failure.

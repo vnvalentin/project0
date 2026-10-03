@@ -122,6 +122,24 @@ class GitHubApiGuardTests(unittest.TestCase):
         self.assertEqual(evidence["command_stderr"], "project request failed")
         self.assertEqual(evidence["quota_error"], "REST unavailable")
 
+    def test_graphql_errors_with_success_exit_are_treated_as_failure(self):
+        command = ["gh", "api", "graphql", "-f", "query=query { viewer { login } }"]
+        response = '{"data":{"viewer":null},"errors":[{"message":"denied"}]}'
+        with tempfile.TemporaryDirectory() as directory:
+            runner = Mock(side_effect=[
+                Mock(returncode=0, stdout=response, stderr=""),
+                self.quota_result(remaining=4700),
+            ])
+            exit_code, evidence = self.invoke(["run", "--", *command], runner, directory)
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(runner.call_count, 2)
+        self.assertEqual(evidence["returncode"], 0)
+        self.assertEqual(evidence["guard_exit_code"], 1)
+        self.assertEqual(evidence["status"], "failed")
+        self.assertEqual(evidence["reason"], "graphql_response_errors")
+        self.assertEqual(evidence["command_response"], response)
+
 
 if __name__ == "__main__":
     unittest.main()

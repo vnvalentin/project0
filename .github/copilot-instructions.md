@@ -73,8 +73,10 @@ Do not preflight unrelated work. Run each `gh project` or direct GraphQL
 operation exactly once through `scripts/github_api_guard.py run`, using a new
 evidence path; use direct authenticated `gh api` REST endpoints for supported
 issue operations. Keep Project queries scoped, serialize mutations, and verify
-mutations with a targeted readback. The guard captures exact failures and a
-REST quota snapshot without retrying. On failure, stop the affected delivery
+mutations with a targeted readback. Fetch `gh project field-list` or broad item
+inventories only when needed and reuse their run-scoped results; do not repeat
+them for each issue. The guard captures exact failures and a REST quota snapshot
+without retrying. On failure, stop the affected delivery
 path, record the blocker, and do not claim Project synchronization until
 readback succeeds. Retry only one deliberate read-only probe after a recorded
 reset or confirmed recovery. See [AGENTS.md](../AGENTS.md) for the full

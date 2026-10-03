@@ -106,14 +106,34 @@ def _guarded_command(evidence_path, command, runner):
         return 2
 
     result = runner(command, capture_output=True, text=True, check=False)
+    guard_exit_code = result.returncode
+    graphql_reason = None
+    graphql_response = None
+    if command[1] == "api":
+        graphql_response = _parse_json(result.stdout)
+        if result.returncode == 0:
+            data = graphql_response.get("data") if isinstance(graphql_response, dict) else None
+            errors = graphql_response.get("errors") if isinstance(graphql_response, dict) else None
+            if errors:
+                graphql_reason = "graphql_response_errors"
+            elif not isinstance(data, dict):
+                graphql_reason = "invalid_graphql_response"
+            if graphql_reason is not None:
+                guard_exit_code = 1
+
     evidence = {
         "operation": "github_cli",
         "command": command[:3],
         "returncode": result.returncode,
-        "status": "success" if result.returncode == 0 else "failed",
+        "guard_exit_code": guard_exit_code,
+        "status": "success" if guard_exit_code == 0 else "failed",
     }
-    if result.returncode != 0:
+    if graphql_reason is not None:
+        evidence["reason"] = graphql_reason
+    if guard_exit_code != 0:
         evidence["command_stderr"] = result.stderr
+        if command[1] == "api":
+            evidence["command_response"] = result.stdout
         quota, quota_error, _ = _quota_snapshot(runner)
         if quota_error is None:
             evidence["quota"] = quota
@@ -124,9 +144,9 @@ def _guarded_command(evidence_path, command, runner):
     if result.stdout:
         sys.stdout.write(result.stdout)
     if result.stderr:
-        target = sys.stdout if result.returncode == 0 else sys.stderr
+        target = sys.stdout if guard_exit_code == 0 else sys.stderr
         target.write(result.stderr)
-    return result.returncode
+    return guard_exit_code
 
 
 def _parser():

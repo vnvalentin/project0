@@ -197,9 +197,12 @@ Do not create implementation slices or product code while this gate is open.
   Use direct authenticated `gh api` REST endpoints for issue reads and writes
   when REST supports the operation; some convenient `gh issue` commands use
   GraphQL. Keep Project queries scoped to the target issue/item and required
-  fields, paginate only when needed, and serialize mutations. The guard never
-  retries; on command failure it preserves the exact stderr/exit status and
-  takes one REST quota snapshot. Stop, retain the evidence, and keep Project
+  fields, paginate only when needed, and serialize mutations. Read project
+  metadata such as `gh project field-list` only when needed and reuse its
+  run-scoped result; do not repeat broad field or item inventories for each
+  issue. The guard never retries; on command failure it preserves the exact
+  stderr/exit status and takes one REST quota snapshot. Stop, retain the
+  evidence, and keep Project
   synchronization blocked until a targeted readback succeeds. Do not infer
   GraphQL availability from remaining REST-reported points. After a recorded
   reset or confirmed recovery, permit one deliberate read-only probe. For an
