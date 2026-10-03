@@ -43,6 +43,7 @@ class SourceIdentityTests(unittest.TestCase):
         self.engine_calls = self.root / "engine-calls.jsonl"
         self.docker_calls = self.root / "docker-calls.jsonl"
         self.docker_image_state = self.root / "docker-image-id"
+        self.docker_container_state = self.root / "docker-container-state.json"
         self.engine_flags = self.bin / "engine-flags.json"
         self.env = {
             "PATH": str(self.bin) + os.pathsep + "/usr/bin:/bin",
@@ -55,6 +56,7 @@ class SourceIdentityTests(unittest.TestCase):
             "FAKE_ENGINE_CALLS": str(self.engine_calls),
             "FAKE_DOCKER_CALLS": str(self.docker_calls),
             "FAKE_DOCKER_IMAGE_STATE": str(self.docker_image_state),
+            "FAKE_DOCKER_CONTAINER_STATE": str(self.docker_container_state),
         }
         self.write_executable("godot", '''#!/usr/bin/python3
 import json, os, sys
@@ -114,6 +116,7 @@ from pathlib import Path
 with open(os.environ["FAKE_DOCKER_CALLS"], "a") as output:
     output.write(json.dumps(sys.argv[1:]) + "\\n")
 state = Path(os.environ["FAKE_DOCKER_IMAGE_STATE"])
+container_state = Path(os.environ["FAKE_DOCKER_CONTAINER_STATE"])
 if sys.argv[1:3] == ["image", "inspect"]:
     if state.is_file():
         print(state.read_text())
@@ -124,6 +127,12 @@ if sys.argv[1:3] == ["image", "rm"]:
     if status == 0:
         state.unlink(missing_ok=True)
     sys.exit(status)
+if sys.argv[1:3] == ["container", "inspect"]:
+    sys.exit(0 if container_state.is_file() else 1)
+if sys.argv[1:2] == ["rm"]:
+    if container_state.is_file():
+        container_state.unlink()
+    sys.exit(0)
 if sys.argv[1:2] == ["build"]:
     status = int(os.environ.get("FAKE_DOCKER_BUILD_EXIT", "0"))
     if status == 0:
@@ -135,6 +144,10 @@ if sys.argv[1:2] == ["build"]:
     sys.exit(status)
 if sys.argv[1:2] == ["run"] and os.environ.get("FAKE_DOCKER_REPLACE_IMAGE") == "1":
     state.write_text("sha256:" + "b" * 64)
+if sys.argv[1:2] == ["run"] and os.environ.get("FAKE_DOCKER_CONTAINER_RACE") == "1":
+    name = sys.argv[sys.argv.index("--name") + 1]
+    container_state.write_text(json.dumps({"name": name, "label": "foreign-container"}))
+    sys.exit(125)
 sys.exit(1 if sys.argv[1:3] == ["container", "inspect"] else 0)
 ''')
         for args in (["init", "-q"], ["add", "."],
@@ -514,6 +527,16 @@ raise SystemExit(''' + str(code) + ')\n')
         self.assertFalse(any(call[0] in ("build", "run") for call in calls))
         self.assertFalse(any(call[:2] == ["image", "rm"] for call in calls))
         self.assertEqual(self.docker_image_state.read_text(), image_id)
+
+    def test_hosted_command_does_not_remove_foreign_container_created_after_precheck(self):
+        self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:container-race"
+        self.env["FAKE_DOCKER_CONTAINER_RACE"] = "1"
+        result = self.run_command("run_hosted_gut_container.sh")
+        self.assertEqual(result.returncode, 125, result.stderr + result.stdout)
+        foreign = json.loads(self.docker_container_state.read_text())
+        self.assertEqual(foreign["label"], "foreign-container")
+        calls = [json.loads(line) for line in self.docker_calls.read_text().splitlines()]
+        self.assertFalse(any(call[:1] == ["rm"] for call in calls))
 
     def test_hosted_command_preserves_replaced_image_and_fails_cleanup(self):
         self.env["PROJECT0_GUT_VALIDATION_IMAGE"] = "project0-gut-validation:replaced"
