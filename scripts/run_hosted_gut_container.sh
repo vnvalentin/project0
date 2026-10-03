@@ -107,7 +107,7 @@ docker run --rm --name "$container" --label "project0.hosted-gut=$label" \
   -w /app --entrypoint /usr/bin/env "$image" \
   -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/tmp/home \
   XDG_DATA_HOME=/tmp/data XDG_CONFIG_HOME=/tmp/config XDG_CACHE_HOME=/tmp/cache \
-  TMPDIR=/tmp RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard \
+  TMPDIR=/app/.godot RESULT_DIR=build/validation DASHBOARD_RESULTS_DIR=/tmp/dashboard \
   PROJECT0_TEST_STATE_DIR=build/validation/runtime M4_SOURCE_REVISION="$source_revision" \
   "${container_command[@]}"
 container_status=$?
