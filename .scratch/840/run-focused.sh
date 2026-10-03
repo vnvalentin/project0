@@ -66,7 +66,7 @@ if complete!='true': errors.append('execution_incomplete')
 if engine=='NOT_OBSERVED' or not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?\.[A-Za-z0-9_.+-]+',engine): errors.append('engine_identity_not_observed')
 test_path='tests/unit/test_construction_contract.gd'
 declared_cases=('test_place_request_preserves_pins_and_detaches_client_values','test_cancel_action_is_excluded_from_the_closed_verb_set','test_nested_object_values_are_rejected','test_cross_field_container_alias_is_rejected','test_request_depth_is_bounded','test_request_node_count_is_bounded','test_request_container_count_is_bounded','test_orientation_must_be_finite_and_canonical_degrees')
-red_cases=('test_orientation_must_be_finite_and_canonical_degrees')
+red_cases=('test_orientation_must_be_finite_and_canonical_degrees',)
 expected_tests=len(declared_cases)
 try:
     source_cases=re.findall(r'^func (test_[A-Za-z0-9_]+)\(',Path(test_path).read_text(),re.M)
