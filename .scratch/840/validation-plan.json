@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "bash .scratch/840/run-focused.sh <unique-label> <expected-head> <red|green>",
+      "dependencies": [
+        "godot",
+        "sqlite"
+      ],
+      "tests": [
+        "tests/unit/test_construction_contract.gd"
+      ],
+      "artifacts": [
+        "build/validation/840/<run-id>/focused-result.json",
+        "build/validation/840/<run-id>/gut.xml",
+        "build/validation/840/<run-id>/gut.log",
+        "build/validation/840/<run-id>/import.log"
+      ]
+    }
+  ]
+}
