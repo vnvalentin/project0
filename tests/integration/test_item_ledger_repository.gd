@@ -2,6 +2,8 @@ extends GutTest
 
 const LedgerScript = preload("res://server/item_ledger_repository.gd")
 const StoreScript = preload("res://server/sqlite_store.gd")
+const CreationFixture = preload("res://tests/fixtures/item_creation_profile.gd")
+const ProfileScript = preload("res://server/item_creation_profile.gd")
 
 var _relative_path: String = ""
 var _store: SqliteStore = null
@@ -120,6 +122,67 @@ func test_creation_atomically_persists_identity_receipt_and_exclusive_revisions(
 	var listed: Dictionary = ledger.list_owner(original.owner)
 	assert_eq(listed.outcome, "ok")
 	assert_eq(listed.instances.size(), 1)
+
+
+func test_creation_properties_commit_with_instance_and_recover_exactly() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {
+		"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40,
+	}
+	var validated_profile: Dictionary = ProfileScript.from_wire_dict(profile_wire)
+	assert_eq(validated_profile.outcome, "ok")
+	if validated_profile.profile == null:
+		return
+	var derived: Dictionary = validated_profile.profile.derive(inputs)
+	assert_eq(derived.outcome, "ok")
+	if derived.outcome != "ok":
+		return
+	assert_eq(derived.properties.values, {"purity": 81, "quality": 65, "durability": 206})
+
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	if not ledger.has_method("create_instance_with_properties"):
+		assert_true(false, "public atomic creation-with-properties command is missing")
+		return
+	var created: Dictionary = ledger.call(
+		"create_instance_with_properties", "character:one", "operation:create",
+		original, 0, 0, profile_wire, inputs
+	)
+	assert_eq(created.outcome, "ok")
+	assert_not_null(created.get("receipt"))
+	if created.outcome != "ok" or created.get("receipt") == null:
+		return
+	assert_eq(created.receipt.instance_revision, 0)
+	assert_eq(created.receipt.owner_revision, 1)
+	assert_eq(created.receipt.location_revision, 1)
+
+	var writes: Dictionary = _store.dml_statement_counters()
+	assert_eq(writes.observation_status, "OBSERVED")
+	assert_eq(writes.by_table.canon_item_instances.committed.insert, 1)
+
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	var loaded_instance: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(loaded_instance.outcome, "ok")
+	assert_not_null(loaded_instance.instance)
+	if loaded_instance.instance == null:
+		return
+	assert_eq(loaded_instance.instance.to_wire_dict(), original)
+	assert_true(ledger.has_method("get_creation_properties"), "public companion reader is missing")
+	if not ledger.has_method("get_creation_properties"):
+		return
+	var loaded_properties: Dictionary = ledger.call("get_creation_properties", original.instance_id)
+	assert_eq(loaded_properties.outcome, "ok")
+	assert_eq(loaded_properties.properties, derived.properties)
+	assert_true(loaded_properties.properties.inputs.material_purity is int)
+	assert_true(loaded_properties.properties.values.durability is int)
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 1)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 1)
 
 
 func test_retirement_is_atomic_irreversible_and_preserves_original_success_receipts() -> void:
