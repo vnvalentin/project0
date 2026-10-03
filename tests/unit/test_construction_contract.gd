@@ -78,6 +78,18 @@ func test_nested_object_values_are_rejected() -> void:
 	assert_null(parsed.get("request"))
 
 
+func test_nested_nonfinite_numbers_are_rejected() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	raw["target"]["metadata"] = {"weights": [NAN]}
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
 func test_cross_field_container_alias_is_rejected() -> void:
 	var contract: Script = load(CONTRACT_PATH)
 	assert_not_null(contract)
