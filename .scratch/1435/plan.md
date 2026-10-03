@@ -11,6 +11,8 @@ User outcome: an exact retry returns the original successful creation receipt af
 
 Non-goals: ItemInstance/schema changes, new fields or dependencies, cross-owner/equipment/capacity policy, production tuning or startup wiring, a persistence executor/thread transfer, live Canon access, workshop/input-consumption journey, client/Windows behavior, deployment or milestone acceptance. The separately identified cross-record profile-digest liability is owned by #1436; do not fold it into this repair. Preserve all unrelated accepted #1425 behavior and other checkouts.
 
+Architecture rationale: the intended bounded repair restores the established committed-receipt replay contract. It changes no schema, authority, threading, migration or architecture, so no new ADR is required. Preserve the accepted item/ledger decisions and immutable-integrity checks.
+
 Unacceptable outcomes: losing a committed receipt on retirement; accepting changed intent, invalid typed receipt or corrupted immutable data; reviving/repairing retired state; duplicate GUIDs; any retry DML; payload disclosure; missing observation being called zero; or runtime claims from static preparation.
 
 ## SDD/BDD and first discriminating behavior
