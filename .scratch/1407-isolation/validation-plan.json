@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "flock -x /tmp/project0-m4-01a0fcfa-validation.lock python3 .scratch/1407-isolation/run-comparison.py <new-run-id>",
+      "dependencies": [
+        "godot",
+        "sqlite",
+        "python"
+      ],
+      "tests": [
+        "scripts/test_prediction_reconciliation.gd"
+      ],
+      "artifacts": [
+        "build/validation/1407-isolation/<run-id>/result.json",
+        "build/validation/1407-isolation/<run-id>/preparation.json",
+        "build/validation/1407-isolation/<run-id>/prepare-bootstrap.log",
+        "build/validation/1407-isolation/<run-id>/prepare-qualification.log",
+        "build/validation/1407-isolation/<run-id>/generated-sidecars.json"
+      ]
+    }
+  ],
+  "setup": "Clean committed source and passing static preflight; exact reviewed engine query from an owned empty directory, qualified two-phase preparation into a new source copy preserving modes, restored configuration then controlled logging override; fresh minimal-environment child fixtures with held loopback sentinel and shared versus distinct owned telemetry targets. Bind a qualified source-associated generated import-sidecar manifest before consumers; only observed authored texture/font import families and owned cache destinations qualify.",
+  "cleanup": "Whole-runner lock; PID-bound subreaper teardown and empty-descendant verification; fresh source/configuration/registry/override custody verification before removing only the owned temporary root. Unknown custody preserves the stage with failed cleanup qualification and retained structured evidence. Recheck sidecar content hashes and exact inventory against the initial manifest; unqualified generated state retains the stage.",
+  "rollback": "Remove additive owned experiment only; no application, assertions, production storage or host settings change."
+}
