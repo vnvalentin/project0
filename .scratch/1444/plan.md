@@ -14,6 +14,8 @@ Determine whether an experiment-owned worker can perform its complete disposable
 
 Scope is an additive experiment fixture and public GUT case. No application persistence executor, production routing or queue, live Canon/accounts handle, store/repository transfer, competing writer, migration, client/Windows change, dependency installation or deployment. This work does not accept the proposed architecture decision, satisfy integrated workshop timing, close its parent experiment, or complete the milestone. Existing Canon timing debt and the separate full-validation approval gate remain binding.
 
+Related ADR context: [ADR-0017 — Evidence-led world scale with one authority per fact](../../docs/adr/0017-evidence-led-world-scale.md) remains proposed and unaccepted. This initial existence-only tracer makes no architecture, ownership or persistence decision, so it needs no new ADR. It does not authorize production adoption of ADR-0017.
+
 Unacceptable outcomes are unknown coverage reported as zero; incorrect caller/owner attribution; completion before native close and release; ineffective controls treated as evidence; crash, script error or setup failure treated as assertion RED; unqualified state deletion; and fixture evidence presented as application acceptance.
 
 ## SDD
