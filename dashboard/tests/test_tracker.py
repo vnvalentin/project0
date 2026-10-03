@@ -136,40 +136,49 @@ def test_delivery_projection_normalizes_issue_native_fields() -> None:
 
 
 def test_github_issue_feed_keeps_issues_beyond_five_pages(monkeypatch) -> None:
-    import app
+    import github_cache
 
-    class FakeResponse:
-        def __init__(self, payload: list[dict]) -> None:
-            self.payload = payload
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return json.dumps(self.payload).encode("utf-8")
-
-    def fake_urlopen(request, timeout: int):
-        assert timeout == 5
-        if "/milestones?" in request.full_url:
-            return FakeResponse([])
-        page = int(request.full_url.rsplit("page=", 1)[1])
+    def fake_api(endpoint: str, etag: str):
+        if "/milestones?" in endpoint:
+            return 200, {}, []
+        page = int(endpoint.rsplit("page=", 1)[1])
         if page <= 6:
             payload = [{"number": page * 100 + offset, "state": "open"} for offset in range(100)]
             if page == 6:
                 payload[0]["number"] = 551
-            return FakeResponse(payload)
-        raise HTTPError(request.full_url, 422, "pagination limit", {}, None)
+            return 200, {}, payload
+        return 422, {}, {"message": "pagination limit"}
 
-    monkeypatch.setattr(app, "urlopen", fake_urlopen)
-    app._ISSUE_CACHE.update({"at": 0.0, "data": {"available": False}})
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    feed = github_cache.fetch_github_feed("example/project", {})
 
-    feed = app.github_issues()
-
-    assert feed["available"] is True
     assert any(issue["number"] == 551 for issue in feed["issues"])
+
+
+def test_unchanged_github_pages_use_etags_and_keep_complete_feed(monkeypatch) -> None:
+    import github_cache
+
+    calls = []
+
+    def fake_api(endpoint: str, etag: str):
+        calls.append((endpoint, etag))
+        if etag:
+            assert etag == '"unchanged"'
+            return 304, {}, None
+        payload = [{"number": 1433, "title": "Cache", "state": "open"}]
+        if "/issues?" in endpoint:
+            payload.append({"number": 1434, "pull_request": {}, "state": "open"})
+        return 200, {"etag": '"unchanged"'}, payload
+
+    monkeypatch.setattr(github_cache, "run_api", fake_api)
+    first = github_cache.fetch_github_feed("example/project", {})
+    second = github_cache.fetch_github_feed("example/project", first)
+    assert first["issues"] == second["issues"]
+    assert first["milestones"] == second["milestones"]
+    assert len(second["issues"]) == 1
+    assert len(second["milestones"]) == 1
+    assert len(calls) == 4
+    assert all(etag == '"unchanged"' for _, etag in calls[2:])
 
 
 def test_delivery_page_shows_source_failure(monkeypatch) -> None:

@@ -10,15 +10,14 @@ import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
 
+from github_cache import GitHubFeedCache, fetch_github_feed
 from tracker import inline_markdown, load_tracker
 
 REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "vnvalentin/project0")
-GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "300"))
+GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "1800"))
 # Optional: authenticated requests get 5000/hr instead of the 60/hr GitHub
 # gives anonymous REST calls from a single IP, which the dashboard alone can
 # exhaust after a few container restarts clear its in-memory cache.
@@ -34,7 +33,12 @@ try:
     _SELF_MTIME = SELF_PATH.stat().st_mtime
 except OSError:
     _SELF_MTIME = None
-_ISSUE_CACHE = {"at": 0.0, "data": {"available": False, "issues": [], "error": "not loaded"}}
+_ISSUE_CACHE = GitHubFeedCache(
+    Path(os.environ.get("GITHUB_CACHE_PATH", "/cache/github-feed.json")),
+    GITHUB_REPO,
+    lambda previous: fetch_github_feed(GITHUB_REPO, previous),
+    interval=GITHUB_ISSUE_CACHE_SECONDS,
+)
 
 
 def restart_if_source_changed() -> None:
@@ -57,78 +61,7 @@ def read_repo_file(name: str) -> str:
 
 
 def github_issues() -> dict:
-    now = time.time()
-    if now - float(_ISSUE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
-        return _ISSUE_CACHE["data"]
-    try:
-        issues = []
-        milestones = []
-        page = 1
-        while True:
-            url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
-            headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
-            if GITHUB_TOKEN:
-                headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-            req = Request(url, headers=headers)
-            try:
-                with urlopen(req, timeout=5) as response:
-                    raw = response.read().decode("utf-8")
-            except HTTPError as exc:
-                if exc.code == 422 and issues:
-                    break
-                raise
-            parsed = json.loads(raw)
-            for item in parsed:
-                if "pull_request" in item:
-                    continue
-                milestone = item.get("milestone") or {}
-                issues.append({
-                    "number": int(item.get("number", 0)),
-                    "title": str(item.get("title", "")),
-                    "url": str(item.get("html_url", "")),
-                    "state": str(item.get("state", "open")),
-                    "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
-                    "assignees": [str(a.get("login", "")) for a in item.get("assignees", []) if a.get("login")],
-                    "body": str(item.get("body", "")),
-                    "updated_at": str(item.get("updated_at", "")),
-                    "closed_at": str(item.get("closed_at") or ""),
-                    "milestone_number": milestone.get("number"),
-                    "milestone_title": str(milestone.get("title", "")),
-                })
-            if len(parsed) < 100:
-                break
-            page += 1
-        try:
-            page = 1
-            while True:
-                url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&page={page}"
-                headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
-                if GITHUB_TOKEN:
-                    headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-                req = Request(url, headers=headers)
-                with urlopen(req, timeout=5) as response:
-                    parsed = json.loads(response.read().decode("utf-8"))
-                milestones.extend({
-                    "number": int(item.get("number", 0)),
-                    "title": str(item.get("title", "")),
-                    "state": str(item.get("state", "open")),
-                    "description": str(item.get("description", "")),
-                    "open_issues": int(item.get("open_issues", 0)),
-                    "closed_issues": int(item.get("closed_issues", 0)),
-                    "due_on": str(item.get("due_on") or ""),
-                } for item in parsed)
-                if len(parsed) < 100:
-                    break
-                page += 1
-        except Exception:
-            milestones = []
-        issues.sort(key=lambda issue: issue["number"])
-        milestones.sort(key=lambda milestone: milestone["number"])
-        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "milestones": milestones, "error": ""}
-    except Exception as exc:
-        data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
-    _ISSUE_CACHE.update({"at": now, "data": data})
-    return data
+    return _ISSUE_CACHE.read()
 
 
 def issue_covers_goal_target(issue: dict) -> bool:
@@ -2546,4 +2479,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    _ISSUE_CACHE.start()
+    try:
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    finally:
+        _ISSUE_CACHE.close()

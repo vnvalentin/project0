@@ -1,11 +1,93 @@
 import json
 import math
 import os
+import subprocess
 import tempfile
 import threading
 import time
 from collections.abc import Callable
+from email.parser import Parser
 from pathlib import Path
+
+
+def run_api(endpoint: str, etag: str) -> tuple[int, dict, object]:
+    command = ["gh", "api", "--method", "GET", "--include", endpoint,
+               "-H", "Accept: application/vnd.github+json"]
+    if etag:
+        command.extend(["-H", f"If-None-Match: {etag}"])
+    result = subprocess.run(command, capture_output=True, text=True, timeout=20)
+    head, separator, body = result.stdout.replace("\r\n", "\n").partition("\n\n")
+    status_line, _, header_lines = head.partition("\n")
+    if not separator or not status_line.startswith("HTTP/"):
+        raise RuntimeError("GitHub CLI unavailable or returned an invalid response")
+    status = int(status_line.split()[1])
+    headers = {name.lower(): value for name, value in Parser().parsestr(header_lines).items()}
+    if status == 304:
+        return status, headers, None
+    if status != 200:
+        return status, headers, None
+    if result.returncode:
+        raise RuntimeError("GitHub CLI request failed")
+    return status, headers, json.loads(body)
+
+
+def _issue(item: dict) -> dict:
+    milestone = item.get("milestone") or {}
+    return {
+        "number": int(item.get("number", 0)),
+        "title": str(item.get("title", "")),
+        "url": str(item.get("html_url", "")),
+        "state": str(item.get("state", "open")),
+        "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
+        "assignees": [str(assignee.get("login", "")) for assignee in item.get("assignees", []) if assignee.get("login")],
+        "body": str(item.get("body") or ""),
+        "updated_at": str(item.get("updated_at", "")),
+        "closed_at": str(item.get("closed_at") or ""),
+        "milestone_number": milestone.get("number"),
+        "milestone_title": str(milestone.get("title", "")),
+    }
+
+
+def _milestone(item: dict) -> dict:
+    return {
+        "number": int(item.get("number", 0)),
+        "title": str(item.get("title", "")),
+        "state": str(item.get("state", "open")),
+        "description": str(item.get("description") or ""),
+        "open_issues": int(item.get("open_issues", 0)),
+        "closed_issues": int(item.get("closed_issues", 0)),
+        "due_on": str(item.get("due_on") or ""),
+    }
+
+
+def fetch_github_feed(repo: str, previous: dict) -> dict:
+    feed: dict = {"issues": [], "milestones": [], "pages": {}}
+    for resource, project in (("issues", _issue), ("milestones", _milestone)):
+        page = 1
+        while True:
+            endpoint = f"repos/{repo}/{resource}?state=all&per_page=100&page={page}"
+            cached = previous.get("pages", {}).get(endpoint, {})
+            status, headers, payload = run_api(endpoint, cached.get("etag", ""))
+            if status == 304 and cached:
+                response = cached
+            elif status == 200 and isinstance(payload, list):
+                response = {
+                    "etag": headers.get("etag", ""),
+                    "items": [project(item) for item in payload if resource != "issues" or "pull_request" not in item],
+                    "more": len(payload) == 100,
+                }
+            elif status == 422 and resource == "issues" and feed[resource]:
+                break
+            else:
+                raise RuntimeError(f"GitHub {resource} request failed (HTTP {status})")
+            feed["pages"][endpoint] = response
+            feed[resource].extend(response["items"])
+            if not response["more"]:
+                break
+            page += 1
+    for resource in ("issues", "milestones"):
+        feed[resource].sort(key=lambda item: item["number"])
+    return feed
 
 
 class GitHubFeedCache:
