@@ -75,3 +75,20 @@ func test_hostile_sector_id_is_stored_as_data() -> void:
 	var result: Dictionary = _repository.canonicalize_blueprint(hostile)
 	assert_eq(result["outcome"], CanonRepositoryScript.OUTCOME_OK)
 	assert_eq(_repository.get_canonical_sector(hostile["sector_id"])["outcome"], CanonRepositoryScript.OUTCOME_OK)
+
+## #1411 public derived metadata must preserve the accepted persisted-Canon hash.
+func test_checkpoint_metadata_matches_existing_canon_read() -> void:
+	assert_eq(_repository.canonicalize_blueprint(_blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var sector_id: String = String(_blueprint["sector_id"])
+	var existing: Dictionary = _repository.get_canonical_sector(sector_id)
+	assert_eq(existing["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_true(_repository.has_method("get_checkpoint_metadata"), "Canon exposes authoritative derived checkpoint metadata")
+	if not _repository.has_method("get_checkpoint_metadata"):
+		return
+	var expected_sector: Dictionary = existing["sector"]
+	var metadata: Dictionary = _repository.call("get_checkpoint_metadata", sector_id)
+	assert_eq(metadata["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(metadata["sector_revision"], int(expected_sector["schema_version"]))
+	assert_eq(metadata["sector_geometry_hash"], JSON.stringify(expected_sector["blueprint"]).md5_text(), "existing public read is the compatibility oracle")
+	var repeated: Dictionary = _repository.call("get_checkpoint_metadata", sector_id)
+	assert_eq(repeated, metadata, "repeated unchanged authoritative read preserves the result")
