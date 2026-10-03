@@ -33,6 +33,14 @@
       "tests": ["scripts/test_*.py"],
       "evidence": "supporting-component"
     },
+    "ledger-import-controls": {
+      "platform": "linux",
+      "owner": "linux-tooling",
+      "dependencies": ["bash", "python"],
+      "runner": "python3 .scratch/1341-ledger/run-import-controls.py",
+      "tests": [".scratch/1341-ledger/run-import-controls.py"],
+      "evidence": "supporting-component"
+    },
     "linux-shell": {
       "platform": "linux",
       "owner": "linux-tooling",
