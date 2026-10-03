@@ -62,6 +62,20 @@ func test_nested_object_values_are_rejected() -> void:
 	assert_null(parsed.get("request"))
 
 
+func test_cross_field_container_alias_is_rejected() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	var shared_metadata: Array[String] = ["fixture"]
+	raw["target"]["metadata"] = shared_metadata
+	raw["grid"]["metadata"] = shared_metadata
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
 func _request() -> Dictionary:
 	return {
 		"schema_version": 1, "client_sequence": 7, "verb": "PLACE", "expected_revision": 0,
