@@ -2,8 +2,8 @@
   "schema_version": 1,
   "kind": "component",
   "issue": "https://github.com/vnvalentin/project0/issues/1396",
-  "scope": "Source-derived GDExtension bootstrap and isolated Linux network-default validation",
-  "rollback": "Revert only validation-runner and test-fixture changes; do not retain generated .godot cache state.",
+  "scope": "Source-derived GDExtension bootstrap, isolated network-default tests, and hosted-container qualification",
+  "rollback": "Revert only validation-runner and test-fixture changes; remove owned temporary containers and generated cache state.",
   "steps": [
     {
       "suite": "linux-tooling",
@@ -50,6 +50,28 @@
       "artifacts": [
         "build/validation/gut.xml",
         "build/validation/validation-summary.json"
+      ]
+    },
+    {
+      "suite": "linux-container-tooling",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "bash scripts/test_hosted_gut_container.sh && bash scripts/run_hosted_gut_container.sh",
+      "dependencies": [
+        "bash",
+        "docker",
+        "git",
+        "python",
+        "godot",
+        "sqlite"
+      ],
+      "tests": [
+        "scripts/test_hosted_gut_container.sh"
+      ],
+      "artifacts": [
+        "build/validation/hosted-container-tests.json",
+        "build/validation/validation-summary.json",
+        "build/validation/gut.xml"
       ]
     }
   ]
