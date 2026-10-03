@@ -177,20 +177,14 @@ func _test_authoritative_melee_strike() -> void:
 	while player.position.distance_to(target_dummy_position) > 1.5 and move_ticks < 300:
 		await physics_frame
 		move_ticks += 1
-	var predicted_reach_client_sequence: int = int(network_client.get("_next_input_sequence")) - 1
-	var predicted_reach_server_sequence: int = authoritative_sequence[0]
-	var predicted_reach_client_position: Vector3 = player.position
-	var predicted_reach_server_position: Vector3 = authoritative_position[0]
 	var client_sequence_before_release: int = int(network_client.get("_next_input_sequence")) - 1
 	Input.action_release("move_forward")
 	Input.action_release("move_left")
 
-	var settle_ticks: int = 0
 	var first_released_input_sequence: int = -1
 	var settle_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while Time.get_ticks_msec() < settle_deadline_msec:
 		await physics_frame
-		settle_ticks += 1
 		var latest_client_sequence: int = int(network_client.get("_next_input_sequence")) - 1
 		if first_released_input_sequence == -1 and latest_client_sequence > client_sequence_before_release:
 			first_released_input_sequence = latest_client_sequence
