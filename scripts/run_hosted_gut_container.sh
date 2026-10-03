@@ -96,7 +96,7 @@ set +e
 docker run --rm --name "$container" --label "project0.hosted-gut=$label" \
   --user "$(id -u):$(id -g)" \
   --network none --no-healthcheck --read-only --cap-drop ALL \
-  --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev \
+  --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,nodev,exec \
   -v "$root:/app:ro" -v "$root/.godot:/app/.godot" \
   -v "$root/build/validation:/app/build/validation" \
   -v "$root/logs/experiments:/app/logs/experiments" \
