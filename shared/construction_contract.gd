@@ -29,6 +29,39 @@ static func parse_client_request(raw: Variant) -> Dictionary:
 		return {"outcome": "invalid_request", "detail": "verb must belong to the closed request set", "request": null}
 	if not (data["orientation_degrees"] is int or data["orientation_degrees"] is float):
 		return {"outcome": "invalid_request", "detail": "orientation must be numeric", "request": null}
+	for value: Variant in data.values():
+		if not _contains_only_wire_values(value):
+			return {"outcome": "invalid_request", "detail": "request values must use detached wire types", "request": null}
 	var request: Dictionary = data.duplicate(true)
 	request["orientation_degrees"] = float(data["orientation_degrees"])
 	return {"outcome": "ok", "detail": "", "request": request}
+
+
+static func _contains_only_wire_values(value: Variant) -> bool:
+	var pending: Array[Variant] = [value]
+	var inspected_containers: Array[Variant] = []
+	while not pending.is_empty():
+		var current: Variant = pending.pop_back()
+		match typeof(current):
+			TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING:
+				continue
+			TYPE_ARRAY:
+				for inspected: Variant in inspected_containers:
+					if is_same(current, inspected):
+						return false
+				inspected_containers.append(current)
+				for item: Variant in current:
+					pending.append(item)
+			TYPE_DICTIONARY:
+				for inspected: Variant in inspected_containers:
+					if is_same(current, inspected):
+						return false
+				inspected_containers.append(current)
+				var dictionary: Dictionary = current
+				for key: Variant in dictionary:
+					if not (key is String):
+						return false
+					pending.append(dictionary[key])
+			_:
+				return false
+	return true
