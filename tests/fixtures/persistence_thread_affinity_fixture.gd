@@ -16,6 +16,8 @@ const MAIN_COMM: String = "godot"
 
 var _mode: String = ""
 var _directory: String = ""
+var _user_root: String = ""
+var _owned_chain: Array[String] = []
 var _main_owner: int = 0
 var _worker_owner: int = 0
 var _mailbox: Mutex
@@ -61,11 +63,21 @@ func initialize(mode: String, owned_directory: String) -> Dictionary:
 		positive_clock_step = positive_clock_step or samples[index] > samples[index - 1]
 	if not positive_clock_step or _initial["source_fixture_sha256"].length() != 64 or not _initial["loaded_addon"]["selected_mode"] in ["debug", "release"] or _initial["loaded_addon"]["mapped_member_sha256"].length() != 64:
 		return _initial.duplicate(true)
-	if owned_directory != ProjectSettings.globalize_path("user://affinity-1444-" + mode):
+	_user_root = ProjectSettings.globalize_path("user://").trim_suffix("/")
+	var prior_chain: Array[String] = _ordinary_chain(_user_root)
+	if prior_chain.is_empty() or owned_directory != _user_root.path_join("affinity-1444-" + mode):
 		return _initial.duplicate(true)
-	if DirAccess.dir_exists_absolute(owned_directory) or DirAccess.make_dir_absolute(owned_directory) != OK:
+	var parent: DirAccess = DirAccess.open(_user_root)
+	var leaf: String = owned_directory.get_file()
+	if parent == null or parent.is_link(leaf) or parent.file_exists(leaf) or parent.dir_exists(leaf) or parent.make_dir(leaf) != OK:
 		return _initial.duplicate(true)
 	_state_created = true
+	var expected_chain: Array[String] = prior_chain.duplicate()
+	expected_chain.append(owned_directory)
+	_owned_chain = _ordinary_chain(owned_directory)
+	if _owned_chain != expected_chain:
+		_owned_chain.clear()
+		return _initial.duplicate(true)
 	var span: Dictionary = _begin("sync.mailbox.new", "mutex.new", "init", "none", "main", 0, _main_owner, 1)
 	# AFFINITY_SITE sync.mailbox.new mutex.new
 	_mailbox = Mutex.new()
@@ -714,6 +726,28 @@ func _read_state(path: String) -> String:
 	# The stream is closed before any stat-tail byte can be consumed.
 	return String.chr(state) if separator == 32 and state in [82, 83, 68, 84, 116, 88, 90, 80, 73] else ""
 
+func _ordinary_chain(path: String) -> Array[String]:
+	var chain: Array[String] = []
+	if not path.is_absolute_path() or path == "/" or path.length() > 4096 or path.contains("\\") or path.simplify_path() != path:
+		return chain
+	var components: PackedStringArray = path.substr(1).split("/", false)
+	if components.is_empty() or components.size() > 64:
+		return chain
+	var current: String = "/"
+	var opened: DirAccess = DirAccess.open(current)
+	if opened == null or opened.get_current_dir() != current:
+		return []
+	chain.append(current)
+	for component: String in components:
+		if component.is_empty() or component == "." or component == ".." or opened.is_link(component) or not opened.dir_exists(component):
+			return []
+		current = current.path_join(component)
+		opened = DirAccess.open(current)
+		if opened == null or opened.get_current_dir() != current or opened.get_current_dir().simplify_path() != current:
+			return []
+		chain.append(current)
+	return chain
+
 func _native_cleanup_known(lifecycle: Dictionary) -> bool:
 	if lifecycle["cycles"].is_empty():
 		return false
@@ -730,12 +764,12 @@ func _native_cleanup_known(lifecycle: Dictionary) -> bool:
 
 
 func _remove_owned_state() -> bool:
-	var parent: DirAccess = DirAccess.open(_directory.get_base_dir())
-	if parent == null or parent.is_link(_directory.get_file()):
+	if not _state_created or _owned_chain.is_empty() or _directory != _user_root.path_join("affinity-1444-" + _mode) or _ordinary_chain(_directory) != _owned_chain:
 		return false
 	var directory: DirAccess = DirAccess.open(_directory)
 	if directory == null:
 		return false
+	directory.include_hidden = true
 	var allowed: Array[String] = ["affinity.db", "affinity.db-wal", "affinity.db-shm", "affinity.db-journal", "main-control.db", "main-control.db-wal", "main-control.db-shm", "main-control.db-journal"]
 	for entry: String in directory.get_files():
 		if not allowed.has(entry) or directory.is_link(entry):
@@ -743,6 +777,8 @@ func _remove_owned_state() -> bool:
 	if not directory.get_directories().is_empty():
 		return false
 	for entry: String in directory.get_files():
-		if directory.remove(entry) != OK:
+		if _ordinary_chain(_directory) != _owned_chain or directory.is_link(entry) or directory.remove(entry) != OK:
 			return false
+	if _ordinary_chain(_directory) != _owned_chain:
+		return false
 	return DirAccess.remove_absolute(_directory) == OK
