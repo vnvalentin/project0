@@ -110,6 +110,29 @@ def stop(report_path: Path, nonce: str, pid: int) -> dict:
 def main() -> int:
     mode, report, nonce = sys.argv[1:4]
     report_path = Path(report)
+    if mode == "inspect":
+        payload = json.loads(report_path.read_text())
+        descendant = int(sys.argv[4])
+        if payload.get("descendant") != descendant:
+            raise ValueError("Observation identity mismatch")
+        process = process_info(descendant)
+        alive = bool(process and process["state"] != "Z")
+        if alive:
+            environment = Path(f"/proc/{descendant}/environ").read_bytes().split(b"\0")
+            if f"{MARKER}={nonce}".encode() not in environment:
+                raise ValueError("Observation custody mismatch")
+        print("CONTAINED_OBSERVATION " + json.dumps({"observed": True, "alive": alive}))
+        return 0
+    if mode == "orphan":
+        descendant = os.fork()
+        if descendant == 0:
+            while True:
+                signal.pause()
+        pending = Path(str(report_path) + ".pending")
+        pending.write_text(json.dumps({"phase": "orphan", "process_id": os.getpid(),
+                                       "children": [], "paths": [], "descendant": descendant}))
+        os.replace(pending, report_path)
+        return 0
     if mode == "run":
         if os.getsid(0) != os.getpid() or os.getpgrp() != os.getpid():
             os.setsid()

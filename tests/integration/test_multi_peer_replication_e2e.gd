@@ -79,6 +79,32 @@ func test_parallel_timeout_finds_unregistered_owned_sessions() -> void:
 	await _assert_contained_timeout(true)
 
 
+func test_containment_finds_owned_members_after_leader_exit() -> void:
+	var path: String = "user://multi_peer_orphan_%d_%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
+	var helper: String = ProjectSettings.globalize_path("res://tests/fixtures/contained_multi_peer.py")
+	var process_id: int = OS.create_process("/usr/bin/python3", PackedStringArray([
+		helper, "run", ProjectSettings.globalize_path(path), path.get_file(),
+		"/usr/bin/python3", helper, "orphan", ProjectSettings.globalize_path(path), path.get_file(),
+	]))
+	assert_gt(process_id, 0, "native session-leader control starts")
+	var deadline: int = Time.get_ticks_msec() + 5000
+	while Time.get_ticks_msec() < deadline and (not FileAccess.file_exists(path) or OS.is_process_running(process_id)):
+		await get_tree().process_frame
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+	var report: Dictionary = parsed if parsed is Dictionary else {}
+	var descendant: int = int(report.get("descendant", -1))
+	assert_eq(report.get("phase", ""), "orphan", "leader publishes its real native descendant before exit")
+	assert_false(OS.is_process_running(process_id), "native group leader exited before cleanup")
+	assert_true(_contained_descendant_is_alive(path, descendant), "owned group retains a live member after leader exit")
+	var cleanup: Dictionary = _stop_contained_harness(path, process_id)
+	assert_true(cleanup.get("passed", false), "cleanup succeeds without a live leader or registered child")
+	assert_eq(int(cleanup.get("remaining", -1)), 0, "no owned native session members remain")
+	assert_false(_contained_descendant_is_alive(path, descendant), "orphaned owned member is stopped")
+	assert_false(FileAccess.file_exists(path + ".group.json"), "completed containment lease is removed")
+	if FileAccess.file_exists(path):
+		assert_eq(DirAccess.remove_absolute(path), OK, "owned orphan control report is removed")
+
+
 func _assert_contained_timeout(omit_registration: bool) -> void:
 	var path: String = "user://multi_peer_timeout_%d_%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
 	var process_id: int = _start_contained_harness(path, true, omit_registration)
@@ -176,6 +202,18 @@ func _stop_contained_harness(report_path: String, process_id: int) -> Dictionary
 	var result: Dictionary = _event("\n".join(output), "CONTAINED_CLEANUP ")
 	result["passed"] = code == 0 and result.get("passed", false)
 	return result
+
+
+func _contained_descendant_is_alive(report_path: String, descendant: int) -> bool:
+	var output: Array = []
+	var code: int = OS.execute("/usr/bin/python3", PackedStringArray([
+		ProjectSettings.globalize_path("res://tests/fixtures/contained_multi_peer.py"), "inspect",
+		ProjectSettings.globalize_path(report_path), report_path.get_file(), str(descendant),
+	]), output, true)
+	var result: Dictionary = _event("\n".join(output), "CONTAINED_OBSERVATION ")
+	assert_eq(code, 0, "native descendant observation has verified custody")
+	assert_true(result.get("observed", false), "native process observation is available")
+	return result.get("alive", false)
 
 
 func test_snapshot_publication_preserves_an_in_flight_reader() -> void:
