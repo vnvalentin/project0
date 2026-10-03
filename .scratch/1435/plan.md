@@ -1,7 +1,7 @@
 # #1435 — committed creation replay after retirement
 
 Governing issue: https://github.com/vnvalentin/project0/issues/1435.
-Parent delivery #1341; accepted primitive #1425; Feature #950. Milestone 3, group M3.2 Item Ownership and Transaction Ledger. The root coordinator owns Project/milestone mapping, public delivery checkpoints and native scheduling.
+Parent delivery #1341; accepted primitive #1425; Feature #950. Milestone 3, group M3.2 Item Ownership and Transaction Ledger. The root coordinator completed the governing Project/milestone mapping and owns public delivery checkpoints and native scheduling.
 
 ## Orientation, outcome and boundaries
 
@@ -27,7 +27,13 @@ No application fix, native launch or RED result is authorized/claimed at this pr
 
 ## Planned validation and custody
 
-The machine-readable plan below selects the one new method for the first RED. The existing godot-server suite owns this script on Linux with Godot/SQLite; the exact selected method is declared by the GUT filter and must be the only observed test. Ownership preflight is static source/plan validation, not runtime acceptance.
+The machine-readable plan selects the coordinator-owned private focused controller for the first RED, not a standalone GUT consumer. The existing godot-server suite owns tests/integration/test_item_ledger_repository.gd on Linux with Godot/SQLite. The controller selects only test_creation_property_retry_after_retirement_preserves_committed_receipt_without_writes; that method must be the only observed test. The selected consumer cannot be launched as a fallback. Ownership preflight is static source/plan validation, not runtime acceptance.
+
+Planned entry point: `python3 build/validation/1435/run-focused.py --controller-sha256 "$reviewed_controller_sha256" --source-revision "$reviewed_source_revision" --run-id "$new_run_id" --mode red`. Later GREEN uses the separately frozen source/controller and `--mode green`. Before execution, the private exact plan substitutes the actual reviewed hashes and new run identity, and passes ownership preflight. No tracked placeholder grants execution permission.
+
+The controller has a nominal 150-second deadline plus reviewed bounded final custody/process checks. Preparation, selected GUT execution, timeout classification, source binding and cleanup share that owned path; deadline or cleanup failures fail closed. Retained outputs in the owned run result directory are result.json, reduced gut.xml, prepare.json, preflight.json, prepared-inventory.json, prepare-bootstrap.log and prepare-qualification.log. Consumer output uses bounded transient pipe classification summarized in result.json; no consumer gut.log is retained. Raw assertion XML is temporary and is removed only after qualified source/process custody; unknown stage custody is retained with failure. Preparation phase logs have canonical controlled names and preexcluded fixture/environment content.
+
+The first focused controller does not execute the full delivery suite. Before any full run, prepare and preflight a separate exact private plan bound to final source, reviewed owning lifecycle and the complete tracked direct tests/unit/test_*.gd plus tests/integration/test_*.gd inventory actually consumed by scripts/run_gut_validation.sh. The two ledger/profile scripts are a supporting focused selection, not the full suite. The full plan must declare its actual command, complete selection, dependencies, result/dashboard paths and artifacts; record sync remains a separate required command/result. Do not infer coverage or execute the full gate from this first-RED plan.
 
 Root owns a reviewed single noninteractive lifecycle: source-bound prepared copy, engine/native identity, preexcluded synthetic inputs/environment/logging, fresh runtime/result directories, bounded owned Godot child, exact selected JUnit inventory, fixed-label RED classification, timeout/crash handling, source/copy custody and finally qualified process/database/runtime cleanup. Unknown observations/custody fail closed and are retained privately. Do not launch the consumer alone, a preparer, Docker or an alternate native path during this preparation task.
 

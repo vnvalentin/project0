@@ -10,41 +10,25 @@
         "godot",
         "sqlite",
         "python",
+        "git",
         "timeout"
       ],
-      "command": "timeout --kill-after=15s 180s godot --headless --path \"$owned_prepared_root\" -s addons/gut/gut_cmdln.gd -gconfig= -gdir= -gtest=res://tests/integration/test_item_ledger_repository.gd -gunit_test_name=test_creation_property_retry_after_retirement_preserves_committed_receipt_without_writes -gjunit_xml_file=\"$owned_result_dir/focused.xml\" -gdisable_colors -gexit",
+      "command": "python3 build/validation/1435/run-focused.py --controller-sha256 \"$reviewed_controller_sha256\" --source-revision \"$reviewed_source_revision\" --run-id \"$new_run_id\" --mode red",
       "tests": [
         "tests/integration/test_item_ledger_repository.gd"
       ],
       "artifacts": [
-        "build/validation/1435/<run-id>/focused.xml",
-        "build/validation/1435/<run-id>/focused-result.json",
-        "build/validation/1435/<run-id>/preparation.json"
-      ]
-    },
-    {
-      "suite": "godot-server",
-      "platform": "linux",
-      "host": "192.168.1.254",
-      "dependencies": [
-        "godot",
-        "sqlite",
-        "python",
-        "timeout"
-      ],
-      "command": "RESULT_DIR=build/validation/1435/full DASHBOARD_RESULTS_DIR=build/validation/1435/dashboard scripts/run_gut_validation.sh",
-      "tests": [
-        "tests/integration/test_item_ledger_repository.gd",
-        "tests/unit/test_item_creation_profile.gd"
-      ],
-      "artifacts": [
-        "build/validation/1435/full/gut.xml",
-        "build/validation/1435/full/validation-summary.json",
-        "build/validation/1435/record-sync.log"
+        "build/validation/1435/<run-id>/result.json",
+        "build/validation/1435/<run-id>/gut.xml",
+        "build/validation/1435/<run-id>/prepare.json",
+        "build/validation/1435/<run-id>/preflight.json",
+        "build/validation/1435/<run-id>/prepared-inventory.json",
+        "build/validation/1435/<run-id>/prepare-bootstrap.log",
+        "build/validation/1435/<run-id>/prepare-qualification.log"
       ]
     }
   ],
-  "setup": "Records/test preparation only. Future root-owned source-bound prepared copy and fresh private runtime/result roots use fixture-only authored profiles and the existing unique real-SQLite fixture. Root reviews/freeze-binds lifecycle and source before native execution; focused consumer alone is not authorization. First RED selects exactly the declared new method; GREEN negatives and complete ledger/profile/full gates follow their own recorded behavior cycles.",
-  "cleanup": "Existing fixture after_each closes its store and removes only its unique DB/WAL/SHM/journal. Root lifecycle owns child/descendant quiescence and source/runtime cleanup, retaining unknown custody and failing closed. Evidence remains outside disposable roots.",
+  "setup": "First RED only: coordinator-owned python controller binds its reviewed SHA, source revision and fresh run identity; nominal150s plus reviewed bounded final checks. Source-bound prepared copy, preexcluded synthetic environment/logging, fresh runtime/results and one selected GUT method are owned in that path. No standalone consumer fallback. Before a full run, a separate exact private plan must enumerate all actual tracked direct unit/integration GUT scripts and pass preflight on final source; declaring two focused scripts does not describe full-suite coverage.",
+  "cleanup": "Existing fixture after_each closes its store and removes only its unique DB/WAL/SHM/journal. Controller owns process quiescence, final inventory recheck and source/runtime cleanup; unknown stage custody is retained and fails. Only reduced gut.xml and canonical preparation phase logs persist with structured reports; raw consumer/assertion material remains transient until qualified cleanup.",
   "rollback": "Reviewed revert of bounded ledger/test repair. No live Canon/schema migration, production tuning, dependency, thread transfer, host setting or Windows/client change."
 }
