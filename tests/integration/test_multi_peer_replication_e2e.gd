@@ -22,6 +22,35 @@ class SnapshotNetwork extends Node:
 	var status: String = "connected: player spawned"
 
 
+func test_harness_avoids_foreign_game_and_control_listeners() -> void:
+	var foreign_game: PacketPeerUDP = PacketPeerUDP.new()
+	var foreign_control: TCPServer = TCPServer.new()
+	var game_bound: Error = foreign_game.bind(9999, "127.0.0.1")
+	var control_bound: Error = foreign_control.listen(8097, "127.0.0.1")
+	assert_eq(game_bound, OK, "isolated probe owns the foreign game listener")
+	assert_eq(control_bound, OK, "isolated probe owns the foreign control listener")
+	if game_bound != OK or control_bound != OK:
+		foreign_game.close()
+		foreign_control.stop()
+		return
+	var output: Array = []
+	var exit_code: int = OS.execute(OS.get_executable_path(), PackedStringArray([
+		"--headless", "--path", ProjectSettings.globalize_path("res://"),
+		"-s", "scripts/test_multi_peer_replication.gd",
+	]), output, true)
+	var packets: int = foreign_game.get_available_packet_count()
+	var control_contacted: bool = foreign_control.is_connection_available()
+	foreign_game.close()
+	foreign_control.stop()
+	var joined_output: String = "\n".join(output)
+	_save_output("multi-peer-1339-foreign-listeners", joined_output)
+	assert_eq(exit_code, 0, "owned harness completes despite foreign default listeners")
+	assert_true(joined_output.contains("ALL PASS"), "all original replication assertions pass")
+	assert_eq(packets, 0, "clients send no traffic to the foreign game listener")
+	assert_false(control_contacted, "harness never uses the foreign control listener")
+	assert_false(joined_output.contains("SCRIPT ERROR:"), "collision isolation has no script errors")
+
+
 func test_snapshot_publication_preserves_an_in_flight_reader() -> void:
 	var client: SnapshotClient = SnapshotClient.new()
 	var network: SnapshotNetwork = SnapshotNetwork.new()
