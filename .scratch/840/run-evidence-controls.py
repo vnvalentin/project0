@@ -27,8 +27,9 @@ DEPTH = 'test_request_depth_is_bounded'
 NODE_COUNT = 'test_request_node_count_is_bounded'
 CONTAINER_COUNT = 'test_request_container_count_is_bounded'
 ORIENTATION = 'test_orientation_must_be_finite_and_canonical_degrees'
-RED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT, ORIENTATION)
-NAMES = (WORKED, CANCEL, OBJECT, *RED_CASES)
+FIXED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT)
+RED_CASES = (ORIENTATION,)
+NAMES = (WORKED, CANCEL, OBJECT, *FIXED_CASES, ORIENTATION)
 TEST_PATH = SOURCES[0]
 
 
@@ -106,7 +107,6 @@ def serializer_control(context, variation):
     if variation == 'depth-only': failed = (DEPTH,)
     if variation == 'node-count-only': failed = (NODE_COUNT,)
     if variation == 'container-count-only': failed = (CONTAINER_COUNT,)
-    if variation == 'orientation-only': failed = (ORIENTATION,)
     if variation == 'counter-pass': failed = ()
     if variation == 'timeout-exit': exit_code = 124
     if variation == 'unsupported-exit': exit_code = 2
@@ -201,7 +201,7 @@ def main():
     failures = []
     contexts_removed = True
     serializers = ('red', 'green', 'prior-failure', 'both-fail', 'cancel-only', 'object-only',
-                   'depth-only', 'node-count-only', 'container-count-only', 'orientation-only', 'counter-pass',
+                   'depth-only', 'node-count-only', 'container-count-only', 'counter-pass',
                    'timeout-exit', 'unsupported-exit', 'duplicate-case', 'missing-case',
                    'unknown-case', 'wrong-suite', 'wrong-class', 'green-failure',
                    'source-inventory', 'unattributed-failure', 'unexpected-skip',
