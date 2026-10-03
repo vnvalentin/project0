@@ -90,6 +90,30 @@ func test_nested_nonfinite_numbers_are_rejected() -> void:
 	assert_null(parsed.get("request"))
 
 
+func test_request_text_value_size_is_bounded() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	raw["target"]["metadata"] = {"label": "x".repeat(65537)}
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
+func test_request_dictionary_key_size_is_bounded() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	raw["target"]["x".repeat(65537)] = "value"
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
 func test_cross_field_container_alias_is_rejected() -> void:
 	var contract: Script = load(CONTRACT_PATH)
 	assert_not_null(contract)

@@ -24,6 +24,8 @@ CANCEL = 'test_cancel_action_is_excluded_from_the_closed_verb_set'
 LOCKED_VERBS = 'test_all_locked_verbs_are_accepted'
 OBJECT = 'test_nested_object_values_are_rejected'
 NESTED_NUMBER = 'test_nested_nonfinite_numbers_are_rejected'
+TEXT_VALUE = 'test_request_text_value_size_is_bounded'
+TEXT_KEY = 'test_request_dictionary_key_size_is_bounded'
 COUNTER = 'test_cross_field_container_alias_is_rejected'
 DEPTH = 'test_request_depth_is_bounded'
 NODE_COUNT = 'test_request_node_count_is_bounded'
@@ -31,7 +33,7 @@ CONTAINER_COUNT = 'test_request_container_count_is_bounded'
 ORIENTATION = 'test_orientation_must_be_finite_and_canonical_degrees'
 FIXED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT)
 FIXED_CASES = (*FIXED_CASES, ORIENTATION)
-RED_CASES = (NESTED_NUMBER,)
+RED_CASES = (TEXT_VALUE, TEXT_KEY)
 NAMES = (WORKED, CANCEL, LOCKED_VERBS, OBJECT, *FIXED_CASES, *RED_CASES)
 TEST_PATH = SOURCES[0]
 
@@ -108,6 +110,8 @@ def serializer_control(context, variation):
     if variation == 'cancel-only': failed = (CANCEL,)
     if variation == 'object-only': failed = (OBJECT,)
     if variation == 'nested-nonfinite-only': failed = (NESTED_NUMBER,)
+    if variation == 'text-value-only': failed = (TEXT_VALUE,)
+    if variation == 'text-key-only': failed = (TEXT_KEY,)
     if variation == 'orientation-only': failed = (ORIENTATION,)
     if variation == 'depth-only': failed = (DEPTH,)
     if variation == 'node-count-only': failed = (NODE_COUNT,)
@@ -223,7 +227,7 @@ def main():
     contexts_removed = True
     serializers = ('red', 'green', 'prior-failure', 'both-fail', 'cancel-only', 'object-only',
                    'depth-only', 'node-count-only', 'container-count-only', 'orientation-only',
-                   'nested-nonfinite-only', 'counter-pass',
+                   'nested-nonfinite-only', 'text-value-only', 'text-key-only', 'counter-pass',
                    'timeout-exit', 'unsupported-exit', 'duplicate-case', 'missing-case',
                    'unknown-case', 'wrong-suite', 'wrong-class', 'green-failure',
                    'source-inventory', 'unattributed-failure', 'unexpected-skip',
