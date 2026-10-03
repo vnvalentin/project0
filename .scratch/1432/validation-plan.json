@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "linux-tooling",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "python3 -m unittest scripts.test_github_api_guard",
+      "dependencies": ["python"],
+      "tests": ["scripts/test_github_api_guard.py"],
+      "artifacts": ["build/validation/1432/github-api-guard-tests.json"]
+    }
+  ]
+}
