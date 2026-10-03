@@ -2,8 +2,8 @@
   "schema_version": 1,
   "kind": "component",
   "issue": "https://github.com/vnvalentin/project0/issues/1396",
-  "scope": "Source-derived GDExtension bootstrap control for the Linux GUT command",
-  "rollback": "Revert only the validation-runner bootstrap and focused control; do not retain generated .godot cache state.",
+  "scope": "Source-derived GDExtension bootstrap and isolated Linux network-default validation",
+  "rollback": "Revert only validation-runner and test-fixture changes; do not retain generated .godot cache state.",
   "steps": [
     {
       "suite": "linux-tooling",
@@ -33,6 +33,23 @@
       ],
       "artifacts": [
         "build/validation/1396-bootstrap/ci-routing-controls.json"
+      ]
+    },
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "scripts/run_gut_validation.sh",
+      "dependencies": [
+        "godot",
+        "sqlite"
+      ],
+      "tests": [
+        "tests/unit/test_lan_config.gd"
+      ],
+      "artifacts": [
+        "build/validation/gut.xml",
+        "build/validation/validation-summary.json"
       ]
     }
   ]
