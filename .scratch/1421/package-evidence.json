@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "issue": 1421,
+  "pull_request": 1422,
+  "host": "SETSUJOKU",
+  "version": "0.14.21",
+  "source_commit": "f84edee264e1d0c052aa5344893a6f90fb4c41a2",
+  "source_tree_dirty": false,
+  "godot_version": "4.7.2.stable.official.ed1daf0bf",
+  "rpc_source_declarations_match": true,
+  "rpc_source_declarations_compared": 51,
+  "deployed_source_revision": "4715092ecae5e7808c2fc019eb21002b0ce00955",
+  "server_image": "sha256:937e863ee7288d569ce0d5a74d3d118f28e64e17056f7f9aac24fd40ee25cdec",
+  "build": {
+    "command": "pwsh -NoProfile -NonInteractive -File scripts/build_current_deployment.ps1 -Version 0.14.21 -GodotPath D:/code/project0-1213/build/tools/godot-4.7.2/Godot_v4.7.2-stable_win64.exe -RceditPath D:/code/project0/build/tools/rcedit/node_modules/rcedit/bin/rcedit-x64.exe",
+    "exit_code": 0,
+    "result": "build/validation/standalone-build-0.14.21-da84a30bbac34cdda3514bcbe0f2b83b/result.json",
+    "export_error_lines": [],
+    "boundary_passed": true,
+    "release_eligible": true
+  },
+  "native_package_probe": {
+    "command": "pwsh -NoProfile -NonInteractive -File scripts/verify_standalone_package.ps1 -Version 0.14.21 -GodotPath D:/code/project0-1213/build/tools/godot-4.7.2/Godot_v4.7.2-stable_win64.exe -Windowed",
+    "exit_code": 0,
+    "result": "build/validation/standalone-package-0.14.21-fe1f838a53724d939f9421a098c198c2/result.json",
+    "status": "passed",
+    "runtime_error_lines": [],
+    "cleanup": true,
+    "gameplay_acceptance": false
+  },
+  "archive_sha256": "141A9E54599094B35FB4663998B83F34E0D88864A7C6175B1F04BF13BB19A7D0",
+  "exe_sha256": "E1652DEAFE012420092C9524DF3DE7BD40013D042DA7C93850832F150CA60261",
+  "pck_sha256": "B960D0F39DFA6A9D5CE20F9A886B2A5691132844ECCE3DAF1D1987D7ACB6E847",
+  "installed_path": "C:/Games/project0/Project0-client-windows-x64-0.14.21",
+  "installed_member_hashes_verified": true,
+  "previous_package_unchanged": true,
+  "authenticated_world_entry": "awaiting user login and correlated runtime evidence",
+  "delivery_gates": "pending CI and review; issue remains open"
+}
