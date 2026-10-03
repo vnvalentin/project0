@@ -196,6 +196,75 @@ func test_creation_properties_commit_with_instance_and_recover_exactly() -> void
 	assert_eq(ledger.get_creation_properties(original.instance_id).properties, derived.properties)
 
 
+func test_creation_property_retry_after_retirement_preserves_committed_receipt_without_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	var created: Dictionary = ledger.create_instance_with_properties(
+		"character:one", "operation:create", original, 0, 0, profile_wire, inputs
+	)
+	assert_eq(created.outcome, "ok")
+	if created.outcome != "ok":
+		return
+	var committed_properties: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(committed_properties.outcome, "ok")
+	if committed_properties.outcome != "ok":
+		return
+	var retired: Dictionary = ledger.retire_instance(
+		"character:one", "operation:retire", original, 1, 1, "consumed", 50
+	)
+	assert_eq(retired.outcome, "ok")
+	if retired.outcome != "ok":
+		return
+	var expected_terminal: Dictionary = original.duplicate(true)
+	expected_terminal.owner = null
+	expected_terminal.location = null
+	expected_terminal.instance_revision = 1
+	expected_terminal.terminal = {"reason": "consumed", "operation_id": "operation:retire", "server_tick": 50}
+
+	_store.close()
+	_store = StoreScript.new()
+	var opened: Dictionary = _store.open(_relative_path)
+	assert_eq(opened.outcome, "ok")
+	if opened.outcome != "ok":
+		return
+	ledger = LedgerScript.new(_store)
+	var observation: Dictionary = _store.start_dml_observation()
+	assert_eq(observation.observation_status, "OBSERVED")
+	if observation.observation_status != "OBSERVED":
+		return
+	var retry: Dictionary = original.duplicate(true)
+	retry.acquisition.server_tick = 12345
+	var retried: Dictionary = ledger.create_instance_with_properties(
+		"character:one", "operation:create", retry, 0, 0, profile_wire, inputs
+	)
+	assert_true(retried == created, "1435 exact creation replay returns original committed result after retirement")
+
+	var current: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(current.outcome, "ok")
+	if current.outcome != "ok" or current.instance == null:
+		return
+	assert_true(current.instance.to_wire_dict() == expected_terminal, "1435 replay preserves the terminal item")
+	var recovered_properties: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(recovered_properties.outcome, "ok")
+	if recovered_properties.outcome != "ok":
+		return
+	assert_true(recovered_properties.properties == committed_properties.properties, "1435 replay preserves immutable creation properties")
+	var owner_revision: Dictionary = ledger.get_owner_revision(original.owner)
+	var location_revision: Dictionary = ledger.get_location_revision(original.owner, original.location)
+	assert_eq(owner_revision.outcome, "ok")
+	assert_eq(location_revision.outcome, "ok")
+	assert_eq(owner_revision.revision, 2)
+	assert_eq(location_revision.revision, 2)
+	var active_items: Dictionary = ledger.list_owner(original.owner)
+	assert_eq(active_items.outcome, "ok")
+	assert_eq(active_items.instances.size(), 0)
+	_assert_no_writes("1435-creation-properties-retired-retry-zero")
+
+
 func test_creation_property_operation_keys_remain_actor_scoped() -> void:
 	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
 	assert_eq(ledger.ensure_schema().outcome, "ok")
