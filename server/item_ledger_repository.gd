@@ -244,7 +244,11 @@ func create_instance_with_properties(actor: String, operation_id: String, wire: 
 			if replay.outcome == "ok":
 				var retained_instance: Dictionary = get_instance(data.instance_id)
 				var retained_properties: Dictionary = get_creation_properties(data.instance_id)
-				if retained_instance.outcome != "ok" or retained_instance.instance.to_wire_dict() != data \
+				var retained_wire: Dictionary = {}
+				if retained_instance.instance != null:
+					retained_wire = retained_instance.instance.to_wire_dict()
+					retained_wire.acquisition.erase("server_tick")
+				if retained_instance.outcome != "ok" or retained_wire != logical \
 					or retained_properties.outcome != "ok" or retained_properties.properties != properties:
 					work.merge(_command_result("corrupt_record", "committed creation no longer matches its immutable request"), true)
 					return false
