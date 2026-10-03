@@ -34,6 +34,12 @@ Current focused evidence: the correctly selected test passed 1/1 on both the #14
 
 With `PROJECT0_MELEE_DIAGNOSTICS=1`, the isolated real-socket test passed 1/1. The route was ENet. At predicted reach, client and authoritative positions both equaled `(-0.653386, 1, -0.653386)` and sequences were 122/122. After 15 settle frames, positions still matched, the client sequence was 137, the server acknowledgement was 136, and one input remained pending. This does not reproduce the suite-load discrepancy; it rules out an alternate bridge route and persistent trajectory mismatch in the isolated run.
 
+## Confirmed cause and correction
+
+The harness treated 15 local physics frames as proof that the server had processed released movement input. That assumption is false: the client sends unreliable movement samples and the authoritative position arrives asynchronously with the server's last-processed sequence. The original full-GUT failure showed client prediction in reach while the server snapshot was not. Correct the harness by waiting, with a 5-second monotonic deadline, for the first post-release input sequence to be acknowledged and for the authoritative position to be in reach. Keep both original client/server reach assertions and the real ENet action/hit checks. A timeout remains a failure; no fixed sleep, test skip, or weakened geometry predicate is introduced.
+
+Focused post-correction evidence: the server acknowledged release sequence 158 after 2 physics frames; client/server positions matched at `(-0.653386, 1, -0.653386)`, both reach assertions passed, the real action/hit checks passed, and owned processes/databases were cleaned up.
+
 ## BDD scenarios
 
 - Given the real client moves toward the target, the harness does not declare the authoritative reach precondition until the server-owned position observation is within the actual reach.
