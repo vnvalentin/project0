@@ -30,6 +30,10 @@ class GitHubFeedCache:
         self._refreshing = False
         self._error = "not loaded"
         self._snapshot: dict = {}
+        self._next_due = 0.0
+        self._stop = threading.Event()
+        self._wake = threading.Event()
+        self._scheduler: threading.Thread | None = None
         try:
             snapshot = json.loads(path.read_text(encoding="utf-8"))
             if snapshot.get("schema_version") != 1 or snapshot.get("repo") != repo:
@@ -40,6 +44,7 @@ class GitHubFeedCache:
             self._validate(snapshot)
             self._snapshot = snapshot
             self._error = ""
+            self._next_due = updated_at + interval
         except FileNotFoundError:
             pass
         except (OSError, ValueError, TypeError, AttributeError) as exc:
@@ -67,18 +72,43 @@ class GitHubFeedCache:
                 "milestones": self._snapshot.get("milestones", []),
                 "updated_at": updated_at,
                 "refreshing": self._refreshing,
+                "next_refresh_at": self._next_due,
                 "stale": bool(self._error) or self.clock() - updated_at >= self.interval,
                 "error": self._error,
             }
 
-    def request_refresh(self) -> bool:
+    def request_refresh(self, *, only_if_due: bool = False) -> bool:
         with self._lock:
-            if self._refreshing:
+            if self._refreshing or (only_if_due and self.clock() < self._next_due):
                 return False
             self._refreshing = True
+            self._next_due = self.clock() + self.interval
             self._done.clear()
             threading.Thread(target=self._refresh, daemon=True, name="github-refresh").start()
             return True
+
+    def refresh_if_due(self) -> bool:
+        return self.request_refresh(only_if_due=True)
+
+    def start(self) -> None:
+        with self._lock:
+            if self._scheduler is not None:
+                return
+            self._scheduler = threading.Thread(target=self._schedule, daemon=True, name="github-schedule")
+            self._scheduler.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._wake.set()
+        if self._scheduler is not None:
+            self._scheduler.join(timeout=2)
+
+    def _schedule(self) -> None:
+        while not self._stop.is_set():
+            self.refresh_if_due()
+            delay = max(0.05, self.read()["next_refresh_at"] - self.clock())
+            self._wake.wait(delay)
+            self._wake.clear()
 
     def wait_for_refresh(self, timeout: float) -> bool:
         return self._done.wait(timeout)
@@ -107,4 +137,6 @@ class GitHubFeedCache:
                 os.unlink(temporary_path)
             with self._lock:
                 self._refreshing = False
+                self._next_due = self.clock() + self.interval
                 self._done.set()
+                self._wake.set()

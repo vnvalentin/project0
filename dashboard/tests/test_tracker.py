@@ -1,5 +1,6 @@
 import json
 import sys
+import threading
 from pathlib import Path
 from urllib.error import HTTPError
 
@@ -31,6 +32,69 @@ def test_cached_feed_reads_survive_restart_without_network(tmp_path: Path) -> No
     assert restarted.read()["updated_at"] == 100.0
     assert restarted.read()["stale"] is False
     assert len(calls) == 1
+
+
+def test_refresh_schedule_and_failure_preserve_last_good_snapshot(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    now = [100.0]
+    calls = []
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        if len(calls) > 1:
+            raise RuntimeError("GitHub unavailable")
+        return {"issues": [{"number": 1433, "title": "Cache", "state": "open"}], "milestones": []}
+
+    path = tmp_path / "feed.json"
+    cache = GitHubFeedCache(path, "example/project", fetch, clock=lambda: now[0])
+    assert cache.refresh_if_due() is True
+    assert cache.wait_for_refresh(2) is True
+    for _ in range(10):
+        assert cache.read()["available"] is True
+        assert cache.refresh_if_due() is False
+    now[0] = 1899.0
+    assert cache.refresh_if_due() is False
+    now[0] = 1900.0
+    assert cache.refresh_if_due() is True
+    assert cache.wait_for_refresh(2) is True
+    assert len(calls) == 2
+    assert cache.read()["available"] is True
+    assert cache.read()["issues"][0]["number"] == 1433
+    assert cache.read()["stale"] is True
+    assert "GitHub unavailable" in cache.read()["error"]
+    assert cache.refresh_if_due() is False
+    assert json.loads(path.read_text())["updated_at"] == 100.0
+
+
+def test_simultaneous_manual_refreshes_share_one_fetch(tmp_path: Path) -> None:
+    from github_cache import GitHubFeedCache
+
+    entered = threading.Event()
+    release = threading.Event()
+    calls = []
+
+    def fetch(previous: dict) -> dict:
+        calls.append(previous)
+        entered.set()
+        assert release.wait(2)
+        return {"issues": [], "milestones": []}
+
+    cache = GitHubFeedCache(tmp_path / "feed.json", "example/project", fetch)
+    try:
+        assert cache.request_refresh() is True
+        assert entered.wait(2)
+        assert cache.read()["refreshing"] is True
+        assert cache.request_refresh() is False
+        assert cache.request_refresh() is False
+        assert calls == [{}]
+    finally:
+        release.set()
+        assert cache.wait_for_refresh(2)
+    assert cache.read()["refreshing"] is False
+    assert cache.request_refresh() is True
+    assert cache.wait_for_refresh(2)
+    assert len(calls) == 2
 
 
 def test_tracker_model_extracts_phases_and_queue(tmp_path: Path) -> None:
