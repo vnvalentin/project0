@@ -5,7 +5,7 @@ run="${1:?new run id required}"
 case "$run" in *[!a-zA-Z0-9_-]*|'') exit 2;; esac
 result="$PWD/build/validation/1341-ledger/$run"
 test ! -e "$result"
-mkdir -p "$result/user-data" "$result/observations"
+mkdir -p "$result"
 export XDG_DATA_HOME="$result/user-data"
 export DASHBOARD_RESULTS_DIR="$result/dashboard"
 export PROJECT0_LEDGER_EVIDENCE_DIR="$result/observations"
@@ -19,10 +19,14 @@ cleanup() {
   exit "$evidence_exit"
 }
 trap cleanup EXIT
+mkdir -p "$result/user-data" "$result/observations"
 python3 .scratch/1341-ledger/evidence_guard.py start "$result"
 set +e
 timeout --kill-after=15s 900s godot --headless --editor --path . --import --quit > "$result/import.log" 2>&1
 import_exit=$?
+set -e
+python3 .scratch/1341-ledger/evidence_guard.py qualify-import "$result" "$import_exit"
+set +e
 RESULT_DIR="$result" GUT_TIMEOUT_SECONDS=900 bash scripts/run_gut_validation.sh > "$result/full-runner.log" 2>&1
 suite_exit=$?
 bash scripts/check_record_sync.sh > "$result/record-sync.log" 2>&1
