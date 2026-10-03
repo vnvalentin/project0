@@ -65,8 +65,8 @@ if cleanup!='true': errors.append('cleanup_unverified')
 if complete!='true': errors.append('execution_incomplete')
 if engine=='NOT_OBSERVED' or not re.fullmatch(r'[0-9]+\.[0-9]+(?:\.[0-9]+)?\.[A-Za-z0-9_.+-]+',engine): errors.append('engine_identity_not_observed')
 test_path='tests/unit/test_construction_contract.gd'
-declared_cases=('test_place_request_preserves_pins_and_detaches_client_values','test_cancel_action_is_excluded_from_the_closed_verb_set','test_nested_object_values_are_rejected','test_cross_field_container_alias_is_rejected')
-counterexample='test_cross_field_container_alias_is_rejected'
+declared_cases=('test_place_request_preserves_pins_and_detaches_client_values','test_cancel_action_is_excluded_from_the_closed_verb_set','test_nested_object_values_are_rejected','test_cross_field_container_alias_is_rejected','test_request_depth_is_bounded','test_request_node_count_is_bounded','test_request_container_count_is_bounded')
+red_cases=('test_cross_field_container_alias_is_rejected','test_request_depth_is_bounded','test_request_node_count_is_bounded','test_request_container_count_is_bounded')
 expected_tests=len(declared_cases)
 try:
     source_cases=re.findall(r'^func (test_[A-Za-z0-9_]+)\(',Path(test_path).read_text(),re.M)
@@ -100,7 +100,7 @@ for name in ['import.log','gut.log']:
 if mode=='green':
     if int(native_exit)!=0 or counts['failures']!=0: errors.append('green_not_observed')
 else:
-    if int(native_exit)!=1 or failed_cases!=[counterexample] or counts['failures']<=0: errors.append('red_not_observed')
+  if int(native_exit)!=1 or failed_cases!=list(red_cases) or counts['failures']!=len(red_cases): errors.append('red_not_observed')
 report={'schema_version':1,'issue':840,'host':'192.168.1.254','revision':revision,'final_revision':final_revision,'expected_head':expected,'engine':engine,'command':'bash .scratch/840/run-focused.sh '+label+' '+expected+' '+mode,'mode':mode,'stage':stage,'native_exit_code':int(native_exit),'status':'passed' if not errors else 'failed','expected_tests':expected_tests,**counts,'source_clean_start':clean_start=='true','source_clean_end':clean_end,'source_sha256':sources,'cleanup_verified':cleanup=='true','errors':errors,'action_validation':'NOT_OBSERVED','persistence':'NOT_OBSERVED','windows_runtime':'NOT_OBSERVED','result_retention':'OBSERVED'}
 try:
     (out/'focused-result.json').write_text(json.dumps(report,indent=2)+'\n')

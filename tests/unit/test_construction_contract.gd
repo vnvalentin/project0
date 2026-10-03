@@ -76,6 +76,50 @@ func test_cross_field_container_alias_is_rejected() -> void:
 	assert_null(parsed.get("request"))
 
 
+func test_request_depth_is_bounded() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	var nested_value: Variant = "leaf"
+	for _index in range(33):
+		nested_value = [nested_value]
+	raw["target"]["metadata"] = nested_value
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
+func test_request_node_count_is_bounded() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	var metadata: Array[int] = []
+	metadata.resize(4096)
+	raw["target"]["metadata"] = metadata
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
+func test_request_container_count_is_bounded() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	var raw: Dictionary = _request()
+	var metadata: Array = []
+	for _index in range(257):
+		metadata.append([])
+	raw["target"]["metadata"] = metadata
+	var parsed: Dictionary = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+
+
 func _request() -> Dictionary:
 	return {
 		"schema_version": 1, "client_sequence": 7, "verb": "PLACE", "expected_revision": 0,

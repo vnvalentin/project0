@@ -23,7 +23,11 @@ WORKED = 'test_place_request_preserves_pins_and_detaches_client_values'
 CANCEL = 'test_cancel_action_is_excluded_from_the_closed_verb_set'
 OBJECT = 'test_nested_object_values_are_rejected'
 COUNTER = 'test_cross_field_container_alias_is_rejected'
-NAMES = (WORKED, CANCEL, OBJECT, COUNTER)
+DEPTH = 'test_request_depth_is_bounded'
+NODE_COUNT = 'test_request_node_count_is_bounded'
+CONTAINER_COUNT = 'test_request_container_count_is_bounded'
+RED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT)
+NAMES = (WORKED, CANCEL, OBJECT, *RED_CASES)
 TEST_PATH = SOURCES[0]
 
 
@@ -89,7 +93,7 @@ def serializer_control(context, variation):
     (out / 'source-start.json').write_text(json.dumps(hashes(root)))
     for name in ('import.log', 'gut.log'):
         (out / name).write_text('fixture phase completed\n')
-    failed = (COUNTER,)
+    failed = RED_CASES
     names = NAMES
     suite = classname = TEST_PATH
     mode, exit_code = 'red', 1
@@ -98,6 +102,9 @@ def serializer_control(context, variation):
     if variation == 'both-fail': failed = (WORKED, COUNTER)
     if variation == 'cancel-only': failed = (CANCEL,)
     if variation == 'object-only': failed = (OBJECT,)
+    if variation == 'depth-only': failed = (DEPTH,)
+    if variation == 'node-count-only': failed = (NODE_COUNT,)
+    if variation == 'container-count-only': failed = (CONTAINER_COUNT,)
     if variation == 'counter-pass': failed = ()
     if variation == 'timeout-exit': exit_code = 124
     if variation == 'unsupported-exit': exit_code = 2
@@ -181,7 +188,8 @@ def main():
     cases = []
     failures = []
     contexts_removed = True
-    serializers = ('red', 'green', 'prior-failure', 'both-fail', 'cancel-only', 'object-only', 'counter-pass',
+    serializers = ('red', 'green', 'prior-failure', 'both-fail', 'cancel-only', 'object-only',
+                   'depth-only', 'node-count-only', 'container-count-only', 'counter-pass',
                    'timeout-exit', 'unsupported-exit', 'duplicate-case', 'missing-case',
                    'unknown-case', 'wrong-suite', 'wrong-class', 'green-failure',
                    'source-inventory', 'unattributed-failure', 'unexpected-skip',
