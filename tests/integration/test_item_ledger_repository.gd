@@ -245,6 +245,7 @@ func test_creation_property_retry_after_retirement_preserves_committed_receipt_w
 
 	var current: Dictionary = ledger.get_instance(original.instance_id)
 	assert_eq(current.outcome, "ok")
+	assert_not_null(current.instance, "1435 replay requires the committed terminal snapshot")
 	if current.outcome != "ok" or current.instance == null:
 		return
 	assert_true(current.instance.to_wire_dict() == expected_terminal, "1435 replay preserves the terminal item")
