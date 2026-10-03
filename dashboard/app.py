@@ -10,19 +10,14 @@ import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
-from urllib.error import HTTPError
-from urllib.request import Request, urlopen
 
+from github_cache import GitHubFeedCache, fetch_github_feed
 from tracker import inline_markdown, load_tracker
 
 REPO = Path(os.environ.get("PROJECT_ROOT", "/repo"))
 PORT = int(os.environ.get("PORT", "8080"))
 GITHUB_REPO = os.environ.get("GITHUB_REPO", "vnvalentin/project0")
-GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "300"))
-# Optional: authenticated requests get 5000/hr instead of the 60/hr GitHub
-# gives anonymous REST calls from a single IP, which the dashboard alone can
-# exhaust after a few container restarts clear its in-memory cache.
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "") or os.environ.get("GH_TOKEN", "")
+GITHUB_ISSUE_CACHE_SECONDS = int(os.environ.get("GITHUB_ISSUE_CACHE_SECONDS", "1800"))
 # Slice 165 (telemetry map #282, decision #290): the game server's telemetry.db,
 # read-only. Mounted separately from /repo (see deploy/compose.yml's dashboard
 # service) since it lives in the game server's user:// data directory, not the
@@ -34,7 +29,12 @@ try:
     _SELF_MTIME = SELF_PATH.stat().st_mtime
 except OSError:
     _SELF_MTIME = None
-_ISSUE_CACHE = {"at": 0.0, "data": {"available": False, "issues": [], "error": "not loaded"}}
+_ISSUE_CACHE = GitHubFeedCache(
+    Path(os.environ.get("GITHUB_CACHE_PATH", "/cache/github-feed.json")),
+    GITHUB_REPO,
+    lambda previous: fetch_github_feed(GITHUB_REPO, previous),
+    interval=GITHUB_ISSUE_CACHE_SECONDS,
+)
 
 
 def restart_if_source_changed() -> None:
@@ -57,78 +57,86 @@ def read_repo_file(name: str) -> str:
 
 
 def github_issues() -> dict:
-    now = time.time()
-    if now - float(_ISSUE_CACHE["at"]) < GITHUB_ISSUE_CACHE_SECONDS:
-        return _ISSUE_CACHE["data"]
-    try:
-        issues = []
-        milestones = []
-        page = 1
-        while True:
-            url = f"https://api.github.com/repos/{GITHUB_REPO}/issues?state=all&per_page=100&page={page}"
-            headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
-            if GITHUB_TOKEN:
-                headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-            req = Request(url, headers=headers)
-            try:
-                with urlopen(req, timeout=5) as response:
-                    raw = response.read().decode("utf-8")
-            except HTTPError as exc:
-                if exc.code == 422 and issues:
-                    break
-                raise
-            parsed = json.loads(raw)
-            for item in parsed:
-                if "pull_request" in item:
-                    continue
-                milestone = item.get("milestone") or {}
-                issues.append({
-                    "number": int(item.get("number", 0)),
-                    "title": str(item.get("title", "")),
-                    "url": str(item.get("html_url", "")),
-                    "state": str(item.get("state", "open")),
-                    "labels": [str(label.get("name", "")) for label in item.get("labels", []) if label.get("name")],
-                    "assignees": [str(a.get("login", "")) for a in item.get("assignees", []) if a.get("login")],
-                    "body": str(item.get("body", "")),
-                    "updated_at": str(item.get("updated_at", "")),
-                    "closed_at": str(item.get("closed_at") or ""),
-                    "milestone_number": milestone.get("number"),
-                    "milestone_title": str(milestone.get("title", "")),
-                })
-            if len(parsed) < 100:
-                break
-            page += 1
-        try:
-            page = 1
-            while True:
-                url = f"https://api.github.com/repos/{GITHUB_REPO}/milestones?state=all&per_page=100&page={page}"
-                headers = {"Accept": "application/vnd.github+json", "User-Agent": "project0-flow-dashboard"}
-                if GITHUB_TOKEN:
-                    headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-                req = Request(url, headers=headers)
-                with urlopen(req, timeout=5) as response:
-                    parsed = json.loads(response.read().decode("utf-8"))
-                milestones.extend({
-                    "number": int(item.get("number", 0)),
-                    "title": str(item.get("title", "")),
-                    "state": str(item.get("state", "open")),
-                    "description": str(item.get("description", "")),
-                    "open_issues": int(item.get("open_issues", 0)),
-                    "closed_issues": int(item.get("closed_issues", 0)),
-                    "due_on": str(item.get("due_on") or ""),
-                } for item in parsed)
-                if len(parsed) < 100:
-                    break
-                page += 1
-        except Exception:
-            milestones = []
-        issues.sort(key=lambda issue: issue["number"])
-        milestones.sort(key=lambda milestone: milestone["number"])
-        data = {"available": True, "repo": GITHUB_REPO, "issues": issues, "milestones": milestones, "error": ""}
-    except Exception as exc:
-        data = {"available": False, "repo": GITHUB_REPO, "issues": [], "error": str(exc)}
-    _ISSUE_CACHE.update({"at": now, "data": data})
-    return data
+    return _ISSUE_CACHE.read()
+
+
+def github_status() -> dict:
+        feed = github_issues()
+        return {
+                **{field: feed[field] for field in ("available", "updated_at", "refreshing", "stale", "error", "next_refresh_at")},
+                "interval_seconds": _ISSUE_CACHE.interval,
+                "issue_count": len(feed["issues"]),
+                "milestone_count": len(feed["milestones"]),
+        }
+
+
+def feed_controls(feed: dict) -> str:
+        updated_at = feed.get("updated_at", 0)
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(updated_at)) if updated_at else "not yet synchronized"
+        state = "Refreshing" if feed.get("refreshing") else ("Stale" if feed.get("stale") else "Cached")
+        error = str(feed.get("error") or "")
+        disabled = "disabled" if feed.get("refreshing") else ""
+        return f'''<div class="feed-toolbar" data-updated="{updated_at}">
+<div class="feed-info"><span id="feed-status" role="status" aria-live="polite">{state}. Last successful update: {esc(timestamp)}</span>
+<span id="feed-error" class="feed-error" role="alert">{esc(error)}</span></div>
+<button id="feed-refresh" type="button" title="Refresh latest GitHub data" {disabled}>Refresh now</button>
+</div>''' + '''<script>
+(() => {
+    const toolbar = document.querySelector('.feed-toolbar');
+    const button = document.getElementById('feed-refresh');
+    const status = document.getElementById('feed-status');
+    const error = document.getElementById('feed-error');
+    const initialUpdate = Number(toolbar.dataset.updated);
+    let pollTimer;
+    function schedule(delay) {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(poll, delay);
+    }
+    function show(data) {
+        button.disabled = data.refreshing;
+        button.textContent = data.refreshing ? 'Refreshing...' : 'Refresh now';
+        const stamp = data.updated_at ? new Date(data.updated_at * 1000).toLocaleString() : 'not yet synchronized';
+        const state = data.refreshing ? 'Refreshing' : (data.stale ? 'Stale' : 'Cached');
+        status.textContent = state + '. Last successful update: ' + stamp;
+        error.textContent = data.error || '';
+    }
+    async function poll() {
+        try {
+            const response = await fetch('/api/github/status', {cache: 'no-store'});
+            if (!response.ok) throw new Error('Refresh status unavailable');
+            const data = await response.json();
+            show(data);
+            if (data.refreshing) schedule(1000);
+            else if (data.updated_at > initialUpdate) window.location.reload();
+            else schedule(30000);
+        } catch (failure) {
+            error.textContent = failure.message;
+            button.disabled = false;
+            button.textContent = 'Refresh now';
+            schedule(30000);
+        }
+    }
+    button.addEventListener('click', async () => {
+        clearTimeout(pollTimer);
+        button.disabled = true;
+        button.textContent = 'Refreshing...';
+        error.textContent = '';
+        try {
+            const response = await fetch('/api/github/refresh', {method: 'POST', headers: {'X-Dashboard-Refresh': '1'}});
+            if (!response.ok) throw new Error('Refresh request failed');
+            show(await response.json());
+            poll();
+        } catch (failure) {
+            error.textContent = failure.message;
+            button.disabled = false;
+            button.textContent = 'Refresh now';
+            schedule(30000);
+        }
+    });
+    if (button.disabled) poll();
+    else schedule(30000);
+})();
+</script>'''
 
 
 def issue_covers_goal_target(issue: dict) -> bool:
@@ -353,6 +361,7 @@ def render_vision(view: str = "committed") -> str:
     <div class="nav"><a href="/">Overview</a><a class="on" href="/detail">Detailed</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a><a href="/detail{other}">{esc(other_lbl)}</a></div>
 </header>
 <main>
+    {feed_controls(issue_feed)}
   <section class="vhero">
     <article class="vstatement"><h2>The world is not only generated for players to visit.</h2>
       <p>It is a foundation they can explore, alter, inhabit, build upon, and eventually help govern.
@@ -403,6 +412,10 @@ header .sub{color:var(--muted);font-size:12px;margin-top:3px}
 .nav{display:flex;gap:8px;align-items:center}
 .nav a{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--panel)}
 .nav a.on{background:var(--cyan);color:#08121a;font-weight:700;border-color:var(--cyan)}
+.feed-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.feed-info{flex:1;min-width:min(100%,250px);overflow-wrap:anywhere}.feed-error{display:block;color:var(--amber)}
+#feed-refresh{width:130px;height:36px;flex:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:6px;font:inherit;cursor:pointer}
+#feed-refresh:hover,#feed-refresh:focus-visible{border-color:var(--cyan)}#feed-refresh:disabled{opacity:.65;cursor:wait}
 main{padding:26px 34px;max-width:1180px;margin:auto}
 .sec{margin:0 0 32px}
 .sec>h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:700}
@@ -1712,6 +1725,7 @@ def render_roadmap(mockup_variant: str = "", milestone_number: str = "", slice_i
     <div class="nav"><a href="/">Overview</a><a href="/detail">Traceability</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a class="on" href="/roadmap">Roadmap</a><a href="/roadmap?mockup=backlog">Backlog</a></div>
 </header>
 <main>
+    {feed_controls(issue_feed)}
     {page_body}
 </main></body></html>'''
 
@@ -1751,7 +1765,8 @@ def _delivery_milestone_html(rows: list[dict], milestones: list[dict]) -> str:
 
 
 def render_delivery() -> str:
-    model = delivery_projection(github_issues())
+    issue_feed = github_issues()
+    model = delivery_projection(issue_feed)
     warning = "" if model["available"] else f'<div class="delivery-warning">GitHub issue feed unavailable: {esc(model["error"] or "unknown error")}</div>'
     rows = "".join(
         f'<tr><td><a href="{esc(row["url"])}">#{row["number"]} {esc(row["title"])}</a><br><span class="muted">{esc(row["kind"])}</span></td>'
@@ -1765,7 +1780,7 @@ def render_delivery() -> str:
 <style>{EXEC_CSS}{DELIVERY_CSS}</style></head><body>
 <header><div><h1>Project0 — Delivery</h1><div class="sub">Local operational views from live GitHub Issues</div></div>
 <div class="nav"><a href="/">Overview</a><a href="/detail">Detailed</a><a class="on" href="/delivery">Delivery</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div></header>
-<main>{warning}<div class="delivery-meta">Active issues: <strong>{model["total"]}</strong> · Source: GitHub Issues · Project #2 custom fields are intentionally not required</div>
+<main>{feed_controls(issue_feed)}{warning}<div class="delivery-meta">Active issues: <strong>{model["total"]}</strong> · Source: GitHub Issues · Project #2 custom fields are intentionally not required</div>
 <div class="delivery-summary"><div class="delivery-stat"><div class="num">{model["total"]}</div><span class="label">Active delivery</span></div><div class="delivery-stat"><div class="num">{len(model["outcomes"])}</div><span class="label">Outcomes</span></div><div class="delivery-stat"><div class="num">{len(model["phases"])}</div><span class="label">Phases</span></div><div class="delivery-stat"><div class="num">{len(model["blocked"])}</div><span class="label">Blocked</span></div></div>
 <section class="sec"><h2>Active delivery table</h2><table class="delivery-table"><thead><tr><th>Work</th><th>Outcome</th><th>Phase</th><th>Milestone</th><th>Status</th><th>Blocked</th><th>Evidence</th><th>Parent</th><th>Assignees</th></tr></thead><tbody>{rows}</tbody></table></section>
 <section class="sec"><h2>By outcome</h2><div class="delivery-groups">{_delivery_group_html(model["rows"], "outcome")}</div></section>
@@ -1838,6 +1853,7 @@ def render_overview(view: str = "committed") -> str:
     <div class="nav"><a class="on" href="/">Overview</a><a href="/detail">Traceability</a><a href="/delivery">Delivery</a><a href="/tracker">Tracker</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
+    {feed_controls(issue_feed)}
   <section class="sec northstar">
     <h2>The Vision</h2>
     <p class="charter-text">{esc(VISION_STATEMENT)}</p>
@@ -2470,6 +2486,7 @@ def render_tbp() -> str:
     <div class="nav"><a href="/">Reality</a><a href="/detail">Detailed</a><a href="/tests">Tests</a><a href="/telemetry">Telemetry</a><a class="on" href="/tbp">TBP View</a><a href="/roadmap">Roadmap</a></div>
 </header>
 <main>
+    {feed_controls(issue_feed)}
   <section class="sec">
     <div class="tbp-layout">
       <div class="tbp-panel"><h2>Backlog structure</h2>{tree_html}</div>
@@ -2480,11 +2497,40 @@ def render_tbp() -> str:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _send_json(self, code: int, data: dict) -> None:
+        body = json.dumps(data).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.close_connection = True
+
+    def do_POST(self):
+        if self.path != "/api/github/refresh":
+            self._send_json(404, {"error": "not found"})
+            return
+        origin = self.headers.get("Origin", "")
+        if (
+            self.headers.get("X-Dashboard-Refresh") != "1"
+            or self.headers.get("Sec-Fetch-Site") == "cross-site"
+            or (origin and origin != f"http://{self.headers.get('Host')}")
+        ):
+            self._send_json(403, {"error": "same-origin refresh required"})
+            return
+        _ISSUE_CACHE.request_refresh()
+        self._send_json(202, github_status())
+
     def do_GET(self):
         restart_if_source_changed()
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == "/health":
+        if path == "/api/github/status":
+            self._send_json(200, github_status())
+            return
+        elif path == "/health":
             body = b'{"status":"ok"}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -2546,4 +2592,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    _ISSUE_CACHE.start()
+    try:
+        ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    finally:
+        _ISSUE_CACHE.close()
