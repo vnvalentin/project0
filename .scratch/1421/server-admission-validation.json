@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "issue": 1421,
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "dependencies": ["godot", "sqlite", "docker"],
+      "command": "Run tests/unit/test_version_handshake.gd with GUT in an isolated network-none container using immutable deployed image sha256:937e863ee7288d569ce0d5a74d3d118f28e64e17056f7f9aac24fd40ee25cdec, mount only the unchanged hash-bound fixture read-only, and retain junit/log/result before teardown",
+      "tests": ["tests/unit/test_version_handshake.gd"],
+      "artifacts": [
+        "build/validation/admission-1421/ownership.json",
+        "build/validation/admission-1421/gut.xml",
+        "build/validation/admission-1421/gut.log",
+        "build/validation/admission-1421/result.json"
+      ]
+    }
+  ]
+}

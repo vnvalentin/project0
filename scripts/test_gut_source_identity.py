@@ -448,6 +448,7 @@ raise SystemExit(''' + str(code) + ')\n')
         run = next(call for call in calls if call[0] == "run")
         env_index = run.index("-i")
         self.assertIn("M4_SOURCE_REVISION=" + self.sha, run[env_index + 1:])
+        self.assertIn("TMPDIR=/app/.godot", run[env_index + 1:])
         self.assertFalse(self.engine_calls.exists())
 
     def test_hosted_command_builds_dependency_image_before_consumer_with_only_recipe_context(self):
