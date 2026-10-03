@@ -26,7 +26,8 @@ COUNTER = 'test_cross_field_container_alias_is_rejected'
 DEPTH = 'test_request_depth_is_bounded'
 NODE_COUNT = 'test_request_node_count_is_bounded'
 CONTAINER_COUNT = 'test_request_container_count_is_bounded'
-RED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT)
+ORIENTATION = 'test_orientation_must_be_finite_and_canonical_degrees'
+RED_CASES = (COUNTER, DEPTH, NODE_COUNT, CONTAINER_COUNT, ORIENTATION)
 NAMES = (WORKED, CANCEL, OBJECT, *RED_CASES)
 TEST_PATH = SOURCES[0]
 
@@ -105,6 +106,7 @@ def serializer_control(context, variation):
     if variation == 'depth-only': failed = (DEPTH,)
     if variation == 'node-count-only': failed = (NODE_COUNT,)
     if variation == 'container-count-only': failed = (CONTAINER_COUNT,)
+    if variation == 'orientation-only': failed = (ORIENTATION,)
     if variation == 'counter-pass': failed = ()
     if variation == 'timeout-exit': exit_code = 124
     if variation == 'unsupported-exit': exit_code = 2
@@ -182,14 +184,24 @@ print('4.3.stable.fixture')
 
 
 def main():
-    before = hashes(ROOT)
+    try:
+        before = hashes(ROOT)
+    except Exception as exc:
+        print(json.dumps({'status': 'failed', 'result_retention': 'NOT_OBSERVED',
+                          'error': f'source identity capture failed: {exc}'}))
+        return 1
     out = ROOT / 'build/validation/840' / ('evidence-controls-' + uuid.uuid4().hex[:12])
-    out.mkdir(parents=True, exist_ok=False)
+    try:
+        out.mkdir(parents=True, exist_ok=False)
+    except OSError as exc:
+        print(json.dumps({'status': 'failed', 'result_retention': 'NOT_OBSERVED',
+                          'error': f'evidence directory setup failed: {exc}'}))
+        return 1
     cases = []
     failures = []
     contexts_removed = True
     serializers = ('red', 'green', 'prior-failure', 'both-fail', 'cancel-only', 'object-only',
-                   'depth-only', 'node-count-only', 'container-count-only', 'counter-pass',
+                   'depth-only', 'node-count-only', 'container-count-only', 'orientation-only', 'counter-pass',
                    'timeout-exit', 'unsupported-exit', 'duplicate-case', 'missing-case',
                    'unknown-case', 'wrong-suite', 'wrong-class', 'green-failure',
                    'source-inventory', 'unattributed-failure', 'unexpected-skip',
@@ -203,15 +215,30 @@ def main():
         except Exception as exc:
             failures.append({'case': variation, 'error': str(exc)})
         finally:
-            shutil.rmtree(context)
-            contexts_removed = contexts_removed and not context.exists()
-    preserved = before == hashes(ROOT)
+            try:
+                shutil.rmtree(context)
+                if context.exists():
+                    raise OSError('temporary context still exists after cleanup')
+            except Exception as exc:
+                contexts_removed = False
+                failures.append({'case': variation, 'cleanup_error': str(exc)})
+    try:
+        preserved = before == hashes(ROOT)
+    except Exception as exc:
+        preserved = False
+        failures.append({'case': 'source-integrity', 'error': str(exc)})
     report = {'status': 'passed' if not failures and preserved and contexts_removed else 'failed',
               'cases': cases, 'failures': failures, 'actual_source_preserved': preserved,
               'copied_contexts_removed': contexts_removed, 'native_runtime_executed': False,
               'actual_git_mutated': False}
-    (out / 'control-result.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps({'status': report['status'], 'result': str(out / 'control-result.json')}))
+    serialized = json.dumps(report, indent=2) + '\n'
+    print(serialized, end='')
+    try:
+        (out / 'control-result.json').write_text(serialized)
+    except OSError as exc:
+        print(json.dumps({'status': 'failed', 'result_retention': 'NOT_OBSERVED',
+                          'error': f'control result retention failed: {exc}'}))
+        return 1
     return 0 if report['status'] == 'passed' else 1
 
 

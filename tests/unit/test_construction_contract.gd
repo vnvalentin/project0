@@ -74,6 +74,14 @@ func test_cross_field_container_alias_is_rejected() -> void:
 	var parsed: Dictionary = contract.call("parse_client_request", raw)
 	assert_eq(parsed.get("outcome"), "invalid_request")
 	assert_null(parsed.get("request"))
+	var cyclic_metadata: Dictionary = {}
+	cyclic_metadata["self"] = cyclic_metadata
+	raw = _request()
+	raw["target"]["metadata"] = cyclic_metadata
+	parsed = contract.call("parse_client_request", raw)
+	assert_eq(parsed.get("outcome"), "invalid_request")
+	assert_null(parsed.get("request"))
+	cyclic_metadata.clear()
 
 
 func test_request_depth_is_bounded() -> void:
@@ -118,6 +126,26 @@ func test_request_container_count_is_bounded() -> void:
 	var parsed: Dictionary = contract.call("parse_client_request", raw)
 	assert_eq(parsed.get("outcome"), "invalid_request")
 	assert_null(parsed.get("request"))
+
+
+func test_orientation_must_be_finite_and_canonical_degrees() -> void:
+	var contract: Script = load(CONTRACT_PATH)
+	assert_not_null(contract)
+	if contract == null:
+		return
+	for angle: float in [-1.0, 360.0, INF, -INF, NAN]:
+		var raw: Dictionary = _request()
+		raw["orientation_degrees"] = angle
+		var parsed: Dictionary = contract.call("parse_client_request", raw)
+		assert_eq(parsed.get("outcome"), "invalid_request")
+		assert_null(parsed.get("request"))
+	for angle: float in [0.0, 359.999]:
+		var raw: Dictionary = _request()
+		raw["orientation_degrees"] = angle
+		var parsed: Dictionary = contract.call("parse_client_request", raw)
+		assert_eq(parsed.get("outcome"), "ok")
+		if parsed.get("outcome") == "ok":
+			assert_true(parsed["request"]["orientation_degrees"] is float)
 
 
 func _request() -> Dictionary:
