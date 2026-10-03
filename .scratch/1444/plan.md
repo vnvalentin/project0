@@ -50,6 +50,8 @@ The foundation marker is absent. Issue, Project and milestone/parent records wer
 
 ## Root-cause learning and rollback
 
+A pre-native source review found that the main-task state reader would consume the complete bounded stat line before selecting its state. That exceeded the approved state-prefix capture boundary. The confirmed source cause was reuse of a generic line-prefix reader with a later delimiter search; the existence-only tracer could not exercise this observer. The focused countermeasure consumes only the reviewed own-task header, one state byte and its separator, then closes immediately, rejecting unknown or ambiguous headers. Independent source-audit controls must reject whole-line or tail reads. No fixture execution or runtime exposure occurred before this correction; native behavior and the actual contention observation remain unverified.
+
 No runtime observation is claimed in this source-only checkpoint. Unexpected failures require private symptom/cause/countermeasure evidence and a permitted status-only governing update. The root coordinator owns remaining validation and acceptance gaps.
 
 Rollback reverts the additive experiment files. Future cleanup removes only known-owned disposable state after process/path qualification; unknown state is retained. No production database is touched.

@@ -12,6 +12,7 @@ const WAIT_HOLD_US: int = 20000
 const PROC_LINE_BYTES: int = 8192
 const PROC_TOTAL_BYTES: int = 1048576
 const NOT_OBSERVED: String = "NOT_OBSERVED"
+const MAIN_COMM: String = "godot"
 
 var _mode: String = ""
 var _directory: String = ""
@@ -684,12 +685,34 @@ func _read_prefix(path: String, maximum: int) -> String:
 
 
 func _read_state(path: String) -> String:
-	var prefix: String = _read_prefix(path, 4096)
-	var boundary: int = prefix.rfind(") ")
-	if boundary < 0 or prefix.length() < boundary + 4 or prefix.substr(boundary + 3, 1) != " " or not prefix.begins_with(str(OS.get_process_id()) + " ("):
+	var stream: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if stream == null:
 		return ""
-	return prefix.substr(boundary + 2, 1)
-
+	var prefix: String = str(OS.get_process_id()) + " ("
+	for index: int in range(prefix.length()):
+		if stream.eof_reached() or stream.get_8() != prefix.unicode_at(index):
+			stream.close()
+			return ""
+	# Source-bound main comm is fixed by the reviewed engine launch; no arbitrary header is returned.
+	for index: int in range(MAIN_COMM.length()):
+		if stream.eof_reached() or stream.get_8() != MAIN_COMM.unicode_at(index):
+			stream.close()
+			return ""
+	for expected: int in [41, 32]:
+		if stream.eof_reached() or stream.get_8() != expected:
+			stream.close()
+			return ""
+	if stream.eof_reached():
+		stream.close()
+		return ""
+	var state: int = stream.get_8()
+	if stream.eof_reached():
+		stream.close()
+		return ""
+	var separator: int = stream.get_8()
+	stream.close()
+	# The stream is closed before any stat-tail byte can be consumed.
+	return String.chr(state) if separator == 32 and state in [82, 83, 68, 84, 116, 88, 90, 80, 73] else ""
 
 func _native_cleanup_known(lifecycle: Dictionary) -> bool:
 	if lifecycle["cycles"].is_empty():
