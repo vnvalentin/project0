@@ -1,6 +1,7 @@
 # #1436: recovered authored-profile identity
 
 Governing issue: https://github.com/vnvalentin/project0/issues/1436.
+Draft PR: https://github.com/vnvalentin/project0/pull/1443.
 Parent delivery #1341; accepted primitive #1425; Feature #950.
 Milestone 3, named group M3.2 item ownership and transactions. Existing issue,
 owner and Project links are preserved. Foundation prerequisites are closed.
@@ -71,6 +72,8 @@ selection or runtime evidence may be invented to make a gate pass.
 Public records contain scope/status/next actions only. Precise source, host,
 controller and runtime evidence remain private. At this stage native evidence is
 NOT_OBSERVED; no Godot, parse check, preparer or controls have been executed.
+The tracer is prepared and pushed. Static ownership preflight, diff checks and
+record sync passed; these are source/record checks, not a native test result.
 
 ## Root-cause learning
 
@@ -85,6 +88,6 @@ and final delivery evidence remain pending.
 
 Revert only this governed test/record change; owned fixture cleanup removes only
 its disposable DB/WAL/SHM/journal after close/quiescence. No production state is
-mutated. Implementer prepares/pushes the tracer and draft PR. Root reviews the
+mutated. The prepared tracer and draft PR await root review of the
 exact source/controller and owns one bounded native RED attempt before any
 product repair. This issue remains open and awaiting native evidence.
