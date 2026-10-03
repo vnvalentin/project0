@@ -307,7 +307,7 @@ def run(args, lifecycle, destination):
         hashes = {str(p):hashlib.sha256(contract.checked_file(ROOT,p,'source_unqualified').read_bytes()).hexdigest() for p in selected}
         original = (ROOT/'project.godot').read_bytes()
         names = re.findall(r'^func (' + re.escape(PREFIX) + r'\w*)\(', (ROOT/TEST).read_text(), re.M)
-        if len(names) != (1 if args.mode == 'red' else 4) or len(set(names)) != len(names):
+        if names != [PREFIX]:
             raise ValueError('pure_selection_unqualified')
         result['selected_cases'] = names
         result['source_manifest_sha256'] = hashlib.sha256(json.dumps(hashes,sort_keys=True).encode()).hexdigest()

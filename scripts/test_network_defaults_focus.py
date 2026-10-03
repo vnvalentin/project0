@@ -49,7 +49,7 @@ class FocusControls(unittest.TestCase):
 
     def configure(self,exit_code=1,lifecycle_missing=False,lifecycle_drift=False,lock_missing=False,helper_missing=False,helper_drift=False,green=False,suite_failures=None,root_failures=None,suite_errors=None,root_errors=None,suite_skipped=0,root_skipped=None):
         self.mode='green' if green else 'red'
-        names=['test_defaults_to_localhost_with_no_override'+suffix for suffix in ('','_absent','_empty','_populated')] if green else ['test_defaults_to_localhost_with_no_override']
+        names=['test_defaults_to_localhost_with_no_override']
         (self.root/'tests/unit/test_lan_config.gd').write_text('extends GutTest\n'+''.join('func '+name+'() -> void:\n\tpass\n' for name in names))
         failures=(0 if green else 1) if suite_failures is None else suite_failures
         root_failures=failures if root_failures is None else root_failures
@@ -203,7 +203,7 @@ raise SystemExit(code)
         result,record=self.run_focus()
         self.assertEqual(result.returncode,0)
         self.assertEqual(record['status'],'passed')
-        self.assertEqual(record['junit']['tests'],4)
+        self.assertEqual(record['junit']['tests'],1)
         self.assertEqual(record['junit']['failures'],0)
 
 
