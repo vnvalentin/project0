@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Whole copied-runner preparation-stop controls; command tools are explicit stubs."""
+import contextlib
 import hashlib
+import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -66,18 +69,89 @@ def hashes():
     return {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in SOURCES}
 
 
+def helper_lifecycle_controls(context):
+    source = Path(__file__)
+    spec = importlib.util.spec_from_file_location('import_controls_under_test', source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    original_argv = sys.argv
+    original_mkdtemp = tempfile.mkdtemp
+    original_rmtree = shutil.rmtree
+    results = []
+    try:
+        for case in ['helper_mkdtemp_failure', 'helper_rmtree_failure']:
+            helper_root = context/case
+            helper_root.mkdir()
+            module.ROOT = helper_root
+            module.CASES = []
+            module.hashes = lambda: {'fixture': '0' * 64}
+            sys.argv = [str(source)]
+            created_contexts = []
+            if case == 'helper_mkdtemp_failure':
+                def fail_mkdtemp(*args, **kwargs):
+                    raise OSError('synthetic temporary-context setup failure')
+                tempfile.mkdtemp = fail_mkdtemp
+            else:
+                def tracked_mkdtemp(*args, **kwargs):
+                    path = Path(original_mkdtemp(*args, **kwargs))
+                    created_contexts.append(path)
+                    return str(path)
+                def fail_rmtree(path, *args, **kwargs):
+                    if Path(path) in created_contexts:
+                        raise OSError('synthetic temporary-context cleanup failure')
+                    return original_rmtree(path, *args, **kwargs)
+                tempfile.mkdtemp = tracked_mkdtemp
+                shutil.rmtree = fail_rmtree
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    exit_code = module.run()
+                reports = list((helper_root/'build/validation/1341-ledger').glob('*/control-result.json'))
+                assert len(reports) == 1, (case, 'missing_control_report')
+                verdict = json.loads(reports[0].read_text())
+                assert exit_code == 1 and verdict['status'] == 'failed', case
+                assert verdict['cleanup_verified'] is False, case
+                assert verdict['copied_contexts_removed'] is False, case
+                assert verdict['result_retention'] == 'OBSERVED', case
+                if case == 'helper_mkdtemp_failure':
+                    assert verdict['control_failure_class'] == 'OSError', case
+                else:
+                    assert verdict['cleanup_error'], case
+                results.append({'case':case,'status':'passed','verdict_status':verdict['status'],
+                                'cleanup_verified':verdict['cleanup_verified'],
+                                'result_retention':verdict['result_retention']})
+            finally:
+                tempfile.mkdtemp = original_mkdtemp
+                shutil.rmtree = original_rmtree
+                for path in created_contexts:
+                    if path.exists():
+                        original_rmtree(path)
+                    assert not path.exists(), (case, 'fixture_context_cleanup_unverified')
+    finally:
+        sys.argv = original_argv
+        tempfile.mkdtemp = original_mkdtemp
+        shutil.rmtree = original_rmtree
+    return results
+
+
 def run():
-    before = hashes()
     pre_fix = sys.argv[1:] == ['--expect-pre-fix']
     if sys.argv[1:] and not pre_fix:
         return 2
     output = ROOT/'build/validation/1341-ledger'/('import-stop-controls-'+uuid.uuid4().hex[:12])
-    output.mkdir(parents=True)
-    contexts = Path(tempfile.mkdtemp(prefix='project0-1341-import-controls-'))
-    records = []
-    report = {'status':'failed','pre_fix':pre_fix,'controls':records,'source_sha256':before,
-              'native_godot_run':False,'actual_git_run':False}
+    contexts = None
+    before = None
+    output_ready = False
+    report = {'status':'failed','pre_fix':pre_fix,'controls':[], 'source_sha256':None,
+              'native_godot_run':False,'actual_git_run':False,
+              'cleanup_verified':False,'copied_contexts_removed':False,
+              'actual_sources_preserved':False,'control_failure_class':None,
+              'errors':[],'result_retention':'NOT_OBSERVED'}
     try:
+        before = hashes()
+        report['source_sha256'] = before
+        output.mkdir(parents=True)
+        output_ready = True
+        contexts = Path(tempfile.mkdtemp(prefix='project0-1341-import-controls-'))
         for case in CASES:
             root = contexts/case
             root.mkdir()
@@ -115,18 +189,54 @@ def run():
                 if case!='partial_setup' and not pre_fix:assert verdict.get('phase')=='import_qualification' and verdict.get('validation_errors'),case
                 if case=='partial_setup':assert not any(call['tool']=='godot' for call in calls),case
             (output/(case+'-verdict.json')).write_text(json.dumps(verdict,indent=2)+'\n')
-            records.append({'case':case,'status':'passed','gut_started':gut_started,
+            report['controls'].append({'case':case,'status':'passed','gut_started':gut_started,
                             'runner_exit':result.returncode,'cleanup_verified':True})
+        report['controls'].extend(helper_lifecycle_controls(contexts))
         assert hashes()==before
         report['status']='passed'
-    except (AssertionError, OSError, subprocess.SubprocessError, ValueError) as error:
+    except Exception as error:
+        report['status'] = 'failed'
         report['control_failure_class'] = type(error).__name__
-        raise
+        report['errors'].append(f'{type(error).__name__}: {error}')
     finally:
-        shutil.rmtree(contexts)
-        report.update({'actual_sources_preserved':hashes()==before,
-                       'copied_contexts_removed':not contexts.exists()})
-        (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
+        if contexts is not None:
+            try:
+                if contexts.exists():
+                    shutil.rmtree(contexts)
+                report['copied_contexts_removed'] = not contexts.exists()
+                report['cleanup_verified'] = report['copied_contexts_removed'] is True
+                if not report['cleanup_verified']:
+                    report['status'] = 'failed'
+                    report['errors'].append('temporary_context_cleanup_unverified')
+            except OSError as error:
+                report['status'] = 'failed'
+                report['copied_contexts_removed'] = False
+                report['cleanup_verified'] = False
+                report['cleanup_error'] = str(error)
+                report['control_failure_class'] = report['control_failure_class'] or type(error).__name__
+                report['errors'].append(f'cleanup: {type(error).__name__}: {error}')
+        try:
+            report['actual_sources_preserved'] = before is not None and hashes() == before
+        except OSError as error:
+            report['status'] = 'failed'
+            report['actual_sources_preserved'] = False
+            report['source_integrity_error'] = str(error)
+            report['errors'].append(f'source_integrity: {type(error).__name__}: {error}')
+        if report['cleanup_verified'] is not True or report['actual_sources_preserved'] is not True:
+            report['status'] = 'failed'
+        if output_ready:
+            report['result_retention'] = 'OBSERVED'
+        try:
+            if output_ready:
+                (output/'control-result.json').write_text(json.dumps(report,indent=2)+'\n')
+            else:
+                report['errors'].append('result_output_directory_not_created')
+                print(json.dumps(report,indent=2))
+        except OSError as error:
+            report['status'] = 'failed'
+            report['result_retention'] = 'NOT_OBSERVED'
+            report['result_write_error'] = str(error)
+            print(json.dumps(report,indent=2))
     print(json.dumps({'status':report['status'],'private_artifact':str(output/'control-result.json')}))
     return 0 if report['status']=='passed' else 1
 

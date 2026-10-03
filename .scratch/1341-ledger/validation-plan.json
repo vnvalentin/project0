@@ -9,8 +9,16 @@
     "dependencies": ["godot", "sqlite"],
     "tests": ["tests/integration/test_item_ledger_repository.gd"],
     "artifacts": ["build/validation/1341-ledger/<run-id>/gut.xml", "build/validation/1341-ledger/<run-id>/gut.log", "build/validation/1341-ledger/<run-id>/result.json"]
+  }, {
+    "suite": "ledger-import-controls",
+    "platform": "linux",
+    "host": "192.168.1.254",
+    "command": "python3 .scratch/1341-ledger/run-import-controls.py",
+    "dependencies": ["python", "bash"],
+    "tests": [".scratch/1341-ledger/run-import-controls.py"],
+    "artifacts": ["build/validation/1341-ledger/import-stop-controls-<run-id>/control-result.json"]
   }],
-  "setup": "New result directory and worktree-owned XDG data; real isolated fixture SQLite.",
-  "cleanup": "Fixture closes/deletes DB/WAL/SHM/journal; runner finally removes owned XDG data, retains XML/log/result on success or failure.",
+  "setup": "Focused ledger validation uses worktree-owned XDG data and isolated fixture SQLite; copied controls use fresh temporary contexts.",
+  "cleanup": "Fixture closes/deletes DB/WAL/SHM/journal; runners remove owned temporary state and retain structured results on success or failure.",
   "rollback": "Reviewed revert of additive repository/tests; no live Canon store or migration."
 }
