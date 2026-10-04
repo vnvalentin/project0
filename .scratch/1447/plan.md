@@ -30,8 +30,18 @@ Canonical full GUT and record sync remain required before delivery. Focused resu
 
 ## Status, rollback and learning
 
-Status: records and initial tracer preparation only; native RED and complete diagnostic qualification pending.
+Status: initial presence RED and complete retained evidence readback qualified. The fixed three-phase fixture and complete public assertions are now authored for source review; native diagnostic behavior and canonical delivery remain pending.
 
 Rollback removes or reverts only issue-owned diagnostic files and records, preserving owner changes and historical evidence. Root coordinates qualification and next implementation; reviews do not grant execution authority.
 
 Historical symptom: listener startup failure. Historical cause: UNKNOWN. Confirmed source liability: probe release before child bind. Existing coverage verifies selection and normal success without a controlled takeover or retained actual-listener ownership check. Countermeasure and regression results remain unobserved. Production default-preserving hooks and readiness handshake remain proposals outside this diagnostic.
+
+## Fixed implementation boundary
+
+The diagnostic uses only new loopback PacketPeerUDP and ENetMultiplayerPeer objects. Every setup or result failure reaches a common close/release epilogue. Host references are read only through immediate get_host().get_local_port() expressions; no host alias survives close. The closed result reports fixed enums and observational booleans that remain null until attempted, with no address, port or process values. Positive same-port ENet rebinds after the common close observe actual release of both selected and OS-assigned listener ports; they execute once and close their own peers.
+
+The public case preserves its original missing-fixture guard and asserts the exact typed closed result, every controlled positive/negative outcome and both release controls. Historical cause remains UNKNOWN and production adoption remains NOT_OBSERVED. Fixed expected-error begin/end markers surround only the two intentionally rejected create_server calls; the private classifier must validate their exact source-authored engine marker, phase order and count. Missing, duplicated, out-of-phase or unrelated errors fail closed. Canonical GUT error handling is unchanged.
+
+Root-cause learning for validation preparation: review found an omitted unrelated-engine-error verdict guard in the inherited initial adapter. A bounded copied-command counterexample established the false green; strict rejection and the regression control were independently reviewed and qualified. The private plan now declares the existing consumer deadline accurately. Pre-dispatch source review also corrected a status-prefix capture guard without executing the flawed supervisor. Detailed evidence remains local; these validation corrections establish neither port behavior nor historical cause.
+
+ADR rationale: this fixture-only diagnostic introduces no production architecture, ownership, routing or persistence decision. No new ADR is required or adopted; proposed production readiness hooks remain outside this issue.
