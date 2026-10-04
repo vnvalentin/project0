@@ -171,7 +171,7 @@ def unknown_engines(snapshot, known, allowed_cgroups):
     }
     return [process for process in snapshot.values()
             if process.state != "Z" and process.is_godot and process.identity not in owned
-            and process.cgroup not in allowed_cgroups]
+            and process.cgroup.removesuffix("\n") not in allowed_cgroups]
 
 
 def reap_owned(known, leader_pid):
