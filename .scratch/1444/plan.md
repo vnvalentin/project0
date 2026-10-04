@@ -57,3 +57,16 @@ A separate pre-native source review found that directory opens could follow ance
 A focused qualification stopped before complete owner evidence. A bounded source-location diagnostic identifies the cycle-selection initializer and its downstream result access. The source-supported hypothesis is that the conditional array expression lacks the declared element-type context during runtime assignment. The countermeasure initializes a typed array from a direct literal and conditionally appends the worker reopen cycle, preserving the fixed lifecycle order. The initial existence-only tracer and pure evidence controls did not execute this GDScript assignment. The same fixed public three-mode case is the discriminating regression; its assertions, workload and bounds remain unchanged. Regression and native affinity qualification are pending, so this checkpoint does not claim a confirmed runtime repair. The root coordinator owns remaining validation and acceptance gaps.
 
 Rollback reverts the additive experiment files. Future cleanup removes only known-owned disposable state after process/path qualification; unknown state is retained. No production database is touched.
+
+
+### Affinity failure discriminator before further acceptance work
+
+The isolated owning-runtime qualification passed, while the hosted full-suite gate remains failed. That difference narrows the next investigation but does not establish a cause or clear acceptance.
+
+Outcome and scope: classify the existing failing affinity assertion using fixed source-authored status categories. Only the assertion message and a small pure diagnostic helper change; application behavior, supported fixture operations, workload, deadlines, assertions, controls and fail-closed unknowns remain unchanged. No production persistence adoption or broader Milestone 3 acceptance follows from this change.
+
+Hypothesis and cheapest discriminating check: the generic assertion currently conflates owner completion, native lifecycle, synchronization observation and teardown qualification. A closed literal-message classification at that same assertion can distinguish the observed boundary in one changed-source hosted run. Missing or inconsistent fields remain unknown, and no dynamic runtime values or detailed evidence are published.
+
+Root keeps the issue and draft pull request pending, independently reviews the source change, verifies source-only ownership and record checks before a normal candidate commit, and binds subsequent owning-runtime acceptance to the actual final revision. An unchanged hosted retry, relaxed assertion or timing limit, and inference of a common historical cause are unacceptable.
+
+Changed-source owning-runtime and hosted acceptance remain pending. Governing checkpoint: https://github.com/vnvalentin/project0/issues/1444#issuecomment-5982538207

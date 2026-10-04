@@ -94,7 +94,7 @@ func test_direct_sqlite_worker_lifecycle_has_complete_fixture_coverage() -> void
 
 
 func _check_mode(outcome: Dictionary) -> void:
-	assert_true(outcome["status"] == "complete", "1444 encountered native lifecycle failures remain failures")
+	assert_true(outcome["status"] == "complete", _mode_failure_message(outcome))
 	if outcome["status"] != "complete":
 		return
 	assert_true(outcome["owned_state_removed"], "1444 only known owned disposable files are removed")
@@ -141,6 +141,49 @@ func _check_mode(outcome: Dictionary) -> void:
 		assert_true(wait["observation_end_usec"] < wait["worker_unlock_begin_usec"] and wait["worker_unlock_begin_usec"] < wait["main_lock_end_usec"], "1444 owner retains control until observed sleep before unlocking")
 		assert_true(wait["exact_target_identity"] == NOT_OBSERVED, "1444 sleep corroboration claims no exact target-futex identity")
 		assert_true(wait["continuous_wait_duration"] == NOT_OBSERVED, "1444 elapsed lock-call time is not continuous waiting time")
+
+
+func _mode_failure_message(outcome: Dictionary) -> String:
+	if outcome.get("status", "") == "complete":
+		return "1444 encountered native lifecycle failures remain failures"
+	if not MODES.has(outcome.get("mode", "")) or not outcome.get("status", "") in ["failed", "unqualified"]:
+		return "1444 failure category remains unknown"
+	for field: String in ["worker_terminated", "worker_joined", "owned_state_removed"]:
+		if typeof(outcome.get(field)) != TYPE_BOOL:
+			return "1444 failure category remains unknown"
+	if outcome["worker_joined"] and not outcome["worker_terminated"]:
+		return "1444 failure category remains unknown"
+	if not outcome["worker_terminated"] or not outcome["worker_joined"]:
+		return "1444 owner termination or join remains unqualified"
+	var lifecycles: Variant = outcome.get("lifecycles")
+	if typeof(lifecycles) != TYPE_ARRAY or lifecycles.is_empty() or lifecycles.size() > 2:
+		return "1444 failure category remains unknown"
+	var native_failed: bool = false
+	var lifecycles_succeeded: bool = true
+	for lifecycle: Variant in lifecycles:
+		if typeof(lifecycle) != TYPE_DICTIONARY or typeof(lifecycle.get("success")) != TYPE_BOOL:
+			return "1444 failure category remains unknown"
+		var cycles: Variant = lifecycle.get("cycles")
+		if typeof(cycles) != TYPE_ARRAY or cycles.is_empty() or cycles.size() > 2:
+			return "1444 failure category remains unknown"
+		lifecycles_succeeded = lifecycles_succeeded and lifecycle["success"]
+		var cycle_failed: bool = false
+		for cycle: Variant in cycles:
+			if typeof(cycle) != TYPE_DICTIONARY or typeof(cycle.get("success")) != TYPE_BOOL:
+				return "1444 failure category remains unknown"
+			cycle_failed = cycle_failed or not cycle["success"]
+		if cycle_failed and lifecycle["success"]:
+			return "1444 failure category remains unknown"
+		native_failed = native_failed or cycle_failed
+	if native_failed:
+		return "1444 native lifecycle observation remains unqualified"
+	if not outcome["owned_state_removed"] or outcome.get("failure_class", "") == "teardown_or_trace_unqualified":
+		return "1444 teardown or trace remains unqualified"
+	if lifecycles_succeeded and outcome.get("mode", "") == "main_wait_control" and outcome.get("failure_class", "") == "owner_lifecycle_unqualified":
+		var wait: Variant = outcome.get("wait")
+		if typeof(wait) == TYPE_DICTIONARY and wait.get("futex_class", "") == NOT_OBSERVED:
+			return "1444 wait observation remains unqualified"
+	return "1444 failure category remains unknown"
 
 
 func _retain_evidence(path: String, report: Dictionary) -> bool:
