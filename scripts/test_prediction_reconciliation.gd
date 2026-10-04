@@ -301,7 +301,7 @@ func _test_prediction_and_reconciliation() -> void:
 	# Baseline and progress consume the original 30 additional frame budget;
 	# a newer acknowledgement alone does not establish displacement.
 	var send_ticks: int = 0
-	while send_ticks < 30 and not _movement_observer.release_ready(send_ticks):
+	while send_ticks < 30 and (not _movement_observer.release_ready(send_ticks) or player.position.z - start_position.z <= 0.5):
 		await physics_frame
 		send_ticks += 1
 	var held_boundary_ready: bool = _movement_observer.release_ready(send_ticks)
