@@ -95,7 +95,7 @@ sudo -n "${sudo_args[@]}" /data/code/project0/.venv-enrollment/bin/python \
   scripts/run_validation_monitor.py "${monitor_args[@]}" \
   --report "$report_dir/focused-review-validation.json" \
   -- "$godot_bin" --headless --path "$prepared_root" -s addons/gut/gut_cmdln.gd \
-  -gselect=test_checkpoint_metadata_matches_existing_canon_read \
+  -gconfig= -gtest=res://tests/integration/test_canon_repository.gd \
   "-gjunit_xml_file=$report_dir/gut.xml" -gdisable_colors -gexit
 red_status=$?
 set -e
