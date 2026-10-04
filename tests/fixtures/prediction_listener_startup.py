@@ -207,6 +207,8 @@ def freeze_runtime(root, created, user_relative):
     # Source-bound server health publisher owns only these two userdir leaves.
     # Admission is post-reap custody/cleanup, not health-publication acceptance.
     allowed_files.update({user_relative / 'health.json', user_relative / 'health.json.tmp'})
+    # Godot's fixed desktop default log; rotation and other members fail closed.
+    allowed_files.add(user_relative / 'logs/godot.log')
     for name in ('accounts.db', 'telemetry.db'):
         for suffix in ('', '-wal', '-shm', '-journal'):
             allowed_files.add(user_relative / (name + suffix))
@@ -385,7 +387,8 @@ def run(args):
             (runtime / leaf).mkdir(mode=0o700)
             created[runtime / leaf] = directory_identity(runtime / leaf)
         user_relative = Path('data/godot/app_userdata') / args.userdir_leaf
-        for relative in (Path('data/godot'), Path('data/godot/app_userdata'), user_relative):
+        for relative in (Path('data/godot'), Path('data/godot/app_userdata'), user_relative,
+                         user_relative / 'logs'):
             (runtime / relative).mkdir(mode=0o700)
             created[runtime / relative] = directory_identity(runtime / relative)
         holder = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

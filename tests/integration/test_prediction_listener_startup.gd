@@ -104,3 +104,55 @@ func _closed_report(result: Dictionary, bytes: String) -> bool:
 	var normalized: Dictionary = result.duplicate()
 	normalized["schema_version"] = 1
 	return bytes == JSON.stringify(normalized, "", true)
+
+
+func test_default_logging_custody_controls_pass() -> void:
+	var python: String = OS.get_environment("PROJECT0_PYTHON")
+	if python.is_empty():
+		python = "/usr/bin/python3"
+	var controls: String = ProjectSettings.globalize_path("res://tests/fixtures/prediction_listener_logging_custody.py")
+	var executable_qualified: bool = python.is_absolute_path() and _safe_argument(python) \
+		and _safe_argument(controls) and FileAccess.file_exists(python)
+	assert_true(executable_qualified, "1450 logging custody uses the owning Python runtime")
+	if not executable_qualified:
+		return
+	var output: Array = []
+	var exit_code: int = OS.execute(python, PackedStringArray(["-I", "-B", controls]), output, false)
+	assert_true(exit_code == 0, "1450 logging custody controls emit a qualified reduced result")
+	if exit_code != 0:
+		return
+	var bytes: String = "".join(output).trim_suffix("\n")
+	assert_true(bytes.to_utf8_buffer().size() <= 512, "1450 logging custody result is bounded")
+	if bytes.to_utf8_buffer().size() > 512:
+		return
+	var parser: JSON = JSON.new()
+	var parsed: Error = parser.parse(bytes)
+	assert_true(parsed == OK and typeof(parser.data) == TYPE_DICTIONARY, "1450 logging custody result is a closed object")
+	if parsed != OK or typeof(parser.data) != TYPE_DICTIONARY:
+		return
+	var report: Dictionary = parser.data
+	var counts: Array[String] = ["schema_version", "tests", "failures", "errors", "skips"]
+	var flags: Array[String] = ["passed", "cleanup_verified", "source_qualified"]
+	var valid: bool = report.size() == counts.size() + flags.size()
+	var normalized: Dictionary = report.duplicate()
+	for field: String in counts:
+		if not report.has(field) or (typeof(report[field]) != TYPE_INT and typeof(report[field]) != TYPE_FLOAT):
+			valid = false
+			continue
+		if report[field] < 0 or report[field] > 10:
+			valid = false
+			continue
+		if report[field] != int(report[field]):
+			valid = false
+		normalized[field] = int(report[field])
+	for field: String in flags:
+		if not report.has(field) or typeof(report[field]) != TYPE_BOOL:
+			valid = false
+	valid = valid and bytes == JSON.stringify(normalized, "", true)
+	assert_true(valid, "1450 logging custody result has exact types and spelling")
+	if not valid:
+		return
+	var passed: bool = report["schema_version"] == 1 and report["tests"] == 10 \
+		and report["failures"] == 0 and report["errors"] == 0 and report["skips"] == 0 \
+		and report["passed"] == true and report["cleanup_verified"] == true and report["source_qualified"] == true
+	assert_true(passed, "1450 exact logging custody preserves unknown state and removes only owned state")
