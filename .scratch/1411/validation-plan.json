@@ -10,6 +10,20 @@
       "dependencies": ["python"],
       "tests": ["scripts/test_validation_process_monitor.py"],
       "artifacts": ["build/validation/process-monitor-tests-<run-id>.json"]
+    },
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "set -euo pipefail\nrun_id=\"$(date -u +%Y%m%dT%H%M%S%N)\"\nreport_dir=\"build/validation/m4-1411-red-$run_id\"\nmkdir -p \"$report_dir\"\nstate_root=\"$(mktemp -d /tmp/project0-1411-red.XXXXXX)\"\ncleanup() { status=$?; rm -rf -- \"$state_root\"; exit \"$status\"; }\ntrap cleanup EXIT\nexport XDG_DATA_HOME=\"$state_root/data\" XDG_CONFIG_HOME=\"$state_root/config\" XDG_CACHE_HOME=\"$state_root/cache\" PROJECT0_TEST_STATE_DIR=\"$state_root/runtime\" DASHBOARD_RESULTS_DIR=\"$state_root/dashboard\"\nrevision=\"$(git rev-parse --verify HEAD)\"\nlogin_pid=\"$(docker inspect --format '{{.State.Pid}}' project0-login-server)\"\ngame_pid=\"$(docker inspect --format '{{.State.Pid}}' project0-game-server)\n[[ \"$login_pid\" =~ ^[1-9][0-9]*$ && \"$game_pid\" =~ ^[1-9][0-9]*$ ]]\nlogin_cgroup=\"$(cat /proc/$login_pid/cgroup)\"\ngame_cgroup=\"$(cat /proc/$game_pid/cgroup)\"\nsudo_args=(--preserve-env=PATH,LANG,XDG_DATA_HOME,XDG_CONFIG_HOME,XDG_CACHE_HOME,PROJECT0_TEST_STATE_DIR,DASHBOARD_RESULTS_DIR)\nmonitor_args=(--root \"$PWD\" --expected-revision \"$revision\" --timeout-seconds 90 --require-root --reject-unowned-godot --run-as-sudo-caller --allowed-cgroup \"$login_cgroup\" --allowed-cgroup \"$game_cgroup\" --preserve-env XDG_DATA_HOME --preserve-env XDG_CONFIG_HOME --preserve-env XDG_CACHE_HOME --preserve-env PROJECT0_TEST_STATE_DIR --preserve-env DASHBOARD_RESULTS_DIR)\nsudo -n \"${sudo_args[@]}\" /data/code/project0/.venv-enrollment/bin/python scripts/run_validation_monitor.py \"${monitor_args[@]}\" --report \"$report_dir/import-review-validation.json\" -- godot --headless --import\nset +e\nsudo -n \"${sudo_args[@]}\" /data/code/project0/.venv-enrollment/bin/python scripts/run_validation_monitor.py \"${monitor_args[@]}\" --report \"$report_dir/focused-review-validation.json\" -- godot --headless -s addons/gut/gut_cmdln.gd -gselect=test_checkpoint_metadata_matches_existing_canon_read -gjunit_xml_file=\"$report_dir/gut.xml\" -gdisable_colors -gexit
+red_status=$?\nset -e\npython3 - \"$report_dir/gut.xml\" \"$report_dir/focused-review-validation.json\" \"$red_status\" <<'PY'\nimport json, sys, xml.etree.ElementTree as ET\nroot = ET.parse(sys.argv[1]).getroot()\nreport = json.loads(open(sys.argv[2], encoding='utf-8').read())\ncases = [case for case in root.iter('testcase') if case.get('name') == 'test_checkpoint_metadata_matches_existing_canon_read']\nassert int(sys.argv[3]) == 1, 'expected the unchanged implementation to fail the new assertion'\nassert len(cases) == 1 and cases[0].find('failure') is not None, 'the named public-seam test must fail'\nassert cases[0].find('error') is None, 'parse/runtime errors are not the expected RED'\nassert report['forced_recovery'] is False and report['cleanup']['owned_processes_stopped']\nassert report['source_unchanged'] and not report['errors']\nprint(json.dumps({'expected_red': True, 'test': cases[0].get('name'), 'monitor_cleanup': report['cleanup']['owned_processes_stopped']}))\nPY",
+      "dependencies": ["godot", "sqlite", "python", "docker"],
+      "tests": ["tests/integration/test_canon_repository.gd"],
+      "artifacts": [
+        "build/validation/m4-1411-red-<run-id>/import-review-validation.json",
+        "build/validation/m4-1411-red-<run-id>/focused-review-validation.json",
+        "build/validation/m4-1411-red-<run-id>/gut.xml"
+      ]
     }
   ]
 }
