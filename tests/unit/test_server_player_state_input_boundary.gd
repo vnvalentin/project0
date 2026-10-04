@@ -10,7 +10,7 @@ const OWNER_PEER: int = 1
 
 var _network_client: Node
 var _previous_network_name: StringName = &""
-var _state: Node3D
+var _state: Node
 var _observer: RefCounted
 var _snapshot_callback: Callable = Callable()
 var _position_callback: Callable = Callable()
