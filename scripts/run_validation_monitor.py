@@ -174,6 +174,32 @@ def unknown_engines(snapshot, known, allowed_cgroups):
             and process.cgroup.removesuffix("\n") not in allowed_cgroups]
 
 
+def process_evidence(process, snapshot):
+    parent = snapshot.get(process.parent_pid)
+    cgroup = process.cgroup.removesuffix("\n")
+    return {
+        "identity": process.identity,
+        "parent_identity": parent.identity if parent is not None else None,
+        "parent_pid": process.parent_pid,
+        "parent_command": parent.command if parent is not None else None,
+        "process_group": process.process_group,
+        "session_id": process.session_id,
+        "command": process.command,
+        "cgroup_sha256": hashlib.sha256(cgroup.encode()).hexdigest(),
+    }
+
+
+def owned_process_evidence(known):
+    return sorted((
+        {"identity": entry["process"].identity,
+         "parent_pid": entry["process"].parent_pid,
+         "process_group": entry["process"].process_group,
+         "session_id": entry["process"].session_id,
+         "command": entry["process"].command}
+        for entry in known.values()
+    ), key=lambda item: item["identity"])
+
+
 def reap_owned(known, leader_pid):
     for pid in known:
         if pid == leader_pid:
@@ -280,6 +306,10 @@ def run(args):
         raise MonitorError("source_identity_or_cleanliness_failed")
     snapshot = process_snapshot()
     baseline_engines = unknown_engines(snapshot, {}, set(args.allowed_cgroup))
+    unknown_observations = {
+        process.identity: process_evidence(process, snapshot)
+        for process in baseline_engines
+    }
     report = {
         "schema_version": 1, "runner": "validation-process-monitor",
         "started_utc": datetime.now(timezone.utc).isoformat(),
@@ -289,6 +319,7 @@ def run(args):
                     "poll_interval_seconds": args.poll_interval},
         "allowed_cgroup_sha256": [hashlib.sha256(value.encode()).hexdigest() for value in args.allowed_cgroup],
         "baseline_unowned_godot": [process.identity for process in baseline_engines],
+        "unknown_godot_observations": list(unknown_observations.values()),
         "owned_processes": [], "unknown_godot": [], "errors": [],
         "timed_out": False, "forced_recovery": False,
         "command_exit_code": None, "source_unchanged": False,
@@ -323,6 +354,8 @@ def run(args):
                         report["errors"].append("owned_pid_identity_changed")
                     engines = unknown_engines(snapshot, known, set(args.allowed_cgroup)) if args.reject_unowned_godot else []
                     report["unknown_godot"] = sorted({entry.identity for entry in engines})
+                    for engine in engines:
+                        unknown_observations.setdefault(engine.identity, process_evidence(engine, snapshot))
                     if engines:
                         report["errors"].append("unowned_godot_during_run")
                     if time.monotonic() >= deadline:
@@ -347,16 +380,12 @@ def run(args):
                              if is_alive(entry["pidfd"])]
                 final_unknown = unknown_engines(final_snapshot, known, set(args.allowed_cgroup)) if args.reject_unowned_godot else []
                 report["unknown_godot"] = sorted({entry.identity for entry in final_unknown})
+                for engine in final_unknown:
+                    unknown_observations.setdefault(engine.identity, process_evidence(engine, final_snapshot))
                 if remaining:
                     report["errors"].append("owned_process_cleanup_failed")
                 if final_unknown:
                     report["errors"].append("unowned_godot_after_run")
-                report["owned_processes"] = [
-                    {"identity": entry["process"].identity, "parent_pid": entry["process"].parent_pid,
-                     "process_group": entry["process"].process_group,
-                     "session_id": entry["process"].session_id, "command": entry["process"].command}
-                    for entry in known.values()
-                ]
             except (OSError, subprocess.SubprocessError, MonitorError, KeyboardInterrupt) as error:
                 report["errors"].append(str(error) if isinstance(error, MonitorError) else type(error).__name__)
                 if process is not None:
@@ -368,6 +397,8 @@ def run(args):
                             report["errors"].append("owned_process_wait_failed")
                     if process.poll() is not None:
                         reap_owned(known, process.pid)
+        report["owned_processes"] = owned_process_evidence(known)
+        report["unknown_godot_observations"] = list(unknown_observations.values())
         summary = None
         if args.gut_summary:
             summary_path = args.gut_summary if args.gut_summary.is_absolute() else root / args.gut_summary

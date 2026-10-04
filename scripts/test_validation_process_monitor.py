@@ -172,6 +172,11 @@ class ValidationProcessMonitorTests(unittest.TestCase):
             self.assertIn("unowned_godot_present_before_run", report["errors"])
             self.assertTrue(any(identity.startswith(f"{foreign.pid}:")
                                 for identity in report["baseline_unowned_godot"]))
+            observation = report["unknown_godot_observations"][0]
+            self.assertEqual(observation["identity"].split(":", 1)[0], str(foreign.pid))
+            self.assertEqual(observation["command"], "godot")
+            self.assertIsNotNone(observation["parent_identity"])
+            self.assertEqual(len(observation["cgroup_sha256"]), 64)
             self.assertIsNone(foreign.poll(), "foreign engine must not be terminated")
         finally:
             foreign.send_signal(signal.SIGTERM)
