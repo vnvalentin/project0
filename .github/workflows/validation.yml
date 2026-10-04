@@ -78,6 +78,9 @@ jobs:
           mkdir -p build/validation
           python scripts/test_validation_ownership.py --report build/validation/ownership-tests.json 2>&1 | tee build/validation/ownership-tests.log
 
+      - name: Test monitored validation process lifecycle
+        run: python scripts/test_validation_process_monitor.py --report build/validation/process-monitor-tests.json
+
       - name: Check test ownership and static client dependencies
         if: always()
         run: python scripts/check_validation_ownership.py --output build/validation/ownership.json

@@ -42,6 +42,33 @@ The manifest assigns `SETSUJOKU` and `github-actions-windows` to Windows. Other
 hosts require an ownership update; a platform label alone is insufficient.
 Every step explicitly declares at least its suite's required dependencies.
 
+## Linux Process-Monitored Validation
+
+Use `scripts/run_validation_monitor.py` when a Linux validation needs an
+independent process-identity and cleanup verdict. It accepts an argv after `--`
+and never evaluates a shell string. It enables child-subreaper behavior, tracks
+processes by PID plus kernel start time, checks the system Godot census against
+the owned process tree and explicitly allowed cgroups, and signals only owned
+pidfds. Forced recovery, an unknown engine, changed tracked source, incomplete
+GUT inventory, or surviving owned processes fail the run. The report and
+combined command log are unique retained artifacts; a prior run is never
+overwritten.
+
+For a complete host-wide Godot census, run the monitor as root and use
+`--run-as-sudo-caller` so the validation command itself returns to the invoking
+user. Supply exact known service cgroups with repeated `--allowed-cgroup`
+options; do not allow broad process-name patterns. Unreadable `/proc` identity
+data fails closed. The runner does not install a service, change system
+configuration, or terminate processes it cannot prove it owns. M4's workload
+harness retains its own exact Docker cgroup and container cleanup checks; the
+generic monitor qualifies the separate GUT command.
+
+The runner is reusable for bounded Linux test/build commands that meet the same
+process-ownership contract. It is not a Windows/macOS supervisor, a replacement
+for workload-specific resource cleanup, or proof that the command's product
+acceptance criteria passed. See [#1411](https://github.com/vnvalentin/project0/issues/1411)
+for the first monitored M4 use and retained acceptance evidence.
+
 Example component plan:
 
 ```json
