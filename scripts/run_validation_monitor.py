@@ -332,6 +332,10 @@ def run(args):
                         break
                     time.sleep(args.poll_interval)
                 report["command_exit_code"] = process.wait(timeout=5)
+                snapshot = process_snapshot()
+                known, changed = owned_processes(snapshot, os.getpid(), process, known)
+                if changed:
+                    report["errors"].append("owned_pid_identity_changed")
                 reap_owned(known, process.pid)
                 live = [entry for entry in known.values() if is_alive(entry["pidfd"])]
                 if live:
