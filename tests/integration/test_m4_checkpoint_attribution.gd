@@ -99,15 +99,17 @@ func _fixture(dedicated: bool) -> Dictionary:
 
 func _public_checkpoint_calls() -> Dictionary:
 	var started: int = _observer.begin_checkpoint()
-	var canon: Dictionary = _host._canon_repository.get_canonical_sector("sector-0-0")
+	var metadata: Dictionary = _host._canon_repository.get_checkpoint_metadata("sector-0-0")
 	assert_eq(_host._journey_registry.checkpoint("diagnostic-character", Vector3(12, 1, 18), 101, "sector-0-0", 1, "checked-hash")["outcome"], "ok")
 	_observer.end_checkpoint(started)
-	return canon
+	return metadata
 
 func _positive(dedicated: bool) -> void:
 	var originals: Dictionary = _fixture(dedicated)
-	var read: Dictionary = _public_checkpoint_calls()
-	assert_eq(read["sector"]["blueprint"], originals["blueprint"], "unchanged delegated Canon state")
+	var metadata: Dictionary = _public_checkpoint_calls()
+	assert_eq(metadata["outcome"], "ok", "unchanged delegated Canon state")
+	assert_eq(metadata["sector_revision"], int(originals["blueprint"]["schema_version"]))
+	assert_eq(metadata["sector_geometry_hash"], JSON.stringify(originals["blueprint"]).md5_text())
 	var rows: Dictionary = _host._journey_repository.load_all()
 	assert_eq(rows["outcome"], "ok")
 	assert_eq(rows["records"].size(), 1)
@@ -162,7 +164,7 @@ func test_different_store_handle_cannot_qualify() -> void:
 func test_calls_outside_checkpoint_scope_are_not_attributed() -> void:
 	_case = "outside_scope"
 	_fixture(false)
-	_host._canon_repository.get_canonical_sector("sector-0-0")
+	_host._canon_repository.get_checkpoint_metadata("sector-0-0")
 	_host._journey_registry.checkpoint("diagnostic-character", Vector3.ZERO, 102)
 	var sample: Dictionary = _observer.take_iteration()
 	assert_eq(sample["checkpoint_calls"], 0)
