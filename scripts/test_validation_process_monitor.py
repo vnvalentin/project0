@@ -125,6 +125,28 @@ class ValidationProcessMonitorTests(unittest.TestCase):
         finally:
             self.cleanup_fixture_process(pidfile)
 
+    def test_nested_godot_process_is_owned_after_command_leader_exits(self):
+        pidfile = self.root / "godot-child.json"
+        engine = "import ctypes,time; ctypes.CDLL(None).prctl(15,b'godot',0,0,0); time.sleep(30)"
+        command = (
+            "import json,pathlib,subprocess,sys; "
+            "child=subprocess.Popen([sys.executable,'-c',sys.argv[2]]); "
+            "stat=pathlib.Path(f'/proc/{child.pid}/stat').read_text(); "
+            "start=int(stat[stat.rindex(')')+1:].split()[19]); "
+            "pathlib.Path(sys.argv[1]).write_text(json.dumps({'pid':child.pid,'start_ticks':start}))"
+        )
+        code = self.invoke([sys.executable, "-c", command, str(pidfile), engine])
+        try:
+            report = self.result()
+            self.assertEqual(code, 1)
+            self.assertIn("owned_process_survived_command", report["errors"])
+            self.assertFalse(report["unknown_godot"])
+            self.assertTrue(any(item["command"] == "godot" for item in report["owned_processes"]))
+            self.assertTrue(report["forced_recovery"])
+            self.assertTrue(report["cleanup"]["owned_processes_stopped"])
+        finally:
+            self.cleanup_fixture_process(pidfile)
+
     def test_unowned_godot_blocks_run_and_is_not_signaled(self):
         if not hasattr(signal, "SIGTERM"):
             self.skipTest("process signals unavailable")
