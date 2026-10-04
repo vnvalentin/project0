@@ -517,7 +517,7 @@ func _observe_main_wait(events: Array[Dictionary], owner: int) -> Dictionary:
 		var symbol: String = _read_prefix(task.path_join("wchan"), 128)
 		var after: String = _read_state(task.path_join("stat"))
 		var end: int = Time.get_ticks_usec()
-		if before == "S" and after == "S" and symbol == "futex_wait_queue":
+		if before == "S" and after == "S" and (symbol == "futex_wait_queue" or symbol == "futex_do_wait"):
 			result["observation_attempt"] = 1
 			result["state_before_sleeping"] = true
 			result["state_after_sleeping"] = true

@@ -85,3 +85,18 @@ Root will review the source and capture contract before a normal slice checkpoin
 Changed-source checkpoint: the fixture-only diagnostic is prepared for a normal slice commit. The existing public assertions remain unchanged. The fixed label describes the last unsuccessful sample and does not identify root cause. Current owning-runtime, hosted and full-suite acceptance remain pending.
 
 Governing checkpoint: https://github.com/vnvalentin/project0/issues/1444#issuecomment-5982753651
+
+
+### Root-cause learning and bounded wait-name correction plan
+
+Symptom and public seam: the native affinity fixture remains unqualified in hosted validation after successful owner lifecycle and cleanup. The fixed diagnostic identifies a documented alternative futex wait helper inside the existing sleeping-state brackets. Detailed runtime evidence remains private.
+
+Confirmed cause of this observed rejection: the source predicate recognizes only one kernel helper spelling. Official versioned kernel documentation identifies an alternative name for the same queue-and-wait operation. Existing tests missed this portability boundary because their qualified environment used the original spelling. This does not explain every historical failure or prove an exact target address or uninterrupted wait duration.
+
+Outcome and scope: admit that specific documented helper alongside the existing helper, while retaining both sleeping-state samples. Preserve all reads, deadlines, workload, transaction assertions, native ownership, cleanup, evidence schema and NOT_OBSERVED limitations. Zero, unavailable observations, unrelated or unknown helpers remain rejected; no generic pattern, additional privilege, timing extension or skip is permitted.
+
+Hypothesis and cheapest discriminating check: the exact-name correction removes this observed source rejection. Independently review the one-predicate change, qualify source-bound copied controls, then run changed-source hosted and owning-runtime focused validation. Full validation and delivery remain pending until the final revision passes all required gates. Rollback is the source predicate; no application persistence adoption is included. Root owns execution; independent Standards and Spec reviews remain required.
+
+Primary source: https://www.kernel.org/doc/html/v6.16/kernel-hacking/locking.html#c.futex_do_wait
+
+Governing checkpoint: https://github.com/vnvalentin/project0/issues/1444#issuecomment-5982981913
