@@ -378,6 +378,108 @@ func test_creation_property_retry_rejects_missing_or_corrupt_companion_without_w
 		_assert_no_writes("1435-companion-" + fault + "-zero")
 
 
+func test_creation_properties_reject_different_self_consistent_authored_content_after_reopen() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	var schema: Dictionary = ledger.ensure_schema()
+	assert_eq(schema.outcome, "ok", "1436 fixture schema is ready")
+	if schema.outcome != "ok":
+		return
+	var definition: Dictionary = ledger.register_definition(_definition_wire())
+	assert_eq(definition.outcome, "ok", "1436 pinned definition is ready")
+	if definition.outcome != "ok":
+		return
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	var validated: Dictionary = ProfileScript.from_wire_dict(profile_wire)
+	assert_eq(validated.outcome, "ok", "1436 original authored profile validates")
+	assert_not_null(validated.profile, "1436 original profile is required")
+	if validated.outcome != "ok" or validated.profile == null:
+		return
+	var derived: Dictionary = validated.profile.derive(inputs)
+	assert_eq(derived.outcome, "ok", "1436 original creation inputs validate")
+	assert_not_null(derived.properties, "1436 original derived properties are required")
+	if derived.outcome != "ok" or derived.properties == null:
+		return
+	var created: Dictionary = ledger.create_instance_with_properties("character:one", "operation:create", original, 0, 0, profile_wire, inputs)
+	assert_eq(created.outcome, "ok", "1436 atomic creation succeeds")
+	if created.outcome != "ok":
+		return
+	var healthy: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(healthy.outcome, "ok", "1436 original companion recovers")
+	assert_not_null(healthy.properties, "1436 original companion is required")
+	if healthy.outcome != "ok" or healthy.properties == null:
+		return
+	assert_true(healthy.properties == derived.properties, "1436 healthy companion matches the original profile")
+	assert_true(healthy.properties.values == {"purity": 81, "quality": 65, "durability": 206}, "1436 fixture values remain exact")
+	var profile_before: Dictionary = _store.query_with_bindings(
+		"SELECT content_sha256, profile_wire FROM canon_item_creation_profiles WHERE profile_id = ? AND profile_revision = ?;",
+		[profile_wire.profile_id, profile_wire.profile_revision]
+	)
+	assert_eq(profile_before.outcome, "ok", "1436 original profile query succeeds")
+	assert_eq(profile_before.rows.size(), 1, "1436 original profile row exists")
+	if profile_before.outcome != "ok" or profile_before.rows.size() != 1:
+		return
+	assert_true(profile_before.rows[0].profile_wire == JSON.stringify(profile_wire, "", true), "1436 original typed profile matches stored JSON")
+	assert_eq(profile_before.rows[0].content_sha256, derived.properties.profile_sha256, "1436 original profile matches the derived digest")
+	assert_eq(profile_before.rows[0].content_sha256, profile_before.rows[0].profile_wire.sha256_text(), "1436 original profile self-digest is consistent")
+	var companion_before: Dictionary = _store.query_with_bindings(
+		"SELECT * FROM canon_item_creation_properties WHERE instance_id = ?;", [original.instance_id]
+	)
+	assert_eq(companion_before.outcome, "ok", "1436 original companion query succeeds")
+	assert_eq(companion_before.rows.size(), 1, "1436 original companion row exists")
+	if companion_before.outcome != "ok" or companion_before.rows.size() != 1:
+		return
+	assert_eq(companion_before.rows[0].profile_sha256, profile_before.rows[0].content_sha256, "1436 original records pin identical content")
+
+	# Owned corruption fixture: alter only authored content and its self-digest.
+	# Keep pins, units, committed companion, receipt and item state unchanged.
+	assert_eq(profile_wire.outputs.durability.offset, 10, "1436 original fixture offset is fixed")
+	var changed_profile: Dictionary = profile_wire.duplicate(true)
+	changed_profile.outputs.durability.offset = 12
+	var changed_validation: Dictionary = ProfileScript.from_wire_dict(changed_profile)
+	assert_eq(changed_validation.outcome, "ok", "1436 conflicting profile remains structurally valid")
+	assert_not_null(changed_validation.profile, "1436 conflicting profile is required")
+	if changed_validation.outcome != "ok" or changed_validation.profile == null:
+		return
+	var changed_json: String = JSON.stringify(changed_profile, "", true)
+	var changed_digest: String = changed_json.sha256_text()
+	assert_ne(changed_digest, companion_before.rows[0].profile_sha256, "1436 content digest actually differs")
+	var changed: Dictionary = _store.query_with_bindings(
+		"UPDATE canon_item_creation_profiles SET profile_wire = ?, content_sha256 = ? WHERE profile_id = ? AND profile_revision = ?;",
+		[changed_json, changed_digest, profile_wire.profile_id, profile_wire.profile_revision]
+	)
+	assert_eq(changed.outcome, "ok", "1436 owned profile-only corruption succeeds")
+	if changed.outcome != "ok":
+		return
+	_store.close()
+	_store = StoreScript.new()
+	var reopened: Dictionary = _store.open(_relative_path)
+	assert_eq(reopened.outcome, "ok", "1436 owned database reopens")
+	if reopened.outcome != "ok":
+		return
+	ledger = LedgerScript.new(_store)
+	var observation: Dictionary = _store.start_dml_observation()
+	assert_eq(observation.observation_status, "OBSERVED", "1436 recovery DML is observed")
+	if observation.observation_status != "OBSERVED":
+		return
+
+	var recovered: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_true(recovered.outcome == "corrupt_record" and recovered.properties == null, "1436 recovered creation properties reject conflicting authored profile digest")
+	var profile_after: Dictionary = _store.query_with_bindings(
+		"SELECT content_sha256, profile_wire FROM canon_item_creation_profiles WHERE profile_id = ? AND profile_revision = ?;",
+		[profile_wire.profile_id, profile_wire.profile_revision]
+	)
+	assert_eq(profile_after.outcome, "ok", "1436 conflicting profile remains readable")
+	assert_true(profile_after.rows == [{"content_sha256": changed_digest, "profile_wire": changed_json}], "1436 conflicting authored content is preserved")
+	var companion_after: Dictionary = _store.query_with_bindings(
+		"SELECT * FROM canon_item_creation_properties WHERE instance_id = ?;", [original.instance_id]
+	)
+	assert_eq(companion_after.outcome, "ok", "1436 committed companion remains readable")
+	assert_true(companion_after.rows == companion_before.rows, "1436 committed companion and its original digest are preserved")
+	_assert_no_writes("creation-properties-profile-cross-digest-zero")
+
+
 func test_creation_property_operation_keys_remain_actor_scoped() -> void:
 	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
 	assert_eq(ledger.ensure_schema().outcome, "ok")

@@ -376,6 +376,8 @@ func _creation_properties_from_row(row: Dictionary) -> Dictionary:
 		return _creation_properties_result("query_failed", profile.detail)
 	if profile.rows.size() != 1 or profile.rows[0].content_sha256 != profile.rows[0].profile_wire.sha256_text():
 		return _creation_properties_result("corrupt_record", "authored profile identity is missing or corrupt")
+	if row.profile_sha256 != profile.rows[0].content_sha256:
+		return _creation_properties_result("corrupt_record", "creation properties do not match their authored profile digest")
 	var authored_wire: Variant = JSON.parse_string(profile.rows[0].profile_wire)
 	if not (authored_wire is Dictionary) or not (authored_wire.get("outputs") is Dictionary):
 		return _creation_properties_result("corrupt_record", "authored profile cannot be recovered")
