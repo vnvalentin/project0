@@ -320,11 +320,15 @@ def run(args):
         "owned_processes": [], "unknown_godot": [], "errors": [],
         "timed_out": False, "forced_recovery": False,
         "command_exit_code": None, "source_unchanged": False,
+        "command_identity_captured": False,
     }
     known = {}
+    command_process = None
+    command_process_stopped = False
     if args.reject_unowned_godot and baseline_engines:
         report["errors"].append("unowned_godot_present_before_run")
         report["command_started"] = False
+        command_process_stopped = True
     else:
         report["command_started"] = True
         environment = command_environment(args.preserve_env, identity)
@@ -339,11 +343,13 @@ def run(args):
                     stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
                     preexec_fn=child_setup,
                 )
+                command_process = process
                 root_identity = read_process(Path("/proc") / str(process.pid))
                 if root_identity is None:
                     raise MonitorError("command_identity_unavailable")
-                known[process.pid] = {"process": root_identity, "pidfd": open_pidfd(root_identity)}
                 report["command_identity"] = root_identity.identity
+                known[process.pid] = {"process": root_identity, "pidfd": open_pidfd(root_identity)}
+                report["command_identity_captured"] = True
                 while True:
                     snapshot = process_snapshot()
                     known, changed = owned_processes(snapshot, os.getpid(), process, known)
@@ -362,6 +368,7 @@ def run(args):
                         break
                     time.sleep(args.poll_interval)
                 report["command_exit_code"] = process.wait(timeout=5)
+                command_process_stopped = process.poll() is not None
                 snapshot = process_snapshot()
                 known, changed = owned_processes(snapshot, os.getpid(), process, known)
                 if changed:
@@ -389,10 +396,19 @@ def run(args):
                     report["forced_recovery"] = terminate_owned(known) or report["forced_recovery"]
                     if process.poll() is None:
                         try:
+                            if not report["command_identity_captured"]:
+                                report["forced_recovery"] = True
+                                process.terminate()
                             process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
                             report["errors"].append("owned_process_wait_failed")
+                            try:
+                                process.kill()
+                                process.wait(timeout=5)
+                            except (OSError, subprocess.SubprocessError):
+                                report["errors"].append("owned_process_kill_failed")
                     if process.poll() is not None:
+                        command_process_stopped = True
                         reap_owned(known, process.pid)
         report["owned_processes"] = owned_process_evidence(known)
         report["unknown_godot_observations"] = list(unknown_observations.values())
@@ -411,7 +427,11 @@ def run(args):
         if any(marker in output for marker in ERROR_MARKERS):
             report["errors"].append("engine_script_error_marker")
     report["cleanup"] = {
-        "owned_processes_stopped": not any(is_alive(entry["pidfd"]) for entry in known.values()),
+        "owned_processes_stopped": (
+            command_process_stopped
+            and (not report["command_started"] or report["command_identity_captured"])
+            and not any(is_alive(entry["pidfd"]) for entry in known.values())
+        ),
         "unknown_godot_absent": not report["unknown_godot"],
         "forced_recovery": report["forced_recovery"],
     }

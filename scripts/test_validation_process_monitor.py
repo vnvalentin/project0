@@ -13,7 +13,7 @@ import time
 import unittest
 from unittest import mock
 
-from run_validation_monitor import Process, main, unknown_engines
+from run_validation_monitor import MonitorError, Process, main, unknown_engines
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,6 +111,23 @@ class ValidationProcessMonitorTests(unittest.TestCase):
         self.assertTrue(report["timed_out"])
         self.assertTrue(report["forced_recovery"])
         self.assertTrue(report["cleanup"]["owned_processes_stopped"])
+
+    def test_pidfd_failure_stops_leader_but_does_not_qualify_tree_cleanup(self):
+        with mock.patch("run_validation_monitor.open_pidfd",
+                side_effect=MonitorError("process_handle_unavailable")):
+            code = self.invoke([sys.executable, "-c", "import time; time.sleep(30)"])
+        report = self.result()
+        self.assertEqual(code, 1)
+        self.assertTrue(report["forced_recovery"])
+        self.assertFalse(report["command_identity_captured"])
+        self.assertFalse(report["cleanup"]["owned_processes_stopped"])
+        identity = report["command_identity"]
+        pid, start_ticks = identity.split(":", 1)
+        entry = Path("/proc") / pid
+        if entry.exists():
+            stat = entry.joinpath("stat").read_text(encoding="utf-8")
+            current_start = stat[stat.rindex(")") + 1:].split()[19]
+            self.assertNotEqual(current_start, start_ticks, "the owned leader must stop")
 
     def test_orphaned_descendant_is_adopted_cleaned_and_never_passes(self):
         pidfile = self.root / "child.pid"
