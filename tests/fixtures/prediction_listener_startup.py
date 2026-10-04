@@ -20,6 +20,11 @@ class ExpectedListenErrors:
     NATIVE_ERROR = "ERROR: Couldn't create an ENet host."
     NATIVE_FRAME = 'at: _create (modules/enet/enet_connection.cpp:318)'
     SERVER_FRAME = 'at: _start_server (res://server/server_main.gd:569)'
+    STEP_KEYS = ('begin_seen','native_error_seen','native_frame_seen',
+                 'server_error_seen','server_frame_seen','end_seen')
+    REJECT_STAGES = ('WAIT_BEGIN','WAIT_NATIVE_ERROR','WAIT_NATIVE_FRAME',
+                     'WAIT_SERVER_ERROR','WAIT_SERVER_FRAME','WAIT_END','COMPLETE')
+    REJECT_CLASSES = ('NONE','SCRIPT','ERROR','FRAME','PHASE','BOUND','UNKNOWN')
 
     def __init__(self, held_port):
         if type(held_port) is not int or not 1 <= held_port <= 65535:
@@ -31,21 +36,44 @@ class ExpectedListenErrors:
         self.empty_phase = False
         self.native_frame_qualified = False
         self.server_frame_qualified = False
+        self.seen = dict.fromkeys(self.STEP_KEYS, False)
+        self.first_reject_stage = 'NONE'
+        self.first_reject_class = 'NONE'
+
+    def reject_diagnostic(self, category):
+        # Separate observations only; the strict original verdict remains rejected.
+        self.rejected = True
+        if self.first_reject_class == 'NONE':
+            self.first_reject_stage = ('COMPLETE' if self.empty_phase else self.REJECT_STAGES[self.stage])
+            self.first_reject_class = category if category in self.REJECT_CLASSES else 'UNKNOWN'
+
+    def diagnostic(self, child_exit, outcome):
+        if child_exit not in ('NOT_OBSERVED','EXITED_ONE','EXITED_ZERO','SIGNALLED','OTHER') \
+                or outcome not in ('precondition_failed','startup_unqualified','custody_failed','red_observed','listener_ready'):
+            raise ValueError('diagnostic_unqualified')
+        return {**self.seen,'first_reject_stage':self.first_reject_stage,
+                'first_reject_class':self.first_reject_class,'child_exit':child_exit,'outcome':outcome}
 
     def observe(self, line):
         if type(line) is not str or len(line) > 512:
-            self.rejected = True
+            self.reject_diagnostic('BOUND')
             return
         text = line.strip()
+        expected = (self.BEGIN, self.NATIVE_ERROR, self.NATIVE_FRAME,
+                    self.server_error, self.SERVER_FRAME, self.END)
+        for key, literal in zip(self.STEP_KEYS, expected):
+            if text == literal:
+                self.seen[key] = True
+        category = ('SCRIPT' if any(value in text for value in ('SCRIPT ERROR','Parse Error','Compile Error'))
+                    else 'ERROR' if 'ERROR:' in text else 'FRAME' if text.startswith('at:')
+                    else 'PHASE' if text.startswith('1450_LISTENER_ERROR_') else 'UNKNOWN')
         diagnostic = (text.startswith('1450_LISTENER_ERROR_') or 'ERROR:' in text
                       or 'SCRIPT ERROR' in text or 'Parse Error' in text or 'Compile Error' in text
                       or text.startswith('at:'))
         if self.empty_phase:
             if diagnostic:
-                self.rejected = True
+                self.reject_diagnostic(category)
             return
-        expected = (self.BEGIN, self.NATIVE_ERROR, self.NATIVE_FRAME,
-                    self.server_error, self.SERVER_FRAME, self.END)
         if self.stage == 1 and text == self.END:
             self.empty_phase = True
             return
@@ -57,7 +85,7 @@ class ExpectedListenErrors:
             self.stage += 1
             return
         if diagnostic:
-            self.rejected = True
+            self.reject_diagnostic(category)
 
     def finish(self, child_exit_code, ready_observed):
         return {'qualified': not self.rejected and not self.empty_phase and self.stage == 6
@@ -221,6 +249,49 @@ def remove_runtime(root, frozen, created, user_relative):
     return not os.path.lexists(root)
 
 
+def retain_diagnostic(parent, parent_identity, args, hashes, result, reducer):
+    # One fixed private leaf outside the preserved inner runtime. Unknown state
+    # is never traversed, copied or deleted; failed retention preserves it.
+    if directory_identity(parent) != parent_identity:
+        raise ValueError('diagnostic_parent_unqualified')
+    path = parent / '1450-listener-diagnostic.json'
+    payload = json.dumps({
+        'schema_version':1,'source_revision':args.source_revision,'run_id':args.run_id,
+        'source_hashes':hashes,'report':dict(result),
+        'diagnostic':reducer.diagnostic(result['child_exit'],result['outcome']),
+    },sort_keys=True,separators=(',',':')).encode()
+    if len(payload) > 4096:
+        raise ValueError('diagnostic_unqualified')
+    descriptor = os.open(path,os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,0o600)
+    with os.fdopen(descriptor,'wb') as stream:
+        if stream.write(payload) != len(payload):
+            raise ValueError('diagnostic_unqualified')
+        stream.flush()
+        os.fsync(stream.fileno())
+        info = os.fstat(stream.fileno())
+        identity = (info.st_dev,info.st_ino,info.st_mode,info.st_uid,info.st_nlink,
+                    info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+    if not stat.S_ISREG(identity[2]) or identity[3] != os.getuid() \
+            or identity[4] != 1 or stat.S_IMODE(identity[2]) != 0o600 \
+            or directory_identity(parent) != parent_identity:
+        raise ValueError('diagnostic_unqualified')
+    descriptor = os.open(path,os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        current = os.fstat(descriptor)
+        before = (current.st_dev,current.st_ino,current.st_mode,current.st_uid,current.st_nlink,
+                  current.st_size,current.st_mtime_ns,current.st_ctime_ns)
+        if before != identity:
+            raise ValueError('diagnostic_changed')
+        data = os.read(descriptor,4097)
+        current = os.fstat(descriptor)
+        after = (current.st_dev,current.st_ino,current.st_mode,current.st_uid,current.st_nlink,
+                 current.st_size,current.st_mtime_ns,current.st_ctime_ns)
+        if data != payload or before != after or directory_identity(parent) != parent_identity:
+            raise ValueError('diagnostic_changed')
+    finally:
+        os.close(descriptor)
+
+
 def run(args):
     result = dict(REPORT)
     process = None
@@ -242,8 +313,13 @@ def run(args):
     def observe_line(raw):
         nonlocal marker_seen
         if len(raw) > 512:
+            reducer.reject_diagnostic('BOUND')
             raise ValueError('line_unqualified')
-        line = raw.decode('utf-8', errors='strict')
+        try:
+            line = raw.decode('utf-8', errors='strict')
+        except UnicodeError:
+            reducer.reject_diagnostic('UNKNOWN')
+            raise ValueError('line_unqualified')
         if line.strip() == READY_MARKER:
             if marker_seen or not reducer.finish(None, None)['phase_complete']:
                 raise ValueError('publication_unqualified')
@@ -258,6 +334,7 @@ def run(args):
         data = os.read(process.stdout.fileno(), 4096)
         total += len(data)
         if total > 1048576:
+            reducer.reject_diagnostic('BOUND')
             raise ValueError('output_unqualified')
         buffer.extend(data)
         while b'\n' in buffer:
@@ -265,6 +342,7 @@ def run(args):
             buffer[:] = rest
             observe_line(raw)
         if len(buffer) > 512:
+            reducer.reject_diagnostic('BOUND')
             raise ValueError('line_unqualified')
 
     try:
@@ -403,6 +481,7 @@ def run(args):
                     buffer.extend(data)
                     total += len(data)
                     if total > 1048576:
+                        reducer.reject_diagnostic('BOUND')
                         raise ValueError('output_unqualified')
                 if buffer:
                     for raw in buffer.splitlines():
@@ -494,6 +573,18 @@ def run(args):
             result['qualified_red'] = False
             result['qualified_green'] = False
             result['outcome'] = 'custody_failed'
+    # Diagnostic retention is separate from admission and does not change the
+    # fixed report or cleanup outcome. Qualified runs never create this leaf.
+    if reducer is not None and parent_identity is not None \
+            and result['source_qualified'] is True and result['run_qualified'] is True \
+            and result['child_started'] is True and prerequisite is not None \
+            and not os.path.lexists(prerequisite) and result['temp_removed'] is not True \
+            and result['qualified_red'] is False and result['qualified_green'] is False:
+        try:
+            if source_matches(project,hashes):
+                retain_diagnostic(parent,parent_identity,args,hashes,result,reducer)
+        except (OSError,ValueError,TypeError,KeyError):
+            pass
     return result
 
 
