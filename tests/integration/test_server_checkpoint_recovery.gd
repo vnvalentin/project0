@@ -139,3 +139,23 @@ func test_checkpoint_metadata_flows_through_shared_and_dedicated_canon_to_recove
 	assert_eq(reclaimed["journey"]["sector_geometry_hash"], expected_hash)
 	assert_eq(int(reclaimed["journey"]["last_checkpoint_at"]), int(persisted["last_checkpoint_at"]))
 	assert_eq(int(reclaimed["journey"]["last_disconnected_at"]), 0)
+
+
+func test_checkpoint_persists_empty_metadata_fallback_when_canon_is_closed() -> void:
+	var blueprint: Dictionary = JSON.parse_string(FixturesScript.VALID)
+	_canon_store = SqliteStoreScript.new()
+	assert_eq(_canon_store.open(_canon_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var dedicated_canon: CanonRepository = CanonRepositoryScript.new(_canon_store)
+	assert_eq(dedicated_canon.ensure_schema()["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(dedicated_canon.canonicalize_blueprint(blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(dedicated_canon.get_checkpoint_metadata("sector-0-0")["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	_server._canon_repository = dedicated_canon
+	assert_eq(_canon_store.close()["outcome"], SqliteStoreScript.OUTCOME_OK)
+
+	var journey_id: String = String(_registry.active_journey_id("checkpoint-character", 7))
+	var position := Vector3(13.0, 2.0, 21.0)
+	var started: int = int(Time.get_unix_time_from_system())
+	_server._checkpoint_journey(7, position)
+	var saved_at: int = int(Time.get_unix_time_from_system())
+	var record: Dictionary = _load_journey(_journey_repository, journey_id)
+	_assert_checkpoint_record(record, position, 0, "", started, saved_at)

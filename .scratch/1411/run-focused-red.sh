@@ -126,13 +126,14 @@ expected = {
 }
 by_name = {case.get("name"): case for case in cases}
 assert int(sys.argv[3]) == (1 if mode == "red" else 0), f"unexpected GUT exit for {mode} run"
-assert len(cases) == 13 and set(by_name) == expected | {
+assert len(cases) == 14 and set(by_name) == expected | {
   "test_first_write_and_restart_recovery",
   "test_same_blueprint_is_idempotent",
   "test_conflicting_blueprint_cannot_replace_canon",
   "test_invalid_blueprint_is_rejected_before_storage",
   "test_hostile_sector_id_is_stored_as_data",
   "test_checkpoint_metadata_flows_through_shared_and_dedicated_canon_to_recovery",
+  "test_checkpoint_persists_empty_metadata_fallback_when_canon_is_closed",
 }, "only the selected Canon repository tests must run"
 for name, case in by_name.items():
   if name in expected and mode == "red":
