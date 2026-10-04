@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "dependencies": [
+        "godot",
+        "sqlite",
+        "python",
+        "git",
+        "timeout"
+      ],
+      "command": "python3 build/validation/1435/run-focused.py --controller-sha256 \"$reviewed_controller_sha256\" --source-revision \"$reviewed_source_revision\" --run-id \"$new_run_id\" --mode green",
+      "tests": [
+        "tests/integration/test_item_ledger_repository.gd"
+      ],
+      "artifacts": [
+        "build/validation/1435/<run-id>/result.json",
+        "build/validation/1435/<run-id>/gut.xml",
+        "build/validation/1435/<run-id>/prepare.json",
+        "build/validation/1435/<run-id>/preflight.json",
+        "build/validation/1435/<run-id>/prepared-inventory.json",
+        "build/validation/1435/<run-id>/prepare-bootstrap.log",
+        "build/validation/1435/<run-id>/prepare-qualification.log"
+      ]
+    }
+  ],
+  "setup": "Qualified first RED is retained at its original source; next planned command is the same coordinator-owned focused controller in GREEN mode, freshly bound to reviewed repair source/controller/new run identity. Nominal150s plus reviewed bounded final checks; no standalone consumer fallback. New immutable-integrity cases require runtime coverage in the subsequent complete ledger/profile/full gates, not inferred from the one-method GREEN. Before full execution, refresh the exact private all-direct-unit/integration inventory and preflight on actual final source. This plan and static passes grant no further native execution.",
+  "cleanup": "Existing fixture after_each closes its store and removes only its unique DB/WAL/SHM/journal. Controller owns process quiescence, final inventory recheck and source/runtime cleanup; unknown stage custody is retained and fails. Only reduced gut.xml and canonical preparation phase logs persist with structured reports; raw consumer/assertion material remains transient until qualified cleanup.",
+  "rollback": "Reviewed revert of bounded ledger/test repair. No live Canon/schema migration, production tuning, dependency, thread transfer, host setting or Windows/client change."
+}

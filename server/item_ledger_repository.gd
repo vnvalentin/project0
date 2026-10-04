@@ -246,10 +246,16 @@ func create_instance_with_properties(actor: String, operation_id: String, wire: 
 				var retained_instance: Dictionary = get_instance(data.instance_id)
 				var retained_properties: Dictionary = get_creation_properties(data.instance_id)
 				var retained_wire: Dictionary = {}
+				var expected_identity: Dictionary = logical.duplicate(true)
 				if retained_instance.instance != null:
 					retained_wire = retained_instance.instance.to_wire_dict()
 					retained_wire.acquisition.erase("server_tick")
-				if retained_instance.outcome != "ok" or retained_wire != logical \
+				# The committed receipt survives legal lifecycle changes. get_instance
+				# still validates the current row; compare only creation identity here.
+				for field: String in ["owner", "location", "instance_revision", "terminal"]:
+					retained_wire.erase(field)
+					expected_identity.erase(field)
+				if retained_instance.outcome != "ok" or retained_wire != expected_identity \
 					or retained_properties.outcome != "ok" or retained_properties.properties != properties:
 					work.merge(_command_result("corrupt_record", "committed creation no longer matches its immutable request"), true)
 					return false
