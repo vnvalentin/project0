@@ -1,7 +1,7 @@
 extends RefCounted
 ## Fixture-only held-movement observation used by the real prediction harness.
-## This first TDD increment deliberately preserves the legacy frame-only release
-## policy. It is not the authoritative-release countermeasure or runtime proof.
+## Acknowledgements alone are insufficient: release needs observed +Z progress
+## while held and beyond the public sequence floor, within the unchanged frame cap.
 
 const HELD_FRAME_CAP: int = 30
 
@@ -39,8 +39,7 @@ func authoritative_progress_observed() -> bool:
 
 
 func release_ready(held_frames: int) -> bool:
-	# Preserve the original harness behavior until the behavioral RED is qualified.
-	return held_frames >= HELD_FRAME_CAP
+	return held_frames >= 0 and held_frames <= HELD_FRAME_CAP and authoritative_progress_observed()
 
 
 func finish() -> void:

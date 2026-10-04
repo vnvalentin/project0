@@ -217,16 +217,22 @@ func _test_prediction_and_reconciliation() -> void:
 	_assert(immediate_check_ticks < 3, "red Player responded well before a server round trip (~30 ticks) could complete")
 
 	# --- Ordered input sequence acknowledgement ----------------------------
-	# Let several more ticks elapse so multiple sequence-tagged intents are
-	# sent and the server has time to process and acknowledge them.
+	# Observe genuine authoritative +Z progress while input is still held.
+	# Baseline and progress consume the original 30 additional frame budget;
+	# a newer acknowledgement alone does not establish displacement.
 	var send_ticks: int = 0
-	while send_ticks < 30:
+	while send_ticks < 30 and not _movement_observer.release_ready(send_ticks):
 		await physics_frame
 		send_ticks += 1
-	_assert(_movement_observer.release_ready(send_ticks), "held movement release policy is satisfied")
+	var held_boundary_ready: bool = _movement_observer.release_ready(send_ticks)
+	var predicted_while_held: Vector3 = player.position
+	_assert(held_boundary_ready, "held input reaches authoritative progress within the original frame bound")
+	_assert(predicted_while_held.z - start_position.z > 0.5, "red Player's predicted position advanced from held input before any correction")
 	Input.action_release("move_back")
 	_owns_held_input = false
 	_finish_movement_observation()
+	if not held_boundary_ready or predicted_while_held.z - start_position.z <= 0.5:
+		return
 
 	var settle_ticks: int = 0
 	while settle_ticks < 30:
@@ -238,7 +244,6 @@ func _test_prediction_and_reconciliation() -> void:
 	_assert(player._pending_inputs.size() < next_sequence, "the server has acknowledged at least one sent input sequence (fewer pending than sent)")
 
 	var predicted_before_correction: Vector3 = player.position
-	_assert(predicted_before_correction.z - start_position.z > 0.5, "red Player's predicted position advanced from held input before any correction")
 
 	# --- Forced authoritative correction converges the red Player ----------
 	# Directly invoke the same public RPC-target method the server calls on
