@@ -12,6 +12,14 @@ extends GutTest
 ## hardened "every tests/**/test_*.gd present in gut.xml" gate stays green.
 ## Unset, the harness MUST actually execute.
 
+func test_enet_port_ownership_diagnostic() -> void:
+	var fixture_path: String = "res://tests/fixtures/enet_port_ownership_diagnostic.gd"
+	var available: bool = ResourceLoader.exists(fixture_path)
+	assert_true(available, "bounded port ownership diagnostic fixture is present")
+	if not available:
+		return
+
+
 func test_prediction_reconciliation_harness_passes() -> void:
 	if not OS.get_environment("PROJECT0_SKIP_E2E").is_empty():
 		pending("PROJECT0_SKIP_E2E set: skipping real two-process E2E harness run")
