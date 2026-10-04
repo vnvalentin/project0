@@ -19,8 +19,12 @@
       "dependencies": ["godot", "sqlite", "python", "docker"],
       "tests": ["tests/integration/test_canon_repository.gd"],
       "artifacts": [
+        "build/validation/m4-1411-red-<run-id>/preparation-summary.json",
+        "build/validation/m4-1411-red-<run-id>/prepare-bootstrap.log",
+        "build/validation/m4-1411-red-<run-id>/prepare-qualification.log",
         "build/validation/m4-1411-red-<run-id>/import-review-validation.json",
         "build/validation/m4-1411-red-<run-id>/focused-review-validation.json",
+        "build/validation/m4-1411-red-<run-id>/import-review-validation.json.log",
         "build/validation/m4-1411-red-<run-id>/gut.xml",
         "build/validation/m4-1411-red-<run-id>/focused-review-validation.json.log"
       ]

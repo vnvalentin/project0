@@ -10,9 +10,33 @@ mkdir -p "$evidence_root"
 report_dir="$evidence_root/m4-1411-red-$run_id"
 mkdir -p "$report_dir"
 state_root="$(mktemp -d /tmp/project0-1411-red.XXXXXX)"
+prepared_root="$state_root/prepared"
+preparation_report="$report_dir/preparation-summary.json"
 cleanup() {
   result=$?
   trap - EXIT
+  if [[ -f "$preparation_report" ]]; then
+    custody="$(python3 - "$preparation_report" <<'PY'
+import json, sys
+try:
+    report = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    print("unknown")
+else:
+    safe = (report.get("configuration_custody_lost") is False
+            and report.get("configuration_restored") is True
+            and report.get("source_custody_qualified") is True)
+    print("restored" if safe else "retain")
+PY
+)"
+    if [[ "$custody" != "restored" ]]; then
+      printf 'VALIDATION BLOCKED: preparation custody unqualified; retained %s\n' "$state_root" >&2
+      exit 1
+    fi
+  elif [[ -e "$prepared_root" ]]; then
+    printf 'VALIDATION BLOCKED: preparation report missing; retained %s\n' "$state_root" >&2
+    exit 1
+  fi
   rm -rf -- "$state_root" || result=1
   exit "$result"
 }
@@ -48,18 +72,29 @@ monitor_args=(
   --preserve-env PROJECT0_TEST_STATE_DIR
   --preserve-env DASHBOARD_RESULTS_DIR
 )
-monitor="/data/code/project0/.venv-enrollment/bin/python scripts/run_validation_monitor.py"
+godot_bin="$(command -v godot)"
+[[ -n "$godot_bin" ]]
 
 sudo -n "${sudo_args[@]}" /data/code/project0/.venv-enrollment/bin/python \
   scripts/run_validation_monitor.py "${monitor_args[@]}" \
   --report "$report_dir/import-review-validation.json" \
-  -- godot --headless --import
+  -- /data/code/project0/.venv-enrollment/bin/python scripts/prepare_godot_project.py \
+  --source-root "$PWD" --prepared-root "$prepared_root" --godot "$godot_bin" \
+  --source-revision "$revision" --timeout-seconds 300 --report "$preparation_report"
+python3 - "$preparation_report" <<'PY'
+import json, sys
+report = json.load(open(sys.argv[1], encoding="utf-8"))
+assert report.get("status") == "passed"
+assert report.get("configuration_restored") is True
+assert report.get("source_custody_qualified") is True
+assert report.get("configuration_custody_lost") is False
+PY
 
 set +e
 sudo -n "${sudo_args[@]}" /data/code/project0/.venv-enrollment/bin/python \
   scripts/run_validation_monitor.py "${monitor_args[@]}" \
   --report "$report_dir/focused-review-validation.json" \
-  -- godot --headless -s addons/gut/gut_cmdln.gd \
+  -- "$godot_bin" --headless --path "$prepared_root" -s addons/gut/gut_cmdln.gd \
   -gselect=test_checkpoint_metadata_matches_existing_canon_read \
   "-gjunit_xml_file=$report_dir/gut.xml" -gdisable_colors -gexit
 red_status=$?
