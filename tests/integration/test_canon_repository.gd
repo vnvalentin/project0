@@ -235,3 +235,23 @@ func test_checkpoint_metadata_handles_valid_oversized_blueprint() -> void:
 	assert_eq(first["outcome"], CanonRepositoryScript.OUTCOME_OK)
 	assert_eq(first["sector_geometry_hash"], expected_hash)
 	assert_eq(repeated, first)
+
+	var changed_oversized: Dictionary = oversized.duplicate(true)
+	changed_oversized["structures"][0]["facing_degrees"] = 90
+	var changed_json: String = JSON.stringify(changed_oversized)
+	_store.close()
+	var writer: SqliteStore = SqliteStoreScript.new()
+	assert_eq(writer.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var update: Dictionary = writer.query_with_bindings(
+		"UPDATE canon_sectors SET blueprint_json = ? WHERE sector_id = ?;",
+		[changed_json, sector_id]
+	)
+	assert_eq(update["outcome"], SqliteStoreScript.OUTCOME_OK)
+	writer.close()
+	assert_eq(_store.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var refreshed: Dictionary = _repository.call("get_checkpoint_metadata", sector_id)
+	var changed_legacy_read: Dictionary = _repository.get_canonical_sector(sector_id)
+	assert_eq(refreshed["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(refreshed["sector_revision"], first["sector_revision"])
+	assert_ne(refreshed["sector_geometry_hash"], first["sector_geometry_hash"])
+	assert_eq(refreshed["sector_geometry_hash"], JSON.stringify(changed_legacy_read["sector"]["blueprint"]).md5_text())
