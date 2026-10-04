@@ -107,14 +107,30 @@ import xml.etree.ElementTree as ET
 
 root = ET.parse(sys.argv[1]).getroot()
 report = json.loads(open(sys.argv[2], encoding="utf-8").read())
-cases = [case for case in root.iter("testcase")
-         if case.get("name") == "test_checkpoint_metadata_matches_existing_canon_read"]
+cases = list(root.iter("testcase"))
+expected = {
+  "test_checkpoint_metadata_matches_existing_canon_read",
+  "test_checkpoint_metadata_refreshes_after_row_change_and_reopen",
+  "test_checkpoint_metadata_does_not_outlive_missing_canon",
+}
+by_name = {case.get("name"): case for case in cases}
 assert int(sys.argv[3]) == 1, "expected the unchanged implementation to fail the new assertion"
-assert len(cases) == 1 and cases[0].find("failure") is not None, "the named public-seam test must fail"
-assert cases[0].find("error") is None, "parse/runtime errors are not the expected RED"
+assert len(cases) == 8 and set(by_name) == expected | {
+  "test_first_write_and_restart_recovery",
+  "test_same_blueprint_is_idempotent",
+  "test_conflicting_blueprint_cannot_replace_canon",
+  "test_invalid_blueprint_is_rejected_before_storage",
+  "test_hostile_sector_id_is_stored_as_data",
+}, "only the selected Canon repository tests must run"
+for name, case in by_name.items():
+  if name in expected:
+    assert case.find("failure") is not None, f"expected public-seam RED: {name}"
+    assert case.find("error") is None, f"parse/runtime error is not RED: {name}"
+  else:
+    assert case.find("failure") is None and case.find("error") is None, f"existing test regressed: {name}"
 assert report["forced_recovery"] is False and report["cleanup"]["owned_processes_stopped"]
 assert report["source_unchanged"] and not report["errors"]
-print(json.dumps({"expected_red": True, "test": cases[0].get("name"),
+print(json.dumps({"expected_red": True, "tests": sorted(expected),
                   "monitor_cleanup": report["cleanup"]["owned_processes_stopped"],
                   "evidence_dir": sys.argv[4]}))
 PY
