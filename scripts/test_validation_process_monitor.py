@@ -12,7 +12,7 @@ import tempfile
 import time
 import unittest
 
-from run_validation_monitor import main
+from run_validation_monitor import Process, main, unknown_engines
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -154,6 +154,13 @@ class ValidationProcessMonitorTests(unittest.TestCase):
         finally:
             foreign.send_signal(signal.SIGTERM)
             foreign.wait(timeout=3)
+
+    def test_exact_allowed_cgroup_normalizes_procfs_newline_only(self):
+        allowed = "0::/system.slice/docker-expected.scope"
+        expected = Process(10, 1, 10, 10, 100, "S", "godot", allowed + "\n")
+        foreign = Process(11, 1, 11, 11, 101, "S", "godot", "0::/system.slice/docker-other.scope\n")
+        self.assertEqual(unknown_engines({10: expected}, {}, {allowed}), [])
+        self.assertEqual(unknown_engines({11: foreign}, {}, {allowed}), [foreign])
 
     def test_source_mutation_and_incomplete_inventory_fail_closed(self):
         summary = self.write("build/validation/summary.json", json.dumps({
