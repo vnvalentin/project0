@@ -33,7 +33,7 @@
       "suite": "m4-baseline",
       "platform": "linux",
       "host": "192.168.1.254",
-      "command": "bash .scratch/1411/run-monitored-m4-baseline.sh sha256:ea4e78333c7dcfc2993b2d34444390bb16c50a7c25ef020925207acb118797fa",
+      "command": "bash .scratch/1411/run-monitored-m4-baseline.sh sha256:ea4e78333c7dcfc2993b2d34444390bb16c50a7c25ef020925207acb118797fa supported-load",
       "dependencies": ["godot", "sqlite", "python", "docker"],
       "tests": [
         "scripts/run_m4_baseline.py",
@@ -62,6 +62,23 @@
       "artifacts": [
         "build/validation/m4-1411-matched-baseline-<run-id>/review-validation.json",
         "build/validation/m4-1411-matched-baseline-<run-id>/measurement-summary.json",
+        "logs/experiments/exp_m4_1_baseline_<timestamp>.json"
+      ]
+    },
+    {
+      "suite": "m4-baseline",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "bash .scratch/1411/run-monitored-m4-baseline.sh sha256:ea4e78333c7dcfc2993b2d34444390bb16c50a7c25ef020925207acb118797fa isolation",
+      "dependencies": ["godot", "sqlite", "python", "docker"],
+      "tests": [
+        "scripts/run_m4_baseline.py",
+        "scripts/m4_load_server.gd",
+        "scripts/m4_load_peer.gd"
+      ],
+      "artifacts": [
+        "build/validation/m4-1411-isolation-<run-id>/review-validation.json",
+        "build/validation/m4-1411-isolation-<run-id>/measurement-summary.json",
         "logs/experiments/exp_m4_1_baseline_<timestamp>.json"
       ]
     }

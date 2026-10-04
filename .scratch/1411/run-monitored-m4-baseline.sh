@@ -2,8 +2,9 @@
 set -euo pipefail
 
 image_id="${1:-}"
-if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-  printf 'usage: %s sha256:<64 lowercase hex>\n' "$0" >&2
+profile="${2:-supported-load}"
+if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ || ( "$profile" != "supported-load" && "$profile" != "isolation" ) ]]; then
+    printf 'usage: %s sha256:<64 lowercase hex> [supported-load|isolation]\n' "$0" >&2
   exit 2
 fi
 
@@ -41,18 +42,21 @@ monitor_args=(
 sudo_args=(--preserve-env=PATH,LANG,PROJECT0_VALIDATION_RESULTS_ROOT)
 python="/data/code/project0/.venv-enrollment/bin/python"
 started_ns="$(date +%s%N)"
+m4_args=(python3 scripts/run_m4_baseline.py --server-image "$image_id" --crossing-span 10)
+if [[ "$profile" == "supported-load" ]]; then
+    m4_args+=(--supported-load --checkpoint-attribution)
+fi
 
 set +e
 sudo -n "${sudo_args[@]}" "$python" scripts/run_validation_monitor.py \
   "${monitor_args[@]}" \
   --report "$evidence_dir/review-validation.json" \
-  -- python3 scripts/run_m4_baseline.py --server-image "$image_id" \
-  --supported-load --crossing-span 10 --checkpoint-attribution \
+    -- "${m4_args[@]}" \
   > "$evidence_dir/monitor-command.log" 2>&1
 monitor_status=$?
 set -e
 
-python3 - "$repo_root" "$evidence_dir" "$revision" "$image_id" "$started_ns" "$monitor_status" <<'PY'
+python3 - "$repo_root" "$evidence_dir" "$revision" "$image_id" "$started_ns" "$monitor_status" "$profile" <<'PY'
 import hashlib
 import json
 import shutil
@@ -60,7 +64,7 @@ import stat
 import sys
 from pathlib import Path
 
-repo, evidence, revision, image_id, started_ns, monitor_status = sys.argv[1:]
+repo, evidence, revision, image_id, started_ns, monitor_status, profile = sys.argv[1:]
 repo, evidence = Path(repo), Path(evidence)
 started_ns, monitor_status = int(started_ns), int(monitor_status)
 experiment_root = repo / "logs/experiments"
@@ -71,9 +75,10 @@ if len(reports) != 1:
     raise SystemExit("m4_report_missing_or_ambiguous")
 measurement_path = reports[0]
 measurement = json.loads(measurement_path.read_text(encoding="utf-8"))
+supported_load = profile == "supported-load"
 if (measurement.get("source") != revision or measurement.get("source_dirty") is not False
-        or measurement.get("supported_load") is not True
-        or measurement.get("checkpoint_attribution") is not True
+    or measurement.get("supported_load") is not supported_load
+    or measurement.get("checkpoint_attribution") is not supported_load
         or measurement.get("requested_ticks") != 1000
         or measurement.get("container", {}).get("image_id") != image_id):
     raise SystemExit("m4_source_or_profile_mismatch")
@@ -81,7 +86,7 @@ if measurement.get("cleanup", {}).get("verified") is not True:
     raise SystemExit("m4_cleanup_unverified")
 if measurement.get("competing_engines_before") or measurement.get("competing_engines_during"):
     raise SystemExit("m4_competing_engine_observed")
-if measurement.get("checkpoint_summary", {}).get("qualified") is not True:
+if supported_load and measurement.get("checkpoint_summary", {}).get("qualified") is not True:
     raise SystemExit("m4_checkpoint_attribution_unqualified")
 
 artifacts = []
@@ -126,10 +131,16 @@ monitor_integrity = (
     and monitor.get("cleanup", {}).get("owned_processes_stopped") is True
 )
 samples = measurement.get("observation", {}).get("samples", [])
+checks = measurement.get("evaluation", {}).get("checks", {})
+if profile == "isolation" and (
+        checks.get("isolation_observed") is not True
+        or checks.get("worker_activity_observed") is not True):
+    raise SystemExit("m4_isolation_or_worker_evidence_unqualified")
 summary = {
     "schema_version": 1,
     "source_revision": revision,
     "image_id": image_id,
+    "profile": profile,
     "monitor_command_exit_code": monitor_status,
     "monitor_integrity_qualified": monitor_integrity,
     "measurement_report": str(measurement_path),
@@ -137,12 +148,21 @@ summary = {
     "measurement_passed": measurement.get("passed") is True,
     "ticks_observed": len(samples),
     "failed_checks": measurement.get("evaluation", {}).get("failed_checks", []),
-    "checkpoint_attribution": measurement.get("checkpoint_summary"),
+    "checkpoint_attribution": measurement.get("checkpoint_summary") if supported_load else None,
+    "isolation_checks": {name: checks.get(name) for name in (
+        "isolation_observed", "worker_activity_observed", "structural_nonblocking_verified",
+        "lock_wait_observed")},
     "m4_cleanup_verified": measurement.get("cleanup", {}).get("verified") is True,
     "retained_artifacts": artifacts,
 }
 summary["evidence_complete"] = bool(
     monitor_integrity and summary["m4_cleanup_verified"] and len(samples) == 1000
+    and checks.get("complete_tick_samples") is True
+    and checks.get("finite_durations") is True
+    and checks.get("full_workload_each_tick") is True
+    and checks.get("crossings_at_least_two_per_second") is True
+    and (checks.get("checkpoint_child_evidence_qualified") is True if supported_load else
+         checks.get("isolation_observed") is True and checks.get("worker_activity_observed") is True)
 )
 with (evidence / "measurement-summary.json").open("x", encoding="utf-8") as stream:
     stream.write(json.dumps(summary, indent=2, sort_keys=True) + "\n")
