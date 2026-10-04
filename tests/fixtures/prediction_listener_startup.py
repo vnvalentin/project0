@@ -19,7 +19,7 @@ class ExpectedListenErrors:
     END = '1450_LISTENER_ERROR_END:occupied_default'
     NATIVE_ERROR = "ERROR: Couldn't create an ENet host."
     NATIVE_FRAME = 'at: _create (modules/enet/enet_connection.cpp:318)'
-    SERVER_FRAME = 'at: push_error (core/variant/variant_utility.cpp:1091)'
+    SERVER_FRAME = 'at: push_error (core/variant/variant_utility.cpp:1092)'
     STEP_KEYS = ('begin_seen','native_error_seen','native_frame_seen',
                  'server_error_seen','server_frame_seen','end_seen')
     REJECT_STAGES = ('WAIT_BEGIN','WAIT_NATIVE_ERROR','WAIT_NATIVE_FRAME',
