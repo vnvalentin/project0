@@ -5,7 +5,9 @@ exec 9>/tmp/project0-m4-01a0fcfa-validation.lock
 flock -n 9
 
 run_id="$(date -u +%Y%m%dT%H%M%S%N)"
-report_dir="build/validation/m4-1411-red-$run_id"
+evidence_root="${PROJECT0_VALIDATION_RESULTS_ROOT:-build/validation}"
+mkdir -p "$evidence_root"
+report_dir="$evidence_root/m4-1411-red-$run_id"
 mkdir -p "$report_dir"
 state_root="$(mktemp -d /tmp/project0-1411-red.XXXXXX)"
 cleanup() {
@@ -63,7 +65,7 @@ sudo -n "${sudo_args[@]}" /data/code/project0/.venv-enrollment/bin/python \
 red_status=$?
 set -e
 
-python3 - "$report_dir/gut.xml" "$report_dir/focused-review-validation.json" "$red_status" <<'PY'
+python3 - "$report_dir/gut.xml" "$report_dir/focused-review-validation.json" "$red_status" "$report_dir" <<'PY'
 import json
 import sys
 import xml.etree.ElementTree as ET
@@ -78,5 +80,6 @@ assert cases[0].find("error") is None, "parse/runtime errors are not the expecte
 assert report["forced_recovery"] is False and report["cleanup"]["owned_processes_stopped"]
 assert report["source_unchanged"] and not report["errors"]
 print(json.dumps({"expected_red": True, "test": cases[0].get("name"),
-                  "monitor_cleanup": report["cleanup"]["owned_processes_stopped"]}))
+                  "monitor_cleanup": report["cleanup"]["owned_processes_stopped"],
+                  "evidence_dir": sys.argv[4]}))
 PY
