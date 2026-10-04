@@ -96,8 +96,31 @@ static func ordinary_chain(path: String) -> Array[String]:
 	return chain
 
 
-static func read_ready(directory: String, chain: Array[String]) -> String:
+static func final_inventory_qualified(directory: String, chain: Array[String]) -> bool:
 	if chain.is_empty() or ordinary_chain(directory) != chain:
+		return false
+	var opened: DirAccess = DirAccess.open(directory)
+	if opened == null:
+		return false
+	opened.include_hidden = true
+	if opened.list_dir_begin() != OK:
+		return false
+	var found: bool = false
+	var qualified: bool = true
+	while true:
+		var entry: String = opened.get_next()
+		if entry.is_empty():
+			break
+		if found or entry != READY_LEAF or opened.current_is_dir() or opened.is_link(entry):
+			qualified = false
+			break
+		found = true
+	opened.list_dir_end()
+	return qualified and found and ordinary_chain(directory) == chain
+
+
+static func read_ready(directory: String, chain: Array[String]) -> String:
+	if not final_inventory_qualified(directory, chain):
 		return ""
 	var opened: DirAccess = DirAccess.open(directory)
 	if opened == null or opened.is_link(READY_LEAF) or not opened.file_exists(READY_LEAF):
@@ -111,7 +134,7 @@ static func read_ready(directory: String, chain: Array[String]) -> String:
 		return ""
 	var buffer: PackedByteArray = file.get_buffer(MAX_BYTES + 1)
 	file.close()
-	if buffer.size() != length or ordinary_chain(directory) != chain or opened.is_link(READY_LEAF):
+	if buffer.size() != length or not final_inventory_qualified(directory, chain):
 		return ""
 	return buffer.get_string_from_utf8()
 
