@@ -101,7 +101,7 @@ sudo -n "${sudo_args[@]}" /data/code/project0/.venv-enrollment/bin/python \
   scripts/run_validation_monitor.py "${monitor_args[@]}" \
   --report "$report_dir/focused-review-validation.json" \
   -- "$godot_bin" --headless --path "$prepared_root" -s addons/gut/gut_cmdln.gd \
-  -gconfig= -gtest=res://tests/integration/test_canon_repository.gd \
+  -gconfig= -gtest=res://tests/integration/test_canon_repository.gd,res://tests/integration/test_server_checkpoint_recovery.gd \
   "-gjunit_xml_file=$report_dir/gut.xml" -gdisable_colors -gexit
 red_status=$?
 set -e
@@ -119,15 +119,17 @@ expected = {
   "test_checkpoint_metadata_matches_existing_canon_read",
   "test_checkpoint_metadata_refreshes_after_row_change_and_reopen",
   "test_checkpoint_metadata_does_not_outlive_missing_canon",
+  "test_checkpoint_metadata_uses_canon_created_after_initial_miss",
 }
 by_name = {case.get("name"): case for case in cases}
 assert int(sys.argv[3]) == (1 if mode == "red" else 0), f"unexpected GUT exit for {mode} run"
-assert len(cases) == 8 and set(by_name) == expected | {
+assert len(cases) == 10 and set(by_name) == expected | {
   "test_first_write_and_restart_recovery",
   "test_same_blueprint_is_idempotent",
   "test_conflicting_blueprint_cannot_replace_canon",
   "test_invalid_blueprint_is_rejected_before_storage",
   "test_hostile_sector_id_is_stored_as_data",
+  "test_checkpoint_metadata_flows_through_server_to_durable_recovery",
 }, "only the selected Canon repository tests must run"
 for name, case in by_name.items():
   if name in expected and mode == "red":

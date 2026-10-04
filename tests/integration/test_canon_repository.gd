@@ -132,3 +132,16 @@ func test_checkpoint_metadata_does_not_outlive_missing_canon() -> void:
 	var delete: Dictionary = _store.query_with_bindings("DELETE FROM canon_sectors WHERE sector_id = ?;", [sector_id])
 	assert_eq(delete["outcome"], SqliteStoreScript.OUTCOME_OK)
 	assert_eq(_repository.call("get_checkpoint_metadata", sector_id)["outcome"], CanonRepositoryScript.OUTCOME_NOT_FOUND)
+
+
+func test_checkpoint_metadata_uses_canon_created_after_initial_miss() -> void:
+	var sector_id: String = String(_blueprint["sector_id"])
+	assert_true(_repository.has_method("get_checkpoint_metadata"), "Canon exposes authoritative derived checkpoint metadata")
+	if not _repository.has_method("get_checkpoint_metadata"):
+		return
+	assert_eq(_repository.call("get_checkpoint_metadata", sector_id)["outcome"], CanonRepositoryScript.OUTCOME_NOT_FOUND)
+	assert_eq(_repository.canonicalize_blueprint(_blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var metadata: Dictionary = _repository.call("get_checkpoint_metadata", sector_id)
+	assert_eq(metadata["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(metadata["sector_revision"], int(_blueprint["schema_version"]))
+	assert_eq(metadata["sector_geometry_hash"], JSON.stringify(_blueprint).md5_text())

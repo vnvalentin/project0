@@ -11,10 +11,12 @@ const OUTCOME_CONFLICT: String = "conflict"
 const OUTCOME_INVALID_BLUEPRINT: String = "invalid_blueprint"
 const OUTCOME_NOT_FOUND: String = "not_found"
 const MAX_CHECKPOINT_METADATA_CACHE_ENTRIES: int = 16
+const MAX_CHECKPOINT_METADATA_CACHE_BYTES: int = 4 * 1024 * 1024
 
 var _store: SqliteStore = null
 var _checkpoint_metadata_cache: Dictionary = {}
 var _checkpoint_metadata_cache_order: Array[String] = []
+var _checkpoint_metadata_cache_bytes: int = 0
 
 
 func _init(store: SqliteStore) -> void:
@@ -145,15 +147,29 @@ func get_checkpoint_metadata(sector_id: Variant) -> Dictionary:
 
 	var parsed_blueprint: Variant = JSON.parse_string(blueprint_json)
 	var sector_geometry_hash: String = JSON.stringify(parsed_blueprint).md5_text()
-	if not _checkpoint_metadata_cache.has(sector_id):
-		if _checkpoint_metadata_cache_order.size() >= MAX_CHECKPOINT_METADATA_CACHE_ENTRIES:
-			_checkpoint_metadata_cache.erase(_checkpoint_metadata_cache_order.pop_front())
-		_checkpoint_metadata_cache_order.append(sector_id)
-	_checkpoint_metadata_cache[sector_id] = {
-		"blueprint_json": blueprint_json,
-		"schema_version": sector_revision,
-		"sector_geometry_hash": sector_geometry_hash,
-	}
+	if _checkpoint_metadata_cache.has(sector_id):
+		var previous: Dictionary = _checkpoint_metadata_cache[sector_id]
+		_checkpoint_metadata_cache_bytes -= String(previous["blueprint_json"]).to_utf8_buffer().size()
+		_checkpoint_metadata_cache.erase(sector_id)
+		_checkpoint_metadata_cache_order.erase(sector_id)
+	var blueprint_size_bytes: int = blueprint_json.to_utf8_buffer().size()
+	if blueprint_size_bytes <= MAX_CHECKPOINT_METADATA_CACHE_BYTES:
+		while not _checkpoint_metadata_cache_order.is_empty() and (
+			_checkpoint_metadata_cache_order.size() >= MAX_CHECKPOINT_METADATA_CACHE_ENTRIES
+			or _checkpoint_metadata_cache_bytes + blueprint_size_bytes > MAX_CHECKPOINT_METADATA_CACHE_BYTES
+		):
+			var evicted_id: String = _checkpoint_metadata_cache_order.pop_front()
+			var evicted: Dictionary = _checkpoint_metadata_cache.get(evicted_id, {})
+			_checkpoint_metadata_cache_bytes -= String(evicted.get("blueprint_json", "")).to_utf8_buffer().size()
+			_checkpoint_metadata_cache.erase(evicted_id)
+		if _checkpoint_metadata_cache_bytes + blueprint_size_bytes <= MAX_CHECKPOINT_METADATA_CACHE_BYTES:
+			_checkpoint_metadata_cache_order.append(sector_id)
+			_checkpoint_metadata_cache[sector_id] = {
+				"blueprint_json": blueprint_json,
+				"schema_version": sector_revision,
+				"sector_geometry_hash": sector_geometry_hash,
+			}
+			_checkpoint_metadata_cache_bytes += blueprint_size_bytes
 	return {
 		"outcome": OUTCOME_OK,
 		"detail": "",

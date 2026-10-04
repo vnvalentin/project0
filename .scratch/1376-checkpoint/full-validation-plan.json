@@ -55,6 +55,7 @@
         "tests/integration/test_sector_boundary_area3d.gd",
         "tests/integration/test_sector_geometry_translation.gd",
         "tests/integration/test_sector_residency_canon_preservation.gd",
+        "tests/integration/test_server_checkpoint_recovery.gd",
         "tests/integration/test_sqlite_store.gd",
         "tests/integration/test_telemetry_ingest_service.gd",
         "tests/integration/test_telemetry_sink.gd",

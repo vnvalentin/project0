@@ -17,7 +17,10 @@
       "host": "192.168.1.254",
       "command": "bash .scratch/1411/run-focused-red.sh green",
       "dependencies": ["godot", "sqlite", "python", "docker"],
-      "tests": ["tests/integration/test_canon_repository.gd"],
+      "tests": [
+        "tests/integration/test_canon_repository.gd",
+        "tests/integration/test_server_checkpoint_recovery.gd"
+      ],
       "artifacts": [
         "build/validation/m4-1411-red-<run-id>/preparation-summary.json",
         "build/validation/m4-1411-red-<run-id>/prepare-bootstrap.log",
