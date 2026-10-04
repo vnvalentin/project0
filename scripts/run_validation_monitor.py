@@ -165,10 +165,7 @@ def owned_processes(snapshot, monitor_pid, root_process, known):
 
 
 def unknown_engines(snapshot, known, allowed_cgroups):
-    owned = {
-        entry["process"].identity
-        for entry in known.values() if is_alive(entry["pidfd"])
-    }
+    owned = {entry["process"].identity for entry in known.values()}
     return [process for process in snapshot.values()
             if process.state != "Z" and process.is_godot and process.identity not in owned
             and process.cgroup.removesuffix("\n") not in allowed_cgroups]
