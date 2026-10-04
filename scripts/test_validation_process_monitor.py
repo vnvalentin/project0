@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from run_validation_monitor import Process, main, unknown_engines
 
@@ -188,6 +189,14 @@ class ValidationProcessMonitorTests(unittest.TestCase):
         foreign = Process(11, 1, 11, 11, 101, "S", "godot", "0::/system.slice/docker-other.scope\n")
         self.assertEqual(unknown_engines({10: expected}, {}, {allowed}), [])
         self.assertEqual(unknown_engines({11: foreign}, {}, {allowed}), [foreign])
+
+    def test_owned_snapshot_identity_survives_pidfd_exit_race(self):
+        owned = Process(20, 1, 20, 20, 100, "S", "godot", "owned-cgroup")
+        reused = Process(20, 1, 20, 20, 101, "S", "godot", "foreign-cgroup")
+        known = {20: {"process": owned, "pidfd": -1}}
+        with mock.patch("run_validation_monitor.is_alive", return_value=False):
+            self.assertEqual(unknown_engines({20: owned}, known, set()), [])
+            self.assertEqual(unknown_engines({20: reused}, known, set()), [reused])
 
     def test_source_mutation_and_incomplete_inventory_fail_closed(self):
         summary = self.write("build/validation/summary.json", json.dumps({
