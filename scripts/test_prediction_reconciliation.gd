@@ -14,12 +14,18 @@ extends SceneTree
 ## by scripts/test_client_server_connection.gd and
 ## scripts/test_authoritative_movement.gd.
 ##
-## Run with:
-##   godot --headless --path . -s scripts/test_prediction_reconciliation.gd
+## Run through the canonical source-bound validation entrypoint. An unbound
+## standalone invocation refuses readiness; PID liveness alone is not the
+## independently qualified outer descendant/source-ownership envelope.
 ## Exits 0 and prints "ALL PASS" only if every assertion below holds.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
+const ReadyCodec = preload("res://tests/fixtures/prediction_listener_ready.gd")
+const LISTENER_SOURCE_FILES: Array[String] = [
+	"server/server_main.gd", "tests/fixtures/prediction_listener_ready.gd",
+	"tests/fixtures/prediction_listener_server.gd", "scripts/test_prediction_reconciliation.gd",
+]
 const MovementObservationScript: Script = preload("res://tests/fixtures/prediction_movement_observation.gd")
 const TELEMETRY_DB_PATH_ENV_VAR: String = "PROJECT0_TELEMETRY_DB_PATH"
 
@@ -27,6 +33,14 @@ var _failures: int = 0
 var _server_process_id: int = -1
 var _gameplay_instance: Node3D
 var _telemetry_db_path: String = ""
+var _ready_namespace: String = ""
+var _ready_namespace_chain: Array[String] = []
+var _ready_root: String = ""
+var _ready_chain: Array[String] = []
+var _ready_bytes: String = ""
+var _listener_run_id: String = ""
+var _listener_revision: String = ""
+var _listener_source_hashes: Dictionary = {}
 var _movement_observer: RefCounted
 var _movement_source: Node
 var _movement_callback: Callable = Callable()
@@ -48,6 +62,7 @@ func _run() -> void:
 
 	var server_stopped: bool = await _stop_server_process()
 	_assert(server_stopped, "owned server child process stopped before fixture cleanup")
+	_assert(_cleanup_listener_readiness(server_stopped), "owned listener readiness removed after server stop")
 	if server_stopped:
 		_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
 	else:
@@ -125,20 +140,63 @@ func _assert(condition: bool, message: String) -> void:
 
 
 func _test_prediction_and_reconciliation() -> void:
-	var port_probe: PacketPeerUDP = PacketPeerUDP.new()
-	var bind_error: Error = port_probe.bind(0, "127.0.0.1")
-	_assert(bind_error == OK, "private test UDP port is available")
-	if bind_error != OK:
+	_listener_revision = OS.get_environment("M4_SOURCE_REVISION")
+	_assert(ReadyCodec.valid_revision(_listener_revision), "listener source metadata is qualified")
+	if not ReadyCodec.valid_revision(_listener_revision):
 		return
-	var server_port: int = port_probe.get_local_port()
-	port_probe.close()
+	_listener_run_id = "prediction_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	var user_directory: String = ProjectSettings.globalize_path("user://").trim_suffix("/")
+	var parent_chain: Array[String] = ReadyCodec.ordinary_chain(user_directory)
+	_assert(not parent_chain.is_empty(), "listener namespace parent is ordinary")
+	if parent_chain.is_empty():
+		return
+	var candidate: String = user_directory.path_join("prediction-listener-ready-" + _listener_run_id)
+	var parent: DirAccess = DirAccess.open(user_directory)
+	var absent: bool = parent != null and not parent.is_link(candidate.get_file()) \
+		and not parent.file_exists(candidate.get_file()) and not parent.dir_exists(candidate.get_file())
+	_assert(absent, "listener namespace is fresh")
+	if not absent:
+		return
+	var created: Error = DirAccess.make_dir_absolute(candidate)
+	_assert(created == OK, "listener namespace is created once")
+	if created != OK:
+		return
+	_ready_namespace = candidate
+	_ready_namespace_chain = ReadyCodec.ordinary_chain(_ready_namespace)
+	var namespace_chain: Array[String] = parent_chain.duplicate()
+	namespace_chain.append(_ready_namespace)
+	_assert(_ready_namespace_chain == namespace_chain, "listener namespace ancestry is qualified")
+	if _ready_namespace_chain != namespace_chain:
+		return
+	var ready_candidate: String = _ready_namespace.path_join("ready")
+	var ready_created: Error = DirAccess.make_dir_absolute(ready_candidate)
+	_assert(ready_created == OK, "listener ready child is created once")
+	if ready_created != OK:
+		return
+	_ready_root = ready_candidate
+	_ready_chain = ReadyCodec.ordinary_chain(_ready_root)
+	var expected_chain: Array[String] = _ready_namespace_chain.duplicate()
+	expected_chain.append(_ready_root)
+	_assert(_ready_chain == expected_chain, "listener ready ancestry is qualified")
+	if _ready_chain != expected_chain:
+		return
+	for relative: String in LISTENER_SOURCE_FILES:
+		var digest: String = FileAccess.get_sha256("res://" + relative)
+		_assert(digest.length() == 64, "listener source bytes are available")
+		if digest.length() != 64:
+			return
+		_listener_source_hashes[relative] = digest
+
 	var had_operator_port: bool = OS.has_environment("PROJECT0_OPERATOR_CONTROL_PORT")
 	var previous_operator_port: String = OS.get_environment("PROJECT0_OPERATOR_CONTROL_PORT")
 	OS.set_environment("PROJECT0_OPERATOR_CONTROL_PORT", "0")
 	var godot_executable: String = OS.get_executable_path()
 	_server_process_id = OS.create_process(godot_executable, [
 		"--headless", "--path", ProjectSettings.globalize_path("res://"),
-		"-s", "server/server_main.gd", "--", "--server-port=%d" % server_port,
+		"-s", "tests/fixtures/prediction_listener_server.gd", "--",
+		"--server-bind-address=127.0.0.1", "--listener-ready-root=" + _ready_root,
+		"--listener-run-id=" + _listener_run_id, "--listener-source-revision=" + _listener_revision,
+		"--listener-user-directory=" + user_directory,
 	])
 	if had_operator_port:
 		OS.set_environment("PROJECT0_OPERATOR_CONTROL_PORT", previous_operator_port)
@@ -148,12 +206,29 @@ func _test_prediction_and_reconciliation() -> void:
 	if _server_process_id == -1:
 		return
 
+	var server_port: int = 0
 	var startup_deadline_msec: int = Time.get_ticks_msec() + 5000
 	while OS.is_process_running(_server_process_id) and Time.get_ticks_msec() < startup_deadline_msec:
+		if FileAccess.file_exists(_ready_root.path_join(ReadyCodec.READY_LEAF)):
+			_ready_bytes = ReadyCodec.read_ready(_ready_root, _ready_chain)
+			var record: Dictionary = ReadyCodec.decode_ready(_ready_bytes, _listener_run_id, _listener_revision)
+			_assert(record["passed"] == true, "listener readiness has exact source and run")
+			if record["passed"] != true:
+				_ready_bytes = ""
+				return
+			server_port = record["port"]
+			break
 		await process_frame
-
+	_assert(server_port > 0, "listener publishes actual bound readiness within startup deadline")
+	if server_port <= 0:
+		return
+	# Supplemental liveness only. Qualified outer validation owns actual
+	# descendant/source custody and reaping; this API supplies no pidfd proof.
 	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
 	if not OS.is_process_running(_server_process_id):
+		return
+	_assert(_listener_sources_unchanged(), "listener source bytes remain qualified")
+	if not _listener_sources_unchanged():
 		return
 
 	# root.get_node("NetworkClient") rather than the bare autoload identifier:
@@ -170,6 +245,11 @@ func _test_prediction_and_reconciliation() -> void:
 	current_scene = _gameplay_instance
 	await process_frame
 
+	var unchanged_ready: bool = ReadyCodec.read_ready(_ready_root, _ready_chain) == _ready_bytes
+	var listener_live: bool = OS.is_process_running(_server_process_id)
+	_assert(unchanged_ready and _listener_sources_unchanged() and listener_live, "listener readiness and liveness qualify before client connection")
+	if not unchanged_ready or not _listener_sources_unchanged() or not listener_live:
+		return
 	network_client.connect_to_server(NetworkConfigScript.SERVER_ADDRESS, server_port)
 
 	var connect_deadline_msec: int = Time.get_ticks_msec() + 5000
@@ -221,7 +301,7 @@ func _test_prediction_and_reconciliation() -> void:
 	# Baseline and progress consume the original 30 additional frame budget;
 	# a newer acknowledgement alone does not establish displacement.
 	var send_ticks: int = 0
-	while send_ticks < 30 and not _movement_observer.release_ready(send_ticks):
+	while send_ticks < 30 and (not _movement_observer.release_ready(send_ticks) or player.position.z - start_position.z <= 0.5):
 		await physics_frame
 		send_ticks += 1
 	var held_boundary_ready: bool = _movement_observer.release_ready(send_ticks)
@@ -316,3 +396,97 @@ func _test_prediction_and_reconciliation() -> void:
 
 	_gameplay_instance.queue_free()
 	await process_frame
+
+
+func _listener_sources_unchanged() -> bool:
+	if _listener_source_hashes.size() != LISTENER_SOURCE_FILES.size():
+		return false
+	for relative: String in LISTENER_SOURCE_FILES:
+		if FileAccess.get_sha256("res://" + relative) != _listener_source_hashes[relative]:
+			return false
+	return true
+
+
+func _cleanup_listener_readiness(server_stopped: bool) -> bool:
+	if _ready_namespace.is_empty():
+		return true
+	if not server_stopped or not _listener_sources_unchanged() \
+		or _ready_namespace_chain.is_empty() \
+		or ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain:
+		return false
+	var namespace_directory: DirAccess = DirAccess.open(_ready_namespace)
+	if namespace_directory == null:
+		return false
+	namespace_directory.include_hidden = true
+	if namespace_directory.list_dir_begin() != OK:
+		return false
+	var namespace_entries: Array[String] = []
+	var namespace_ordinary: bool = true
+	while true:
+		var entry: String = namespace_directory.get_next()
+		if entry.is_empty():
+			break
+		if not namespace_entries.is_empty() or not namespace_directory.current_is_dir() \
+			or namespace_directory.is_link(entry) or entry != "ready":
+			namespace_ordinary = false
+			break
+		namespace_entries.append(entry)
+	namespace_directory.list_dir_end()
+	if not namespace_ordinary or ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain:
+		return false
+	if _ready_root.is_empty():
+		if not namespace_entries.is_empty():
+			return false
+	else:
+		if namespace_entries != ["ready"] or _ready_chain.is_empty() \
+			or ReadyCodec.ordinary_chain(_ready_root) != _ready_chain:
+			return false
+		var opened: DirAccess = DirAccess.open(_ready_root)
+		if opened == null:
+			return false
+		opened.include_hidden = true
+		if opened.list_dir_begin() != OK:
+			return false
+		var files: Array[String] = []
+		var ordinary: bool = true
+		while true:
+			var entry: String = opened.get_next()
+			if entry.is_empty():
+				break
+			if not files.is_empty() or opened.current_is_dir() or opened.is_link(entry) \
+				or entry != ReadyCodec.READY_LEAF:
+				ordinary = false
+				break
+			files.append(entry)
+		opened.list_dir_end()
+		if not ordinary or ReadyCodec.ordinary_chain(_ready_root) != _ready_chain:
+			return false
+		if _ready_bytes.is_empty():
+			if not files.is_empty():
+				return false
+		elif files != [ReadyCodec.READY_LEAF] \
+			or ReadyCodec.read_ready(_ready_root, _ready_chain) != _ready_bytes:
+			return false
+		if not files.is_empty():
+			if ReadyCodec.read_ready(_ready_root, _ready_chain) != _ready_bytes \
+				or opened.is_link(ReadyCodec.READY_LEAF) \
+				or DirAccess.remove_absolute(_ready_root.path_join(ReadyCodec.READY_LEAF)) != OK:
+				return false
+		if ReadyCodec.ordinary_chain(_ready_root) != _ready_chain \
+			or DirAccess.remove_absolute(_ready_root) != OK:
+			return false
+	# Recheck the known now-empty parent before removing this owned namespace.
+	if ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain \
+		or namespace_directory.list_dir_begin() != OK:
+		return false
+	var empty: bool = namespace_directory.get_next().is_empty()
+	namespace_directory.list_dir_end()
+	if not empty or ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain \
+		or DirAccess.remove_absolute(_ready_namespace) != OK:
+		return false
+	_ready_namespace = ""
+	_ready_namespace_chain.clear()
+	_ready_root = ""
+	_ready_chain.clear()
+	_ready_bytes = ""
+	return true

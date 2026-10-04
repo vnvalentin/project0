@@ -542,7 +542,7 @@ func _start_server() -> void:
 		_telemetry_ingest = TelemetryIngestServiceScript.new(_telemetry_sink, _telemetry_rate_limiter)
 
 	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
-	var server_port: int = NetworkConfigScript.resolve_server_port()
+	var server_port: int = _resolve_server_port()
 
 	# Slice 146: resolve the version gate BEFORE binding. An unusable requirement
 	# is an operator fault, and a server that cannot say what it serves must not
@@ -586,6 +586,9 @@ func _start_server() -> void:
 	if bind_address != NetworkConfigScript.SERVER_ADDRESS:
 		print("WARNING: bound to a non-localhost address. This server accepts unauthenticated connections from any host that can reach %s:%d. Only do this on a trusted local network." % [bind_address, server_port])
 
+
+func _resolve_server_port() -> int:
+	return NetworkConfigScript.resolve_server_port()
 
 ## Called whenever a client peer finishes connecting. Tells that peer (only)
 ## to spawn its own visible Player representation via its NetworkClient
