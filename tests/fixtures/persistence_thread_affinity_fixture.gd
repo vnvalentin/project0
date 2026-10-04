@@ -509,6 +509,7 @@ func _observe_main_wait(events: Array[Dictionary], owner: int) -> Dictionary:
 		"observation_begin_usec": 0, "observation_end_usec": 0, "worker_unlock_begin_usec": 0,
 		"source_attribution": "INFERENCE", "exact_target_identity": NOT_OBSERVED, "continuous_wait_duration": NOT_OBSERVED}
 	var task: String = "/proc/self/task/" + str(OS.get_process_id())
+	var diagnostic: String = "1444_WAIT_SAMPLING_NOT_OBSERVED"
 	var deadline: int = Time.get_ticks_usec() + WAIT_HOLD_US
 	while Time.get_ticks_usec() < deadline:
 		var begin: int = Time.get_ticks_usec()
@@ -524,10 +525,29 @@ func _observe_main_wait(events: Array[Dictionary], owner: int) -> Dictionary:
 			result["observation_begin_usec"] = begin
 			result["observation_end_usec"] = end
 			break
+		diagnostic = _wait_observation_diagnostic(before, symbol, after)
 		if before.is_empty() or after.is_empty() or symbol.is_empty():
 			break
 		_worker_delay(events, "request", owner)
+	if result["futex_class"] != "APPROVED_FUTEX_WAIT":
+		print(diagnostic)
 	return result
+
+
+func _wait_observation_diagnostic(before: String, symbol: String, after: String) -> String:
+	if before.is_empty() or after.is_empty():
+		return "1444_WAIT_STATE_UNAVAILABLE"
+	if symbol.is_empty():
+		return "1444_WAIT_WCHAN_UNAVAILABLE"
+	if before != "S" or after != "S":
+		return "1444_WAIT_SLEEP_PAIR_NOT_OBSERVED"
+	if symbol == "0":
+		return "1444_WAIT_WCHAN_ZERO_UNQUALIFIED"
+	if symbol == "futex_wait_queue_me":
+		return "1444_WAIT_KNOWN_QUEUE_ME_UNQUALIFIED"
+	if symbol == "futex_do_wait":
+		return "1444_WAIT_KNOWN_DO_WAIT_UNQUALIFIED"
+	return "1444_WAIT_WCHAN_OTHER_UNQUALIFIED"
 
 
 func _main_mailbox_try(phase: String) -> bool:

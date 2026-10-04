@@ -70,3 +70,18 @@ Hypothesis and cheapest discriminating check: the generic assertion currently co
 Root keeps the issue and draft pull request pending, independently reviews the source change, verifies source-only ownership and record checks before a normal candidate commit, and binds subsequent owning-runtime acceptance to the actual final revision. An unchanged hosted retry, relaxed assertion or timing limit, and inference of a common historical cause are unacceptable.
 
 Changed-source owning-runtime and hosted acceptance remain pending. Governing checkpoint: https://github.com/vnvalentin/project0/issues/1444#issuecomment-5982538207
+
+
+### Bounded wait-observation discriminator before the next source change
+
+Outcome: identify the observed reason the existing sleep corroboration remains unqualified in the hosted context. Primary kernel documentation supports wait-helper name portability as one hypothesis; unavailable observations, unresolved channels and sampling state remain alternatives. The underlying hosted cause is not confirmed.
+
+Scope and cheapest discriminating check: add a single fixed source-authored status on an unsuccessful observation, derived only from the state and channel values already read by the existing fixture. It will distinguish unavailable state, unavailable channel, a missing sleeping-state pair, an unresolved channel, a specifically documented alternative futex helper, and other unknown channels. No raw strings or dynamic runtime values will be output.
+
+The existing successful predicate, failure result, evidence schema, process reads, sample loop, workload, deadlines, ownership and cleanup remain unchanged. This diagnostic supplies no new acceptance and makes no permission or exact-target identity claim. Zero, unavailable or other unknown observations remain unqualified. No generic futex-name pattern, skip, relaxed assertion, privilege change or timing extension is permitted by this investigation.
+
+Root will review the source and capture contract before a normal slice checkpoint, then use one changed-source hosted result to classify the boundary. Prior failed runs remain retained. Owning-runtime qualification must still bind the actual final source; full delivery and Milestone 3 remain pending.
+
+Changed-source checkpoint: the fixture-only diagnostic is prepared for a normal slice commit. The existing public assertions remain unchanged. The fixed label describes the last unsuccessful sample and does not identify root cause. Current owning-runtime, hosted and full-suite acceptance remain pending.
+
+Governing checkpoint: https://github.com/vnvalentin/project0/issues/1444#issuecomment-5982753651
