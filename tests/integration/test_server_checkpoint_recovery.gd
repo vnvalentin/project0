@@ -15,6 +15,7 @@ var _relative_path: String
 var _store: SqliteStore
 var _server: CheckpointServer
 var _registry: JourneyRegistry
+var _player_state: Node
 
 
 func before_each() -> void:
@@ -37,14 +38,16 @@ func before_each() -> void:
 	_server._canon_repository = canon
 	_server._journey_repository = journey_repository
 	_server._journey_registry = _registry
-	var player: Node = PlayerStateScript.new()
-	player.character_id = "checkpoint-character"
-	_server._player_states[7] = player
+	_player_state = PlayerStateScript.new()
+	_player_state.character_id = "checkpoint-character"
+	_server._player_states[7] = _player_state
 
 
 func after_each() -> void:
 	if _server != null:
 		_server.free()
+	if _player_state != null:
+		_player_state.free()
 	if _store != null and _store.is_open():
 		_store.close()
 	for suffix: String in ["", "-wal", "-shm", "-journal"]:
@@ -55,6 +58,8 @@ func after_each() -> void:
 
 func test_checkpoint_metadata_flows_through_server_to_durable_recovery() -> void:
 	var position := Vector3(12.0, 1.0, 20.0)
+	var blueprint: Dictionary = JSON.parse_string(FixturesScript.VALID)
+	var expected_revision: int = int(blueprint["schema_version"])
 	_server._checkpoint_journey(7, position)
 
 	var before_restart: Dictionary = _store.query_with_bindings(
@@ -68,8 +73,7 @@ func test_checkpoint_metadata_flows_through_server_to_durable_recovery() -> void
 	assert_eq(float(row["position_y"]), position.y)
 	assert_eq(float(row["position_z"]), position.z)
 	assert_eq(row["sector_id"], "sector-0-0")
-	assert_eq(int(row["sector_revision"]), 5)
-	var blueprint: Dictionary = JSON.parse_string(FixturesScript.VALID)
+	assert_eq(int(row["sector_revision"]), expected_revision)
 	assert_eq(row["sector_geometry_hash"], JSON.stringify(blueprint).md5_text())
 
 	var journey_id: String = String(_registry.active_journey_id("checkpoint-character", 7))
@@ -91,5 +95,5 @@ func test_checkpoint_metadata_flows_through_server_to_durable_recovery() -> void
 	assert_eq(float(reclaimed["journey"]["position_y"]), position.y)
 	assert_eq(float(reclaimed["journey"]["position_z"]), position.z)
 	assert_eq(reclaimed["journey"]["sector_id"], "sector-0-0")
-	assert_eq(int(reclaimed["journey"]["sector_revision"]), 5)
+	assert_eq(int(reclaimed["journey"]["sector_revision"]), expected_revision)
 	assert_eq(reclaimed["journey"]["sector_geometry_hash"], JSON.stringify(blueprint).md5_text())
