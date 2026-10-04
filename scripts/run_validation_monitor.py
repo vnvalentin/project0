@@ -174,6 +174,16 @@ def unknown_engines(snapshot, known, allowed_cgroups):
             and process.cgroup not in allowed_cgroups]
 
 
+def reap_owned(known, leader_pid):
+    for pid in known:
+        if pid == leader_pid:
+            continue
+        try:
+            os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            pass
+
+
 def terminate_owned(known):
     if not known:
         return True
@@ -322,6 +332,7 @@ def run(args):
                         break
                     time.sleep(args.poll_interval)
                 report["command_exit_code"] = process.wait(timeout=5)
+                reap_owned(known, process.pid)
                 live = [entry for entry in known.values() if is_alive(entry["pidfd"])]
                 if live:
                     report["errors"].append("owned_process_survived_command")
@@ -351,6 +362,8 @@ def run(args):
                             process.wait(timeout=5)
                         except subprocess.TimeoutExpired:
                             report["errors"].append("owned_process_wait_failed")
+                    if process.poll() is not None:
+                        reap_owned(known, process.pid)
         summary = None
         if args.gut_summary:
             summary_path = args.gut_summary if args.gut_summary.is_absolute() else root / args.gut_summary

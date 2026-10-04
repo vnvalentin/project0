@@ -1,7 +1,10 @@
 """Linux process-identity and fail-closed controls for run_validation_monitor."""
 import argparse
+import ctypes
 import json
+import os
 from pathlib import Path
+import select
 import signal
 import subprocess
 import sys
@@ -52,6 +55,33 @@ class ValidationProcessMonitorTests(unittest.TestCase):
     def result(self):
         return json.loads(self.report.read_text(encoding="utf-8"))
 
+    def cleanup_fixture_process(self, pidfile):
+        if not pidfile.is_file():
+            return
+        fixture = json.loads(pidfile.read_text(encoding="utf-8"))
+        pid = fixture["pid"]
+        try:
+            descriptor = os.pidfd_open(pid, 0)
+        except (FileNotFoundError, ProcessLookupError):
+            return
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+            start_ticks = int(stat[stat.rindex(")") + 1:].split()[19])
+            if start_ticks != fixture["start_ticks"]:
+                return
+            signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+            poller = select.poll()
+            poller.register(descriptor, select.POLLIN)
+            if not poller.poll(1000):
+                signal.pidfd_send_signal(descriptor, signal.SIGKILL)
+                poller.poll(2000)
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass
+        finally:
+            os.close(descriptor)
+
     def test_success_records_source_process_and_complete_gut_inventory(self):
         summary = self.write("build/validation/summary.json", json.dumps({
             "runner": "GUT", "status": "passed", "exit_code": 0,
@@ -84,13 +114,16 @@ class ValidationProcessMonitorTests(unittest.TestCase):
     def test_orphaned_descendant_is_adopted_cleaned_and_never_passes(self):
         pidfile = self.root / "child.pid"
         code = self.invoke([sys.executable, "-c",
-                            "import subprocess,sys; child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); open(sys.argv[1],'w').write(str(child.pid) + '\\n')",
+                            "import subprocess,sys,pathlib,json; child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(30)']); stat=pathlib.Path(f'/proc/{child.pid}/stat').read_text(); start=int(stat[stat.rindex(')')+1:].split()[19]); pathlib.Path(sys.argv[1]).write_text(json.dumps({'pid':child.pid,'start_ticks':start}))",
                             str(pidfile)])
-        report = self.result()
-        self.assertEqual(code, 1)
-        self.assertTrue(report["forced_recovery"])
-        self.assertTrue(report["cleanup"]["owned_processes_stopped"])
-        self.assertIn("owned_process_survived_command", report["errors"])
+        try:
+            report = self.result()
+            self.assertEqual(code, 1)
+            self.assertTrue(report["forced_recovery"])
+            self.assertTrue(report["cleanup"]["owned_processes_stopped"])
+            self.assertIn("owned_process_survived_command", report["errors"])
+        finally:
+            self.cleanup_fixture_process(pidfile)
 
     def test_unowned_godot_blocks_run_and_is_not_signaled(self):
         if not hasattr(signal, "SIGTERM"):
