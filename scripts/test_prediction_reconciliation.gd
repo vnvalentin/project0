@@ -376,24 +376,24 @@ func _cleanup_listener_readiness(server_stopped: bool) -> bool:
 		or _ready_namespace_chain.is_empty() \
 		or ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain:
 		return false
-	var namespace: DirAccess = DirAccess.open(_ready_namespace)
-	if namespace == null:
+	var namespace_directory: DirAccess = DirAccess.open(_ready_namespace)
+	if namespace_directory == null:
 		return false
-	namespace.include_hidden = true
-	if namespace.list_dir_begin() != OK:
+	namespace_directory.include_hidden = true
+	if namespace_directory.list_dir_begin() != OK:
 		return false
 	var namespace_entries: Array[String] = []
 	var namespace_ordinary: bool = true
 	while true:
-		var entry: String = namespace.get_next()
+		var entry: String = namespace_directory.get_next()
 		if entry.is_empty():
 			break
-		if not namespace_entries.is_empty() or not namespace.current_is_dir() \
-			or namespace.is_link(entry) or entry != "ready":
+		if not namespace_entries.is_empty() or not namespace_directory.current_is_dir() \
+			or namespace_directory.is_link(entry) or entry != "ready":
 			namespace_ordinary = false
 			break
 		namespace_entries.append(entry)
-	namespace.list_dir_end()
+	namespace_directory.list_dir_end()
 	if not namespace_ordinary or ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain:
 		return false
 	if _ready_root.is_empty():
@@ -439,10 +439,10 @@ func _cleanup_listener_readiness(server_stopped: bool) -> bool:
 			return false
 	# Recheck the known now-empty parent before removing this owned namespace.
 	if ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain \
-		or namespace.list_dir_begin() != OK:
+		or namespace_directory.list_dir_begin() != OK:
 		return false
-	var empty: bool = namespace.get_next().is_empty()
-	namespace.list_dir_end()
+	var empty: bool = namespace_directory.get_next().is_empty()
+	namespace_directory.list_dir_end()
 	if not empty or ReadyCodec.ordinary_chain(_ready_namespace) != _ready_namespace_chain \
 		or DirAccess.remove_absolute(_ready_namespace) != OK:
 		return false

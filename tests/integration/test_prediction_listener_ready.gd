@@ -185,14 +185,14 @@ func after_each() -> void:
 				qualified = ReadyCodec.ordinary_chain(_ready_directory) == _ready_chain \
 					and DirAccess.remove_absolute(_ready_directory) == OK
 	if qualified:
-		var namespace: DirAccess = DirAccess.open(_namespace)
-		qualified = namespace != null and ReadyCodec.ordinary_chain(_namespace) == _namespace_chain
+		var namespace_directory: DirAccess = DirAccess.open(_namespace)
+		qualified = namespace_directory != null and ReadyCodec.ordinary_chain(_namespace) == _namespace_chain
 		if qualified:
-			namespace.include_hidden = true
-			qualified = namespace.list_dir_begin() == OK
+			namespace_directory.include_hidden = true
+			qualified = namespace_directory.list_dir_begin() == OK
 			if qualified:
-				qualified = namespace.get_next().is_empty()
-				namespace.list_dir_end()
+				qualified = namespace_directory.get_next().is_empty()
+				namespace_directory.list_dir_end()
 		if qualified:
 			qualified = ReadyCodec.ordinary_chain(_namespace) == _namespace_chain \
 				and DirAccess.remove_absolute(_namespace) == OK
