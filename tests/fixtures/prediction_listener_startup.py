@@ -204,6 +204,9 @@ def freeze_runtime(root, created, user_relative):
     # exception that could admit a database in an unrelated directory.
     result = {}
     allowed_files = {Path('ready/ready.json'), Path('ready/ready.pending')}
+    # Source-bound server health publisher owns only these two userdir leaves.
+    # Admission is post-reap custody/cleanup, not health-publication acceptance.
+    allowed_files.update({user_relative / 'health.json', user_relative / 'health.json.tmp'})
     for name in ('accounts.db', 'telemetry.db'):
         for suffix in ('', '-wal', '-shm', '-journal'):
             allowed_files.add(user_relative / (name + suffix))
