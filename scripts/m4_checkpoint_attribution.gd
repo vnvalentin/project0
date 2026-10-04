@@ -6,7 +6,7 @@ class ObservedCanon extends CanonRepository:
 	func _init(store: SqliteStore, recorder: RefCounted) -> void:
 		super(store)
 		_recorder = recorder
-	func get_canonical_sector(sector_id: Variant) -> Dictionary:
+	func get_checkpoint_metadata(sector_id: Variant) -> Dictionary:
 		var started: int = Time.get_ticks_usec()
 		var result: Dictionary = super(sector_id)
 		_recorder.call("observe_child", "canon_read", started)

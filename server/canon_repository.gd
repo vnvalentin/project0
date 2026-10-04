@@ -10,8 +10,13 @@ const OUTCOME_IDEMPOTENT: String = "idempotent"
 const OUTCOME_CONFLICT: String = "conflict"
 const OUTCOME_INVALID_BLUEPRINT: String = "invalid_blueprint"
 const OUTCOME_NOT_FOUND: String = "not_found"
+const MAX_CHECKPOINT_METADATA_CACHE_ENTRIES: int = 16
+const MAX_CHECKPOINT_METADATA_CACHE_BYTES: int = 4 * 1024 * 1024
 
 var _store: SqliteStore = null
+var _checkpoint_metadata_cache: Dictionary = {}
+var _checkpoint_metadata_cache_order: Array[String] = []
+var _checkpoint_metadata_cache_bytes: int = 0
 
 
 func _init(store: SqliteStore) -> void:
@@ -111,6 +116,66 @@ func get_canonical_sector(sector_id: Variant) -> Dictionary:
 		return _result(OUTCOME_NOT_FOUND, "No Canon exists for '%s'." % sector_id)
 	var row: Dictionary = select_result["rows"][0]
 	return {"outcome": OUTCOME_OK, "detail": "", "sector": _record_from_row(row, JSON.parse_string(row["blueprint_json"]))}
+
+
+## Reads the authoritative row on every call; only unchanged derived hashing is reused.
+func get_checkpoint_metadata(sector_id: Variant) -> Dictionary:
+	if _store == null or not _store.is_open():
+		return _result(SqliteStore.OUTCOME_NOT_OPEN, "Store is not open.")
+	if not (sector_id is String) or (sector_id as String).is_empty():
+		return _result(OUTCOME_NOT_FOUND, "sector_id must be a non-empty string.")
+	var select_result: Dictionary = _store.query_with_bindings(
+		"SELECT blueprint_json, schema_version FROM canon_sectors WHERE sector_id = ?;",
+		[sector_id]
+	)
+	if select_result["outcome"] != SqliteStore.OUTCOME_OK:
+		return _result(SqliteStore.OUTCOME_QUERY_FAILED, select_result["detail"])
+	if (select_result["rows"] as Array).is_empty():
+		return _result(OUTCOME_NOT_FOUND, "No Canon exists for '%s'." % sector_id)
+	var row: Dictionary = select_result["rows"][0]
+	var blueprint_json: String = String(row["blueprint_json"])
+	var sector_revision: int = int(row["schema_version"])
+	var cached_value: Variant = _checkpoint_metadata_cache.get(sector_id)
+	if cached_value is Dictionary:
+		if cached_value.get("blueprint_json") == blueprint_json and int(cached_value.get("schema_version", -1)) == sector_revision:
+			return {
+				"outcome": OUTCOME_OK,
+				"detail": "",
+				"sector_revision": sector_revision,
+				"sector_geometry_hash": String(cached_value["sector_geometry_hash"]),
+			}
+
+	var parsed_blueprint: Variant = JSON.parse_string(blueprint_json)
+	var sector_geometry_hash: String = JSON.stringify(parsed_blueprint).md5_text()
+	if _checkpoint_metadata_cache.has(sector_id):
+		var previous: Dictionary = _checkpoint_metadata_cache[sector_id]
+		_checkpoint_metadata_cache_bytes -= String(previous["blueprint_json"]).to_utf8_buffer().size()
+		_checkpoint_metadata_cache.erase(sector_id)
+		_checkpoint_metadata_cache_order.erase(sector_id)
+	var blueprint_size_bytes: int = blueprint_json.to_utf8_buffer().size()
+	if blueprint_size_bytes <= MAX_CHECKPOINT_METADATA_CACHE_BYTES:
+		while not _checkpoint_metadata_cache_order.is_empty() and (
+			_checkpoint_metadata_cache_order.size() >= MAX_CHECKPOINT_METADATA_CACHE_ENTRIES
+			or _checkpoint_metadata_cache_bytes + blueprint_size_bytes > MAX_CHECKPOINT_METADATA_CACHE_BYTES
+		):
+			var evicted_id: String = _checkpoint_metadata_cache_order.pop_front()
+			var evicted: Dictionary = _checkpoint_metadata_cache.get(evicted_id, {})
+			_checkpoint_metadata_cache_bytes -= String(evicted.get("blueprint_json", "")).to_utf8_buffer().size()
+			_checkpoint_metadata_cache.erase(evicted_id)
+		if _checkpoint_metadata_cache_bytes + blueprint_size_bytes <= MAX_CHECKPOINT_METADATA_CACHE_BYTES:
+			_checkpoint_metadata_cache_order.append(sector_id)
+			_checkpoint_metadata_cache[sector_id] = {
+				"blueprint_json": blueprint_json,
+				"schema_version": sector_revision,
+				"sector_geometry_hash": sector_geometry_hash,
+			}
+			_checkpoint_metadata_cache_bytes += blueprint_size_bytes
+	return {
+		"outcome": OUTCOME_OK,
+		"detail": "",
+		"sector_revision": sector_revision,
+		"sector_geometry_hash": sector_geometry_hash,
+	}
 
 
 ## Slice 080: server-only migration read. Returns every Canon row verbatim
