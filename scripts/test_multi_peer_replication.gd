@@ -39,6 +39,10 @@ var _state_file_b: String = ""
 var _client_startup_gate: String = ""
 var _movement_gate: String = ""
 var _client_harness_script: String = "scripts/multi_peer_client_harness.gd"
+var _game_port: int = 0
+var _server_ready_file: String = ""
+var _run_identity: String = ""
+var _runtime_environment: Dictionary = {}
 
 
 func _initialize() -> void:
@@ -46,10 +50,17 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	for key: String in ["PROJECT0_SERVER_PORT", "PROJECT0_SERVER_BIND_ADDRESS", "PROJECT0_OPERATOR_CONTROL_PORT", "PROJECT0_TEST_SERVER_READY_FILE", "PROJECT0_TEST_SERVER_NONCE"]:
+		_runtime_environment[key] = OS.get_environment(key) if OS.has_environment(key) else null
 	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_two_peer_replication_and_disconnect_cleanup()
 	_cleanup_processes()
 	_assert(GameplayTestSessionScript.restore(session_environment), "owned authenticated fixture database removed")
+	for key: String in _runtime_environment:
+		if _runtime_environment[key] == null:
+			OS.unset_environment(key)
+		else:
+			OS.set_environment(key, _runtime_environment[key])
 
 	if _failures == 0:
 		print("ALL PASS")
@@ -71,7 +82,7 @@ func _cleanup_processes() -> void:
 	for pid: int in [_server_process_id, _client_a_process_id, _client_b_process_id]:
 		if pid != -1 and OS.is_process_running(pid):
 			OS.kill(pid)
-	for path: String in [_state_file_a, _state_file_b, _movement_gate]:
+	for path: String in [_state_file_a, _state_file_b, _movement_gate, _server_ready_file]:
 		if not path.is_empty() and FileAccess.file_exists(path):
 			DirAccess.remove_absolute(path)
 		if not path.is_empty() and FileAccess.file_exists(path + ".pending"):
@@ -87,6 +98,23 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	elif not state_directory.is_absolute_path():
 		state_directory = project_path.path_join(state_directory)
 	DirAccess.make_dir_recursive_absolute(state_directory)
+	_run_identity = "%d_%d_%s" % [OS.get_process_id(), Time.get_ticks_usec(), Crypto.new().generate_random_bytes(8).hex_encode()]
+	_state_file_a = state_directory.path_join(".test_multi_peer_%s_a.json" % _run_identity)
+	_state_file_b = state_directory.path_join(".test_multi_peer_%s_b.json" % _run_identity)
+	_server_ready_file = state_directory.path_join(".test_multi_peer_%s_server.json" % _run_identity)
+	for path: String in [_state_file_a, _state_file_b, _server_ready_file]:
+		_assert(not FileAccess.file_exists(path) and not FileAccess.file_exists(path + ".pending"), "owned state path starts absent")
+	if _failures > 0:
+		return
+	_game_port = _allocate_game_port()
+	_assert(_game_port > 0, "isolated game port is allocated")
+	if _game_port <= 0:
+		return
+	OS.set_environment("PROJECT0_SERVER_PORT", str(_game_port))
+	OS.set_environment("PROJECT0_SERVER_BIND_ADDRESS", "127.0.0.1")
+	OS.set_environment("PROJECT0_OPERATOR_CONTROL_PORT", "0")
+	OS.set_environment("PROJECT0_TEST_SERVER_READY_FILE", _server_ready_file)
+	OS.set_environment("PROJECT0_TEST_SERVER_NONCE", _run_identity)
 	_movement_gate = ProjectSettings.globalize_path("user://peer_movement_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
 	_assert(not FileAccess.file_exists(_movement_gate), "owned movement gate starts absent")
 	if FileAccess.file_exists(_movement_gate):
@@ -97,18 +125,12 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 		"-s", "scripts/multi_peer_server_harness.gd",
 	])
 	_assert(_server_process_id != -1, "server process starts")
-
-	var startup_wait_ticks: int = 0
-	while startup_wait_ticks < 60:
-		await process_frame
-		startup_wait_ticks += 1
-	_assert(OS.is_process_running(_server_process_id), "server process is still running after startup")
-
-	_state_file_a = state_directory.path_join(".test_multi_peer_state_a.json")
-	_state_file_b = state_directory.path_join(".test_multi_peer_state_b.json")
-	for path: String in [_state_file_a, _state_file_b]:
-		if FileAccess.file_exists(path):
-			DirAccess.remove_absolute(path)
+	if _server_process_id == -1:
+		return
+	var server_ready: bool = await _wait_for_owned_server()
+	_assert(server_ready, "owned server proves its listening sockets before clients start")
+	if not server_ready:
+		return
 
 	# Client A holds "move_back" (+Z); Client B holds "move_right" (+X), so
 	# each peer's movement is distinguishable by axis when observed from the
@@ -227,6 +249,36 @@ func _test_two_peer_replication_and_disconnect_cleanup() -> void:
 	_assert(state_b_after_disconnect.has("remote_players") and state_b_after_disconnect["remote_players"].size() == 0, "disconnecting client A removes its RemotePlayer representation from client B")
 	_assert(OS.is_process_running(_client_b_process_id), "client B's process is still running (no crash) after client A disconnects")
 	_assert(_client_b_process_id != -1 and OS.is_process_running(_client_b_process_id), "client B remains connected and usable after the other peer's disconnect")
+
+
+func _allocate_game_port() -> int:
+	var reservation: PacketPeerUDP = PacketPeerUDP.new()
+	var bound: Error = reservation.bind(0, "127.0.0.1")
+	if bound != OK:
+		print("HARNESS_STARTUP_FAILED ", JSON.stringify({"reason": "port_allocation_failed", "protocol": "udp", "error": error_string(bound)}))
+		return -1
+	var port: int = reservation.get_local_port()
+	reservation.close()
+	return port
+
+
+func _wait_for_owned_server() -> bool:
+	var deadline_msec: int = Time.get_ticks_msec() + 20000
+	while Time.get_ticks_msec() < deadline_msec:
+		if not OS.is_process_running(_server_process_id):
+			print("HARNESS_STARTUP_FAILED ", JSON.stringify({"reason": "process_exited", "game_port": _game_port, "clients_started": false}))
+			return false
+		var ready: Dictionary = _read_state(_server_ready_file)
+		if not ready.is_empty():
+			var owned: bool = ready.get("process_id", -1) == _server_process_id and ready.get("nonce", "") == _run_identity and ready.get("game_port", 0) == _game_port and int(ready.get("control_port", 0)) > 0
+			if owned:
+				print("HARNESS_ENDPOINTS ", JSON.stringify(ready))
+			else:
+				print("HARNESS_STARTUP_FAILED ", JSON.stringify({"reason": "identity_mismatch", "game_port": _game_port, "clients_started": false}))
+			return owned
+		await process_frame
+	print("HARNESS_STARTUP_FAILED ", JSON.stringify({"reason": "deadline", "game_port": _game_port, "clients_started": false}))
+	return false
 
 
 func _observes_remote_movement(state: Dictionary, peer_name: String, baseline: Vector3) -> bool:
