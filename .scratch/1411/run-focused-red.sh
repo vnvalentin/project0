@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+expected_mode="${1:-red}"
+if [[ "$expected_mode" != "red" && "$expected_mode" != "green" ]]; then
+  printf 'usage: %s [red|green]\n' "$0" >&2
+  exit 2
+fi
+
 exec 9>/tmp/project0-m4-01a0fcfa-validation.lock
 flock -n 9
 
@@ -100,7 +106,7 @@ sudo -n "${sudo_args[@]}" /data/code/project0/.venv-enrollment/bin/python \
 red_status=$?
 set -e
 
-python3 - "$report_dir/gut.xml" "$report_dir/focused-review-validation.json" "$red_status" "$report_dir" <<'PY'
+python3 - "$report_dir/gut.xml" "$report_dir/focused-review-validation.json" "$red_status" "$report_dir" "$expected_mode" <<'PY'
 import json
 import sys
 import xml.etree.ElementTree as ET
@@ -108,13 +114,14 @@ import xml.etree.ElementTree as ET
 root = ET.parse(sys.argv[1]).getroot()
 report = json.loads(open(sys.argv[2], encoding="utf-8").read())
 cases = list(root.iter("testcase"))
+mode = sys.argv[5]
 expected = {
   "test_checkpoint_metadata_matches_existing_canon_read",
   "test_checkpoint_metadata_refreshes_after_row_change_and_reopen",
   "test_checkpoint_metadata_does_not_outlive_missing_canon",
 }
 by_name = {case.get("name"): case for case in cases}
-assert int(sys.argv[3]) == 1, "expected the unchanged implementation to fail the new assertion"
+assert int(sys.argv[3]) == (1 if mode == "red" else 0), f"unexpected GUT exit for {mode} run"
 assert len(cases) == 8 and set(by_name) == expected | {
   "test_first_write_and_restart_recovery",
   "test_same_blueprint_is_idempotent",
@@ -123,14 +130,14 @@ assert len(cases) == 8 and set(by_name) == expected | {
   "test_hostile_sector_id_is_stored_as_data",
 }, "only the selected Canon repository tests must run"
 for name, case in by_name.items():
-  if name in expected:
+  if name in expected and mode == "red":
     assert case.find("failure") is not None, f"expected public-seam RED: {name}"
     assert case.find("error") is None, f"parse/runtime error is not RED: {name}"
   else:
-    assert case.find("failure") is None and case.find("error") is None, f"existing test regressed: {name}"
+    assert case.find("failure") is None and case.find("error") is None, f"test did not pass: {name}"
 assert report["forced_recovery"] is False and report["cleanup"]["owned_processes_stopped"]
 assert report["source_unchanged"] and not report["errors"]
-print(json.dumps({"expected_red": True, "tests": sorted(expected),
+print(json.dumps({"expected_" + mode: True, "tests": sorted(expected),
                   "monitor_cleanup": report["cleanup"]["owned_processes_stopped"],
                   "evidence_dir": sys.argv[4]}))
 PY

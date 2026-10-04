@@ -1651,11 +1651,10 @@ func _checkpoint_journey(peer_id: int, authoritative_position: Vector3) -> void:
 	var sector_revision: int = 0
 	var sector_geometry_hash: String = ""
 	if _canon_repository != null:
-		var canon_result: Dictionary = _canon_repository.get_canonical_sector(sector_id)
-		if canon_result.get("outcome", "") == "ok":
-			var sector: Dictionary = canon_result.get("sector", {})
-			sector_revision = int(sector.get("schema_version", 0))
-			sector_geometry_hash = JSON.stringify(sector.get("blueprint", {})).md5_text()
+		var metadata_result: Dictionary = _canon_repository.get_checkpoint_metadata(sector_id)
+		if metadata_result.get("outcome", "") == "ok":
+			sector_revision = int(metadata_result.get("sector_revision", 0))
+			sector_geometry_hash = String(metadata_result.get("sector_geometry_hash", ""))
 	_journey_registry.checkpoint(
 		character_id,
 		authoritative_position,
