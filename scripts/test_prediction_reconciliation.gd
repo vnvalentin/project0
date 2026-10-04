@@ -20,12 +20,17 @@ extends SceneTree
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
 const GameplayTestSessionScript: Script = preload("res://scripts/gameplay_test_session.gd")
+const MovementObservationScript: Script = preload("res://tests/fixtures/prediction_movement_observation.gd")
 const TELEMETRY_DB_PATH_ENV_VAR: String = "PROJECT0_TELEMETRY_DB_PATH"
 
 var _failures: int = 0
 var _server_process_id: int = -1
 var _gameplay_instance: Node3D
 var _telemetry_db_path: String = ""
+var _movement_observer: RefCounted
+var _movement_source: Node
+var _movement_callback: Callable = Callable()
+var _owns_held_input: bool = false
 
 
 func _initialize() -> void:
@@ -39,6 +44,7 @@ func _run() -> void:
 	OS.set_environment(TELEMETRY_DB_PATH_ENV_VAR, _telemetry_db_path)
 	var session_environment: Dictionary = GameplayTestSessionScript.begin()
 	await _test_prediction_and_reconciliation()
+	_finish_movement_observation()
 
 	var server_stopped: bool = await _stop_server_process()
 	_assert(server_stopped, "owned server child process stopped before fixture cleanup")
@@ -56,6 +62,20 @@ func _run() -> void:
 	else:
 		push_error("%d assertion(s) failed" % _failures)
 		quit(1)
+
+
+func _finish_movement_observation() -> void:
+	if _owns_held_input:
+		Input.action_release("move_back")
+		_owns_held_input = false
+	if is_instance_valid(_movement_source) and _movement_callback.is_valid():
+		if _movement_source.authoritative_position_received.is_connected(_movement_callback):
+			_movement_source.authoritative_position_received.disconnect(_movement_callback)
+	if _movement_observer != null:
+		_movement_observer.finish()
+	_movement_callback = Callable()
+	_movement_source = null
+	_movement_observer = null
 
 
 func _stop_server_process() -> bool:
@@ -140,6 +160,10 @@ func _test_prediction_and_reconciliation() -> void:
 	# -s script execution does not register autoloads as global identifiers
 	# (see the equivalent note in docs/slices/001-*.md and 004-*.md).
 	var network_client: Node = root.get_node("NetworkClient")
+	_movement_observer = MovementObservationScript.new()
+	_movement_source = network_client
+	_movement_callback = _movement_observer.observe
+	network_client.authoritative_position_received.connect(_movement_callback)
 
 	_gameplay_instance = load("res://client/gameplay.tscn").instantiate()
 	root.add_child(_gameplay_instance)
@@ -176,7 +200,13 @@ func _test_prediction_and_reconciliation() -> void:
 	# prediction defect, so this allows a couple of ticks without weakening
 	# what "immediate" (no network wait) is proving.
 	var start_position: Vector3 = player.position
+	var input_available: bool = not Input.is_action_pressed("move_back")
+	_assert(input_available, "move_back input is not held before owned prediction observation")
+	if not input_available:
+		return
+	_movement_observer.begin_hold(network_client.next_input_sequence())
 	Input.action_press("move_back")
+	_owns_held_input = true
 	var immediate_check_ticks: int = 0
 	var moved_before_any_network_round_trip: Vector3 = Vector3.ZERO
 	while moved_before_any_network_round_trip.z <= 0.0 and immediate_check_ticks < 3:
@@ -193,7 +223,10 @@ func _test_prediction_and_reconciliation() -> void:
 	while send_ticks < 30:
 		await physics_frame
 		send_ticks += 1
+	_assert(_movement_observer.release_ready(send_ticks), "held movement release policy is satisfied")
 	Input.action_release("move_back")
+	_owns_held_input = false
+	_finish_movement_observation()
 
 	var settle_ticks: int = 0
 	while settle_ticks < 30:
