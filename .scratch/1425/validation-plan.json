@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "timeout --kill-after=15s 180s godot --headless --path \"$owned_prepared_root\" -s addons/gut/gut_cmdln.gd -gconfig= -gdir= -gtest=res://tests/integration/test_item_ledger_repository.gd,res://tests/unit/test_item_creation_profile.gd -gjunit_xml_file=\"$owned_result_dir/focused.xml\" -gdisable_colors -gexit",
+      "dependencies": ["godot", "sqlite", "python", "timeout"],
+      "tests": ["tests/integration/test_item_ledger_repository.gd", "tests/unit/test_item_creation_profile.gd"],
+      "artifacts": ["build/validation/1425/<run-id>/focused.xml", "build/validation/1425/<run-id>/focused-result.json", "build/validation/1425/<run-id>/creation-parity.json", "build/validation/1425/<run-id>/preparation.json"]
+    },
+    {
+      "suite": "godot-server",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "RESULT_DIR=build/validation/1425/full DASHBOARD_RESULTS_DIR=build/validation/1425/dashboard scripts/run_gut_validation.sh",
+      "dependencies": ["godot", "sqlite", "python", "timeout"],
+      "tests": ["tests/integration/test_item_ledger_repository.gd", "tests/unit/test_item_creation_profile.gd"],
+      "artifacts": ["build/validation/1425/full/gut.xml", "build/validation/1425/full/validation-summary.json", "build/validation/1425/record-sync.log"]
+    }
+  ],
+  "setup": "Pending root qualification of #1396/#1423 and implementation/native window. Future focused job owns unique isolated real-SQLite fixtures, a source-bound two-phase prepared copy, restored configuration then disabled consumer file logging, fresh HOME/XDG, bounded selected GUT scripts and retained structured results. Fixture-only authored profile and legal existing owner/location; no live Canon access. The focused consumer alone is not a lifecycle harness or execution authorization.",
+  "cleanup": "Fixture finally closes the store and removes only uniquely owned database/WAL/SHM/journal files. Coordinator job tears down owned children and source/runtime state only after fresh custody qualification; unknown custody is retained with failed cleanup. Evidence lives outside temporary state.",
+  "rollback": "Reviewed revert of additive ledger/schema/test increment; no production migration, startup wiring, host settings, Windows behavior or live database mutation. Records-only at current freeze."
+}

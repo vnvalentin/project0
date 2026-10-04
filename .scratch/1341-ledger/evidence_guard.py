@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+MAX_IMPORT_LOG_BYTES = 1048576
+
 
 def identity():
     errors = []
@@ -72,6 +74,28 @@ def retain(path, record):
     return 0 if record["status"] == "passed" else 1
 
 
+
+def qualify_import(out, exit_code):
+    errors = []
+    if exit_code != 0:
+        errors.append("import_command_failed")
+    path = out / "import.log"
+    try:
+        if path.is_symlink():
+            raise OSError("import evidence symlink refused")
+        with path.open("rb") as stream:
+            data = stream.read(MAX_IMPORT_LOG_BYTES + 1)
+        if len(data) > MAX_IMPORT_LOG_BYTES:
+            errors.append("import_log_exceeds_bound")
+        elif re.search(r"SCRIPT ERROR:|Parse Error:|Compile Error:|Failed to load script", data.decode("utf-8")):
+            errors.append("import_script_error")
+    except (OSError, UnicodeError):
+        errors.append("import_log_not_observed")
+    record = {"status": "failed" if errors else "passed", "phase": "import_qualification",
+              "import_exit": exit_code, "validation_errors": errors}
+    return retain(out / ("result.json" if errors else "import-qualification.json"), record)
+
+
 def main():
     mode, directory = sys.argv[1:3]
     out = Path(directory)
@@ -82,6 +106,8 @@ def main():
         except OSError:
             return 1
         return 1 if snapshot["errors"] else 0
+    if mode == "qualify-import":
+        return qualify_import(out, int(sys.argv[3]))
     if mode != "finalize":
         return 2
     original_exit, cleanup_exit = map(int, sys.argv[3:5])

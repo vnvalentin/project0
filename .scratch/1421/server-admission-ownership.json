@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "issue": 1421,
+  "host": "192.168.1.254",
+  "passed": true,
+  "errors": [],
+  "runtime_executed": false
+}

@@ -7,6 +7,7 @@ class_name ItemLedgerRepository
 const DefinitionScript = preload("res://shared/item_definition.gd")
 const InstanceScript = preload("res://shared/item_instance.gd")
 const MetadataScript = preload("res://shared/item_contract.gd")
+const CreationProfileScript = preload("res://server/item_creation_profile.gd")
 
 var _store: SqliteStore
 
@@ -68,6 +69,29 @@ func ensure_schema() -> Dictionary:
 			fingerprint TEXT NOT NULL, instance_id TEXT NOT NULL, instance_revision INTEGER NOT NULL,
 			owner_revision INTEGER NOT NULL, location_revision INTEGER NOT NULL,
 			PRIMARY KEY (actor_character_id, operation_id)
+		);""",
+		"""CREATE TABLE IF NOT EXISTS canon_item_creation_profiles (
+			profile_id TEXT NOT NULL, profile_revision TEXT NOT NULL,
+			content_sha256 TEXT NOT NULL CHECK (length(content_sha256) = 64), profile_wire TEXT NOT NULL,
+			PRIMARY KEY (profile_id, profile_revision)
+		);""",
+		"""CREATE TABLE IF NOT EXISTS canon_item_creation_properties (
+			instance_id TEXT PRIMARY KEY NOT NULL,
+			schema_version INTEGER NOT NULL CHECK (typeof(schema_version) = 'integer' AND schema_version = 1),
+			profile_id TEXT NOT NULL, profile_revision TEXT NOT NULL,
+			profile_sha256 TEXT NOT NULL CHECK (length(profile_sha256) = 64),
+			payload_sha256 TEXT NOT NULL CHECK (length(payload_sha256) = 64),
+			blueprint_id TEXT NOT NULL, blueprint_revision TEXT NOT NULL, tuning_version TEXT NOT NULL,
+			arithmetic_version INTEGER NOT NULL CHECK (typeof(arithmetic_version) = 'integer' AND arithmetic_version = 1),
+			material_purity INTEGER NOT NULL CHECK (typeof(material_purity) = 'integer' AND material_purity >= 0),
+			catalyst_quality INTEGER NOT NULL CHECK (typeof(catalyst_quality) = 'integer' AND catalyst_quality >= 0),
+			workstation_parameter INTEGER NOT NULL CHECK (typeof(workstation_parameter) = 'integer' AND workstation_parameter >= 0),
+			purity INTEGER NOT NULL CHECK (typeof(purity) = 'integer' AND purity >= 0),
+			quality INTEGER NOT NULL CHECK (typeof(quality) = 'integer' AND quality >= 0),
+			durability INTEGER NOT NULL CHECK (typeof(durability) = 'integer' AND durability >= 0),
+			purity_unit TEXT NOT NULL, quality_unit TEXT NOT NULL, durability_unit TEXT NOT NULL,
+			FOREIGN KEY (instance_id) REFERENCES canon_item_instances(instance_id),
+			FOREIGN KEY (profile_id, profile_revision) REFERENCES canon_item_creation_profiles(profile_id, profile_revision)
 		);""",
 	]
 	for statement: String in statements:
@@ -174,6 +198,104 @@ func create_instance(actor: String, operation_id: String, wire: Variant, owner_r
 	return work
 
 
+func create_instance_with_properties(actor: String, operation_id: String, wire: Variant, owner_revision: Variant, location_revision: Variant, profile_wire: Variant, creation_inputs: Variant) -> Dictionary:
+	if not _open():
+		return _command_result("not_open", "store is not open")
+	if not _identifier(actor) or not _identifier(operation_id) or not _revision(owner_revision) or not _revision(location_revision):
+		return _command_result("invalid_command", "actor, operation and expected revisions are required")
+	var validated_profile: Dictionary = CreationProfileScript.from_wire_dict(profile_wire)
+	if validated_profile.profile == null:
+		return _command_result("invalid_creation_profile", validated_profile.outcome)
+	var derived: Dictionary = validated_profile.profile.derive(creation_inputs)
+	if derived.outcome != "ok":
+		return _command_result("invalid_creation_inputs", "creation inputs do not satisfy the authored profile")
+	var profile_data: Dictionary = validated_profile.profile.to_wire_dict()
+	var profile_json: String = JSON.stringify(_canonical(profile_data), "", true)
+	var profile_content_sha256: String = profile_json.sha256_text()
+	var properties: Dictionary = derived.properties
+	var work: Dictionary = _command_result("transaction_failed", "transaction did not complete")
+	var transaction: Dictionary = _store.transaction(func() -> bool:
+		var pinned_profile: Dictionary = _store.query_with_bindings(
+			"SELECT content_sha256, profile_wire FROM canon_item_creation_profiles WHERE profile_id = ? AND profile_revision = ?;",
+			[properties.profile_id, properties.profile_revision]
+		)
+		if pinned_profile.outcome != "ok":
+			work.merge(_command_result("query_failed", pinned_profile.detail), true)
+			return false
+		if not pinned_profile.rows.is_empty() and (pinned_profile.rows[0].content_sha256 != profile_content_sha256 or pinned_profile.rows[0].profile_wire != profile_json):
+			work.merge(_command_result("profile_conflict", "profile revision already exists with different authored content"), true)
+			return false
+		var validated: Dictionary = _validate_snapshot(wire)
+		if validated.outcome != "ok":
+			work.merge(_command_result(validated.outcome, validated.detail), true)
+			return false
+		var data: Dictionary = validated.instance.to_wire_dict()
+		if data.terminal != null or data.instance_revision != 0 or data.acquisition.operation_id != operation_id:
+			work.merge(_command_result("invalid_creation", "creation requires active revision zero and matching acquisition operation"), true)
+			return false
+		if data.location.kind == "carried":
+			work.merge(_command_result("capacity_not_configured", "carried capacity requires an authored profile"), true)
+			return false
+		var logical: Dictionary = data.duplicate(true)
+		logical.acquisition.erase("server_tick")
+		var fingerprint: String = _creation_fingerprint(actor, operation_id, logical, validated.definition, owner_revision, location_revision, profile_content_sha256, properties.inputs)
+		var expected_receipt: Dictionary = _receipt_expectation("create", actor, operation_id, data, owner_revision, location_revision)
+		var replay: Dictionary = _find_receipt(actor, operation_id, fingerprint, expected_receipt)
+		if replay.outcome != "not_found":
+			if replay.outcome == "ok":
+				var retained_instance: Dictionary = get_instance(data.instance_id)
+				var retained_properties: Dictionary = get_creation_properties(data.instance_id)
+				var retained_wire: Dictionary = {}
+				var expected_identity: Dictionary = logical.duplicate(true)
+				if retained_instance.instance != null:
+					retained_wire = retained_instance.instance.to_wire_dict()
+					retained_wire.acquisition.erase("server_tick")
+				# The committed receipt survives legal lifecycle changes. get_instance
+				# still validates the current row; compare only creation identity here.
+				for field: String in ["owner", "location", "instance_revision", "terminal"]:
+					retained_wire.erase(field)
+					expected_identity.erase(field)
+				if retained_instance.outcome != "ok" or retained_wire != expected_identity \
+					or retained_properties.outcome != "ok" or retained_properties.properties != properties:
+					work.merge(_command_result("corrupt_record", "committed creation no longer matches its immutable request"), true)
+					return false
+			work.merge(replay, true)
+			return replay.outcome == "ok"
+		var identity: Dictionary = get_instance(data.instance_id)
+		if identity.outcome != "not_found":
+			work.merge(_command_result("identity_exists", "GUID is already recorded") if identity.outcome == "ok" else _command_result(identity.outcome, identity.detail), true)
+			return false
+		var expectations: Dictionary = _check_revisions(data.owner, data.location, owner_revision, location_revision)
+		if expectations.outcome != "ok":
+			work.merge(expectations, true)
+			return false
+		var address: Dictionary = _occupied(data.owner, data.location)
+		if address.outcome != "ok":
+			work.merge(_command_result(address.outcome, address.detail), true)
+			return false
+		if address.occupied:
+			work.merge(_command_result("location_occupied", "active item already occupies this address"), true)
+			return false
+		if pinned_profile.rows.is_empty() and _store.query_with_bindings(
+			"INSERT INTO canon_item_creation_profiles (profile_id, profile_revision, content_sha256, profile_wire) VALUES (?, ?, ?, ?);",
+			[properties.profile_id, properties.profile_revision, profile_content_sha256, profile_json]
+		).outcome != "ok":
+			return false
+		if not _insert_instance(data) or not _advance_revisions(data.owner, data.location, owner_revision, location_revision):
+			return false
+		if not _insert_creation_properties(data.instance_id, properties):
+			return false
+		var receipt: Dictionary = _new_receipt("create", actor, operation_id, data.instance_id, 0, owner_revision + 1, location_revision + 1)
+		if not _insert_receipt(receipt, fingerprint):
+			return false
+		work.merge(_command_result("ok", "", receipt), true)
+		return true
+	)
+	if transaction.outcome != "ok" and work.outcome == "ok":
+		return _command_result("transaction_failed", transaction.detail)
+	return work
+
+
 ## Expected active snapshot is caller intent, revalidated before any DML.
 func retire_instance(actor: String, operation_id: String, wire: Variant, owner_revision: Variant, location_revision: Variant, reason: String, server_tick: Variant) -> Dictionary:
 	if not _open():
@@ -225,6 +347,71 @@ func retire_instance(actor: String, operation_id: String, wire: Variant, owner_r
 	return work
 
 
+func _insert_creation_properties(instance_id: String, properties: Dictionary) -> bool:
+	var inputs: Dictionary = properties.inputs
+	var values: Dictionary = properties.values
+	var units: Dictionary = properties.units
+	var payload_sha256: String = JSON.stringify(_canonical(properties), "", true).sha256_text()
+	return _store.query_with_bindings(
+		"INSERT INTO canon_item_creation_properties (instance_id, schema_version, profile_id, profile_revision, profile_sha256, payload_sha256, blueprint_id, blueprint_revision, tuning_version, arithmetic_version, material_purity, catalyst_quality, workstation_parameter, purity, quality, durability, purity_unit, quality_unit, durability_unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
+		[instance_id, properties.schema_version, properties.profile_id, properties.profile_revision, properties.profile_sha256, payload_sha256,
+			properties.blueprint_id, properties.blueprint_revision, properties.tuning_version, properties.arithmetic_version,
+			inputs.material_purity, inputs.catalyst_quality, inputs.workstation_parameter,
+			values.purity, values.quality, values.durability, units.purity, units.quality, units.durability]
+	).outcome == "ok"
+
+
+func _creation_properties_from_row(row: Dictionary) -> Dictionary:
+	for field: String in ["schema_version", "arithmetic_version", "material_purity", "catalyst_quality", "workstation_parameter", "purity", "quality", "durability"]:
+		if not (row[field] is int) or row[field] < 0:
+			return _creation_properties_result("corrupt_record", "creation property integer is invalid")
+	for field: String in ["profile_id", "profile_revision", "profile_sha256", "blueprint_id", "blueprint_revision", "tuning_version", "purity_unit", "quality_unit", "durability_unit"]:
+		if not _identifier(row[field]):
+			return _creation_properties_result("corrupt_record", "creation property pin or unit is invalid")
+	var profile: Dictionary = _store.query_with_bindings(
+		"SELECT content_sha256, profile_wire FROM canon_item_creation_profiles WHERE profile_id = ? AND profile_revision = ?;",
+		[row.profile_id, row.profile_revision]
+	)
+	if profile.outcome != "ok":
+		return _creation_properties_result("query_failed", profile.detail)
+	if profile.rows.size() != 1 or profile.rows[0].content_sha256 != profile.rows[0].profile_wire.sha256_text():
+		return _creation_properties_result("corrupt_record", "authored profile identity is missing or corrupt")
+	if row.profile_sha256 != profile.rows[0].content_sha256:
+		return _creation_properties_result("corrupt_record", "creation properties do not match their authored profile digest")
+	var authored_wire: Variant = JSON.parse_string(profile.rows[0].profile_wire)
+	if not (authored_wire is Dictionary) or not (authored_wire.get("outputs") is Dictionary):
+		return _creation_properties_result("corrupt_record", "authored profile cannot be recovered")
+	var authored: Dictionary = authored_wire
+	var outputs: Dictionary = authored.outputs
+	for output: String in CreationProfileScript.OUTPUTS:
+		if not (outputs.get(output) is Dictionary) or not _identifier(outputs[output].get("unit")):
+			return _creation_properties_result("corrupt_record", "authored profile output unit is invalid")
+	if authored.profile_id != row.profile_id or authored.profile_revision != row.profile_revision \
+		or authored.blueprint_id != row.blueprint_id or authored.blueprint_revision != row.blueprint_revision \
+		or authored.tuning_version != row.tuning_version or authored.schema_version != row.schema_version \
+		or authored.arithmetic_version != row.arithmetic_version \
+		or outputs.purity.unit != row.purity_unit or outputs.quality.unit != row.quality_unit \
+		or outputs.durability.unit != row.durability_unit:
+		return _creation_properties_result("corrupt_record", "creation properties do not match their authored pins and units")
+	var properties: Dictionary = {
+		"schema_version": row.schema_version,
+		"profile_id": row.profile_id, "profile_revision": row.profile_revision,
+		"blueprint_id": row.blueprint_id, "blueprint_revision": row.blueprint_revision,
+		"tuning_version": row.tuning_version, "arithmetic_version": row.arithmetic_version,
+		"profile_sha256": row.profile_sha256,
+		"inputs": {
+			"material_purity": row.material_purity,
+			"catalyst_quality": row.catalyst_quality,
+			"workstation_parameter": row.workstation_parameter,
+		},
+		"values": {"purity": row.purity, "quality": row.quality, "durability": row.durability},
+		"units": {"purity": row.purity_unit, "quality": row.quality_unit, "durability": row.durability_unit},
+	}
+	if JSON.stringify(_canonical(properties), "", true).sha256_text() != row.payload_sha256:
+		return _creation_properties_result("corrupt_record", "creation property payload digest does not match")
+	return _creation_properties_result("ok", "", properties)
+
+
 func _retire_record(data: Dictionary, reason: String, operation_id: String, server_tick: int) -> bool:
 	return _store.query_with_bindings("UPDATE canon_item_instances SET owner_kind = NULL, owner_id = NULL, location_kind = NULL, slot = NULL, source_id = NULL, location_index = NULL, instance_revision = ?, terminal_reason = ?, terminal_tick = ?, terminal_operation_id = ? WHERE instance_id = ? AND instance_revision = ?;", [data.instance_revision + 1, reason, server_tick, operation_id, data.instance_id, data.instance_revision]).outcome == "ok"
 
@@ -238,6 +425,19 @@ func get_instance(instance_id: String) -> Dictionary:
 	if selected.rows.is_empty():
 		return _instance_result("not_found", "instance not found")
 	return _instance_from_row(selected.rows[0])
+
+
+func get_creation_properties(instance_id: String) -> Dictionary:
+	if not _open():
+		return _creation_properties_result("not_open", "store is not open")
+	if not _identifier(instance_id):
+		return _creation_properties_result("invalid_instance_id", "item GUID is required")
+	var selected: Dictionary = _store.query_with_bindings("SELECT * FROM canon_item_creation_properties WHERE instance_id = ?;", [instance_id])
+	if selected.outcome != "ok":
+		return _creation_properties_result("query_failed", selected.detail)
+	if selected.rows.is_empty():
+		return _creation_properties_result("not_found", "creation properties not found")
+	return _creation_properties_from_row(selected.rows[0])
 
 
 func list_owner(owner: Variant) -> Dictionary:
@@ -399,6 +599,13 @@ func _fingerprint(kind: String, actor: String, operation_id: String, data: Dicti
 	return context.finish().hex_encode()
 
 
+func _creation_fingerprint(actor: String, operation_id: String, data: Dictionary, definition: ItemDefinition, owner_revision: int, location_revision: int, profile_content_sha256: String, inputs: Dictionary) -> String:
+	var context := HashingContext.new()
+	context.start(HashingContext.HASH_SHA256)
+	context.update(var_to_bytes(_canonical(["create_with_properties", actor, operation_id, data, definition.to_wire_dict(), owner_revision, location_revision, profile_content_sha256, inputs])))
+	return context.finish().hex_encode()
+
+
 func _canonical(value: Variant) -> Variant:
 	if value is Dictionary:
 		var sorted: Dictionary = {}
@@ -459,6 +666,10 @@ static func _new_receipt(kind: String, actor: String, operation_id: String, inst
 
 static func _command_result(outcome: String, detail: String, receipt: Variant = null) -> Dictionary:
 	return {"outcome": outcome, "detail": detail, "receipt": receipt}
+
+
+static func _creation_properties_result(outcome: String, detail: String, properties: Variant = null) -> Dictionary:
+	return {"outcome": outcome, "detail": detail, "properties": properties}
 
 
 static func _instance_result(outcome: String, detail: String, instance: ItemInstance = null) -> Dictionary:

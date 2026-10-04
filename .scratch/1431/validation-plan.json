@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "kind": "component",
+  "steps": [
+    {
+      "suite": "linux-services",
+      "platform": "linux",
+      "host": "192.168.1.254",
+      "command": "/data/code/project0/.venv-enrollment/bin/python -m pytest dashboard/tests -q --junitxml=build/validation/1431/dashboard-tests.xml",
+      "dependencies": ["python", "sqlite"],
+      "tests": ["dashboard/tests/test_ops_registry.py", "dashboard/tests/test_tbp_lifecycle.py", "dashboard/tests/test_tracker.py"],
+      "artifacts": ["build/validation/1431/dashboard-tests.xml"]
+    }
+  ]
+}

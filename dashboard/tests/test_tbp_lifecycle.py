@@ -598,6 +598,65 @@ def test_bands_no_definition_does_not_infer_slices_from_labels(monkeypatch):
     assert 'class="milestone-slice"' not in page
 
 
+def test_bands_gate_only_slice_is_visible_but_excluded_from_delivery_count(monkeypatch):
+    description = """## Slice Mapping
+### Slice M8.1: Delivery work
+Outcome: The delivery issue is resolved.
+Included issues:
+- #7
+Complete when: The issue is closed.
+Dependency: None.
+### Slice M8.2: Validation authority
+Outcome: Required validation gates are explicit.
+Membership: acceptance-gate-only
+Included issues:
+Complete when: All applicable gates pass.
+Dependency: Exact-source candidate.
+"""
+    member = {**_roadmap_issue(7, "Delivery issue", []), "milestone_number": 1}
+    page = _mapped_bands_page(monkeypatch, description, [member])
+
+    assert 'data-slice-id="M8.2" data-state="gate"' in page
+    assert "Acceptance gate" in page
+    assert "Slice delivery: 0/1 complete" in page
+    assert "No included issues defined." not in page
+    assert "Unresolved scope or mapping requires attention." not in page
+    detail = render_roadmap(milestone_number="1", slice_id="M8.2")
+    assert "<dt>Membership</dt><dd>Acceptance gate only</dd>" in detail
+
+
+@pytest.mark.parametrize(
+    "membership,members,expected_warning",
+    [
+        ("acceptance-gate-only", "- #7", "Acceptance-gate-only groups cannot include delivery issues."),
+        ("future-membership", "", "Unknown membership type: future-membership."),
+    ],
+)
+def test_bands_invalid_gate_membership_fails_closed(monkeypatch, membership, members, expected_warning):
+    description = (
+        "## Slice Mapping\n"
+        "### Slice M8.2: Validation authority\n"
+        "Outcome: Required validation gates are explicit.\n"
+        f"Membership: {membership}\n"
+        f"Included issues:\n{members}\n"
+        "Complete when: All applicable gates pass.\n"
+        "Dependency: Exact-source candidate.\n"
+    )
+    issues = [{**_roadmap_issue(7, "Issue 7", []), "milestone_number": 1}] if members else []
+    page = _mapped_bands_page(monkeypatch, description, issues)
+
+    assert expected_warning in page
+    assert "Unresolved scope or mapping requires attention." in page
+
+
+def test_bands_unmarked_empty_delivery_group_still_warns(monkeypatch):
+    page = _mapped_bands_page(monkeypatch, "## Slice Mapping\n" + _mapped_slice_definition(members=""), [])
+
+    assert "No included issues defined." in page
+    assert "Unresolved scope or mapping requires attention." in page
+    assert "Slice delivery: 0/1 complete" in page
+
+
 @pytest.mark.parametrize("labels,body,state,active,blocked", [
     (["tbp:in-progress", "blocked"], "", "open", 1, 1),
     (["tbp:in-progress", "blocked"], "Status: In Progress", "closed", 0, 0),

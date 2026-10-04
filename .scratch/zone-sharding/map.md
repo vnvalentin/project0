@@ -22,12 +22,19 @@ boundaries, on one runtime or a justified deployable scale path.
 ## Current Condition
 
 The game server currently owns simulation, sector-boundary handling, generation
-orchestration, and Canon writes in one runtime. Its configured 10-peer limit is
-a policy cap, not measured proof of a capacity ceiling. Cross-boundary ownership
-and handoff contracts are unproven, and there is no measured result establishing
-that one runtime is insufficient. A synchronous Canon read is reachable from
-physics-driven frontier handling, but no tick overrun or lock has been measured
-for it; profile it before proposing a refactor.
+orchestration, and Canon writes in one runtime. The latest captured M4.1 baseline
+at source `33a2752d65652043d0ea57ac08353d3404cd7b0b` failed the timing target: the
+known maximum tick was 66.875 ms and the conservative P99 lower bound was 59.557
+ms. Exact P99 remains unavailable because one observation coalesced two physics
+steps. Five journey-checkpoint calls at the peak occupied 49.292 ms in total:
+Canon read 7.113 ms, journey save 19.552 ms, and 22.627 ms inclusive remainder.
+
+The authorized, bounded countermeasure in [#1411](https://github.com/vnvalentin/project0/issues/1411)
+targets repeated Canon-derived checkpoint work while preserving synchronous
+durability. Its causal hypothesis and the post-countermeasure full-workload result
+remain unresolved; do not attribute the full overrun to the Canon read or infer
+that a process split is required. Cross-process ownership and handoff remain
+unproven. No complete post-countermeasure, 1,000-tick result is recorded yet.
 
 ## Measurable Outcome
 
@@ -73,6 +80,63 @@ experience.
   recovery; deploying multiple authorities is not implied.
 - [ ] Any process split is justified by measured capacity failure or a
   reproduced isolation failure, never by analogy alone.
+
+## Provisional TBP Feature Breakdown
+
+These are planning candidates, not GitHub Feature issues, Ready work, or delivery
+commitments. The Feature boundaries map to this Goal's own What Good Looks Like
+items; M4 slice groups and their included issues remain the delivery map.
+
+### Feature candidate: Single-runtime capacity and isolation envelope
+
+- **Advances:** What Good Looks Like item 1; M4.1.
+- **Ideal condition:** A repeatable Linux-server run records all 1,000 actual
+  ticks for 10 peers, at least four adjacent sectors, at least 50 dynamic
+  entities, and at least two aggregate boundary crossings per second. P99 is at
+  most 33.3 ms, maximum at most 50.0 ms, and all specified isolation probes have
+  attributable outcomes.
+- **Current condition:** The latest qualified baseline exceeds the tick limits;
+  exact P99 is unavailable. Checkpoint work is measured, but the avoidable cost
+  and any isolation failure are not yet causally established. #1411 is the
+  existing bounded latency investigation; do not duplicate it.
+- **Measurable component:** Complete samples and isolation evidence meet the
+  M4.1 criteria, or preserve a qualified failure that identifies which criterion
+  failed. Missing or coalesced samples cannot pass.
+- **4W partition:** Who: the authoritative Linux game server and connected
+  players. When: sustained load and sector-boundary checkpoints. Where: the
+  server physics loop, checkpoint/Canon path, and adjacent-sector isolation
+  boundaries. What: tick-budget performance, sample integrity, and containment
+  behavior.
+- **Root-cause ordering:** First establish complete per-tick observations and
+  exact source identity; then finish the existing #1411 public-seam hypothesis
+  check without weakening durability; finally rerun the unchanged M4.1 workload
+  and classify isolation probes. Create further Epic seams only where a probe or
+  measurement demonstrates a distinct problem.
+
+### Feature candidate: Evidence-based scale decision and ready-to-scale architecture
+
+- **Advances:** What Good Looks Like item 3; M4.3.
+- **Ideal condition:** M4.1 and M4.2 evidence support a reviewed decision to
+  retain one runtime or, only when a measured capacity/isolation trigger requires
+  it, a deployable architecture with explicit ownership, Canon authority,
+  generation coordination, handoff, tick, recovery, and rollback contracts.
+- **Current condition:** M4.2 parity is accepted in #1377. M4.1 has a qualified
+  failed timing result and an authorized countermeasure, but no complete
+  post-countermeasure baseline. Cross-process handoff is unproven; #205's
+  architecture decision therefore remains evidence-dependent.
+- **Measurable component:** The reviewed map/ADR cites the final M4.1/M4.2
+  evidence and selects a justified path. A single-runtime decision includes a
+  containerized package passing the full agreed workload; a split decision
+  defines the required ownership and recovery architecture. This does not
+  authorize deploying multiple authorities.
+- **4W partition:** Who: the project owner/operator and authoritative runtime
+  owners. When: after the M4.1 baseline and M4.2 parity evidence. Where: across
+  simulation, Canon, JIT generation, and any proposed runtime boundary. What:
+  choose and substantiate the smallest safe operating topology.
+- **Root-cause ordering:** M4.1's complete result and M4.2's accepted supported
+  parity precede the #205 decision. Single-runtime packaging or cross-process
+  ownership/handoff Epics are conditional branches; do not create both as
+  committed work before the evidence selects a path.
 
 ## M4 Evaluation Contract
 

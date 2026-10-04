@@ -9,10 +9,12 @@ services:
       # lives at /apps/project0/dashboard and defaults to the dedicated clone at
       # /apps/project0/dashboard/repo, mounted read-only in the container.
       - ${DASHBOARD_REPO_SOURCE:-./repo}:/repo:ro
+      - github-cache:/cache
     environment:
       GITHUB_REPO: ${GITHUB_REPO:-vnvalentin/project0}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-300}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-${GH_TOKEN:-}}
+      GITHUB_ISSUE_CACHE_SECONDS: ${GITHUB_ISSUE_CACHE_SECONDS:-1800}
+      GITHUB_CACHE_PATH: /cache/github-feed.json
       APP_FILE: /repo/dashboard/app.py
     read_only: true
     security_opt:
@@ -20,3 +22,6 @@ services:
     tmpfs:
       - /tmp
     restart: unless-stopped
+
+volumes:
+  github-cache:

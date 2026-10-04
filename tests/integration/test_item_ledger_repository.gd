@@ -2,6 +2,8 @@ extends GutTest
 
 const LedgerScript = preload("res://server/item_ledger_repository.gd")
 const StoreScript = preload("res://server/sqlite_store.gd")
+const CreationFixture = preload("res://tests/fixtures/item_creation_profile.gd")
+const ProfileScript = preload("res://server/item_creation_profile.gd")
 
 var _relative_path: String = ""
 var _store: SqliteStore = null
@@ -120,6 +122,490 @@ func test_creation_atomically_persists_identity_receipt_and_exclusive_revisions(
 	var listed: Dictionary = ledger.list_owner(original.owner)
 	assert_eq(listed.outcome, "ok")
 	assert_eq(listed.instances.size(), 1)
+
+
+func test_creation_properties_commit_with_instance_and_recover_exactly() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {
+		"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40,
+	}
+	var validated_profile: Dictionary = ProfileScript.from_wire_dict(profile_wire)
+	assert_eq(validated_profile.outcome, "ok")
+	if validated_profile.profile == null:
+		return
+	var derived: Dictionary = validated_profile.profile.derive(inputs)
+	assert_eq(derived.outcome, "ok")
+	if derived.outcome != "ok":
+		return
+	assert_eq(derived.properties.values, {"purity": 81, "quality": 65, "durability": 206})
+
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	if not ledger.has_method("create_instance_with_properties"):
+		assert_true(false, "public atomic creation-with-properties command is missing")
+		return
+	var created: Dictionary = ledger.call(
+		"create_instance_with_properties", "character:one", "operation:create",
+		original, 0, 0, profile_wire, inputs
+	)
+	assert_eq(created.outcome, "ok")
+	assert_not_null(created.get("receipt"))
+	if created.outcome != "ok" or created.get("receipt") == null:
+		return
+	assert_eq(created.receipt.instance_revision, 0)
+	assert_eq(created.receipt.owner_revision, 1)
+	assert_eq(created.receipt.location_revision, 1)
+
+	var writes: Dictionary = _store.dml_statement_counters()
+	assert_eq(writes.observation_status, "OBSERVED")
+	assert_eq(writes.totals.committed.insert, 6)
+	assert_eq(writes.by_table.canon_item_instances.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_creation_profiles.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_creation_properties.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_owners.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_locations.committed.insert, 1)
+	assert_eq(writes.by_table.canon_item_operations.committed.insert, 1)
+
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	var loaded_instance: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(loaded_instance.outcome, "ok")
+	assert_not_null(loaded_instance.instance)
+	if loaded_instance.instance == null:
+		return
+	assert_eq(loaded_instance.instance.to_wire_dict(), original)
+	assert_true(ledger.has_method("get_creation_properties"), "public companion reader is missing")
+	if not ledger.has_method("get_creation_properties"):
+		return
+	var loaded_properties: Dictionary = ledger.call("get_creation_properties", original.instance_id)
+	assert_eq(loaded_properties.outcome, "ok", str(loaded_properties))
+	assert_eq(loaded_properties.properties, derived.properties)
+	for input_name: String in ["material_purity", "catalyst_quality", "workstation_parameter"]:
+		assert_true(loaded_properties.properties.inputs[input_name] is int)
+	for value_name: String in ["purity", "quality", "durability"]:
+		assert_true(loaded_properties.properties.values[value_name] is int)
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 1)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 1)
+	var retired: Dictionary = ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "consumed", 50)
+	assert_eq(retired.outcome, "ok")
+	assert_eq(ledger.get_creation_properties(original.instance_id).properties, derived.properties)
+
+
+func test_creation_property_retry_after_retirement_preserves_committed_receipt_without_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	var created: Dictionary = ledger.create_instance_with_properties(
+		"character:one", "operation:create", original, 0, 0, profile_wire, inputs
+	)
+	assert_eq(created.outcome, "ok")
+	if created.outcome != "ok":
+		return
+	var committed_properties: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(committed_properties.outcome, "ok")
+	if committed_properties.outcome != "ok":
+		return
+	var retired: Dictionary = ledger.retire_instance(
+		"character:one", "operation:retire", original, 1, 1, "consumed", 50
+	)
+	assert_eq(retired.outcome, "ok")
+	if retired.outcome != "ok":
+		return
+	var expected_terminal: Dictionary = original.duplicate(true)
+	expected_terminal.owner = null
+	expected_terminal.location = null
+	expected_terminal.instance_revision = 1
+	expected_terminal.terminal = {"reason": "consumed", "operation_id": "operation:retire", "server_tick": 50}
+
+	_store.close()
+	_store = StoreScript.new()
+	var opened: Dictionary = _store.open(_relative_path)
+	assert_eq(opened.outcome, "ok")
+	if opened.outcome != "ok":
+		return
+	ledger = LedgerScript.new(_store)
+	var observation: Dictionary = _store.start_dml_observation()
+	assert_eq(observation.observation_status, "OBSERVED")
+	if observation.observation_status != "OBSERVED":
+		return
+	var retry: Dictionary = original.duplicate(true)
+	retry.acquisition.server_tick = 12345
+	var retried: Dictionary = ledger.create_instance_with_properties(
+		"character:one", "operation:create", retry, 0, 0, profile_wire, inputs
+	)
+	assert_true(retried == created, "1435 exact creation replay returns original committed result after retirement")
+
+	var current: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(current.outcome, "ok")
+	assert_not_null(current.instance, "1435 replay requires the committed terminal snapshot")
+	if current.outcome != "ok" or current.instance == null:
+		return
+	assert_true(current.instance.to_wire_dict() == expected_terminal, "1435 replay preserves the terminal item")
+	var recovered_properties: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(recovered_properties.outcome, "ok")
+	if recovered_properties.outcome != "ok":
+		return
+	assert_true(recovered_properties.properties == committed_properties.properties, "1435 replay preserves immutable creation properties")
+	var owner_revision: Dictionary = ledger.get_owner_revision(original.owner)
+	var location_revision: Dictionary = ledger.get_location_revision(original.owner, original.location)
+	assert_eq(owner_revision.outcome, "ok")
+	assert_eq(location_revision.outcome, "ok")
+	assert_eq(owner_revision.revision, 2)
+	assert_eq(location_revision.revision, 2)
+	var active_items: Dictionary = ledger.list_owner(original.owner)
+	assert_eq(active_items.outcome, "ok")
+	assert_eq(active_items.instances.size(), 0)
+	_assert_no_writes("1435-creation-properties-retired-retry-zero")
+
+
+func test_creation_property_retry_rejects_altered_immutable_instance_without_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var other_definition: Dictionary = _definition_wire()
+	other_definition.definition_revision = "edition:other"
+	assert_eq(ledger.register_definition(other_definition).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	assert_eq(ledger.create_instance_with_properties("character:one", "operation:create", original, 0, 0, profile_wire, inputs).outcome, "ok")
+	assert_eq(ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "consumed", 50).outcome, "ok")
+	var committed_properties: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(committed_properties.outcome, "ok")
+	if committed_properties.outcome != "ok":
+		return
+	var changes: Array[Dictionary] = [
+		{"scenario": "quantity", "sql": "UPDATE canon_item_instances SET quantity = ? WHERE instance_id = ?;", "altered": 2, "original": 1},
+		{"scenario": "acquisition-source", "sql": "UPDATE canon_item_instances SET acquisition_source_id = ? WHERE instance_id = ?;", "altered": "source:altered", "original": "source:smith"},
+		{"scenario": "acquisition-operation", "sql": "UPDATE canon_item_instances SET acquisition_operation_id = ? WHERE instance_id = ?;", "altered": "operation:altered", "original": "operation:create"},
+		{"scenario": "definition-pin", "sql": "UPDATE canon_item_instances SET definition_revision = ? WHERE instance_id = ?;", "altered": "edition:other", "original": "edition:one"},
+	]
+	for change: Dictionary in changes:
+		var injected: Dictionary = _store.query_with_bindings(change.sql, [change.altered, original.instance_id])
+		assert_eq(injected.outcome, "ok")
+		if injected.outcome != "ok":
+			return
+		_store.close()
+		_store = StoreScript.new()
+		var opened: Dictionary = _store.open(_relative_path)
+		assert_eq(opened.outcome, "ok")
+		if opened.outcome != "ok":
+			return
+		ledger = LedgerScript.new(_store)
+		var altered: Dictionary = ledger.get_instance(original.instance_id)
+		assert_eq(altered.outcome, "ok", "1435 corruption fixture remains structurally valid")
+		assert_not_null(altered.instance, "1435 corruption fixture requires a retained instance")
+		if altered.outcome != "ok" or altered.instance == null:
+			return
+		var retained: Dictionary = altered.instance.to_wire_dict()
+		var observation: Dictionary = _store.start_dml_observation()
+		assert_eq(observation.observation_status, "OBSERVED")
+		if observation.observation_status != "OBSERVED":
+			return
+		var retried: Dictionary = ledger.create_instance_with_properties("character:one", "operation:create", original, 0, 0, profile_wire, inputs)
+		assert_eq(retried.outcome, "corrupt_record", "1435 altered immutable creation identity rejects")
+		assert_null(retried.receipt)
+		var current: Dictionary = ledger.get_instance(original.instance_id)
+		assert_eq(current.outcome, "ok")
+		assert_not_null(current.instance, "1435 immutable corruption is preserved")
+		if current.outcome != "ok" or current.instance == null:
+			return
+		assert_true(current.instance.to_wire_dict() == retained, "1435 replay never repairs immutable corruption")
+		var properties: Dictionary = ledger.get_creation_properties(original.instance_id)
+		assert_eq(properties.outcome, "ok")
+		if properties.outcome != "ok":
+			return
+		assert_true(properties.properties == committed_properties.properties, "1435 rejected replay preserves the companion")
+		_assert_no_writes("1435-immutable-" + change.scenario + "-zero")
+		assert_eq(_store.query_with_bindings(change.sql, [change.original, original.instance_id]).outcome, "ok")
+
+
+func test_creation_property_retry_rejects_missing_or_corrupt_companion_without_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	assert_eq(ledger.create_instance_with_properties("character:one", "operation:create", original, 0, 0, profile_wire, inputs).outcome, "ok")
+	assert_eq(ledger.retire_instance("character:one", "operation:retire", original, 1, 1, "consumed", 50).outcome, "ok")
+	var committed: Dictionary = ledger.get_instance(original.instance_id)
+	assert_eq(committed.outcome, "ok")
+	assert_not_null(committed.instance, "1435 companion fixture requires a terminal instance")
+	if committed.outcome != "ok" or committed.instance == null:
+		return
+	var terminal: Dictionary = committed.instance.to_wire_dict()
+	for fault: String in ["corrupt", "missing"]:
+		var injected: Dictionary
+		if fault == "corrupt":
+			injected = _store.query_with_bindings("UPDATE canon_item_creation_properties SET durability = durability + 1 WHERE instance_id = ?;", [original.instance_id])
+		else:
+			injected = _store.query_with_bindings("DELETE FROM canon_item_creation_properties WHERE instance_id = ?;", [original.instance_id])
+		assert_eq(injected.outcome, "ok")
+		if injected.outcome != "ok":
+			return
+		_store.close()
+		_store = StoreScript.new()
+		var opened: Dictionary = _store.open(_relative_path)
+		assert_eq(opened.outcome, "ok")
+		if opened.outcome != "ok":
+			return
+		ledger = LedgerScript.new(_store)
+		var expected: String = "corrupt_record" if fault == "corrupt" else "not_found"
+		assert_eq(ledger.get_creation_properties(original.instance_id).outcome, expected)
+		var observation: Dictionary = _store.start_dml_observation()
+		assert_eq(observation.observation_status, "OBSERVED")
+		if observation.observation_status != "OBSERVED":
+			return
+		var retried: Dictionary = ledger.create_instance_with_properties("character:one", "operation:create", original, 0, 0, profile_wire, inputs)
+		assert_eq(retried.outcome, "corrupt_record", "1435 incomplete immutable companion rejects")
+		assert_null(retried.receipt)
+		assert_eq(ledger.get_creation_properties(original.instance_id).outcome, expected)
+		var current: Dictionary = ledger.get_instance(original.instance_id)
+		assert_eq(current.outcome, "ok")
+		assert_not_null(current.instance, "1435 companion failure preserves the terminal instance")
+		if current.outcome != "ok" or current.instance == null:
+			return
+		assert_true(current.instance.to_wire_dict() == terminal, "1435 companion failure never revives the item")
+		_assert_no_writes("1435-companion-" + fault + "-zero")
+
+
+func test_creation_properties_reject_different_self_consistent_authored_content_after_reopen() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	var schema: Dictionary = ledger.ensure_schema()
+	assert_eq(schema.outcome, "ok", "1436 fixture schema is ready")
+	if schema.outcome != "ok":
+		return
+	var definition: Dictionary = ledger.register_definition(_definition_wire())
+	assert_eq(definition.outcome, "ok", "1436 pinned definition is ready")
+	if definition.outcome != "ok":
+		return
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	var validated: Dictionary = ProfileScript.from_wire_dict(profile_wire)
+	assert_eq(validated.outcome, "ok", "1436 original authored profile validates")
+	assert_not_null(validated.profile, "1436 original profile is required")
+	if validated.outcome != "ok" or validated.profile == null:
+		return
+	var derived: Dictionary = validated.profile.derive(inputs)
+	assert_eq(derived.outcome, "ok", "1436 original creation inputs validate")
+	assert_not_null(derived.properties, "1436 original derived properties are required")
+	if derived.outcome != "ok" or derived.properties == null:
+		return
+	var created: Dictionary = ledger.create_instance_with_properties("character:one", "operation:create", original, 0, 0, profile_wire, inputs)
+	assert_eq(created.outcome, "ok", "1436 atomic creation succeeds")
+	if created.outcome != "ok":
+		return
+	var healthy: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_eq(healthy.outcome, "ok", "1436 original companion recovers")
+	assert_not_null(healthy.properties, "1436 original companion is required")
+	if healthy.outcome != "ok" or healthy.properties == null:
+		return
+	assert_true(healthy.properties == derived.properties, "1436 healthy companion matches the original profile")
+	assert_true(healthy.properties.values == {"purity": 81, "quality": 65, "durability": 206}, "1436 fixture values remain exact")
+	var profile_before: Dictionary = _store.query_with_bindings(
+		"SELECT content_sha256, profile_wire FROM canon_item_creation_profiles WHERE profile_id = ? AND profile_revision = ?;",
+		[profile_wire.profile_id, profile_wire.profile_revision]
+	)
+	assert_eq(profile_before.outcome, "ok", "1436 original profile query succeeds")
+	assert_eq(profile_before.rows.size(), 1, "1436 original profile row exists")
+	if profile_before.outcome != "ok" or profile_before.rows.size() != 1:
+		return
+	assert_true(profile_before.rows[0].profile_wire == JSON.stringify(profile_wire, "", true), "1436 original typed profile matches stored JSON")
+	assert_eq(profile_before.rows[0].content_sha256, derived.properties.profile_sha256, "1436 original profile matches the derived digest")
+	assert_eq(profile_before.rows[0].content_sha256, profile_before.rows[0].profile_wire.sha256_text(), "1436 original profile self-digest is consistent")
+	var companion_before: Dictionary = _store.query_with_bindings(
+		"SELECT * FROM canon_item_creation_properties WHERE instance_id = ?;", [original.instance_id]
+	)
+	assert_eq(companion_before.outcome, "ok", "1436 original companion query succeeds")
+	assert_eq(companion_before.rows.size(), 1, "1436 original companion row exists")
+	if companion_before.outcome != "ok" or companion_before.rows.size() != 1:
+		return
+	assert_eq(companion_before.rows[0].profile_sha256, profile_before.rows[0].content_sha256, "1436 original records pin identical content")
+
+	# Owned corruption fixture: alter only authored content and its self-digest.
+	# Keep pins, units, committed companion, receipt and item state unchanged.
+	assert_eq(profile_wire.outputs.durability.offset, 10, "1436 original fixture offset is fixed")
+	var changed_profile: Dictionary = profile_wire.duplicate(true)
+	changed_profile.outputs.durability.offset = 12
+	var changed_validation: Dictionary = ProfileScript.from_wire_dict(changed_profile)
+	assert_eq(changed_validation.outcome, "ok", "1436 conflicting profile remains structurally valid")
+	assert_not_null(changed_validation.profile, "1436 conflicting profile is required")
+	if changed_validation.outcome != "ok" or changed_validation.profile == null:
+		return
+	var changed_json: String = JSON.stringify(changed_profile, "", true)
+	var changed_digest: String = changed_json.sha256_text()
+	assert_ne(changed_digest, companion_before.rows[0].profile_sha256, "1436 content digest actually differs")
+	var changed: Dictionary = _store.query_with_bindings(
+		"UPDATE canon_item_creation_profiles SET profile_wire = ?, content_sha256 = ? WHERE profile_id = ? AND profile_revision = ?;",
+		[changed_json, changed_digest, profile_wire.profile_id, profile_wire.profile_revision]
+	)
+	assert_eq(changed.outcome, "ok", "1436 owned profile-only corruption succeeds")
+	if changed.outcome != "ok":
+		return
+	_store.close()
+	_store = StoreScript.new()
+	var reopened: Dictionary = _store.open(_relative_path)
+	assert_eq(reopened.outcome, "ok", "1436 owned database reopens")
+	if reopened.outcome != "ok":
+		return
+	ledger = LedgerScript.new(_store)
+	var observation: Dictionary = _store.start_dml_observation()
+	assert_eq(observation.observation_status, "OBSERVED", "1436 recovery DML is observed")
+	if observation.observation_status != "OBSERVED":
+		return
+
+	var recovered: Dictionary = ledger.get_creation_properties(original.instance_id)
+	assert_true(recovered.outcome == "corrupt_record" and recovered.properties == null, "1436 recovered creation properties reject conflicting authored profile digest")
+	var profile_after: Dictionary = _store.query_with_bindings(
+		"SELECT content_sha256, profile_wire FROM canon_item_creation_profiles WHERE profile_id = ? AND profile_revision = ?;",
+		[profile_wire.profile_id, profile_wire.profile_revision]
+	)
+	assert_eq(profile_after.outcome, "ok", "1436 conflicting profile remains readable")
+	assert_true(profile_after.rows == [{"content_sha256": changed_digest, "profile_wire": changed_json}], "1436 conflicting authored content is preserved")
+	var companion_after: Dictionary = _store.query_with_bindings(
+		"SELECT * FROM canon_item_creation_properties WHERE instance_id = ?;", [original.instance_id]
+	)
+	assert_eq(companion_after.outcome, "ok", "1436 committed companion remains readable")
+	assert_true(companion_after.rows == companion_before.rows, "1436 committed companion and its original digest are preserved")
+	_assert_no_writes("creation-properties-profile-cross-digest-zero")
+
+
+func test_creation_property_operation_keys_remain_actor_scoped() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	var first: Dictionary = ledger.call("create_instance_with_properties", "character:one", "operation:create", _instance_wire(), 0, 0, profile_wire, inputs)
+	assert_eq(first.outcome, "ok")
+	var second_wire: Dictionary = _instance_wire()
+	second_wire.instance_id = "instance:other-sword"
+	second_wire.owner.id = "character:other"
+	var second: Dictionary = ledger.call("create_instance_with_properties", "character:other", "operation:create", second_wire, 0, 0, profile_wire, inputs)
+	assert_eq(second.outcome, "ok", "the same operation key is independent for another actor")
+	assert_eq(first.receipt.operation_id, second.receipt.operation_id)
+	assert_ne(first.receipt.actor_character_id, second.receipt.actor_character_id)
+	assert_eq(ledger.get_creation_properties("instance:sword").outcome, "ok")
+	assert_eq(ledger.get_creation_properties("instance:other-sword").outcome, "ok")
+
+
+func test_creation_property_replay_conflicts_and_rejections_issue_no_writes() -> void:
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {
+		"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40,
+	}
+	var created: Dictionary = ledger.call("create_instance_with_properties", "character:one", "operation:create", original, 0, 0, profile_wire, inputs)
+	assert_eq(created.outcome, "ok")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+
+	var replay_wire: Dictionary = original.duplicate(true)
+	replay_wire.acquisition.server_tick = 1234
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:create", replay_wire, 0, 0, profile_wire, inputs), created)
+	var changed_inputs: Dictionary = inputs.duplicate(true)
+	changed_inputs.material_purity = 82
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:create", original, 0, 0, profile_wire, changed_inputs).outcome, "operation_conflict")
+	var changed_profile: Dictionary = profile_wire.duplicate(true)
+	changed_profile.outputs.durability.offset += 1
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:create", original, 0, 0, changed_profile, inputs).outcome, "profile_conflict")
+	var unsupported_profile: Dictionary = profile_wire.duplicate(true)
+	unsupported_profile.arithmetic_version = 2
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:unsupported", original, 0, 0, unsupported_profile, inputs).outcome, "invalid_creation_profile")
+	var invalid_inputs: Dictionary = inputs.duplicate(true)
+	invalid_inputs.material_purity = 81.0
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:invalid-input", original, 0, 0, profile_wire, invalid_inputs).outcome, "invalid_creation_inputs")
+	var stale: Dictionary = original.duplicate(true)
+	stale.instance_id = "instance:stale"
+	stale.acquisition.operation_id = "operation:stale"
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:stale", stale, 0, 0, profile_wire, inputs).outcome, "stale_revision")
+	var duplicate: Dictionary = original.duplicate(true)
+	duplicate.acquisition.operation_id = "operation:duplicate"
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:duplicate", duplicate, 1, 1, profile_wire, inputs).outcome, "identity_exists")
+	var illegal: Dictionary = original.duplicate(true)
+	illegal.instance_id = "instance:illegal"
+	illegal.acquisition.operation_id = "operation:illegal"
+	illegal.owner.id = " "
+	assert_eq(ledger.call("create_instance_with_properties", "character:one", "operation:illegal", illegal, 1, 1, profile_wire, inputs).outcome, "invalid_instance")
+	_assert_no_writes("creation-properties-rejections-zero")
+
+
+func test_creation_property_failure_before_companion_rolls_back_instance_profile_and_revisions() -> void:
+	_install_creation_properties_constraint()
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var failed: Dictionary = ledger.call("create_instance_with_properties", "character:one", "operation:create", original, 0, 0, profile_wire, inputs)
+	assert_eq(failed.outcome, "transaction_failed")
+	var writes: Dictionary = _store.dml_statement_counters()
+	assert_eq(writes.totals.attempted.insert, 5)
+	assert_eq(writes.totals.failed.insert, 1)
+	assert_eq(writes.totals.rolled_back.insert, 4)
+	assert_eq(writes.totals.committed.insert, 0)
+	assert_eq(writes.by_table.canon_item_creation_properties.failed.insert, 1)
+	_record_observation("creation-properties-companion-rollback")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	assert_eq(ledger.get_instance(original.instance_id).outcome, "not_found")
+	assert_eq(ledger.get_creation_properties(original.instance_id).outcome, "not_found")
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 0)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 0)
+	assert_eq(_store.query("SELECT COUNT(*) AS count FROM canon_item_creation_profiles;").rows[0].count, 0)
+	assert_eq(_store.query("SELECT COUNT(*) AS count FROM canon_item_operations;").rows[0].count, 0)
+
+
+func test_creation_property_failure_at_receipt_rolls_back_companion_and_all_state() -> void:
+	_install_receipt_constraint()
+	var ledger: ItemLedgerRepository = LedgerScript.new(_store)
+	assert_eq(ledger.ensure_schema().outcome, "ok")
+	assert_eq(ledger.register_definition(_definition_wire()).outcome, "ok")
+	var original: Dictionary = _instance_wire()
+	original.acquisition.operation_id = "operation:fault"
+	var profile_wire: Dictionary = CreationFixture.authored()
+	var inputs: Dictionary = {"material_purity": 81, "catalyst_quality": 60, "workstation_parameter": 40}
+	assert_eq(_store.start_dml_observation().observation_status, "OBSERVED")
+	var failed: Dictionary = ledger.call("create_instance_with_properties", "character:one", "operation:fault", original, 0, 0, profile_wire, inputs)
+	assert_eq(failed.outcome, "transaction_failed")
+	var writes: Dictionary = _store.dml_statement_counters()
+	assert_eq(writes.totals.attempted.insert, 6)
+	assert_eq(writes.totals.failed.insert, 1)
+	assert_eq(writes.totals.rolled_back.insert, 5)
+	assert_eq(writes.totals.committed.insert, 0)
+	assert_eq(writes.by_table.canon_item_creation_properties.rolled_back.insert, 1)
+	assert_eq(writes.by_table.canon_item_operations.failed.insert, 1)
+	_record_observation("creation-properties-receipt-rollback")
+	_store.close()
+	_store = StoreScript.new()
+	assert_eq(_store.open(_relative_path).outcome, "ok")
+	ledger = LedgerScript.new(_store)
+	assert_eq(ledger.get_instance(original.instance_id).outcome, "not_found")
+	assert_eq(ledger.get_creation_properties(original.instance_id).outcome, "not_found")
+	assert_eq(ledger.get_owner_revision(original.owner).revision, 0)
+	assert_eq(ledger.get_location_revision(original.owner, original.location).revision, 0)
+	assert_eq(_store.query("SELECT COUNT(*) AS count FROM canon_item_creation_profiles;").rows[0].count, 0)
+	assert_eq(_store.query("SELECT COUNT(*) AS count FROM canon_item_operations;").rows[0].count, 0)
 
 
 func test_retirement_is_atomic_irreversible_and_preserves_original_success_receipts() -> void:
@@ -329,6 +815,20 @@ func _install_receipt_constraint() -> void:
 		operation_kind TEXT NOT NULL, fingerprint TEXT NOT NULL, instance_id TEXT NOT NULL,
 		instance_revision INTEGER NOT NULL, owner_revision INTEGER NOT NULL, location_revision INTEGER NOT NULL,
 		PRIMARY KEY (actor_character_id, operation_id)
+	);""").outcome, "ok")
+
+
+func _install_creation_properties_constraint() -> void:
+	assert_eq(_store.query("""CREATE TABLE canon_item_creation_properties (
+		instance_id TEXT PRIMARY KEY NOT NULL CHECK (instance_id <> 'instance:sword'),
+		schema_version INTEGER NOT NULL, profile_id TEXT NOT NULL, profile_revision TEXT NOT NULL,
+		profile_sha256 TEXT NOT NULL, blueprint_id TEXT NOT NULL, blueprint_revision TEXT NOT NULL,
+		tuning_version TEXT NOT NULL, arithmetic_version INTEGER NOT NULL,
+		material_purity INTEGER NOT NULL, catalyst_quality INTEGER NOT NULL, workstation_parameter INTEGER NOT NULL,
+		purity INTEGER NOT NULL, quality INTEGER NOT NULL, durability INTEGER NOT NULL,
+		purity_unit TEXT NOT NULL, quality_unit TEXT NOT NULL, durability_unit TEXT NOT NULL,
+		FOREIGN KEY (instance_id) REFERENCES canon_item_instances(instance_id),
+		FOREIGN KEY (profile_id, profile_revision) REFERENCES canon_item_creation_profiles(profile_id, profile_revision)
 	);""").outcome, "ok")
 
 

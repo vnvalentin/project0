@@ -2,24 +2,47 @@ extends GutTest
 ## GUT migration of Slice 003's LAN configuration smoke test.
 
 const NetworkConfigScript: Script = preload("res://shared/network_config.gd")
+const NETWORK_ENVIRONMENT_VARIABLES: Array[String] = [
+	NetworkConfigScript.BIND_ADDRESS_ENV_VAR,
+	NetworkConfigScript.TARGET_HOST_ENV_VAR,
+	NetworkConfigScript.SERVER_PORT_ENV_VAR,
+]
 
 
 func test_defaults_to_localhost_with_no_override() -> void:
+	var original_environment: Dictionary = _capture_network_environment()
+	for variable: String in NETWORK_ENVIRONMENT_VARIABLES:
+		OS.unset_environment(variable)
+
+	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
+	var target_host: String = NetworkConfigScript.resolve_client_target_host()
+	var server_port: int = NetworkConfigScript.resolve_server_port()
+	_restore_network_environment(original_environment)
+
+	assert_true(_capture_network_environment() == original_environment, "default check restores inherited environment")
+	assert_eq(bind_address, NetworkConfigScript.SERVER_ADDRESS, "server bind address defaults to localhost")
 	assert_eq(
-		NetworkConfigScript.resolve_server_bind_address(),
-		NetworkConfigScript.SERVER_ADDRESS,
-		"server bind address defaults to localhost"
-	)
-	assert_eq(
-		NetworkConfigScript.resolve_client_target_host(),
+		target_host,
 		NetworkConfigScript.DEFAULT_TARGET_HOST,
 		"client target host defaults to WAN default target host"
 	)
-	assert_eq(
-		NetworkConfigScript.resolve_server_port(),
-		NetworkConfigScript.SERVER_PORT,
-		"server port defaults to the shared default"
-	)
+	assert_eq(server_port, NetworkConfigScript.SERVER_PORT, "server port defaults to the shared default")
+
+
+func test_empty_network_environment_overrides_fall_back_to_defaults() -> void:
+	var original_environment: Dictionary = _capture_network_environment()
+	for variable: String in NETWORK_ENVIRONMENT_VARIABLES:
+		OS.set_environment(variable, "")
+
+	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
+	var target_host: String = NetworkConfigScript.resolve_client_target_host()
+	var server_port: int = NetworkConfigScript.resolve_server_port()
+	_restore_network_environment(original_environment)
+
+	assert_true(_capture_network_environment() == original_environment, "empty-override check restores inherited environment")
+	assert_eq(bind_address, NetworkConfigScript.SERVER_ADDRESS)
+	assert_eq(target_host, NetworkConfigScript.DEFAULT_TARGET_HOST)
+	assert_eq(server_port, NetworkConfigScript.SERVER_PORT)
 
 
 func test_cli_arg_overrides_bind_address_on_real_server() -> void:
@@ -139,18 +162,45 @@ func _reserve_ephemeral_port() -> int:
 
 
 func test_server_port_env_override_and_invalid_fallback() -> void:
+	var original_environment: Dictionary = _capture_network_environment()
+	OS.set_environment(NetworkConfigScript.BIND_ADDRESS_ENV_VAR, "0.0.0.0")
+	OS.set_environment(NetworkConfigScript.TARGET_HOST_ENV_VAR, "play.example.com")
 	OS.set_environment(NetworkConfigScript.SERVER_PORT_ENV_VAR, "40000")
-	assert_eq(NetworkConfigScript.resolve_server_port(), 40000, "env var overrides the server port")
+	var bind_address: String = NetworkConfigScript.resolve_server_bind_address()
+	var target_host: String = NetworkConfigScript.resolve_client_target_host()
+	var server_port: int = NetworkConfigScript.resolve_server_port()
 	OS.set_environment(NetworkConfigScript.SERVER_PORT_ENV_VAR, "not-a-port")
-	assert_eq(
-		NetworkConfigScript.resolve_server_port(),
-		NetworkConfigScript.SERVER_PORT,
-		"a non-numeric env port falls back to the default"
-	)
+	var invalid_server_port: int = NetworkConfigScript.resolve_server_port()
 	OS.set_environment(NetworkConfigScript.SERVER_PORT_ENV_VAR, "70000")
+	var out_of_range_server_port: int = NetworkConfigScript.resolve_server_port()
+	_restore_network_environment(original_environment)
+
+	assert_true(_capture_network_environment() == original_environment, "populated-override check restores inherited environment")
+	assert_eq(bind_address, "0.0.0.0", "env var overrides the server bind address")
+	assert_eq(target_host, "play.example.com", "env var overrides the client target host")
+	assert_eq(server_port, 40000, "env var overrides the server port")
+	assert_eq(invalid_server_port, NetworkConfigScript.SERVER_PORT, "a non-numeric env port falls back to the default")
 	assert_eq(
-		NetworkConfigScript.resolve_server_port(),
+		out_of_range_server_port,
 		NetworkConfigScript.SERVER_PORT,
 		"an out-of-range env port falls back to the default"
 	)
-	OS.set_environment(NetworkConfigScript.SERVER_PORT_ENV_VAR, "")
+
+
+func _capture_network_environment() -> Dictionary:
+	var snapshot: Dictionary = {}
+	for variable: String in NETWORK_ENVIRONMENT_VARIABLES:
+		snapshot[variable] = {
+			"present": OS.has_environment(variable),
+			"value": OS.get_environment(variable),
+		}
+	return snapshot
+
+
+func _restore_network_environment(snapshot: Dictionary) -> void:
+	for variable: String in NETWORK_ENVIRONMENT_VARIABLES:
+		var original: Dictionary = snapshot[variable]
+		if original["present"]:
+			OS.set_environment(variable, original["value"])
+		else:
+			OS.unset_environment(variable)
