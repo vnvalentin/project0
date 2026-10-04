@@ -149,6 +149,34 @@ func test_checkpoint_metadata_refreshes_equivalent_reordered_json() -> void:
 	assert_eq(refreshed["sector_geometry_hash"], original["sector_geometry_hash"])
 
 
+func test_checkpoint_metadata_refreshes_after_geometry_change() -> void:
+	assert_eq(_repository.canonicalize_blueprint(_blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	var sector_id: String = String(_blueprint["sector_id"])
+	assert_true(_repository.has_method("get_checkpoint_metadata"), "Canon exposes authoritative derived checkpoint metadata")
+	if not _repository.has_method("get_checkpoint_metadata"):
+		return
+	var original: Dictionary = _repository.call("get_checkpoint_metadata", sector_id)
+	var changed_blueprint: Dictionary = _blueprint.duplicate(true)
+	changed_blueprint["tiles"][0]["x"] = int(changed_blueprint["tiles"][0]["x"]) + 1
+	var changed_json: String = JSON.stringify(changed_blueprint)
+	_store.close()
+	var writer: SqliteStore = SqliteStoreScript.new()
+	assert_eq(writer.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var update: Dictionary = writer.query_with_bindings(
+		"UPDATE canon_sectors SET blueprint_json = ? WHERE sector_id = ?;",
+		[changed_json, sector_id]
+	)
+	assert_eq(update["outcome"], SqliteStoreScript.OUTCOME_OK)
+	writer.close()
+	assert_eq(_store.open(_relative_path)["outcome"], SqliteStoreScript.OUTCOME_OK)
+	var refreshed: Dictionary = _repository.call("get_checkpoint_metadata", sector_id)
+	var legacy_read: Dictionary = _repository.get_canonical_sector(sector_id)
+	assert_eq(refreshed["outcome"], CanonRepositoryScript.OUTCOME_OK)
+	assert_eq(refreshed["sector_revision"], original["sector_revision"])
+	assert_eq(refreshed["sector_geometry_hash"], JSON.stringify(legacy_read["sector"]["blueprint"]).md5_text())
+	assert_ne(refreshed["sector_geometry_hash"], original["sector_geometry_hash"])
+
+
 func test_checkpoint_metadata_does_not_outlive_missing_canon() -> void:
 	assert_eq(_repository.canonicalize_blueprint(_blueprint)["outcome"], CanonRepositoryScript.OUTCOME_OK)
 	var sector_id: String = String(_blueprint["sector_id"])

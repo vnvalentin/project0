@@ -119,6 +119,7 @@ expected = {
   "test_checkpoint_metadata_matches_existing_canon_read",
   "test_checkpoint_metadata_refreshes_schema_only_change_after_reopen",
   "test_checkpoint_metadata_refreshes_equivalent_reordered_json",
+  "test_checkpoint_metadata_refreshes_after_geometry_change",
   "test_checkpoint_metadata_does_not_outlive_missing_canon",
   "test_checkpoint_metadata_uses_canon_created_after_initial_miss",
   "test_checkpoint_metadata_preserves_empty_not_open_and_query_failed_results",
@@ -126,7 +127,7 @@ expected = {
 }
 by_name = {case.get("name"): case for case in cases}
 assert int(sys.argv[3]) == (1 if mode == "red" else 0), f"unexpected GUT exit for {mode} run"
-assert len(cases) == 14 and set(by_name) == expected | {
+assert len(cases) == 15 and set(by_name) == expected | {
   "test_first_write_and_restart_recovery",
   "test_same_blueprint_is_idempotent",
   "test_conflicting_blueprint_cannot_replace_canon",
