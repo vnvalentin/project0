@@ -657,6 +657,21 @@ def test_bands_unmarked_empty_delivery_group_still_warns(monkeypatch):
     assert "Slice delivery: 0/1 complete" in page
 
 
+def test_bands_gate_only_requires_explicit_empty_included_issues(monkeypatch):
+    description = """## Slice Mapping
+### Slice M8.2: Validation authority
+Outcome: Required validation gates are explicit.
+Membership: acceptance-gate-only
+Complete when: All applicable gates pass.
+Dependency: Exact-source candidate.
+"""
+    page = _mapped_bands_page(monkeypatch, description, [])
+
+    assert "Acceptance-gate-only groups must define an empty Included issues field." in page
+    assert "Unresolved scope or mapping requires attention." in page
+    assert "No included issues defined." not in page
+
+
 @pytest.mark.parametrize("labels,body,state,active,blocked", [
     (["tbp:in-progress", "blocked"], "", "open", 1, 1),
     (["tbp:in-progress", "blocked"], "Status: In Progress", "closed", 0, 0),
